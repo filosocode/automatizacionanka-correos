@@ -6,7 +6,7 @@ import argparse
 import base64
 from collections import Counter
 import html
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 import re
@@ -2254,7 +2254,8 @@ def review_ui(host: str, port: int, open_browser: bool = True) -> None:
     print("Deja esta ventana abierta. Presiona Ctrl+C para cerrar.")
     if open_browser:
         webbrowser.open(url)
-    server = HTTPServer((host, port), ReviewHandler)
+    server = ThreadingHTTPServer((host, port), ReviewHandler)
+    server.daemon_threads = True
     try:
         server.serve_forever()
     except KeyboardInterrupt:
