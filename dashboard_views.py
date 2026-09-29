@@ -6,7 +6,30 @@ import html
 from collections import Counter
 
 
-def render_page(title: str, body: str, message: str = "", unread_count: int = 0) -> str:
+MODE_LABELS = {
+    "local": "Ollama (local)",
+    "api": "API de OpenAI",
+    "chatgpt_work": "ChatGPT Work",
+}
+
+
+def mode_selector(current: str | None) -> str:
+    options = "".join(
+        f"<option value='{value}'{' selected' if value == current else ''}>{html.escape(label)}</option>"
+        for value, label in MODE_LABELS.items()
+    )
+    if current not in MODE_LABELS:
+        options = "<option value='' selected disabled>Sin configurar</option>" + options
+    return (
+        "<form method=\"post\" action=\"/mode\" class=\"mode-form\">"
+        "<label for=\"mode\">Motor</label>"
+        f"<select id=\"mode\" name=\"mode\">{options}</select>"
+        "<button type=\"submit\" class=\"secondary\">Cambiar</button></form>"
+    )
+
+
+def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
+                mode: str | None = None) -> str:
     notice = f"<div class='notice'>{html.escape(message)}</div>" if message else ""
     notification_badge = (
         f"<span class='nav-count'>{unread_count}</span>" if unread_count else ""
@@ -80,6 +103,8 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0)
       gap: 18px; margin-bottom: 22px;
     }}
     .page-head p {{ margin: 5px 0 0; color: var(--muted); }}
+    .mode-form {{ display: flex; gap: 6px; align-items: center; }}
+    .mode-form label {{ font-size: 13px; color: var(--muted); }}
     .toolbar {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }}
     .button, button {{
       border: 0;
@@ -247,6 +272,7 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0)
     <div class="brand"><span class="brand-mark">A</span><div><strong>Anka</strong><span>Inteligencia comercial</span></div></div>
     <nav><a href="/">Resumen{notification_badge}</a><a href="/requests">Solicitudes</a></nav>
     <div class="toolbar">
+      {mode_selector(mode)}
       <form method="post" action="/refresh">
         <button type="submit">Actualizar correo</button>
       </form>

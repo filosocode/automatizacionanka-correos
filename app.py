@@ -219,24 +219,38 @@ def write_config(config: dict) -> None:
     )
 
 
-def set_mode(mode: str) -> None:
+def set_mode(mode: str) -> str:
+    """Cambia el motor activo en config.json y devuelve un mensaje para el usuario."""
     if mode not in ACTIVE_MODES:
         raise SystemExit("Usa local, api o chatgpt_work.")
     config = load_config()
+    if mode == "api" and not os.getenv("OPENAI_API_KEY"):
+        raise SystemExit(
+            "No se cambió a API: falta la variable de entorno OPENAI_API_KEY."
+        )
     config["active_mode"] = mode
     if mode == "local":
         config.setdefault("llm", {})["provider"] = "ollama"
         config["llm"].setdefault("model", "qwen2.5:7b")
         config["llm"].setdefault("base_url", "http://127.0.0.1:11434")
-        print("Modo local activado. Usa Ollama y el bot Python.")
+        message = (
+            "Modo local activado: Ollama y bot Python. "
+            "Asegúrate de que la tarea de ChatGPT Work esté pausada."
+        )
     elif mode == "api":
         config.setdefault("llm", {})["provider"] = "openai"
         config["llm"].setdefault("model", "gpt-4.1-mini")
-        print("Modo API activado. Verifica OPENAI_API_KEY antes de ejecutar el bot.")
+        message = (
+            "Modo API activado: el análisis usa la API de OpenAI y genera costo. "
+            "Asegúrate de que la tarea de ChatGPT Work esté pausada."
+        )
     else:
-        print("Modo ChatGPT Work activado. No ejecutes el bot local sobre Gmail.")
-        print("Activa una sola tarea de ChatGPT Work y usa la skill anka-cotizaciones-correo.")
+        message = (
+            "Modo ChatGPT Work activado: el bot local queda bloqueado sobre Gmail. "
+            "Deja una sola tarea de ChatGPT Work activa con la skill anka-cotizaciones-correo."
+        )
     write_config(config)
+    return message
 
 
 def credentials(force_auth: bool = False):
@@ -1665,7 +1679,11 @@ def approve_review(
 
 
 def _page(title: str, body: str, message: str = "") -> str:
-    return render_page(title, body, message, len(unread_notifications(100)))
+    try:
+        mode = load_config().get("active_mode")
+    except (SystemExit, OSError, ValueError):
+        mode = None
+    return render_page(title, body, message, len(unread_notifications(100)), mode)
 
 
 def _review_summary(review: dict) -> str:
@@ -2139,6 +2157,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
                     "/case?thread_id=" + urllib.parse.quote(thread_id)
                     + "&message=" + urllib.parse.quote(message)
                 )
+            elif parsed.path == "/mode":
+                message = set_mode(form.get("mode", [""])[0])
+                self._redirect("/?message=" + urllib.parse.quote(message))
             elif parsed.path == "/notifications/read":
                 mark_notifications_read()
                 self._redirect("/?message=" + urllib.parse.quote("Novedades marcadas como revisadas."))
@@ -2472,7 +2493,7 @@ def main() -> None:
     elif args.command == "set-mode":
         if not args.active_mode:
             parser.error("set-mode requiere --active-mode.")
-        set_mode(args.active_mode)
+        print(set_mode(args.active_mode))
     elif args.command == "reviews":
         list_reviews()
     elif args.command == "approve":

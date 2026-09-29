@@ -737,5 +737,53 @@ class HandlerErrorTests(unittest.TestCase):
         self.assertEqual(sent["status"], 500)
 
 
+class ModeSwitchTests(unittest.TestCase):
+    def switch(self, mode, env=None):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            app, "DATA_DIR", Path(temp_dir)
+        ), patch.dict(os.environ, env or {}, clear=False):
+            (Path(temp_dir) / "config.json").write_text(json.dumps({
+                "active_mode": "chatgpt_work",
+                "llm": {"provider": "ollama", "model": "qwen2.5:7b",
+                        "base_url": "http://127.0.0.1:11434"},
+                "required_fields": [],
+            }), encoding="utf-8")
+            try:
+                message = app.set_mode(mode)
+            except SystemExit as exc:
+                return None, str(exc), json.loads(
+                    (Path(temp_dir) / "config.json").read_text(encoding="utf-8"))
+            return message, "", json.loads(
+                (Path(temp_dir) / "config.json").read_text(encoding="utf-8"))
+
+    def test_switch_to_local_sets_ollama(self):
+        message, error, config = self.switch("local")
+        self.assertEqual(config["active_mode"], "local")
+        self.assertEqual(config["llm"]["provider"], "ollama")
+        self.assertIn("Work", message)
+
+    def test_switch_to_api_requires_key(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OPENAI_API_KEY", None)
+            message, error, config = self.switch("api")
+        self.assertIn("OPENAI_API_KEY", error)
+        self.assertEqual(config["active_mode"], "chatgpt_work")
+
+    def test_switch_to_api_with_key(self):
+        message, error, config = self.switch("api", {"OPENAI_API_KEY": "x"})
+        self.assertEqual(config["active_mode"], "api")
+        self.assertEqual(config["llm"]["provider"], "openai")
+
+    def test_invalid_mode_rejected(self):
+        message, error, config = self.switch("otro")
+        self.assertTrue(error)
+
+    def test_selector_marks_current_mode(self):
+        from dashboard_views import mode_selector
+        out = mode_selector("api")
+        self.assertIn("value='api' selected", out)
+        self.assertNotIn("value='local' selected", out)
+
+
 if __name__ == "__main__":
     unittest.main()
