@@ -909,5 +909,45 @@ class ActivitiesTests(unittest.TestCase):
         self.assertIn("name='a1_activity'", out)  # fila nueva
 
 
+class CheckStatusTests(unittest.TestCase):
+    def test_checked_run_records_new_and_updated_cases(self):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            app, "DATA_DIR", Path(temp_dir)
+        ):
+            db = app.init_db()
+            app.save(db, "old", "m1", "missing", "a@b.co", {"received_at": "x"})
+            db.close()
+
+            def fake_run(*args):
+                db = app.init_db()
+                app.save(db, "old", "m2", "review_pending", "a@b.co", {"received_at": "x"})
+                app.save(db, "nuevo", "m3", "missing", "a@b.co", {"received_at": "x"})
+                db.close()
+
+            with patch("app.run", side_effect=fake_run):
+                result = app.checked_run(True, True, False, "dashboard")
+            saved = app.read_last_check()
+        self.assertEqual((result["new"], result["updated"], result["error"]), (1, 1, ""))
+        self.assertEqual(saved["source"], "dashboard")
+        self.assertIn("1 solicitudes nuevas, 1 actualizadas", app.describe_check(result))
+
+    def test_checked_run_records_error_instead_of_raising(self):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            app, "DATA_DIR", Path(temp_dir)
+        ), patch("app.run", side_effect=SystemExit("falta token")):
+            result = app.checked_run(True, True, False, "dashboard")
+        self.assertEqual(result["error"], "falta token")
+        self.assertIn("falló: falta token", app.describe_check(result))
+
+    def test_sync_status_text_by_mode(self):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            app, "DATA_DIR", Path(temp_dir)
+        ), patch.dict(os.environ, {"CODEX_HOME": temp_dir}):
+            for mode, expected in (("local", "Motor Ollama"), ("api", "Motor API"),
+                                   ("chatgpt_work", "ChatGPT Work")):
+                with patch("app.load_config", return_value={"active_mode": mode}):
+                    self.assertIn(expected, app.sync_status_text())
+
+
 if __name__ == "__main__":
     unittest.main()

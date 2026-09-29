@@ -188,6 +188,119 @@ def automation_interval_label() -> str:
     return "según la frecuencia configurada"
 
 
+def codex_automation_status() -> str | None:
+    try:
+        content = codex_automation_path().read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = re.search(r'^status\s*=\s*"([A-Z_]+)"', content, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+LAST_CHECK_FILE = "last_check.json"
+
+
+def _quote_snapshot() -> dict[str, tuple]:
+    db = init_db()
+    try:
+        return {
+            row["thread_id"]: (row["status"], row["updated_at"])
+            for row in db.execute("SELECT thread_id, status, updated_at FROM quotes")
+        }
+    finally:
+        db.close()
+
+
+def read_last_check() -> dict | None:
+    try:
+        return json.loads((DATA_DIR / LAST_CHECK_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def checked_run(apply: bool, review_only: bool, gmail_drafts: bool, source: str) -> dict:
+    """Ejecuta una revision de Gmail y registra cuando, cuanto tardo y que cambio."""
+    before = _quote_snapshot()
+    started = time.time()
+    error = ""
+    try:
+        run(apply, review_only, gmail_drafts)
+    except (Exception, SystemExit) as exc:
+        error = str(exc) or exc.__class__.__name__
+    after = _quote_snapshot()
+    result = {
+        "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "source": source,
+        "seconds": round(time.time() - started, 1),
+        "new": len([key for key in after if key not in before]),
+        "updated": len([key for key in after if key in before and after[key] != before[key]]),
+        "error": error,
+    }
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    (DATA_DIR / LAST_CHECK_FILE).write_text(
+        json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    return result
+
+
+def _ago(iso: str) -> str:
+    try:
+        seconds = (datetime.now().astimezone() - datetime.fromisoformat(iso)).total_seconds()
+    except (TypeError, ValueError):
+        return ""
+    if seconds < 90:
+        return "hace instantes"
+    if seconds < 3600:
+        return f"hace {int(seconds // 60)} min"
+    if seconds < 86400:
+        return f"hace {int(seconds // 3600)} h"
+    return f"hace {int(seconds // 86400)} d"
+
+
+def latest_case_activity() -> str:
+    db = init_db()
+    try:
+        row = db.execute(
+            "SELECT MAX(COALESCE(updated_at, first_seen_at)) AS ts FROM quotes").fetchone()
+    finally:
+        db.close()
+    return row["ts"] or ""
+
+
+def describe_check(result: dict) -> str:
+    when = result["at"][11:19]
+    if result.get("error"):
+        return f"La revisión de las {when} falló: {result['error']}"
+    return (
+        f"Gmail revisado a las {when} en {result['seconds']} s: "
+        f"{result['new']} solicitudes nuevas, {result['updated']} actualizadas."
+    )
+
+
+def sync_status_text() -> str:
+    try:
+        mode = load_config().get("active_mode", "local")
+    except SystemExit:
+        return "Sin configuración de motor."
+    if mode == "chatgpt_work":
+        status = codex_automation_status()
+        state = {"ACTIVE": "activa", "PAUSED": "pausada"}.get(status or "", "no encontrada")
+        last = latest_case_activity()
+        tail = f" Último caso actualizado: {last[:16].replace('T', ' ')} ({_ago(last)})." if last else ""
+        return (
+            f"Motor ChatGPT Work: la automatización está {state} ({automation_interval_label()})."
+            + tail
+        )
+    label = "Ollama" if mode == "local" else "API de OpenAI"
+    last = read_last_check()
+    if last:
+        text = describe_check(last)
+        return f"Motor {label}. {text} ({_ago(last['at'])}). El botón Actualizar correo revisa al instante."
+    return (
+        f"Motor {label}. Aún no se ha revisado Gmail desde este panel. La revisión periódica "
+        "solo ocurre si el piloto (Piloto borradores Gmail.bat) está abierto, cada 5 min."
+    )
+
+
 def ensure_local_or_api_mode(config: dict) -> None:
     if config.get("active_mode", "local") == "chatgpt_work":
         raise SystemExit(
@@ -1822,7 +1935,7 @@ def _render_index(message: str = "") -> str:
     quotes = all_quotes()
     notifications = unread_notifications(8)
     unread_threads = {item["thread_id"] for item in notifications}
-    interval_label = automation_interval_label()
+    sync_text = sync_status_text()
     total = len(quotes)
     unique_clients = len({q["client_email"].casefold() for q in quotes if q["client_email"]})
     action_count = sum(q["status"] in ACTION_STATUSES for q in quotes)
@@ -1839,7 +1952,7 @@ def _render_index(message: str = "") -> str:
         recent_html = "<div class='empty'>No hay solicitudes que requieran atención.</div>"
     body = f"""
 <div class="page-head">
-  <div><h1>Resumen comercial</h1><p>Qué está llegando, quién lo solicita y dónde hace falta actuar. Sincronización automática: {html.escape(interval_label)}.</p></div>
+  <div><h1>Resumen comercial</h1><p>Qué está llegando, quién lo solicita y dónde hace falta actuar. {html.escape(sync_text)}</p></div>
   <a class="button secondary" href="/requests">Ver todas las solicitudes</a>
 </div>
 {_notifications_panel(notifications)}
@@ -2200,12 +2313,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
             if parsed.path == "/refresh":
                 if load_config().get("active_mode") == "chatgpt_work":
                     message = (
-                        "La automatización conectada actualiza los datos "
-                        + automation_interval_label() + "."
+                        "Este botón no lee Gmail en modo ChatGPT Work. " + sync_status_text()
                     )
                 else:
-                    run(True, True)
-                    message = "Gmail revisado."
+                    message = describe_check(checked_run(True, True, False, "dashboard"))
                 self._redirect("/?message=" + urllib.parse.quote(message))
             elif parsed.path == "/approve":
                 thread_id = form.get("thread_id", [""])[0]
@@ -2493,7 +2604,7 @@ def watch(apply: bool, review_only: bool, seconds: int, gmail_drafts: bool = Fal
         while True:
             print(time.strftime("\n[%Y-%m-%d %H:%M:%S] Revisando buzón..."))
             try:
-                run(apply, review_only, gmail_drafts)
+                checked_run(apply, review_only, gmail_drafts, "piloto")
             except Exception as exc:
                 print(f"Error en ciclo de revisión: {exc}")
             time.sleep(seconds)
