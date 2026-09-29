@@ -1,0 +1,42 @@
+# Automatización de solicitudes de cotización
+
+Primera etapa: leer Gmail, identificar solicitudes, preparar una tabla de actividades, pedir datos faltantes en el mismo hilo, incorporar la respuesta y crear una carpeta de proyecto en Drive bajo una carpeta existente.
+
+## Datos locales y secretos
+
+Las credenciales, el token, `config.json`, la base SQLite, `review_queue`, `logs` e `internal_context` viven **fuera del repositorio**, en `%LOCALAPPDATA%\AnkaCorreos` (o en la ruta de la variable de entorno `ANKA_DATA_DIR`). Nunca se versionan. Al configurar una máquina nueva, crea esa carpeta y coloca allí `credentials.json` y `config.json`.
+
+## Preparación
+
+1. Instala Python 3.10+ y las dependencias: `python -m pip install -r requirements.txt`.
+2. Habilita Gmail API y Google Drive API en un proyecto de Google Cloud. Crea un cliente OAuth de tipo aplicación de escritorio y guarda su archivo como `credentials.json` en la carpeta de datos. La primera ejecución de `auth` abre el consentimiento de Google y guarda `token.json` localmente. Ninguno de esos archivos debe versionarse.
+3. Copia `config.example.json` a `config.json` dentro de la carpeta de datos. En `required_fields`, agrega los nombres de los datos indispensables para cotizar; por ejemplo, `["ubicación del proyecto", "cantidades"]` **solo si aplican a tu negocio**. Registra en `own_addresses` la cuenta principal y todos los aliases desde los que Anka responde; esos remitentes se excluyen antes del análisis. `forwarded_reply_policy` queda en `internal_reviewer`: en solicitudes reenviadas identifica al cliente original, pero dirige el borrador al comercial de Anka que hizo el reenvío. En `drive_parent_id`, coloca el ID de la carpeta de arranque existente.
+4. Elige un solo motor en `config.json`, dentro de `llm.provider`:
+   - `"ollama"`: usa el modelo local indicado en `llm.model` y `llm.base_url`. No requiere clave de OpenAI ni genera cobro por tokens.
+   - `"openai"`: usa la API de OpenAI y requiere `OPENAI_API_KEY` en el entorno. Configura el modelo en `llm.model`; el predeterminado es `gpt-4.1-mini`. La API se factura aparte de ChatGPT Plus.
+
+El programa no cambia automáticamente de proveedor si falla el seleccionado. Así no activa la API ni incurre en consumo sin que OpenAI esté elegido explícitamente.
+
+## Uso
+
+`python app.py auth`: autoriza la cuenta de Google.
+
+`python app.py drive-tree`: muestra las carpetas del nivel raíz y un nivel inferior, con sus IDs, para elegir la carpeta de arranque.
+
+`python app.py analyze-text --text "..." --required-field "ubicación del proyecto"`: prueba el proveedor seleccionado con un correo de ejemplo, imprime el JSON y las preguntas faltantes, y no se conecta a Gmail ni Drive. También acepta `--file ruta\correo.txt` y varios `--required-field`. Sirve para comparar `ollama` y `openai` cambiando `llm.provider` en `config.json`.
+
+`python app.py run`: hace una simulación; muestra clasificación, tabla y borrador de pregunta, sin enviar ni crear carpetas.
+
+`python app.py run --apply --review-only`: procesa el buzón con estado persistente y guarda cada respuesta propuesta en `review_queue`, sin enviar correos ni crear carpetas. Este es el modo recomendado para un piloto semiasistido.
+
+`python app.py run --apply --review-only --watch-seconds 300`: revisa Gmail cada cinco minutos y aplica el mismo flujo semiasistido. Usa `Ctrl+C` para detenerlo.
+
+`python app.py run --apply`: procesa el buzón y realiza los envíos y la creación de carpetas. Ejecútalo periódicamente con el programador de tareas. `gmail_query` controla el periodo y los remitentes; la configuración actual revisa 30 días para Diego y el remitente de pruebas. El estado se guarda en `quotes.sqlite3` para no repetir correos.
+
+La tabla se guarda en JSON en SQLite e incluye actividad, servicio o técnica candidata, ubicación, magnitud, unidad, entregable, plazo o restricción, fuente y estado de confirmación. El analizador recibe los mensajes externos del hilo y el texto extraído de TXT, CSV, JSON, XML, KML, KMZ, PDF con texto, DOCX y XLSX. Las imágenes incrustadas de firmas se registran como ignoradas y no bloquean el caso. DWG/DXF, formatos no soportados, archivos dañados y PDF escaneados quedan en revisión; la ficha indica el archivo, el motivo y los datos que no se pudieron confirmar.
+
+Los reenvíos conservan por separado al remitente interno, el cliente original identificado dentro del mensaje y el destinatario seleccionado. Las referencias a alcances anteriores y las contradicciones entre correo y adjuntos fuerzan revisión manual. Los proyectos con componentes distintos, como parque, línea y bahía, deben generar actividades separadas.
+
+Si un envío se interrumpe, el caso queda en estado `sending` para revisión humana y no se reenvía automáticamente. La búsqueda de hilos pendientes continúa aunque el mensaje original salga de la bandeja de entrada.
+
+Fuentes técnicas: [Gmail Python quickstart](https://developers.google.com/workspace/gmail/api/quickstart/python), [hilos de Gmail](https://developers.google.com/workspace/gmail/api/guides/threads), [carpetas de Drive](https://developers.google.com/workspace/drive/api/guides/folder), [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).

@@ -1,0 +1,29 @@
+{
+  "active_mode": "local",
+  "gmail_query": "in:inbox newer_than:7d",
+  "own_addresses": [
+    "correo-principal@anka.com.co",
+    "alias-comercial@anka.com.co"
+  ],
+  "forwarded_reply_policy": "internal_reviewer",
+  "llm": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "base_url": "http://127.0.0.1:11434",
+    "timeout_seconds": 180
+  },
+  "required_fields": [],
+  "commercial_filter_terms": [
+    "cotización",
+    "cotizar",
+    "presupuesto",
+    "propuesta",
+    "levantamiento",
+    "topográfico",
+    "lidar",
+    "fotogrametría",
+    "batimetría"
+  ],
+  "drive_parent_id": "",
+  "folder_prefix": "Cotizacion"
+}
