@@ -70,6 +70,7 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
     }}
     header {{
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
@@ -108,8 +109,11 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
       gap: 18px; margin-bottom: 22px;
     }}
     .page-head p {{ margin: 5px 0 0; color: var(--muted); }}
-    .mode-form {{ display: flex; gap: 6px; align-items: center; }}
-    .mode-form label {{ font-size: 13px; color: var(--muted); }}
+    .mode-form {{ display: flex; gap: 6px; align-items: center; flex: 0 0 auto; }}
+    .mode-form label {{ display: inline; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }}
+    .mode-form select {{ width: auto; min-width: 190px; max-width: 240px; padding: 8px 10px; }}
+    .mode-form button {{ padding: 8px 12px; white-space: nowrap; }}
+    .toolbar {{ flex: 0 1 auto; }}
     .toolbar {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }}
     .button, button {{
       border: 0;
@@ -258,7 +262,10 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
       main {{ padding: 16px; }}
       .page-head {{ align-items: flex-start; flex-direction: column; }}
       .toolbar {{ width: 100%; }}
+      .mode-form {{ width: 100%; }}
+      .mode-form select {{ flex: 1; max-width: none; }}
       .button, button {{ width: 100%; justify-content: center; }}
+      .mode-form button {{ width: auto; }}
       .kpis, .dashboard-grid {{ grid-template-columns: 1fr 1fr; }}
       .case-row, .filters {{ grid-template-columns: 1fr; }}
       .notification {{ grid-template-columns: 12px minmax(0, 1fr); }}

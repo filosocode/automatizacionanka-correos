@@ -220,6 +220,29 @@ def write_config(config: dict) -> None:
     )
 
 
+def codex_automation_path() -> Path:
+    codex_root = Path(os.getenv("CODEX_HOME", Path.home() / ".codex"))
+    return codex_root / "automations" / AUTOMATION_ID / "automation.toml"
+
+
+def set_codex_automation(active: bool) -> str:
+    """Pausa o reactiva la automatización de Codex/Work cambiando solo su línea `status`."""
+    path = codex_automation_path()
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return "No encontré la automatización de Codex/Work; pausa la tarea manualmente si existe."
+    wanted = "ACTIVE" if active else "PAUSED"
+    match = re.search(r'^status\s*=\s*"([A-Z_]+)"', content, re.MULTILINE)
+    if not match:
+        return "La automatización de Codex/Work no tiene campo status; pausa la tarea manualmente."
+    if match.group(1) == wanted:
+        return f"La automatización de Codex/Work ya estaba {'activa' if active else 'pausada'}."
+    updated = content[:match.start()] + f'status = "{wanted}"' + content[match.end():]
+    path.write_text(updated, encoding="utf-8")
+    return f"Automatización de Codex/Work {'activada' if active else 'pausada'}."
+
+
 def check_ollama(llm: dict, timeout: float = 3.0) -> None:
     """Verifica que Ollama responda y tenga el modelo; lanza SystemExit con el motivo si no."""
     base_url = (llm.get("base_url") or "http://127.0.0.1:11434").rstrip("/")
@@ -258,24 +281,22 @@ def set_mode(mode: str) -> str:
         check_ollama(config["llm"])
     config["active_mode"] = mode
     if mode == "local":
-        message = (
-            "Modo local activado: Ollama y bot Python. "
-            "Asegúrate de que la tarea de ChatGPT Work esté pausada."
-        )
+        message = "Modo local activado: Ollama y bot Python. "
+        automation_active = False
     elif mode == "api":
         config.setdefault("llm", {})["provider"] = "openai"
         config["llm"].setdefault("model", "gpt-4.1-mini")
         message = (
             "Modo API activado: el análisis usa la API de OpenAI y genera costo. "
-            "Asegúrate de que la tarea de ChatGPT Work esté pausada."
         )
+        automation_active = False
     else:
         message = (
             "Modo ChatGPT Work activado: el bot local queda bloqueado sobre Gmail. "
-            "Deja una sola tarea de ChatGPT Work activa con la skill anka-cotizaciones-correo."
         )
+        automation_active = True
     write_config(config)
-    return message
+    return message + set_codex_automation(automation_active)
 
 
 def credentials(force_auth: bool = False):

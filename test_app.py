@@ -743,7 +743,14 @@ class ModeSwitchTests(unittest.TestCase):
     def switch(self, mode, env=None):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(
             app, "DATA_DIR", Path(temp_dir)
-        ), patch.dict(os.environ, env or {}, clear=False):
+        ), patch.dict(os.environ, {**(env or {}), "CODEX_HOME": str(Path(temp_dir) / "codex")},
+                      clear=False):
+            automation = Path(temp_dir) / "codex" / "automations" / app.AUTOMATION_ID
+            automation.mkdir(parents=True)
+            (automation / "automation.toml").write_text(
+                chr(10).join(['id = "x"', 'status = "ACTIVE"', 'rrule = "RRULE:FREQ=MINUTELY"', ""]),
+                encoding="utf-8")
+            self.automation_file = automation / "automation.toml"
             (Path(temp_dir) / "config.json").write_text(json.dumps({
                 "active_mode": "chatgpt_work",
                 "llm": {"provider": "ollama", "model": "qwen2.5:7b",
@@ -753,8 +760,10 @@ class ModeSwitchTests(unittest.TestCase):
             try:
                 message = app.set_mode(mode)
             except SystemExit as exc:
+                self.automation_status = self.automation_file.read_text(encoding="utf-8")
                 return None, str(exc), json.loads(
                     (Path(temp_dir) / "config.json").read_text(encoding="utf-8"))
+            self.automation_status = self.automation_file.read_text(encoding="utf-8")
             return message, "", json.loads(
                 (Path(temp_dir) / "config.json").read_text(encoding="utf-8"))
 
@@ -763,7 +772,36 @@ class ModeSwitchTests(unittest.TestCase):
             message, error, config = self.switch("local")
         self.assertEqual(config["active_mode"], "local")
         self.assertEqual(config["llm"]["provider"], "ollama")
-        self.assertIn("Work", message)
+        self.assertIn("pausada", message)
+        self.assertIn('status = "PAUSED"', self.automation_status)
+        self.assertIn('rrule = "RRULE:FREQ=MINUTELY"', self.automation_status)
+
+    def test_failed_switch_leaves_automation_active(self):
+        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("x")):
+            self.switch("local")
+        self.assertIn('status = "ACTIVE"', self.automation_status)
+
+    def test_set_codex_automation_toggles_only_status_line(self):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
+            os.environ, {"CODEX_HOME": temp_dir}
+        ):
+            folder = Path(temp_dir) / "automations" / app.AUTOMATION_ID
+            folder.mkdir(parents=True)
+            toml = folder / "automation.toml"
+            toml.write_text(
+                'prompt = "hola"\nstatus = "ACTIVE"\nrrule = "x"\n', encoding="utf-8")
+            self.assertIn("pausada", app.set_codex_automation(False))
+            self.assertEqual(toml.read_text(encoding="utf-8"),
+                             'prompt = "hola"\nstatus = "PAUSED"\nrrule = "x"\n')
+            self.assertIn("ya estaba pausada", app.set_codex_automation(False))
+            self.assertIn("activada", app.set_codex_automation(True))
+            self.assertIn('status = "ACTIVE"', toml.read_text(encoding="utf-8"))
+
+    def test_set_codex_automation_missing_file_is_not_fatal(self):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
+            os.environ, {"CODEX_HOME": temp_dir}
+        ):
+            self.assertIn("manualmente", app.set_codex_automation(False))
 
     def test_switch_to_local_blocked_when_ollama_down(self):
         with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
