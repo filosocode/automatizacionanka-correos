@@ -720,5 +720,22 @@ class DashboardSecurityTests(unittest.TestCase):
         self.assertFalse(app.is_same_origin("https://evil.example", "127.0.0.1:8765"))
 
 
+class HandlerErrorTests(unittest.TestCase):
+    def test_system_exit_from_config_returns_500_page(self):
+        handler = app.ReviewHandler.__new__(app.ReviewHandler)
+        sent = {}
+        handler.headers = {"Host": "127.0.0.1:1", "Content-Length": "%d"}
+        body = ("csrf_token=" + app.CSRF_TOKEN).encode()
+        handler.headers["Content-Length"] = str(len(body))
+        handler.path = "/refresh"
+        handler.rfile = io.BytesIO(body)
+        handler._send_html = lambda content, status=200: sent.update(status=status)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            app, "DATA_DIR", Path(temp_dir)
+        ), patch("app.load_config", side_effect=SystemExit("falta config")):
+            handler.do_POST()
+        self.assertEqual(sent["status"], 500)
+
+
 if __name__ == "__main__":
     unittest.main()
