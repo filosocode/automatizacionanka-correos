@@ -1,0 +1,3 @@
+id_caso,fuente_anonimizada,es_solicitud (si/no),servicio_esperado,ubicacion_esperada,magnitud_esperada,unidad,entregables_esperados,plazo_esperado,adjuntos (tipo:legible si/no),datos_faltantes_esperados,estado_esperado (descartar/revision_manual/borrador_preguntas/alcance_completo),observaciones
+C001,,,,,,,,,,,,
+C002,,,,,,,,,,,,
