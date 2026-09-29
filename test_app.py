@@ -799,6 +799,13 @@ class ModeSwitchTests(unittest.TestCase):
         message, error, config = self.switch("otro")
         self.assertTrue(error)
 
+    def test_selector_flags_missing_api_key_but_keeps_option(self):
+        from dashboard_views import mode_selector
+        out = mode_selector("local", api_key_set=False)
+        self.assertIn("value='api'", out)
+        self.assertIn("sin clave", out)
+        self.assertNotIn("sin clave", mode_selector("local", api_key_set=True))
+
     def test_selector_marks_current_mode(self):
         from dashboard_views import mode_selector
         out = mode_selector("api")

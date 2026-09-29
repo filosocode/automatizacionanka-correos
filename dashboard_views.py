@@ -13,10 +13,13 @@ MODE_LABELS = {
 }
 
 
-def mode_selector(current: str | None) -> str:
+def mode_selector(current: str | None, api_key_set: bool = True) -> str:
+    labels = dict(MODE_LABELS)
+    if not api_key_set:
+        labels["api"] += " (sin clave)"
     options = "".join(
         f"<option value='{value}'{' selected' if value == current else ''}>{html.escape(label)}</option>"
-        for value, label in MODE_LABELS.items()
+        for value, label in labels.items()
     )
     if current not in MODE_LABELS:
         options = "<option value='' selected disabled>Sin configurar</option>" + options
@@ -29,7 +32,7 @@ def mode_selector(current: str | None) -> str:
 
 
 def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
-                mode: str | None = None) -> str:
+                mode: str | None = None, api_key_set: bool = True) -> str:
     notice = f"<div class='notice'>{html.escape(message)}</div>" if message else ""
     notification_badge = (
         f"<span class='nav-count'>{unread_count}</span>" if unread_count else ""
@@ -272,7 +275,7 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
     <div class="brand"><span class="brand-mark">A</span><div><strong>Anka</strong><span>Inteligencia comercial</span></div></div>
     <nav><a href="/">Resumen{notification_badge}</a><a href="/requests">Solicitudes</a></nav>
     <div class="toolbar">
-      {mode_selector(mode)}
+      {mode_selector(mode, api_key_set)}
       <form method="post" action="/refresh">
         <button type="submit">Actualizar correo</button>
       </form>

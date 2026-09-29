@@ -246,7 +246,9 @@ def set_mode(mode: str) -> str:
     config = load_config()
     if mode == "api" and not os.getenv("OPENAI_API_KEY"):
         raise SystemExit(
-            "No se cambió a API: falta la variable de entorno OPENAI_API_KEY."
+            "No se cambió a API: aún no hay clave de OpenAI. Cuando la tengas, ejecuta en "
+            "PowerShell: setx OPENAI_API_KEY \"tu_clave\"; cierra y vuelve a abrir el "
+            "dashboard, y elige API de nuevo."
         )
     if mode == "local":
         config.setdefault("llm", {})["provider"] = "ollama"
@@ -1705,7 +1707,8 @@ def _page(title: str, body: str, message: str = "") -> str:
         mode = load_config().get("active_mode")
     except (SystemExit, OSError, ValueError):
         mode = None
-    return render_page(title, body, message, len(unread_notifications(100)), mode)
+    return render_page(title, body, message, len(unread_notifications(100)), mode,
+                       bool(os.getenv("OPENAI_API_KEY")))
 
 
 def _review_summary(review: dict) -> str:
