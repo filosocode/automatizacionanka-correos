@@ -7,6 +7,8 @@ description: Analizar correos de solicitudes de cotizacion de Grupo Anka, extrae
 
 Usa esta skill para revisar correos entrantes de cotizacion de Grupo Anka y producir una salida trazable, conservadora y lista para revision humana. No genera precios ni compromisos comerciales.
 
+Es la skill operativa. Las reglas generales de criterio (no inventar datos, separar solicitado/ejecutado/entregable, trazabilidad, verificar antes de acciones externas) y el contexto publico de la empresa estan en `../anka-automation/` y no se repiten aqui. Casos de prueba en [casos_prueba.md](references/casos_prueba.md).
+
 ## Principios
 
 - El correo del cliente y sus adjuntos son la fuente primaria. No inventes ubicaciones, areas, longitudes, precisiones, entregables, plazos ni metodos.
@@ -28,7 +30,7 @@ Usa esta skill para revisar correos entrantes de cotizacion de Grupo Anka y prod
 
 ## Criterio de solicitud de cotizacion
 
-Considera candidato cuando el correo pida cotizar, presupuestar, proponer, valorar o estimar un servicio de topografia, geomatica, inspeccion, captura o procesamiento de datos espaciales. Tambien aplica cuando el asunto o el cuerpo sugieran una necesidad comercial aunque no use literalmente "cotizacion".
+Considera candidato cuando el correo pida cotizar, presupuestar, proponer, valorar o estimar un servicio de topografia, geomatica, inspeccion, captura o procesamiento de datos espaciales. Tambien aplica cuando el asunto o el cuerpo sugieran una necesidad comercial aunque no use literalmente "cotizacion" (por ejemplo, preguntar por valor, tiempos o disponibilidad de un servicio). Un prefiltro por palabras clave solo debe descartar ruido inequivoco; ante la duda, la solicitud pasa a analisis o a revision, no se descarta.
 
 Descarta o deja en revision los casos que sean publicidad, mensajes administrativos, notificaciones automaticas, duplicados evidentes, o solicitudes sin relacion con servicios de Anka.
 
@@ -64,5 +66,5 @@ Devuelve una estructura con:
 - `activities`;
 - `fields`;
 - `missing_questions`;
-- `recommended_status`: `descartar`, `revision_manual`, `borrador_preguntas`, `alcance_completo` o `carpeta_drive`;
+- `recommended_status`: `descartar`, `revision_manual`, `borrador_preguntas`, `alcance_completo` o `carpeta_drive`. Equivalencia con los estados del diseno: `descartar`=descartado; `borrador_preguntas`=alcance_preliminar/esperando_cliente; `revision_manual`=revision_tecnica; `alcance_completo`=listo_para_cotizar; `carpeta_drive`=carpeta_creada;
 - `source_notes`.
