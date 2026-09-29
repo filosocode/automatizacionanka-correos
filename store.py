@@ -87,6 +87,20 @@ def save(db, thread_id: str, last_id: str, status: str, recipient: str,
          sent_message_id: str | None = None) -> None:
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     received_at = analysis.get("received_at") or now
+    previous = db.execute(
+        "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
+    ).fetchone()
+    if previous:
+        try:
+            old = json.loads(previous["analysis_json"])
+        except (TypeError, ValueError):
+            old = {}
+        if old.get("manual_edit"):
+            # la edicion manual prevalece; lo nuevo del modelo queda para revisar
+            if analysis.get("activities") != old.get("activities"):
+                analysis["pending_model_activities"] = analysis.get("activities")
+            analysis["activities"] = old.get("activities", [])
+            analysis["manual_edit"] = old["manual_edit"]
     db.execute("""INSERT INTO quotes (
             thread_id, last_inbound_id, status, recipient, analysis_json,
             folder_id, sent_message_id, first_seen_at, updated_at

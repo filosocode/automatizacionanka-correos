@@ -5,6 +5,8 @@ from __future__ import annotations
 import html
 from collections import Counter
 
+from activities import ACTIVITY_COLUMNS, ESTADOS
+
 
 MODE_LABELS = {
     "local": "Ollama (local)",
@@ -382,3 +384,55 @@ def _reception_assessment_panel(assessment: dict) -> str:
   <div><h3>Validaciones para el equipo de Anka</h3>{check_html}</div>
 </div>
 <div class="notice intake-note"><strong>Etapa actual:</strong> recepción, lectura y aclaración. Esta evaluación no calcula precios ni confirma un alcance definitivo.</div>"""
+
+
+def activities_editor(thread_id: str, activities: list[dict]) -> str:
+    """Tabla editable: colores por estado, celdas vacias en gris y una fila nueva al final."""
+    def cell(index: int, key: str, value: str) -> str:
+        if key == "estado":
+            options = "".join(
+                f"<option value='{state}'{' selected' if state == value else ''}>{state}</option>"
+                for state in ESTADOS
+            )
+            return f"<td><select name='a{index}_estado' class='estado-{html.escape(value or 'pendiente')}'>{options}</select></td>"
+        empty = " class='vacio'" if not value or value == "no indicado" else ""
+        return (
+            f"<td><textarea name='a{index}_{key}' rows='2'{empty} "
+            f"placeholder='no indicado'>{html.escape(value)}</textarea></td>"
+        )
+
+    rows = []
+    for index, item in enumerate(activities):
+        cells = "".join(cell(index, key, str(item.get(key) or "")) for key, _ in ACTIVITY_COLUMNS)
+        rows.append(
+            f"<tr>{cells}<td class='del'><label><input type='checkbox' name='a{index}_del' value='1'> Quitar</label></td></tr>"
+        )
+    new_index = len(activities)
+    cells = "".join(
+        cell(new_index, key, "pendiente" if key == "estado" else "")
+        for key, _ in ACTIVITY_COLUMNS
+    )
+    rows.append(f"<tr class='nueva'>{cells}<td class='del'>Fila nueva</td></tr>")
+    head = "".join(f"<th>{html.escape(label)}</th>" for _, label in ACTIVITY_COLUMNS)
+    return f"""
+<style>
+  .act-table textarea, .act-table select {{ width: 100%; min-width: 120px; font: inherit; font-size: 13px; }}
+  .act-table td {{ padding: 4px; vertical-align: top; }}
+  .act-table textarea.vacio {{ background: #f0f2f3; color: #63717b; }}
+  .act-table select.estado-confirmado {{ background: #d9ead3; }}
+  .act-table select.estado-pendiente {{ background: #fff2cc; }}
+  .act-table select.estado-contradictorio {{ background: #f4cccc; }}
+  .act-table tr.nueva td {{ border-top: 2px dashed var(--line); }}
+  .act-table .del {{ white-space: nowrap; font-size: 12px; color: var(--muted); }}
+</style>
+<form method="post" action="/activities">
+  <input type="hidden" name="thread_id" value="{html.escape(thread_id)}">
+  <input type="hidden" name="row_count" value="{len(activities)}">
+  <div style="overflow-x:auto"><table class="act-table"><thead><tr>{head}<th></th></tr></thead>
+  <tbody>{''.join(rows)}</tbody></table></div>
+  <div class="toolbar" style="margin-top:12px">
+    <button type="submit">Guardar tabla</button>
+    <a class="button secondary" href="/export.xlsx?thread_id={html.escape(thread_id)}">Descargar Excel</a>
+  </div>
+  <p class="meta">Los cambios quedan marcados como edición manual. Una fila nueva se guarda solo si tiene datos.</p>
+</form>"""

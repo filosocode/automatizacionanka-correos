@@ -23,9 +23,10 @@ from email.message import EmailMessage
 from email.utils import getaddresses, parseaddr
 from pathlib import Path
 
+from activities import build_workbook, parse_activities_form
 from dashboard_views import (
     _activities_table, _attachments_table, _metric_rows,
-    _reception_assessment_panel, render_page,
+    _reception_assessment_panel, activities_editor, render_page,
 )
 from store import add_dashboard_notification, open_db, save
 from attachments import extract_attachment_text
@@ -1487,6 +1488,29 @@ def save_quote_metadata(thread_id: str, client_name: str, client_type: str,
         db.close()
 
 
+def save_activities(thread_id: str, activities: list[dict]) -> str:
+    """Guarda la tabla editada a mano y la marca para que un reproceso no la pise."""
+    db = init_db()
+    try:
+        row = db.execute(
+            "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError("La solicitud ya no existe.")
+        analysis = _load_analysis(row["analysis_json"])
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        analysis["activities"] = activities
+        analysis["manual_edit"] = {"edited_at": now, "rows": len(activities)}
+        db.execute(
+            "UPDATE quotes SET analysis_json=?, updated_at=? WHERE thread_id=?",
+            (json.dumps(analysis, ensure_ascii=False), now, thread_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+    return f"Tabla guardada ({len(activities)} actividades)."
+
+
 def dashboard_upsert(payload_base64: str) -> None:
     try:
         raw = _decode_websafe(payload_base64).decode("utf-8")
@@ -1851,7 +1875,7 @@ def _render_requests(message: str = "") -> str:
         for value in CLIENT_TYPES
     )
     body = f"""
-<div class="page-head"><div><h1>Solicitudes</h1><p>Consulta y completa la información comercial de cada oportunidad.</p></div></div>
+<div class="page-head"><div><h1>Solicitudes</h1><p>Consulta y completa la información comercial de cada oportunidad.</p></div><a class="button secondary" href="/export.xlsx">Exportar todo a Excel</a></div>
 <div class="filters">
   <label>Buscar<input id="search" type="search" placeholder="Proyecto, cliente o servicio"></label>
   <label>Estado<select id="status"><option value="">Todos</option>{status_options}</select></label>
@@ -2045,7 +2069,7 @@ def _render_case(thread_id: str, message: str = "") -> str:
   </section>
   <section class="section">
     <h2>Actividades detectadas</h2>
-    {_activities_table(analysis.get('activities', []))}
+    {activities_editor(thread_id, analysis.get('activities', []))}
   </section>
   <section class="section">
     <h2>Adjuntos</h2>
@@ -2116,6 +2140,21 @@ class ReviewHandler(BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
         if parsed.path == "/":
             self._send_html(_render_index(query.get("message", [""])[0]))
+        elif parsed.path == "/export.xlsx":
+            thread_id = query.get("thread_id", [""])[0]
+            quotes = [get_quote(thread_id)] if thread_id else all_quotes()
+            quotes = [item for item in quotes if item]
+            if thread_id and not quotes:
+                return self._send_html(_page("No encontrado", "<div class='empty'>La solicitud no existe.</div>"), 404)
+            data = build_workbook(quotes)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M")
+            name = f"actividades-{thread_id[:8] or 'todas'}-{stamp}.xlsx"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         elif parsed.path == "/requests":
             self._send_html(_render_requests(query.get("message", [""])[0]))
         elif parsed.path == "/case":
@@ -2178,6 +2217,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 thread_id = form.get("thread_id", [""])[0]
                 body = form.get("body", [""])[0]
                 message = send_dashboard_reply(thread_id, body)
+                self._redirect(
+                    "/case?thread_id=" + urllib.parse.quote(thread_id)
+                    + "&message=" + urllib.parse.quote(message)
+                )
+            elif parsed.path == "/activities":
+                thread_id = form.get("thread_id", [""])[0]
+                message = save_activities(thread_id, parse_activities_form(form))
                 self._redirect(
                     "/case?thread_id=" + urllib.parse.quote(thread_id)
                     + "&message=" + urllib.parse.quote(message)

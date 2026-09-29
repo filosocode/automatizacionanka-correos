@@ -813,5 +813,63 @@ class ModeSwitchTests(unittest.TestCase):
         self.assertNotIn("value='local' selected", out)
 
 
+class ActivitiesTests(unittest.TestCase):
+    def test_parse_form_edits_deletes_and_adds(self):
+        from activities import parse_activities_form
+        form = {
+            "row_count": ["2"],
+            "a0_activity": ["Levantamiento LiDAR"], "a0_estado": ["confirmado"],
+            "a0_ubicacion": ["Boyacá"],
+            "a1_activity": ["Se borra"], "a1_del": ["1"],
+            "a2_activity": ["Fila nueva"], "a2_estado": ["raro"],
+        }
+        rows = parse_activities_form(form)
+        self.assertEqual([r["activity"] for r in rows], ["Levantamiento LiDAR", "Fila nueva"])
+        self.assertEqual(rows[1]["estado"], "pendiente")
+
+    def test_parse_form_skips_empty_new_row_and_rejects_bad_count(self):
+        from activities import parse_activities_form
+        self.assertEqual(parse_activities_form({"row_count": ["0"], "a0_estado": ["pendiente"]}), [])
+        with self.assertRaises(ValueError):
+            parse_activities_form({"row_count": ["x"]})
+
+    def test_workbook_has_rows_colors_and_neutralizes_formulas(self):
+        from openpyxl import load_workbook
+        from activities import build_workbook
+        quote = {"thread_id": "t1", "status": "missing", "client_name": "Cliente",
+                 "analysis": {"project_name": "P", "activities": [
+                     {"activity": "=cmd()", "estado": "contradictorio", "ubicacion": "Cesar"}]}}
+        sheet = load_workbook(io.BytesIO(build_workbook([quote]))).active
+        self.assertEqual(sheet.max_row, 2)
+        self.assertEqual(sheet["E2"].value, "'=cmd()")
+        self.assertEqual(sheet["M2"].value, "contradictorio")
+        self.assertEqual(sheet["M2"].fill.fgColor.rgb[-6:], "F4CCCC")
+        self.assertEqual(sheet["H2"].value, "no indicado")
+
+    def test_manual_edit_survives_reprocessing(self):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            app, "DATA_DIR", Path(temp_dir)
+        ):
+            db = app.init_db()
+            app.save(db, "t1", "m1", "missing", "a@b.co",
+                     {"activities": [{"activity": "modelo v1"}], "received_at": "x"})
+            db.close()
+            app.save_activities("t1", [{"activity": "editada", "estado": "confirmado"}])
+            db = app.init_db()
+            app.save(db, "t1", "m2", "missing", "a@b.co",
+                     {"activities": [{"activity": "modelo v2"}], "received_at": "x"})
+            db.close()
+            analysis = app.get_quote("t1")["analysis"]
+        self.assertEqual(analysis["activities"][0]["activity"], "editada")
+        self.assertEqual(analysis["pending_model_activities"][0]["activity"], "modelo v2")
+
+    def test_editor_renders_state_classes_and_export_link(self):
+        from dashboard_views import activities_editor
+        out = activities_editor("t1", [{"activity": "A", "estado": "confirmado"}])
+        self.assertIn("estado-confirmado", out)
+        self.assertIn("/export.xlsx?thread_id=t1", out)
+        self.assertIn("name='a1_activity'", out)  # fila nueva
+
+
 if __name__ == "__main__":
     unittest.main()
