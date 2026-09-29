@@ -28,10 +28,9 @@ from dashboard_views import (
     _reception_assessment_panel, render_page,
 )
 from store import add_dashboard_notification, open_db, save
-from attachments import MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, extract_attachment_text
+from attachments import extract_attachment_text
 
 
-ROOT = Path(__file__).resolve().parent
 
 
 def default_data_dir() -> Path:
