@@ -458,13 +458,25 @@ class QuoteFlowTests(unittest.TestCase):
 
     def test_watch_handles_keyboard_interrupt_from_sleep(self):
         output = io.StringIO()
-        with patch("app.run") as run_mock, patch(
-            "app.time.sleep", side_effect=KeyboardInterrupt
-        ):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            app, "DATA_DIR", Path(temp_dir)
+        ), patch("app.load_config", return_value={"active_mode": "local"}), patch(
+            "app.run"
+        ) as run_mock, patch("app.time.sleep", side_effect=KeyboardInterrupt):
             with redirect_stdout(output):
                 app.watch(False, False, 30)
         run_mock.assert_called_once_with(False, False, False)
         self.assertIn("Vigilancia detenida por el usuario.", output.getvalue())
+
+    def test_watch_stops_in_chatgpt_work_mode(self):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            app, "DATA_DIR", Path(temp_dir)
+        ), patch("app.load_config", return_value={"active_mode": "chatgpt_work"}), patch(
+            "app.run"
+        ) as run_mock, redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                app.watch(True, False, 30, True)
+        run_mock.assert_not_called()
 
     def test_gmail_draft_body_starts_with_review_note(self):
         client_body = base64.urlsafe_b64encode(

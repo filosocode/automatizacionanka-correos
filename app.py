@@ -2603,6 +2603,7 @@ def watch(apply: bool, review_only: bool, seconds: int, gmail_drafts: bool = Fal
     try:
         while True:
             print(time.strftime("\n[%Y-%m-%d %H:%M:%S] Revisando buzón..."))
+            ensure_local_or_api_mode(load_config())  # en modo Work el bot se detiene
             try:
                 checked_run(apply, review_only, gmail_drafts, "piloto")
             except Exception as exc:
