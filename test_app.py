@@ -5,6 +5,8 @@ import os
 import sqlite3
 import tempfile
 import unittest
+import urllib.error
+import urllib.request
 import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -757,10 +759,29 @@ class ModeSwitchTests(unittest.TestCase):
                 (Path(temp_dir) / "config.json").read_text(encoding="utf-8"))
 
     def test_switch_to_local_sets_ollama(self):
-        message, error, config = self.switch("local")
+        with patch("app.check_ollama"):
+            message, error, config = self.switch("local")
         self.assertEqual(config["active_mode"], "local")
         self.assertEqual(config["llm"]["provider"], "ollama")
         self.assertIn("Work", message)
+
+    def test_switch_to_local_blocked_when_ollama_down(self):
+        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
+            message, error, config = self.switch("local")
+        self.assertIn("Ollama no responde", error)
+        self.assertEqual(config["active_mode"], "chatgpt_work")
+
+    def test_switch_to_local_blocked_when_model_missing(self):
+        fake = io.BytesIO(json.dumps({"models": [{"name": "llama3:8b"}]}).encode())
+        with patch("urllib.request.urlopen", return_value=fake):
+            message, error, config = self.switch("local")
+        self.assertIn("falta el modelo", error)
+        self.assertEqual(config["active_mode"], "chatgpt_work")
+
+    def test_check_ollama_accepts_latest_tag(self):
+        fake = io.BytesIO(json.dumps({"models": [{"name": "qwen2.5:7b"}]}).encode())
+        with patch("urllib.request.urlopen", return_value=fake):
+            app.check_ollama({"base_url": "http://127.0.0.1:11434", "model": "qwen2.5:7b"})
 
     def test_switch_to_api_requires_key(self):
         with patch.dict(os.environ, {}, clear=False):

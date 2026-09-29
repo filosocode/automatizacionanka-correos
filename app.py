@@ -219,6 +219,26 @@ def write_config(config: dict) -> None:
     )
 
 
+def check_ollama(llm: dict, timeout: float = 3.0) -> None:
+    """Verifica que Ollama responda y tenga el modelo; lanza SystemExit con el motivo si no."""
+    base_url = (llm.get("base_url") or "http://127.0.0.1:11434").rstrip("/")
+    model = llm.get("model") or "qwen2.5:7b"
+    try:
+        with urllib.request.urlopen(f"{base_url}/api/tags", timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise SystemExit(
+            f"No se cambió a local: Ollama no responde en {base_url} ({exc}). "
+            "Inícialo y vuelve a intentarlo."
+        ) from exc
+    installed = {item.get("name", "") for item in data.get("models", [])}
+    if model not in installed and f"{model}:latest" not in installed:
+        raise SystemExit(
+            f"No se cambió a local: Ollama responde pero falta el modelo '{model}'. "
+            f"Instálalo con: ollama pull {model}"
+        )
+
+
 def set_mode(mode: str) -> str:
     """Cambia el motor activo en config.json y devuelve un mensaje para el usuario."""
     if mode not in ACTIVE_MODES:
@@ -228,11 +248,13 @@ def set_mode(mode: str) -> str:
         raise SystemExit(
             "No se cambió a API: falta la variable de entorno OPENAI_API_KEY."
         )
-    config["active_mode"] = mode
     if mode == "local":
         config.setdefault("llm", {})["provider"] = "ollama"
         config["llm"].setdefault("model", "qwen2.5:7b")
         config["llm"].setdefault("base_url", "http://127.0.0.1:11434")
+        check_ollama(config["llm"])
+    config["active_mode"] = mode
+    if mode == "local":
         message = (
             "Modo local activado: Ollama y bot Python. "
             "Asegúrate de que la tarea de ChatGPT Work esté pausada."
