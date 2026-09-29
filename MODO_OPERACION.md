@@ -32,7 +32,7 @@ Para correr el piloto de borradores:
 .\.venv\Scripts\python.exe app.py run --apply --gmail-drafts --watch-seconds 300
 ```
 
-El botón `Piloto borradores Gmail.bat` ejecuta exactamente este flujo y primero muestra el modo activo. La configuración entregada queda en modo `local`. Si se cambia a `chatgpt_work`, el mismo botón se detiene antes de tocar Gmail para evitar dos orquestadores.
+El botón `Piloto borradores Gmail.bat` ejecuta exactamente este flujo y primero muestra el modo activo. El modo vigente se define en `active_mode` dentro de `config.json` (carpeta de datos, no versionada); confírmalo siempre con `app.py mode`. Si vale `chatgpt_work`, el mismo botón se detiene antes de tocar Gmail para evitar dos orquestadores; cambia a `local` con `set-mode` solo si el orquestador de ChatGPT está desactivado.
 
 En `config.json`, `own_addresses` debe incluir la cuenta principal y todos los aliases usados por Anka. El programa también consulta la dirección principal autenticada en Gmail y excluye esos mensajes antes de escoger remitente o analizar el hilo.
 

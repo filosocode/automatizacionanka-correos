@@ -698,5 +698,27 @@ class QuoteFlowIntegrationTests(unittest.TestCase):
         self.assertIn("Dependencias de alcance", packets[0])
 
 
+
+
+
+class DashboardSecurityTests(unittest.TestCase):
+    def test_add_csrf_tokens_to_every_post_form(self):
+        html_in = '<form method="post" action="/send"><button></button></form><form method="get"></form>'
+        out = app.add_csrf_tokens(html_in)
+        self.assertEqual(out.count('name="csrf_token"'), 1)
+        self.assertIn(app.CSRF_TOKEN, out)
+
+    def test_host_header_only_local(self):
+        for ok in ("127.0.0.1:8765", "localhost:8765", "localhost", "[::1]:8765"):
+            self.assertTrue(app.is_local_host_header(ok), ok)
+        for bad in ("evil.example:8765", "127.0.0.1.evil.com", "", "192.168.1.5:8765"):
+            self.assertFalse(app.is_local_host_header(bad), bad)
+
+    def test_origin_must_match_host(self):
+        self.assertTrue(app.is_same_origin("http://127.0.0.1:8765", "127.0.0.1:8765"))
+        self.assertTrue(app.is_same_origin("", "127.0.0.1:8765"))
+        self.assertFalse(app.is_same_origin("https://evil.example", "127.0.0.1:8765"))
+
+
 if __name__ == "__main__":
     unittest.main()

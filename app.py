@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
 import re
+import secrets
 import sqlite3
 import time
 import unicodedata
@@ -2560,10 +2561,35 @@ def _render_case(thread_id: str, message: str = "") -> str:
     return _page("Revisar caso", body, message)
 
 
+CSRF_TOKEN = secrets.token_urlsafe(32)
+POST_FORM_PATTERN = re.compile(r'(<form\b[^>]*\bmethod="post"[^>]*>)', re.IGNORECASE)
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+
+def add_csrf_tokens(content: str) -> str:
+    field = f'<input type="hidden" name="csrf_token" value="{CSRF_TOKEN}">'
+    return POST_FORM_PATTERN.sub(lambda m: m.group(1) + field, content)
+
+
+def is_local_host_header(value: str) -> bool:
+    """Acepta solo Host locales; bloquea DNS rebinding."""
+    value = (value or "").lower()
+    hostname = value.rsplit(":", 1)[0] if value.count(":") == 1 or value.startswith("[") and "]:" in value else value
+    return hostname in LOCAL_HOSTS
+
+
+def is_same_origin(origin: str, host: str) -> bool:
+    if not origin:
+        return True  # navegadores omiten Origin en algunas navegaciones; el token cubre ese caso
+    return urllib.parse.urlparse(origin).netloc.lower() == (host or "").lower()
+
+
 class ReviewHandler(BaseHTTPRequestHandler):
     def _send_html(self, content: str, status: int = 200) -> None:
-        data = content.encode("utf-8")
+        data = add_csrf_tokens(content).encode("utf-8")
         self.send_response(status)
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
@@ -2574,7 +2600,12 @@ class ReviewHandler(BaseHTTPRequestHandler):
         data = self.rfile.read(length).decode("utf-8")
         return urllib.parse.parse_qs(data)
 
+    def _reject(self, reason: str) -> None:
+        self._send_html(_page("Solicitud rechazada", f"<div class='empty'>{html.escape(reason)}</div>"), 403)
+
     def do_GET(self) -> None:
+        if not is_local_host_header(self.headers.get("Host", "")):
+            return self._reject("Host no permitido.")
         parsed = urllib.parse.urlparse(self.path)
         query = urllib.parse.parse_qs(parsed.query)
         if parsed.path == "/":
@@ -2589,8 +2620,16 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self._send_html(_page("No encontrado", "<div class='empty'>Página no encontrada.</div>"), 404)
 
     def do_POST(self) -> None:
+        host = self.headers.get("Host", "")
+        if not is_local_host_header(host):
+            return self._reject("Host no permitido.")
+        if not is_same_origin(self.headers.get("Origin", ""), host):
+            return self._reject("Origen no permitido.")
         parsed = urllib.parse.urlparse(self.path)
         form = self._read_form()
+        token = form.get("csrf_token", [""])[0]
+        if not secrets.compare_digest(token, CSRF_TOKEN):
+            return self._reject("Token de seguridad inválido. Recarga la página e inténtalo de nuevo.")
         try:
             if parsed.path == "/refresh":
                 if load_config().get("active_mode") == "chatgpt_work":

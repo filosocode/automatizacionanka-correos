@@ -58,9 +58,15 @@ Conviene distinguir **alcance documentado** de **listo para cotizar**. Puede exi
 
 Puede haber varias respuestas parciales y varias versiones de la tabla. Los envíos, cambios de estado y creación de carpeta requieren identificadores persistentes para reintentos seguros.
 
-## Diferencias con el prototipo actual
+## Estado de implementación (actualizado 29 de septiembre de 2026)
 
-El archivo `app.py` es exploratorio. Hoy llama al modelo para cada hilo nuevo, le envía todo el texto disponible y deja cualquier adjunto en revisión. Tampoco incorpora reglas internas por servicio ni evidencia por celda. No activar `--apply` hasta sustituir esas partes y validar el flujo con ejemplos de Anka.
+`app.py` ya no es solo exploratorio: incluye estado persistente en SQLite, prefiltro por palabras clave (`commercial_filter_terms`), extracción local de adjuntos (TXT, CSV, JSON, XML, KML/KMZ, PDF con texto, DOCX, XLSX), borradores en el mismo hilo de Gmail, panel de revisión y política de reenvíos. Sigue habiendo brechas frente a este diseño:
+
+- **No hay deduplicación por hash** del contenido ni versión de análisis: cada hilo pendiente vuelve a consultar al modelo.
+- **El prefiltro por palabras clave puede descartar solicitudes válidas** que no usen esos términos, lo contrario del principio de este diseño. Debe revisarse con la muestra etiquetada.
+- **Las reglas obligatorias por servicio** siguen siendo un único `required_fields` global, no reglas por familia de servicio aprobadas por Anka.
+- **La evidencia por celda** se guarda como campo `fuente`, sin validación automática contra el texto original.
+- El envío automático (`run --apply` sin `--review-only`/`--gmail-drafts`) no debe activarse hasta medir el piloto con correos reales.
 
 ## Decisiones pendientes de Anka
 
