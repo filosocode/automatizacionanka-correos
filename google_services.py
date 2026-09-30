@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING, Any
 
 import settings
+
+if TYPE_CHECKING:
+    from google.oauth2.credentials import Credentials
 
 
 SCOPES = [
@@ -18,7 +22,7 @@ SCOPES = [
 FOLDER_MIME = "application/vnd.google-apps.folder"
 
 
-def credentials(force_auth: bool = False):
+def credentials(force_auth: bool = False) -> Credentials:
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
@@ -46,7 +50,7 @@ def credentials(force_auth: bool = False):
     return creds
 
 
-def services():
+def services() -> tuple[Any, Any]:
     from googleapiclient.discovery import build
 
     creds = credentials()
@@ -56,7 +60,7 @@ def services():
     )
 
 
-def list_folders(drive, parent_id: str = "root") -> list[dict]:
+def list_folders(drive: Any, parent_id: str = "root") -> list[dict]:
     escaped = parent_id.replace("\\", "\\\\").replace("'", "\\'")
     query = f"'{escaped}' in parents and mimeType = '{FOLDER_MIME}' and trashed = false"
     folders = []
@@ -72,7 +76,7 @@ def list_folders(drive, parent_id: str = "root") -> list[dict]:
             return sorted(folders, key=lambda f: f["name"].casefold())
 
 
-def ensure_folder(drive, parent_id: str, name: str) -> dict:
+def ensure_folder(drive: Any, parent_id: str, name: str) -> dict:
     for folder in list_folders(drive, parent_id):
         if folder["name"] == name:
             return folder

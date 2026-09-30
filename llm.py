@@ -9,11 +9,12 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Any
 
 from mail import header, message_datetime, message_text
 
 
-ANALYSIS_SCHEMA = {
+ANALYSIS_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "is_quote_request": {"type": "boolean"},

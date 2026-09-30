@@ -6,6 +6,7 @@ import base64
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from status import (
     CLOSED_STATUSES, QuoteStatus,
 )
@@ -56,7 +57,7 @@ def resolve_case_recipient(thread_id: str) -> dict:
             "account_addresses": account_addresses}
 
 
-def _case_email_context(thread_id: str) -> tuple[dict, object, dict, set[str]]:
+def _case_email_context(thread_id: str) -> tuple[dict, Any, dict, set[str]]:
     quote = get_quote(thread_id)
     if not quote:
         raise ValueError("La solicitud ya no existe.")

@@ -8,6 +8,7 @@ vienen del correo de un cliente nunca llegan al HTML sin escapar.
 
 from __future__ import annotations
 
+from typing import Any
 import urllib.parse
 from pathlib import Path
 
@@ -23,5 +24,5 @@ _env = Environment(
 _env.filters["urlquote"] = urllib.parse.quote
 
 
-def render(template: str, **context) -> Markup:
+def render(template: str, **context: Any) -> Markup:
     return Markup(_env.get_template(template).render(**context))

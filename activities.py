@@ -53,6 +53,7 @@ def build_workbook(quotes: list[dict]) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.worksheet import Worksheet
 
     fills = {
         "confirmado": PatternFill("solid", fgColor="D9EAD3"),
@@ -61,15 +62,16 @@ def build_workbook(quotes: list[dict]) -> bytes:
     }
     workbook = Workbook()
     sheet = workbook.active
+    assert isinstance(sheet, Worksheet)
     sheet.title = "Actividades"
     headers = ["Hilo", "Proyecto", "Cliente", "Estado del caso"] + [
         label for _, label in ACTIVITY_COLUMNS
     ]
     sheet.append(headers)
-    for cell in sheet[1]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="126A62")
-        cell.alignment = Alignment(vertical="center", wrap_text=True)
+    for header_cell in sheet[1]:
+        header_cell.font = Font(bold=True, color="FFFFFF")
+        header_cell.fill = PatternFill("solid", fgColor="126A62")
+        header_cell.alignment = Alignment(vertical="center", wrap_text=True)
     for quote in quotes:
         analysis = quote.get("analysis") or {}
         base = [
@@ -91,9 +93,9 @@ def build_workbook(quotes: list[dict]) -> bytes:
     widths = [14, 28, 24, 26, 34, 22, 22, 12, 12, 26, 26, 30, 14, 30]
     for position, width in enumerate(widths, 1):
         sheet.column_dimensions[get_column_letter(position)].width = width
-    for row in sheet.iter_rows(min_row=2):
-        for cell in row:
-            cell.alignment = Alignment(vertical="top", wrap_text=True)
+    for sheet_row in sheet.iter_rows(min_row=2):
+        for body_cell in sheet_row:
+            body_cell.alignment = Alignment(vertical="top", wrap_text=True)
     sheet.freeze_panes = "E2"
     sheet.auto_filter.ref = sheet.dimensions
     buffer = BytesIO()

@@ -60,9 +60,10 @@ Fuentes técnicas: [Gmail Python quickstart](https://developers.google.com/works
 python -m pip install -r requirements-dev.txt
 python -m unittest discover
 python -m ruff check .
+python -m mypy
 ```
 
-`check.bat` corre lint, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `web.py` (handlers HTTP), `case_actions.py` y `quotes.py`.
+`check.bat` corre lint, tipos, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `web.py` (handlers HTTP), `case_actions.py` y `quotes.py`.
 
 En los tests, parchea cada nombre en el módulo que lo **usa** (por ejemplo `pipeline.services`), no en el que lo define. Los tests que tocan datos parchean `settings.DATA_DIR`.
 
@@ -81,3 +82,7 @@ Todo el HTML sale de `templates/` con escape automático (`templating.render`). 
 - Los formularios `POST` deben escribirse con `method="post"` (comillas dobles): el CSRF los detecta por ese texto.
 
 `test_html_render.py` protege esto de dos maneras. Compara cada página con una instantánea en `golden/` (si cambias una plantilla a propósito, regenera con `UPDATE_GOLDEN=1 python -m unittest test_html_render` y revisa el diff de `golden/`), y renderiza datos hostiles en todos los campos que controla un cliente para comprobar que no aparecen etiquetas, atributos ni scripts nuevos.
+
+## Tipos
+
+`mypy` revisa todos los módulos (los tests quedan fuera) y exige que toda función esté anotada (`disallow_untyped_defs`). Los clientes de Gmail y Drive se tipan como `Any` porque `googleapiclient` construye sus métodos en ejecución. Si añades una función sin anotar, `mypy` falla en `check.bat` y en el CI.

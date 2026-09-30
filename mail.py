@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 import base64
 import html
 import re
@@ -103,7 +104,7 @@ def is_inline_signature_image(part: dict) -> bool:
     return disposition.startswith("inline") or bool(part.get("content_id"))
 
 
-def extract_message_attachments(gmail, message: dict) -> list[dict]:
+def extract_message_attachments(gmail: Any, message: dict) -> list[dict]:
     results = []
     for part in attachment_parts(message.get("payload", {})):
         record = {
@@ -174,7 +175,7 @@ def inbound_messages(thread: dict, own_addresses: list[str] | set[str] | None = 
     )
 
 
-def own_addresses(config: dict, gmail) -> set[str]:
+def own_addresses(config: dict, gmail: Any) -> set[str]:
     addresses = {
         normalized_address(value) for value in config.get("own_addresses", []) if value
     }
@@ -239,7 +240,7 @@ def reply_email(
 
 
 def send_reply(
-    gmail, thread: dict, recipient: str, body: str,
+    gmail: Any, thread: dict, recipient: str, body: str,
     own_email_addresses: list[str] | set[str] | None = None,
 ) -> str:
     email = reply_email(thread, recipient, body, own_email_addresses)
@@ -251,7 +252,7 @@ def send_reply(
 
 
 def create_reply_draft(
-    gmail, thread: dict, recipient: str, body: str,
+    gmail: Any, thread: dict, recipient: str, body: str,
     own_email_addresses: list[str] | set[str] | None = None,
 ) -> str:
     email = reply_email(thread, recipient, body, own_email_addresses)
@@ -267,8 +268,8 @@ def valid_email_address(value: str) -> bool:
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", address))
 
 
-def candidate_thread_ids(gmail, query: str) -> list[str]:
-    ids = set()
+def candidate_thread_ids(gmail: Any, query: str) -> list[str]:
+    ids: set[str] = set()
     page_token = None
     while True:
         result = gmail.users().messages().list(

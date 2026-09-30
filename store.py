@@ -150,7 +150,7 @@ def add_dashboard_notification(db: sqlite3.Connection, thread_id: str, kind: str
                (thread_id, kind, source_key, title, message, now))
 
 
-def save(db, thread_id: str, last_id: str, status: str, recipient: str,
+def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, recipient: str,
          analysis: dict, folder_id: str | None = None,
          sent_message_id: str | None = None) -> None:
     now = datetime.now().astimezone().isoformat(timespec="seconds")

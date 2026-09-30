@@ -7,7 +7,9 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from collections.abc import Sequence
 from enum import Enum
+from typing import Any
 from status import (
     QuoteStatus,
 )
@@ -126,10 +128,10 @@ def sync_status_text() -> str:
             + tail
         )
     label = "Ollama" if mode == "local" else "API de OpenAI"
-    last = read_last_check()
-    if last:
-        text = describe_check(last)
-        return f"Motor {label}. {text} ({_ago(last['at'])}). El botón Actualizar correo revisa al instante."
+    last_check = read_last_check()
+    if last_check:
+        text = describe_check(last_check)
+        return f"Motor {label}. {text} ({_ago(last_check['at'])}). El botón Actualizar correo revisa al instante."
     return (
         f"Motor {label}. Aún no se ha revisado Gmail desde este panel. La revisión periódica "
         "solo ocurre si el piloto (Piloto borradores Gmail.bat) está abierto, cada 5 min."
@@ -290,7 +292,7 @@ def apply_decision(
             print(f"{thread_id}: {verb}: {packet}")
 
 
-def _skip_reason(row, last_id: str, gmail_drafts: bool) -> str | None:
+def _skip_reason(row: Sequence[Any] | None, last_id: str, gmail_drafts: bool) -> str | None:
     """None si el hilo debe procesarse; si no, el motivo ("" = omitir sin avisar)."""
     if not row or row[0] != last_id:
         return None

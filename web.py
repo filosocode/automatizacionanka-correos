@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
+from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
 import re
@@ -134,7 +136,7 @@ def _internal_context_panel(client_name: str) -> Markup:
     if not context:
         return Markup("<p class='meta'>El índice comercial interno todavía no está disponible.</p>")
 
-    def top(items, limit: int = 5) -> list[tuple[str, int]]:
+    def top(items: Iterable[tuple[Any, Any]], limit: int = 5) -> list[tuple[str, int]]:
         return [(str(label), int(count)) for label, count in list(items)[:limit]]
 
     profile = context.get("profile")
@@ -383,7 +385,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self.send_header("Location", location)
         self.end_headers()
 
-    def log_message(self, format: str, *args) -> None:
+    def log_message(self, format: str, *args: Any) -> None:
         return
 
 

@@ -67,7 +67,7 @@ def _reception_assessment_panel(assessment: dict) -> Markup:
         "needs_client_information": "warn",
         "technical_review": "info",
         "sufficient_for_internal_review": "",
-    }.get(assessment.get("status"), "info")
+    }.get(assessment.get("status") or "", "info")
     return render(
         "assessment_panel.html",
         status_class=status_class,

@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import unicodedata
 from pathlib import Path
+from typing import Any
 import zipfile
 from xml.etree import ElementTree
 
@@ -155,7 +156,7 @@ def build_index(source: Path) -> dict:
     profiles: dict[str, dict] = {}
 
     for client_dir in sorted((item for item in source.iterdir() if item.is_dir()), key=lambda p: p.name.casefold()):
-        profile = {
+        profile: dict[str, Any] = {
             "client_name": client_dir.name,
             "company_type": inferred_company_type(client_dir.name)[0],
             "company_type_confidence": inferred_company_type(client_dir.name)[1],
