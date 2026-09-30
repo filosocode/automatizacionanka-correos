@@ -1,6 +1,6 @@
 import unittest
 
-import app
+import quotes
 from status import ACTION_STATUSES, CLOSED_STATUSES, QuoteStatus, sql_in
 
 
@@ -12,7 +12,7 @@ class QuoteStatusTests(unittest.TestCase):
         self.assertEqual(QuoteStatus("response_sent"), QuoteStatus.RESPONSE_SENT)
 
     def test_every_status_has_a_dashboard_label(self):
-        self.assertEqual(set(app.STATUS_LABELS), set(QuoteStatus))
+        self.assertEqual(set(quotes.STATUS_LABELS), set(QuoteStatus))
 
     def test_groups_only_contain_known_statuses(self):
         self.assertLessEqual(CLOSED_STATUSES | ACTION_STATUSES, set(QuoteStatus))

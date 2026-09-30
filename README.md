@@ -40,3 +40,26 @@ Los reenvíos conservan por separado al remitente interno, el cliente original i
 Si un envío se interrumpe, el caso queda en estado `sending` para revisión humana y no se reenvía automáticamente. La búsqueda de hilos pendientes continúa aunque el mensaje original salga de la bandeja de entrada.
 
 Fuentes técnicas: [Gmail Python quickstart](https://developers.google.com/workspace/gmail/api/quickstart/python), [hilos de Gmail](https://developers.google.com/workspace/gmail/api/guides/threads), [carpetas de Drive](https://developers.google.com/workspace/drive/api/guides/folder), [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+## Arquitectura
+
+`app.py` es solo el punto de entrada de la línea de comandos. Cada módulo tiene una responsabilidad y las dependencias van en un solo sentido (de abajo hacia arriba):
+
+| Capa | Módulos | Responsabilidad |
+|---|---|---|
+| Base | `settings`, `status` | Carpeta de datos y configuración; estados de una solicitud (`QuoteStatus`). |
+| Entrada/salida externa | `google_services`, `mail`, `llm`, `attachments` | Gmail y Drive, lectura de mensajes y adjuntos, motor de análisis. |
+| Reglas | `reception`, `internal_context`, `modes` | Qué falta y qué preguntar, contexto comercial interno, modo de operación. |
+| Datos | `store`, `quotes`, `activities` | SQLite, consultas del dashboard, tabla de actividades y Excel. |
+| Flujo | `pipeline`, `case_actions` | `pipeline.decide_*` decide qué hacer con cada hilo sin efectos; `apply_decision` ejecuta. Acciones del dashboard sobre un caso. |
+| Interfaz | `web`, `dashboard_views` | Servidor local con protección CSRF y páginas HTML. |
+
+## Pruebas y calidad
+
+```
+python -m pip install -r requirements-dev.txt
+python -m unittest discover
+python -m ruff check .
+```
+
+En los tests, parchea cada nombre en el módulo que lo **usa** (por ejemplo `pipeline.services`), no en el que lo define. Los tests que tocan datos parchean `settings.DATA_DIR`.

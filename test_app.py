@@ -12,12 +12,16 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-import app
+import case_actions
+import pipeline
+import quotes
+import web
 import internal_context
 import llm
 import modes
 import reception
 import settings
+import store
 import dashboard_views
 from attachments import extract_attachment_text
 from mail import attachment_names, extract_message_attachments, forwarded_routing, has_attachments, inbound_messages, message_text
@@ -286,10 +290,10 @@ class QuoteFlowTests(unittest.TestCase):
             "draft_id": None, "sent_at": "", "client_name": "Cliente",
             "client_type": "No clasificado", "sector": "No clasificado", "notes": "",
         }
-        with patch("app.get_quote", return_value=review), patch(
-            "settings.load_config", return_value=test_config()
+        with patch("web.get_quote", return_value=review), patch(
+            "web.load_config", return_value=test_config()
         ), patch("internal_context.load_internal_commercial_index", return_value={}):
-            page = app._render_case("thread-1")
+            page = web._render_case("thread-1")
         self.assertIn("Evaluación de recepción", page)
         self.assertIn("Etapa actual:", page)
 
@@ -462,21 +466,21 @@ class QuoteFlowTests(unittest.TestCase):
     def test_watch_handles_keyboard_interrupt_from_sleep(self):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("app.load_config", return_value={"active_mode": "local"}), patch(
-            "app.run"
-        ) as run_mock, patch("app.time.sleep", side_effect=KeyboardInterrupt):
+        ), patch("pipeline.load_config", return_value={"active_mode": "local"}), patch(
+            "pipeline.run"
+        ) as run_mock, patch("pipeline.time.sleep", side_effect=KeyboardInterrupt):
             with redirect_stdout(output):
-                app.watch(False, False, 30)
+                pipeline.watch(False, False, 30)
         run_mock.assert_called_once_with(False, False, False)
         self.assertIn("Vigilancia detenida por el usuario.", output.getvalue())
 
     def test_watch_stops_in_chatgpt_work_mode(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("app.load_config", return_value={"active_mode": "chatgpt_work"}), patch(
-            "app.run"
+        ), patch("pipeline.load_config", return_value={"active_mode": "chatgpt_work"}), patch(
+            "pipeline.run"
         ) as run_mock, redirect_stdout(io.StringIO()):
             with self.assertRaises(SystemExit):
-                app.watch(True, False, 30, True)
+                pipeline.watch(True, False, 30, True)
         run_mock.assert_not_called()
 
     def test_gmail_draft_body_starts_with_review_note(self):
@@ -532,13 +536,13 @@ class QuoteFlowTests(unittest.TestCase):
         ).decode("ascii")
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ):
-            app.dashboard_upsert(encoded)
-            quotes = app.all_quotes()
-            notifications = app.unread_notifications()
-            dashboard = app._render_index()
-        self.assertEqual(len(quotes), 1)
-        self.assertEqual(quotes[0]["client_type"], "Empresa privada")
-        self.assertEqual(quotes[0]["sector"], "Infraestructura")
+            quotes.dashboard_upsert(encoded)
+            stored = quotes.all_quotes()
+            notifications = quotes.unread_notifications()
+            dashboard = web._render_index()
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(stored[0]["client_type"], "Empresa privada")
+        self.assertEqual(stored[0]["sector"], "Infraestructura")
         self.assertIn("Topografía convencional", dashboard)
         self.assertIn("Cliente Ejemplo", dashboard)
         self.assertEqual(
@@ -561,25 +565,25 @@ class QuoteFlowTests(unittest.TestCase):
             "selected_recipient": "cliente@example.com",
         }
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("app.load_config", return_value=test_config()), patch(
-            "app.services", return_value=(gmail, object())
+        ), patch("case_actions.load_config", return_value=test_config()), patch(
+            "case_actions.services", return_value=(gmail, object())
         ):
-            db = app.init_db()
-            app.save(
+            db = quotes.init_db()
+            store.save(
                 db, "thread-dashboard", "client-1", "review_pending",
                 "cliente@example.com", analysis,
             )
             db.close()
-            message = app.save_dashboard_draft(
+            message = case_actions.save_dashboard_draft(
                 "thread-dashboard", "Hola,\n\nGracias por su solicitud."
             )
-            draft_quote = app.get_quote("thread-dashboard")
-            sent_message = app.send_dashboard_reply(
+            draft_quote = quotes.get_quote("thread-dashboard")
+            sent_message = case_actions.send_dashboard_reply(
                 "thread-dashboard", "Hola,\n\nGracias por su solicitud revisada."
             )
-            sent_quote = app.get_quote("thread-dashboard")
+            sent_quote = quotes.get_quote("thread-dashboard")
             notification_kinds = {
-                item["kind"] for item in app.unread_notifications()
+                item["kind"] for item in quotes.unread_notifications()
             }
         self.assertIn("Borrador guardado", message)
         self.assertEqual(draft_quote["status"], "draft_created")
@@ -594,11 +598,11 @@ class QuoteFlowTests(unittest.TestCase):
 class QuoteFlowIntegrationTests(unittest.TestCase):
     def run_with_workspace(self, gmail, analysis, *, review_only=False, gmail_drafts=False):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("app.load_config", return_value=test_config()), patch(
-            "app.services", return_value=(gmail, object())
-        ), patch("app.analyze", return_value=analysis) as analyze_mock:
+        ), patch("pipeline.load_config", return_value=test_config()), patch(
+            "pipeline.services", return_value=(gmail, object())
+        ), patch("pipeline.analyze", return_value=analysis) as analyze_mock:
             with redirect_stdout(io.StringIO()):
-                app.run(True, review_only=review_only, gmail_drafts=gmail_drafts)
+                pipeline.run(True, review_only=review_only, gmail_drafts=gmail_drafts)
             db = sqlite3.connect(Path(temp_dir) / "quotes.sqlite3")
             try:
                 row = db.execute(
@@ -716,34 +720,34 @@ class QuoteFlowIntegrationTests(unittest.TestCase):
 class DashboardSecurityTests(unittest.TestCase):
     def test_add_csrf_tokens_to_every_post_form(self):
         html_in = '<form method="post" action="/send"><button></button></form><form method="get"></form>'
-        out = app.add_csrf_tokens(html_in)
+        out = web.add_csrf_tokens(html_in)
         self.assertEqual(out.count('name="csrf_token"'), 1)
-        self.assertIn(app.CSRF_TOKEN, out)
+        self.assertIn(web.CSRF_TOKEN, out)
 
     def test_host_header_only_local(self):
         for ok in ("127.0.0.1:8765", "localhost:8765", "localhost", "[::1]:8765"):
-            self.assertTrue(app.is_local_host_header(ok), ok)
+            self.assertTrue(web.is_local_host_header(ok), ok)
         for bad in ("evil.example:8765", "127.0.0.1.evil.com", "", "192.168.1.5:8765"):
-            self.assertFalse(app.is_local_host_header(bad), bad)
+            self.assertFalse(web.is_local_host_header(bad), bad)
 
     def test_origin_must_match_host(self):
-        self.assertTrue(app.is_same_origin("http://127.0.0.1:8765", "127.0.0.1:8765"))
-        self.assertTrue(app.is_same_origin("", "127.0.0.1:8765"))
-        self.assertFalse(app.is_same_origin("https://evil.example", "127.0.0.1:8765"))
+        self.assertTrue(web.is_same_origin("http://127.0.0.1:8765", "127.0.0.1:8765"))
+        self.assertTrue(web.is_same_origin("", "127.0.0.1:8765"))
+        self.assertFalse(web.is_same_origin("https://evil.example", "127.0.0.1:8765"))
 
 
 class HandlerErrorTests(unittest.TestCase):
     def test_system_exit_from_config_returns_500_page(self):
-        handler = app.ReviewHandler.__new__(app.ReviewHandler)
+        handler = web.ReviewHandler.__new__(web.ReviewHandler)
         sent = {}
         handler.headers = {"Host": "127.0.0.1:1", "Content-Length": "%d"}
-        body = ("csrf_token=" + app.CSRF_TOKEN).encode()
+        body = ("csrf_token=" + web.CSRF_TOKEN).encode()
         handler.headers["Content-Length"] = str(len(body))
         handler.path = "/refresh"
         handler.rfile = io.BytesIO(body)
         handler._send_html = lambda content, status=200: sent.update(status=status)
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("app.load_config", side_effect=SystemExit("falta config")):
+        ), patch("web.load_config", side_effect=SystemExit("falta config")):
             handler.do_POST()
         self.assertEqual(sent["status"], 500)
 
@@ -895,16 +899,16 @@ class ActivitiesTests(unittest.TestCase):
     def test_manual_edit_survives_reprocessing(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ):
-            db = app.init_db()
-            app.save(db, "t1", "m1", "missing", "a@b.co",
+            db = quotes.init_db()
+            store.save(db, "t1", "m1", "missing", "a@b.co",
                      {"activities": [{"activity": "modelo v1"}], "received_at": "x"})
             db.close()
-            app.save_activities("t1", [{"activity": "editada", "estado": "confirmado"}])
-            db = app.init_db()
-            app.save(db, "t1", "m2", "missing", "a@b.co",
+            quotes.save_activities("t1", [{"activity": "editada", "estado": "confirmado"}])
+            db = quotes.init_db()
+            store.save(db, "t1", "m2", "missing", "a@b.co",
                      {"activities": [{"activity": "modelo v2"}], "received_at": "x"})
             db.close()
-            analysis = app.get_quote("t1")["analysis"]
+            analysis = quotes.get_quote("t1")["analysis"]
         self.assertEqual(analysis["activities"][0]["activity"], "editada")
         self.assertEqual(analysis["pending_model_activities"][0]["activity"], "modelo v2")
 
@@ -920,37 +924,37 @@ class CheckStatusTests(unittest.TestCase):
     def test_checked_run_records_new_and_updated_cases(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ):
-            db = app.init_db()
-            app.save(db, "old", "m1", "missing", "a@b.co", {"received_at": "x"})
+            db = quotes.init_db()
+            store.save(db, "old", "m1", "missing", "a@b.co", {"received_at": "x"})
             db.close()
 
             def fake_run(*args):
-                db = app.init_db()
-                app.save(db, "old", "m2", "review_pending", "a@b.co", {"received_at": "x"})
-                app.save(db, "nuevo", "m3", "missing", "a@b.co", {"received_at": "x"})
+                db = quotes.init_db()
+                store.save(db, "old", "m2", "review_pending", "a@b.co", {"received_at": "x"})
+                store.save(db, "nuevo", "m3", "missing", "a@b.co", {"received_at": "x"})
                 db.close()
 
-            with patch("app.run", side_effect=fake_run):
-                result = app.checked_run(True, True, False, "dashboard")
-            saved = app.read_last_check()
+            with patch("pipeline.run", side_effect=fake_run):
+                result = pipeline.checked_run(True, True, False, "dashboard")
+            saved = pipeline.read_last_check()
         self.assertEqual((result["new"], result["updated"], result["error"]), (1, 1, ""))
         self.assertEqual(saved["source"], "dashboard")
-        self.assertIn("1 solicitudes nuevas, 1 actualizadas", app.describe_check(result))
+        self.assertIn("1 solicitudes nuevas, 1 actualizadas", pipeline.describe_check(result))
 
     def test_checked_run_records_error_instead_of_raising(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("app.run", side_effect=SystemExit("falta token")):
-            result = app.checked_run(True, True, False, "dashboard")
+        ), patch("pipeline.run", side_effect=SystemExit("falta token")):
+            result = pipeline.checked_run(True, True, False, "dashboard")
         self.assertEqual(result["error"], "falta token")
-        self.assertIn("falló: falta token", app.describe_check(result))
+        self.assertIn("falló: falta token", pipeline.describe_check(result))
 
     def test_sync_status_text_by_mode(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch.dict(os.environ, {"CODEX_HOME": temp_dir}):
             for mode, expected in (("local", "Motor Ollama"), ("api", "Motor API"),
                                    ("chatgpt_work", "ChatGPT Work")):
-                with patch("app.load_config", return_value={"active_mode": mode}):
-                    self.assertIn(expected, app.sync_status_text())
+                with patch("pipeline.load_config", return_value={"active_mode": mode}):
+                    self.assertIn(expected, pipeline.sync_status_text())
 
 
 if __name__ == "__main__":

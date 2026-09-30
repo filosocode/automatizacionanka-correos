@@ -1,4 +1,4 @@
-"""Caracterización del bucle de `app.run`: qué estado queda para cada tipo de hilo."""
+"""Caracterización del bucle de `pipeline.run`: qué estado queda para cada tipo de hilo."""
 
 import base64
 import io
@@ -10,8 +10,10 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-import app
+import pipeline
+import quotes
 import settings
+import store
 from status import QuoteStatus
 from test_app import FakeGmail, FakeRequest, complete_analysis, encoded_message, test_config
 
@@ -40,17 +42,17 @@ class RunFlowTests(unittest.TestCase):
         """Ejecuta run() aislado; devuelve (fila, analyze_mock, paquetes, gmail, folder_mock)."""
         flags.setdefault("review_only", False)
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("app.load_config", return_value=test_config()), patch(
-            "app.services", return_value=(gmail, object())
-        ), patch("app.analyze", return_value=analysis) as analyze_mock, patch(
-            "app.ensure_folder", return_value={"id": "folder-1"}
+        ), patch("pipeline.load_config", return_value=test_config()), patch(
+            "pipeline.services", return_value=(gmail, object())
+        ), patch("pipeline.analyze", return_value=analysis) as analyze_mock, patch(
+            "pipeline.ensure_folder", return_value={"id": "folder-1"}
         ) as folder_mock:
             if seed:
-                db = app.init_db()
-                app.save(db, *seed)
+                db = quotes.init_db()
+                store.save(db, *seed)
                 db.close()
             with redirect_stdout(io.StringIO()):
-                app.run(True, **flags)
+                pipeline.run(True, **flags)
             db = sqlite3.connect(Path(temp_dir) / "quotes.sqlite3")
             try:
                 rows = db.execute(
@@ -173,7 +175,7 @@ class DecideAnalysisTests(unittest.TestCase):
     """Reglas de decisión puras: sin Gmail, SQLite ni Drive."""
 
     def decide(self, analysis, *, blocked=(), review_only=False, gmail_drafts=False):
-        return app.decide_analysis(
+        return pipeline.decide_analysis(
             "t-1", analysis, list(blocked), "cliente@example.com", False, test_config(),
             review_only=review_only, gmail_drafts=gmail_drafts,
         )
@@ -181,9 +183,9 @@ class DecideAnalysisTests(unittest.TestCase):
     def test_mode_flags_pick_the_action_for_missing_data(self):
         analysis = complete_analysis(location="")
         cases = [
-            ({}, QuoteStatus.WAITING, app.Action.SEND),
-            ({"review_only": True}, QuoteStatus.REVIEW_PENDING, app.Action.QUEUE),
-            ({"gmail_drafts": True}, QuoteStatus.DRAFT_CREATED, app.Action.GMAIL_DRAFT),
+            ({}, QuoteStatus.WAITING, pipeline.Action.SEND),
+            ({"review_only": True}, QuoteStatus.REVIEW_PENDING, pipeline.Action.QUEUE),
+            ({"gmail_drafts": True}, QuoteStatus.DRAFT_CREATED, pipeline.Action.GMAIL_DRAFT),
         ]
         for flags, status, action in cases:
             with self.subTest(flags=flags):
@@ -194,18 +196,18 @@ class DecideAnalysisTests(unittest.TestCase):
     def test_blocked_attachment_wins_over_everything_else(self):
         decision = self.decide(complete_analysis(), blocked=[{"filename": "plano.dwg"}])
         self.assertEqual(decision.status, QuoteStatus.REVIEW)
-        self.assertEqual(decision.action, app.Action.NONE)
+        self.assertEqual(decision.action, pipeline.Action.NONE)
         self.assertTrue(decision.packet)
 
     def test_complete_scope_names_the_folder(self):
         decision = self.decide(complete_analysis())
         self.assertEqual(decision.status, QuoteStatus.READY)
-        self.assertEqual(decision.action, app.Action.FOLDER)
+        self.assertEqual(decision.action, pipeline.Action.FOLDER)
         self.assertIn("Proyecto Norte", decision.folder_name)
 
     def test_prefilter_lets_candidates_through(self):
-        self.assertIsNone(app.decide_prefilter("t-1", {}, [], True))
-        ignored = app.decide_prefilter("t-1", {}, [], False)
+        self.assertIsNone(pipeline.decide_prefilter("t-1", {}, [], True))
+        ignored = pipeline.decide_prefilter("t-1", {}, [], False)
         self.assertEqual(ignored.status, QuoteStatus.IGNORED)
 
 
