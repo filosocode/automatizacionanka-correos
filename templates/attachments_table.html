@@ -1,0 +1,2 @@
+{% if not rows %}<p class='meta'>No hay adjuntos registrados.</p>{% else %}<div style='overflow-x:auto'><table><thead><tr><th>Archivo</th><th>Estado</th><th>Detalle</th><th>Datos bloqueados</th></tr></thead><tbody>{% for filename, status, reason, blocked in rows %}<tr><td>{{ filename }}</td><td>{{ status }}</td><td>{{ reason }}</td><td>{{ blocked }}</td></tr>
+{% endfor %}</tbody></table></div>{% endif %}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} - Anka</title>
+  <style>
+{% include "style.css" %}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="brand-mark">A</span><div><strong>Anka</strong><span>Inteligencia comercial</span></div></div>
+    <nav><a href="/">Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests">Solicitudes</a></nav>
+    <div class="toolbar">
+      {{ mode_selector }}
+      <form method="post" action="/refresh">
+        <button type="submit">Actualizar correo</button>
+      </form>
+    </div>
+  </header>
+  <main>{% if message %}<div class='notice'>{{ message }}</div>{% endif %}{{ body }}</main>
+  <script>
+    document.addEventListener('click', event => {
+      const button = event.target.closest('[data-confirm]');
+      if (button && !confirm(button.dataset.confirm)) event.preventDefault();
+    });
+  </script>
+</body>
+</html>

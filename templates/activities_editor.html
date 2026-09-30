@@ -1,0 +1,21 @@
+<style>
+  .act-table textarea, .act-table select { width: 100%; min-width: 120px; font: inherit; font-size: 13px; }
+  .act-table td { padding: 4px; vertical-align: top; }
+  .act-table textarea.vacio { background: #f0f2f3; color: #63717b; }
+  .act-table select.estado-confirmado { background: #d9ead3; }
+  .act-table select.estado-pendiente { background: #fff2cc; }
+  .act-table select.estado-contradictorio { background: #f4cccc; }
+  .act-table tr.nueva td { border-top: 2px dashed var(--line); }
+  .act-table .del { white-space: nowrap; font-size: 12px; color: var(--muted); }
+</style>
+<form method="post" action="/activities">
+  <input type="hidden" name="thread_id" value="{{ thread_id }}">
+  <input type="hidden" name="row_count" value="{{ row_count }}">
+  <div style="overflow-x:auto"><table class="act-table"><thead><tr>{% for label in headers %}<th>{{ label }}</th>{% endfor %}<th></th></tr></thead>
+  <tbody>{% for row in rows %}<tr{% if row.is_new %} class='nueva'{% endif %}>{% for cell in row.cells %}{% if cell.key == 'estado' %}<td><select name='a{{ row.index }}_estado' class='estado-{{ cell.value or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == cell.value %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>{% else %}<td><textarea name='a{{ row.index }}_{{ cell.key }}' rows='2'{% if not cell.value or cell.value == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ cell.value }}</textarea></td>{% endif %}{% endfor %}{% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'> Quitar</label></td>{% endif %}</tr>{% endfor %}</tbody></table></div>
+  <div class="toolbar" style="margin-top:12px">
+    <button type="submit">Guardar tabla</button>
+    <a class="button secondary" href="/export.xlsx?thread_id={{ thread_id | urlquote }}">Descargar Excel</a>
+  </div>
+  <p class="meta">Los cambios quedan marcados como edición manual. Una fila nueva se guarda solo si tiene datos.</p>
+</form>

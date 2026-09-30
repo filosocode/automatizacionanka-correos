@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.request
 import webbrowser
 from datetime import datetime
+from markupsafe import Markup
 from activities import build_workbook, parse_activities_form
 from dashboard_views import (
     _attachments_table, _metric_rows,
@@ -43,7 +44,7 @@ def _page(title: str, body: str, message: str = "") -> str:
         mode = load_config().get("active_mode")
     except (SystemExit, OSError, ValueError):
         mode = None
-    return render_page(title, body, message, len(unread_notifications(100)), mode,
+    return render_page(title, Markup(body), message, len(unread_notifications(100)), mode,
                        bool(os.getenv("OPENAI_API_KEY")))
 
 
