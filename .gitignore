@@ -7,3 +7,6 @@ __pycache__/
 .venv/
 .uv-cache/
 internal_context/
+.coverage
+htmlcov/
+.ruff_cache/

@@ -6,3 +6,12 @@ target-version = "py310"
 select = ["E", "F", "W", "B", "UP"]
 # Deuda conocida: líneas largas heredadas; se corrigen al dividir app.py.
 ignore = ["E501"]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["test_*.py", "_isolate.py", ".venv/*", ".uv-cache/*", ".github/*"]
+
+[tool.coverage.report]
+# Piso de cobertura: sube cuando mejore, nunca lo bajes para hacer pasar un cambio.
+fail_under = 70
+skip_covered = false
