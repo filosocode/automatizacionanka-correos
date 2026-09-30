@@ -62,7 +62,7 @@ python -m unittest discover
 python -m ruff check .
 ```
 
-`check.bat` corre lint, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `commercial_index.py` (0 %), `google_services.py`, `llm.py` y `web.py`.
+`check.bat` corre lint, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `web.py` (handlers HTTP), `case_actions.py` y `quotes.py`.
 
 En los tests, parchea cada nombre en el módulo que lo **usa** (por ejemplo `pipeline.services`), no en el que lo define. Los tests que tocan datos parchean `settings.DATA_DIR`.
 

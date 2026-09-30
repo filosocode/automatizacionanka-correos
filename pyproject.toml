@@ -13,5 +13,5 @@ omit = ["test_*.py", "_isolate.py", ".venv/*", ".uv-cache/*", ".github/*"]
 
 [tool.coverage.report]
 # Piso de cobertura: sube cuando mejore, nunca lo bajes para hacer pasar un cambio.
-fail_under = 72
+fail_under = 82
 skip_covered = false

@@ -178,6 +178,11 @@ def analyze(
         raise ValueError(f"Proveedor LLM no soportado: {provider}")
     if not isinstance(result, dict) or not isinstance(result.get("activities"), list):
         raise ValueError("El analizador devolvió una respuesta inesperada.")
+    missing = [key for key in ANALYSIS_SCHEMA["required"] if key not in result]
+    if missing:
+        raise ValueError(
+            "El analizador devolvió una respuesta incompleta; falta: " + ", ".join(missing) + "."
+        )
     # Una solicitud explícita no debe descartarse por un falso negativo del modelo.
     if not result["is_quote_request"] and explicit_quote_request(messages):
         result["is_quote_request"] = True

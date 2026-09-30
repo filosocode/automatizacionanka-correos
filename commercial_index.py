@@ -6,16 +6,16 @@ import argparse
 from collections import Counter
 from datetime import datetime
 import json
-import os
 import unicodedata
 from pathlib import Path
 import zipfile
 from xml.etree import ElementTree
 
+import settings
+
 
 DEFAULT_SOURCE = Path(r"I:\T&E")
-DATA_DIR = Path(os.getenv("ANKA_DATA_DIR") or Path(os.getenv("LOCALAPPDATA") or Path.home() / ".local" / "share") / "AnkaCorreos")
-DEFAULT_OUTPUT = DATA_DIR / "internal_context" / "commercial_index.json"
+DEFAULT_OUTPUT = settings.DATA_DIR / "internal_context" / "commercial_index.json"
 MAX_SOURCE_REFERENCES = 12
 MAX_DOCUMENTS_PER_CLIENT = 12
 MAX_PDF_BYTES = 12 * 1024 * 1024
