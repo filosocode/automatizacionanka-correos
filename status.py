@@ -1,15 +1,15 @@
 """Estados del ciclo de vida de una solicitud, definidos en un solo lugar.
 
-QuoteStatus hereda de str: sus miembros se comparan y se guardan en SQLite
+QuoteStatus es un StrEnum: sus miembros se comparan y se guardan en SQLite
 como el texto de siempre, así que las filas existentes siguen siendo válidas.
 """
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class QuoteStatus(str, Enum):
+class QuoteStatus(StrEnum):
     REVIEW_PENDING = "review_pending"  # faltan datos; hay borrador de preguntas por revisar
     READY_REVIEW = "ready_review"      # alcance completo; pendiente de revisión interna
     REVIEW = "review"                  # requiere revisión técnica manual
@@ -20,9 +20,6 @@ class QuoteStatus(str, Enum):
     READY = "ready"                    # carpeta de proyecto creada
     MISSING = "missing"                # el hilo ya no existe en Gmail
     IGNORED = "ignored"                # no es solicitud comercial
-
-    def __str__(self) -> str:
-        return self.value
 
 
 # Estados en los que ya no se debe redactar ni enviar correo al cliente.

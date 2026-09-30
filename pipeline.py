@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections.abc import Sequence
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from status import (
     QuoteStatus,
@@ -138,7 +138,7 @@ def sync_status_text() -> str:
     )
 
 
-class Action(str, Enum):
+class Action(StrEnum):
     """Efecto externo que exige una decisión, además de guardar el estado."""
     NONE = "none"
     SEND = "send"          # enviar las preguntas al cliente y esperar respuesta
