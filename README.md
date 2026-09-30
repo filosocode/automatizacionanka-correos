@@ -86,3 +86,15 @@ Todo el HTML sale de `templates/` con escape automático (`templating.render`). 
 ## Tipos
 
 `mypy` revisa todos los módulos (los tests quedan fuera) y exige que toda función esté anotada (`disallow_untyped_defs`). Los clientes de Gmail y Drive se tipan como `Any` porque `googleapiclient` construye sus métodos en ejecución. Si añades una función sin anotar, `mypy` falla en `check.bat` y en el CI.
+
+## Validación de `config.json`
+
+`settings.validate_config` revisa el archivo completo y lista **todos** los problemas juntos, no solo el primero:
+
+```
+config.json tiene 2 problema(s):
+ - active_mode debe ser 'local', 'api' o 'chatgpt_work'.
+ - gmail_query debe ser texto.
+```
+
+Además, un JSON mal escrito indica la línea y la columna del error; las claves que el programa no usa (por ejemplo `gmail_quary`) se avisan por `stderr` al iniciar cualquier comando; y `set-mode` no guarda una configuración que resultaría inválida. Al añadir una clave nueva, agrégala a `KNOWN_CONFIG_KEYS` y a `validate_config` en `settings.py`, y a `config.example.json` (una prueba comprueba que el ejemplo sea válido).

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import json
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from llm import analyze_text
 from modes import (
     print_mode, set_mode,
 )
-from settings import ACTIVE_MODES, load_config
+from settings import ACTIVE_MODES, load_config, unknown_config_keys
 from quotes import dashboard_upsert, list_reviews
 from case_actions import approve_review
 from pipeline import run, watch
@@ -256,6 +257,19 @@ from web import review_ui
 
 
 
+def warn_unknown_config_keys() -> None:
+    """Avisa de claves de config.json que el programa no usa (suelen ser errores de tipeo)."""
+    try:
+        unknown = unknown_config_keys(load_config())
+    except SystemExit:
+        return  # el comando informará del problema de configuración por su cuenta
+    if unknown:
+        print(
+            "Aviso: config.json tiene claves que el programa no usa: " + ", ".join(unknown),
+            file=sys.stderr,
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -306,6 +320,8 @@ def main() -> None:
         help="Modo a activar con set-mode.",
     )
     args = parser.parse_args()
+    if args.command != "auth":
+        warn_unknown_config_keys()
     if args.command == "dashboard-upsert":
         if not args.payload_base64:
             parser.error("dashboard-upsert requiere --payload-base64.")
