@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import app
+import settings
 from status import QuoteStatus
 from test_app import FakeGmail, FakeRequest, complete_analysis, encoded_message, test_config
 
@@ -38,8 +39,7 @@ class RunFlowTests(unittest.TestCase):
     def run_flow(self, gmail, analysis=None, *, seed=None, **flags):
         """Ejecuta run() aislado; devuelve (fila, analyze_mock, paquetes, gmail, folder_mock)."""
         flags.setdefault("review_only", False)
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("app.load_config", return_value=test_config()), patch(
             "app.services", return_value=(gmail, object())
         ), patch("app.analyze", return_value=analysis) as analyze_mock, patch(

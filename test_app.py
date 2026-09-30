@@ -13,13 +13,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 import app
+import internal_context
+import llm
+import modes
+import reception
+import settings
 import dashboard_views
-from app import (
-    attachment_names, commercial_candidate, draft_body_with_review_note,
-    extract_attachment_text, extract_message_attachments, forwarded_routing,
-    has_attachments, inbound_messages, message_text, missing_questions,
-    safe_folder_name, unresolved_scope_issues,
-)
+from attachments import extract_attachment_text
+from mail import attachment_names, extract_message_attachments, forwarded_routing, has_attachments, inbound_messages, message_text
+from reception import commercial_candidate, draft_body_with_review_note, missing_questions, safe_folder_name, unresolved_scope_issues
 
 
 class InternalCommercialContextTests(unittest.TestCase):
@@ -27,17 +29,17 @@ class InternalCommercialContextTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "index.json"
             path.write_text(json.dumps({"privacy": {"internal_only": False}}), encoding="utf-8")
-            with patch.object(app, "INTERNAL_CONTEXT_PATH", path):
-                self.assertEqual(app.load_internal_commercial_index(), {})
+            with patch.object(internal_context, "INTERNAL_CONTEXT_PATH", path):
+                self.assertEqual(internal_context.load_internal_commercial_index(), {})
 
     def test_matches_client_name_without_legal_suffix(self):
         index = {"clients": {"energia norte sas": {"client_name": "Energia Norte S.A.S."}}}
-        profile = app._commercial_profile_match(index, "Energía Norte")
+        profile = internal_context._commercial_profile_match(index, "Energía Norte")
         self.assertEqual(profile["client_name"], "Energia Norte S.A.S.")
 
     def test_suggested_reply_does_not_read_internal_index(self):
-        with patch.object(app, "load_internal_commercial_index", side_effect=AssertionError):
-            body = app.suggested_reply(complete_analysis(), ["ubicación del proyecto"])
+        with patch.object(internal_context, "load_internal_commercial_index", side_effect=AssertionError):
+            body = reception.suggested_reply(complete_analysis(), ["ubicación del proyecto"])
         self.assertIn("Gracias por su solicitud", body)
 
 
@@ -201,7 +203,7 @@ class QuoteFlowTests(unittest.TestCase):
             (automation_dir / "automation.toml").write_text(
                 'rrule = "RRULE:FREQ=MINUTELY;INTERVAL=1"\n', encoding="utf-8"
             )
-            self.assertEqual(app.automation_interval_label(), "cada minuto")
+            self.assertEqual(modes.automation_interval_label(), "cada minuto")
 
     def test_activity_table_accepts_empty_values_from_real_messages(self):
         rendered = dashboard_views._activities_table([{
@@ -215,7 +217,7 @@ class QuoteFlowTests(unittest.TestCase):
     def test_suggested_reply_requests_missing_supporting_documents(self):
         analysis = complete_analysis(location="")
         analysis["attachments"] = []
-        reply = app.suggested_reply(analysis, test_config()["required_fields"])
+        reply = reception.suggested_reply(analysis, test_config()["required_fields"])
         self.assertIn("KMZ/KML", reply)
         self.assertIn("Planos, diseños preliminares", reply)
         self.assertIn("normas del contratante", reply)
@@ -228,7 +230,7 @@ class QuoteFlowTests(unittest.TestCase):
             {"filename": "planos.dwg", "status": "bloqueado"},
             {"filename": "TDR_y_normas.pdf", "status": "extraido"},
         ]
-        reply = app.suggested_reply(analysis, test_config()["required_fields"])
+        reply = reception.suggested_reply(analysis, test_config()["required_fields"])
         self.assertNotIn("KMZ/KML", reply)
         self.assertNotIn("Planos, diseños preliminares", reply)
         self.assertNotIn("normas del contratante", reply)
@@ -254,7 +256,7 @@ class QuoteFlowTests(unittest.TestCase):
         analysis = complete_analysis(location="")
         analysis["activities"][0]["quantity"] = ""
         analysis["fields"][1]["value"] = ""
-        result = app.reception_assessment(analysis)
+        result = reception.reception_assessment(analysis)
         self.assertEqual(result["status"], "needs_client_information")
         self.assertEqual(len(result["questions"]), 2)
         self.assertTrue(any("ubicación" in question for question in result["questions"]))
@@ -262,7 +264,7 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertIn("Precisión y sistema de referencia", result["technical_checks"])
 
     def test_reception_assessment_accepts_complete_initial_information(self):
-        result = app.reception_assessment(complete_analysis())
+        result = reception.reception_assessment(complete_analysis())
         self.assertEqual(result["status"], "sufficient_for_internal_review")
         self.assertEqual(result["questions"], [])
 
@@ -272,9 +274,9 @@ class QuoteFlowTests(unittest.TestCase):
             "topic": "área", "details": "Dos valores diferentes",
             "sources": ["correo", "plano"], "status": "pendiente",
         }]
-        result = app.reception_assessment(analysis)
+        result = reception.reception_assessment(analysis)
         self.assertEqual(result["status"], "technical_review")
-        self.assertEqual(app.reception_questions(analysis), [])
+        self.assertEqual(reception.reception_questions(analysis), [])
 
     def test_case_view_renders_reception_assessment(self):
         review = {
@@ -285,8 +287,8 @@ class QuoteFlowTests(unittest.TestCase):
             "client_type": "No clasificado", "sector": "No clasificado", "notes": "",
         }
         with patch("app.get_quote", return_value=review), patch(
-            "app.load_config", return_value=test_config()
-        ), patch("app.load_internal_commercial_index", return_value={}):
+            "settings.load_config", return_value=test_config()
+        ), patch("internal_context.load_internal_commercial_index", return_value={}):
             page = app._render_case("thread-1")
         self.assertIn("Evaluación de recepción", page)
         self.assertIn("Etapa actual:", page)
@@ -459,8 +461,7 @@ class QuoteFlowTests(unittest.TestCase):
 
     def test_watch_handles_keyboard_interrupt_from_sleep(self):
         output = io.StringIO()
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("app.load_config", return_value={"active_mode": "local"}), patch(
             "app.run"
         ) as run_mock, patch("app.time.sleep", side_effect=KeyboardInterrupt):
@@ -470,8 +471,7 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertIn("Vigilancia detenida por el usuario.", output.getvalue())
 
     def test_watch_stops_in_chatgpt_work_mode(self):
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("app.load_config", return_value={"active_mode": "chatgpt_work"}), patch(
             "app.run"
         ) as run_mock, redirect_stdout(io.StringIO()):
@@ -530,8 +530,7 @@ class QuoteFlowTests(unittest.TestCase):
         encoded = base64.urlsafe_b64encode(
             json.dumps(payload).encode("utf-8")
         ).decode("ascii")
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ):
             app.dashboard_upsert(encoded)
             quotes = app.all_quotes()
@@ -561,8 +560,7 @@ class QuoteFlowTests(unittest.TestCase):
             "original_sender_email": "cliente@example.com",
             "selected_recipient": "cliente@example.com",
         }
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("app.load_config", return_value=test_config()), patch(
             "app.services", return_value=(gmail, object())
         ):
@@ -595,8 +593,7 @@ class QuoteFlowTests(unittest.TestCase):
 
 class QuoteFlowIntegrationTests(unittest.TestCase):
     def run_with_workspace(self, gmail, analysis, *, review_only=False, gmail_drafts=False):
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("app.load_config", return_value=test_config()), patch(
             "app.services", return_value=(gmail, object())
         ), patch("app.analyze", return_value=analysis) as analyze_mock:
@@ -745,8 +742,7 @@ class HandlerErrorTests(unittest.TestCase):
         handler.path = "/refresh"
         handler.rfile = io.BytesIO(body)
         handler._send_html = lambda content, status=200: sent.update(status=status)
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("app.load_config", side_effect=SystemExit("falta config")):
             handler.do_POST()
         self.assertEqual(sent["status"], 500)
@@ -754,11 +750,10 @@ class HandlerErrorTests(unittest.TestCase):
 
 class ModeSwitchTests(unittest.TestCase):
     def switch(self, mode, env=None):
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch.dict(os.environ, {**(env or {}), "CODEX_HOME": str(Path(temp_dir) / "codex")},
                       clear=False):
-            automation = Path(temp_dir) / "codex" / "automations" / app.AUTOMATION_ID
+            automation = Path(temp_dir) / "codex" / "automations" / modes.AUTOMATION_ID
             automation.mkdir(parents=True)
             (automation / "automation.toml").write_text(
                 chr(10).join(['id = "x"', 'status = "ACTIVE"', 'rrule = "RRULE:FREQ=MINUTELY"', ""]),
@@ -771,7 +766,7 @@ class ModeSwitchTests(unittest.TestCase):
                 "required_fields": [],
             }), encoding="utf-8")
             try:
-                message = app.set_mode(mode)
+                message = modes.set_mode(mode)
             except SystemExit as exc:
                 self.automation_status = self.automation_file.read_text(encoding="utf-8")
                 return None, str(exc), json.loads(
@@ -781,7 +776,7 @@ class ModeSwitchTests(unittest.TestCase):
                 (Path(temp_dir) / "config.json").read_text(encoding="utf-8"))
 
     def test_switch_to_local_sets_ollama(self):
-        with patch("app.check_ollama"):
+        with patch("modes.check_ollama"):
             message, error, config = self.switch("local")
         self.assertEqual(config["active_mode"], "local")
         self.assertEqual(config["llm"]["provider"], "ollama")
@@ -798,23 +793,23 @@ class ModeSwitchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
             os.environ, {"CODEX_HOME": temp_dir}
         ):
-            folder = Path(temp_dir) / "automations" / app.AUTOMATION_ID
+            folder = Path(temp_dir) / "automations" / modes.AUTOMATION_ID
             folder.mkdir(parents=True)
             toml = folder / "automation.toml"
             toml.write_text(
                 'prompt = "hola"\nstatus = "ACTIVE"\nrrule = "x"\n', encoding="utf-8")
-            self.assertIn("pausada", app.set_codex_automation(False))
+            self.assertIn("pausada", modes.set_codex_automation(False))
             self.assertEqual(toml.read_text(encoding="utf-8"),
                              'prompt = "hola"\nstatus = "PAUSED"\nrrule = "x"\n')
-            self.assertIn("ya estaba pausada", app.set_codex_automation(False))
-            self.assertIn("activada", app.set_codex_automation(True))
+            self.assertIn("ya estaba pausada", modes.set_codex_automation(False))
+            self.assertIn("activada", modes.set_codex_automation(True))
             self.assertIn('status = "ACTIVE"', toml.read_text(encoding="utf-8"))
 
     def test_set_codex_automation_missing_file_is_not_fatal(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
             os.environ, {"CODEX_HOME": temp_dir}
         ):
-            self.assertIn("manualmente", app.set_codex_automation(False))
+            self.assertIn("manualmente", modes.set_codex_automation(False))
 
     def test_switch_to_local_blocked_when_ollama_down(self):
         with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
@@ -832,7 +827,7 @@ class ModeSwitchTests(unittest.TestCase):
     def test_check_ollama_accepts_latest_tag(self):
         fake = io.BytesIO(json.dumps({"models": [{"name": "qwen2.5:7b"}]}).encode())
         with patch("urllib.request.urlopen", return_value=fake):
-            app.check_ollama({"base_url": "http://127.0.0.1:11434", "model": "qwen2.5:7b"})
+            llm.check_ollama({"base_url": "http://127.0.0.1:11434", "model": "qwen2.5:7b"})
 
     def test_switch_to_api_requires_key(self):
         with patch.dict(os.environ, {}, clear=False):
@@ -898,8 +893,7 @@ class ActivitiesTests(unittest.TestCase):
         self.assertEqual(sheet["H2"].value, "no indicado")
 
     def test_manual_edit_survives_reprocessing(self):
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ):
             db = app.init_db()
             app.save(db, "t1", "m1", "missing", "a@b.co",
@@ -924,8 +918,7 @@ class ActivitiesTests(unittest.TestCase):
 
 class CheckStatusTests(unittest.TestCase):
     def test_checked_run_records_new_and_updated_cases(self):
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ):
             db = app.init_db()
             app.save(db, "old", "m1", "missing", "a@b.co", {"received_at": "x"})
@@ -945,16 +938,14 @@ class CheckStatusTests(unittest.TestCase):
         self.assertIn("1 solicitudes nuevas, 1 actualizadas", app.describe_check(result))
 
     def test_checked_run_records_error_instead_of_raising(self):
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("app.run", side_effect=SystemExit("falta token")):
             result = app.checked_run(True, True, False, "dashboard")
         self.assertEqual(result["error"], "falta token")
         self.assertIn("falló: falta token", app.describe_check(result))
 
     def test_sync_status_text_by_mode(self):
-        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
-            app, "DATA_DIR", Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch.dict(os.environ, {"CODEX_HOME": temp_dir}):
             for mode, expected in (("local", "Motor Ollama"), ("api", "Motor API"),
                                    ("chatgpt_work", "ChatGPT Work")):
