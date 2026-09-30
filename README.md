@@ -8,7 +8,7 @@ Las credenciales, el token, `config.json`, la base SQLite, `review_queue`, `logs
 
 ## Preparación
 
-1. Instala Python 3.10+ y las dependencias: `python -m pip install -r requirements.txt`.
+1. Instala Python 3.11+ y las dependencias exactas: `python -m pip install --require-hashes -r requirements.lock`.
 2. Habilita Gmail API y Google Drive API en un proyecto de Google Cloud. Crea un cliente OAuth de tipo aplicación de escritorio y guarda su archivo como `credentials.json` en la carpeta de datos. La primera ejecución de `auth` abre el consentimiento de Google y guarda `token.json` localmente. Ninguno de esos archivos debe versionarse.
 3. Copia `config.example.json` a `config.json` dentro de la carpeta de datos. En `required_fields`, agrega los nombres de los datos indispensables para cotizar; por ejemplo, `["ubicación del proyecto", "cantidades"]` **solo si aplican a tu negocio**. Registra en `own_addresses` la cuenta principal y todos los aliases desde los que Anka responde; esos remitentes se excluyen antes del análisis. `forwarded_reply_policy` queda en `internal_reviewer`: en solicitudes reenviadas identifica al cliente original, pero dirige el borrador al comercial de Anka que hizo el reenvío. En `drive_parent_id`, coloca el ID de la carpeta de arranque existente.
 4. Elige un solo motor en `config.json`, dentro de `llm.provider`:
@@ -57,7 +57,7 @@ Fuentes técnicas: [Gmail Python quickstart](https://developers.google.com/works
 ## Pruebas y calidad
 
 ```
-python -m pip install -r requirements-dev.txt
+python -m pip install --require-hashes -r requirements-dev.lock
 python -m unittest discover
 python -m ruff check .
 python -m mypy
@@ -98,3 +98,14 @@ config.json tiene 2 problema(s):
 ```
 
 Además, un JSON mal escrito indica la línea y la columna del error; las claves que el programa no usa (por ejemplo `gmail_quary`) se avisan por `stderr` al iniciar cualquier comando; y `set-mode` no guarda una configuración que resultaría inválida. Al añadir una clave nueva, agrégala a `KNOWN_CONFIG_KEYS` y a `validate_config` en `settings.py`, y a `config.example.json` (una prueba comprueba que el ejemplo sea válido).
+
+## Dependencias y versiones exactas
+
+`requirements.txt` y `requirements-dev.txt` declaran los **rangos** permitidos; `requirements.lock` y `requirements-dev.lock` fijan las **versiones exactas con hashes** (incluidas las transitivas), así que una instalación hoy y otra en seis meses son idénticas y verificadas. El CI instala desde los `.lock` en Python 3.11 y 3.12. Python 3.10 no está soportado: las dependencias actuales (por ejemplo `cryptography`) ya no publican paquetes para esa versión.
+
+Para actualizar (requiere [uv](https://docs.astral.sh/uv/)), cambia el rango si hace falta y regenera los dos archivos, luego corre `check.bat`:
+
+```
+uv pip compile requirements.txt --universal --python-version 3.11 --generate-hashes -o requirements.lock
+uv pip compile requirements-dev.txt --universal --python-version 3.11 --generate-hashes -o requirements-dev.lock
+```

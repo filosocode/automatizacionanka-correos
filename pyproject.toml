@@ -1,6 +1,6 @@
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "UP"]
@@ -17,7 +17,7 @@ fail_under = 82
 skip_covered = false
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.11"
 files = ["."]
 exclude = ['^\.venv/', '^\.uv-cache/', '^test_', '^_isolate\.py$']
 # Las librerías de Google no publican tipos completos.
