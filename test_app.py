@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import app
+import dashboard_views
 from app import (
     attachment_names, commercial_candidate, draft_body_with_review_note,
     extract_attachment_text, extract_message_attachments, forwarded_routing,
@@ -203,7 +204,7 @@ class QuoteFlowTests(unittest.TestCase):
             self.assertEqual(app.automation_interval_label(), "cada minuto")
 
     def test_activity_table_accepts_empty_values_from_real_messages(self):
-        rendered = app._activities_table([{
+        rendered = dashboard_views._activities_table([{
             "activity": "Levantamiento topográfico",
             "quantity": None,
             "unit": None,
@@ -317,7 +318,7 @@ class QuoteFlowTests(unittest.TestCase):
 
     def test_extracts_common_text_attachment(self):
         text, reason = extract_attachment_text(
-            "alcance.csv", "text/csv", "actividad,area\nlevantamiento,10 ha".encode()
+            "alcance.csv", "text/csv", b"actividad,area\nlevantamiento,10 ha"
         )
         self.assertIn("levantamiento,10 ha", text)
         self.assertEqual(reason, "")
@@ -448,7 +449,7 @@ class QuoteFlowTests(unittest.TestCase):
         )
 
     def test_commercial_prefilter_matches_accents(self):
-        body = base64.urlsafe_b64encode("Solicito cotizacion".encode()).decode()
+        body = base64.urlsafe_b64encode(b"Solicito cotizacion").decode()
         messages = [{"payload": {
             "headers": [{"name": "Subject", "value": "Levantamiento"}],
             "parts": [{"mimeType": "text/plain", "body": {"data": body}}],
@@ -480,7 +481,7 @@ class QuoteFlowTests(unittest.TestCase):
 
     def test_gmail_draft_body_starts_with_review_note(self):
         client_body = base64.urlsafe_b64encode(
-            "Solicito cotizacion para un levantamiento.".encode()
+            b"Solicito cotizacion para un levantamiento."
         ).decode()
         analysis = {
             "summary": "Solicitud de levantamiento topografico",
@@ -635,7 +636,7 @@ class QuoteFlowIntegrationTests(unittest.TestCase):
 
     def test_complete_thread_uses_readable_attachment_in_analysis(self):
         attachment = base64.urlsafe_b64encode(
-            "ubicación,área\nBogotá,10 ha".encode("utf-8")
+            "ubicación,área\nBogotá,10 ha".encode()
         ).decode()
         thread = {"id": "thread-csv", "messages": [encoded_message(
             "client-1", "cliente@example.com", "Solicito cotización de levantamiento.", 1,

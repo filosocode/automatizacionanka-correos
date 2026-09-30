@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime
 import json
 import os
-import re
 import unicodedata
 from pathlib import Path
 import zipfile

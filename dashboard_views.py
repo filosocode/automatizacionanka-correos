@@ -316,7 +316,9 @@ def _activities_table(activities: list[dict]) -> str:
         return "<p class='meta'>No hay actividades identificadas.</p>"
     rows = []
     for item in activities:
-        value = lambda key: html.escape(str(item.get(key) or ""))
+        def value(key, item=item):
+            return html.escape(str(item.get(key) or ""))
+
         rows.append(
             "<tr>"
             f"<td>{value('activity')}</td>"
@@ -346,7 +348,9 @@ def _attachments_table(attachments: list[dict]) -> str:
     rows = []
     for item in attachments:
         blocked = ", ".join(str(value) for value in (item.get("blocked_fields") or [])) or "ninguno"
-        value = lambda key: html.escape(str(item.get(key) or ""))
+        def value(key, item=item):
+            return html.escape(str(item.get(key) or ""))
+
         rows.append(
             "<tr>"
             f"<td>{value('filename')}</td>"

@@ -25,8 +25,11 @@ from pathlib import Path
 
 from activities import build_workbook, parse_activities_form
 from dashboard_views import (
-    _activities_table, _attachments_table, _metric_rows,
+    _attachments_table, _metric_rows,
     _reception_assessment_panel, activities_editor, render_page,
+)
+from status import (
+    ACTION_STATUSES, CLOSED_STATUSES, REVIEW_QUEUE_STATUSES, QuoteStatus, sql_in,
 )
 from store import add_dashboard_notification, open_db, save
 from attachments import extract_attachment_text
@@ -1336,7 +1339,7 @@ def _case_email_context(thread_id: str) -> tuple[dict, object, dict, set[str]]:
     quote = get_quote(thread_id)
     if not quote:
         raise ValueError("La solicitud ya no existe.")
-    if quote["status"] in {"ignored", "missing", "ready", "response_sent"}:
+    if quote["status"] in CLOSED_STATUSES:
         raise ValueError("Esta solicitud no admite una respuesta desde el dashboard.")
     context = resolve_case_recipient(thread_id)
     quote = context["quote"]
@@ -1367,7 +1370,7 @@ def save_dashboard_draft(thread_id: str, body: str) -> str:
     db = init_db()
     try:
         db.execute(
-            """UPDATE quotes SET status='draft_created', draft_id=?, draft_body=?,
+            f"""UPDATE quotes SET status='{QuoteStatus.DRAFT_CREATED}', draft_id=?, draft_body=?,
                                  updated_at=? WHERE thread_id=?""",
             (draft_id, body, now, thread_id),
         )
@@ -1405,13 +1408,13 @@ def send_dashboard_reply(thread_id: str, body: str) -> str:
     db = init_db()
     try:
         db.execute(
-            """UPDATE quotes SET status='response_sent', sent_message_id=?,
+            f"""UPDATE quotes SET status='{QuoteStatus.RESPONSE_SENT}', sent_message_id=?,
                                  draft_id=NULL, draft_body=?, sent_at=?, updated_at=?
                WHERE thread_id=?""",
             (result["id"], body, now, now, thread_id),
         )
         add_dashboard_notification(
-            db, thread_id, "response_sent", result["id"],
+            db, thread_id, QuoteStatus.RESPONSE_SENT, result["id"],
             "Respuesta enviada",
             f"El correo fue enviado a {quote['recipient']} en el mismo hilo.",
         )
@@ -1501,28 +1504,27 @@ def review_packet_path(thread_id: str) -> Path:
 
 
 def review_action(status: str) -> tuple[str, str]:
-    if status == "review_pending":
+    if status == QuoteStatus.REVIEW_PENDING:
         return "Requiere aclaraciones", "Enviar preguntas al cliente"
-    if status == "ready_review":
+    if status == QuoteStatus.READY_REVIEW:
         return "Información suficiente", "Revisión interna"
-    if status == "sending":
+    if status == QuoteStatus.SENDING:
         return "Revisar envio interrumpido", "No disponible"
     return "Revision manual", "No disponible"
 
 
 STATUS_LABELS = {
-    "review_pending": "Requiere aclaraciones",
-    "ready_review": "Información suficiente para revisión interna",
-    "sending": "Enviando",
-    "review": "Revisión técnica interna",
-    "waiting": "Esperando cliente",
-    "draft_created": "Borrador preparado",
-    "response_sent": "Respuesta enviada",
-    "ready": "Proyecto creado",
-    "missing": "Hilo no disponible",
-    "ignored": "Descartada",
+    QuoteStatus.REVIEW_PENDING: "Requiere aclaraciones",
+    QuoteStatus.READY_REVIEW: "Información suficiente para revisión interna",
+    QuoteStatus.SENDING: "Enviando",
+    QuoteStatus.REVIEW: "Revisión técnica interna",
+    QuoteStatus.WAITING: "Esperando cliente",
+    QuoteStatus.DRAFT_CREATED: "Borrador preparado",
+    QuoteStatus.RESPONSE_SENT: "Respuesta enviada",
+    QuoteStatus.READY: "Proyecto creado",
+    QuoteStatus.MISSING: "Hilo no disponible",
+    QuoteStatus.IGNORED: "Descartada",
 }
-ACTION_STATUSES = {"review_pending", "ready_review", "sending", "review", "missing"}
 CLIENT_TYPES = [
     "No clasificado", "Empresa privada", "Entidad pública",
     "Consultor o aliado", "Particular",
@@ -1552,7 +1554,7 @@ def _service_names(analysis: dict) -> list[str]:
 def all_quotes(include_ignored: bool = False) -> list[dict]:
     db = init_db()
     try:
-        where = "" if include_ignored else "WHERE q.status <> 'ignored'"
+        where = "" if include_ignored else f"WHERE q.status <> '{QuoteStatus.IGNORED}'"
         rows = db.execute(f"""SELECT q.*, m.client_type, m.sector,
                                       m.client_name, m.notes
                                FROM quotes q
@@ -1569,7 +1571,8 @@ def all_quotes(include_ignored: bool = False) -> list[dict]:
         client_email = routing.get("original_sender_email") or row["recipient"]
         assessment = reception_assessment(analysis) if analysis else {}
         status_label = STATUS_LABELS.get(row["status"], row["status"])
-        if row["status"] in {"review_pending", "ready_review", "review"} and assessment:
+        review_states = {QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.REVIEW}
+        if row["status"] in review_states and assessment:
             status_label = assessment["label"]
         quotes.append({
             "thread_id": row["thread_id"],
@@ -1656,16 +1659,16 @@ def dashboard_upsert(payload_base64: str) -> None:
     if missing:
         raise SystemExit("Faltan campos del dashboard: " + ", ".join(missing))
     status_map = {
-        "Nueva solicitud": "review_pending",
-        "En análisis": "review",
-        "Faltan datos": "review_pending",
-        "Requiere aclaraciones del cliente": "review_pending",
-        "Revisión técnica": "review",
-        "Requiere revisión técnica interna": "review",
-        "Borrador preparado": "draft_created",
-        "Alcance completo": "ready_review",
-        "Información suficiente para revisión interna": "ready_review",
-        "Descartada": "ignored",
+        "Nueva solicitud": QuoteStatus.REVIEW_PENDING,
+        "En análisis": QuoteStatus.REVIEW,
+        "Faltan datos": QuoteStatus.REVIEW_PENDING,
+        "Requiere aclaraciones del cliente": QuoteStatus.REVIEW_PENDING,
+        "Revisión técnica": QuoteStatus.REVIEW,
+        "Requiere revisión técnica interna": QuoteStatus.REVIEW,
+        "Borrador preparado": QuoteStatus.DRAFT_CREATED,
+        "Alcance completo": QuoteStatus.READY_REVIEW,
+        "Información suficiente para revisión interna": QuoteStatus.READY_REVIEW,
+        "Descartada": QuoteStatus.IGNORED,
     }
     activities = payload.get("activities", [])
     if isinstance(activities, str):
@@ -1758,9 +1761,9 @@ def pending_reviews() -> list[dict]:
     db = init_db()
     try:
         rows = db.execute(
-            """SELECT thread_id, status, recipient, analysis_json
+            f"""SELECT thread_id, status, recipient, analysis_json
                FROM quotes
-               WHERE status IN ('review_pending', 'ready_review', 'sending', 'review')
+               WHERE status IN {sql_in(*REVIEW_QUEUE_STATUSES)}
                ORDER BY thread_id"""
         ).fetchall()
     finally:
@@ -1819,7 +1822,7 @@ def approve_review(
             raise SystemExit(f"No existe revisión registrada para el hilo {thread_id}.")
         last_id, status, recipient, analysis_json = row
         analysis = json.loads(analysis_json)
-        if status == "review_pending":
+        if status == QuoteStatus.REVIEW_PENDING:
             thread = gmail.users().threads().get(
                 userId="me", id=thread_id, format="full"
             ).execute()
@@ -1832,14 +1835,14 @@ def approve_review(
                     reception_questions(analysis, config["required_fields"]),
                     analysis.get("routing", {}).get("is_forwarded", False),
                 )
-            save(db, thread_id, last_id, "sending", recipient, analysis)
+            save(db, thread_id, last_id, QuoteStatus.SENDING, recipient, analysis)
             sent_id = send_reply(gmail, thread, recipient, body, account_addresses)
-            save(db, thread_id, last_id, "waiting", recipient, analysis,
+            save(db, thread_id, last_id, QuoteStatus.WAITING, recipient, analysis,
                  sent_message_id=sent_id)
             message = f"{thread_id}: correo enviado a {recipient}."
             print(message)
             return message
-        elif status == "ready_review":
+        elif status == QuoteStatus.READY_REVIEW:
             if not config.get("drive_parent_id"):
                 raise SystemExit("Para aprobar alcance completo define drive_parent_id en config.json.")
             name = safe_folder_name(
@@ -1847,7 +1850,7 @@ def approve_review(
                 config.get("folder_prefix", "Cotizacion"),
             )
             folder = ensure_folder(drive, config["drive_parent_id"], name)
-            save(db, thread_id, last_id, "ready", recipient, analysis,
+            save(db, thread_id, last_id, QuoteStatus.READY, recipient, analysis,
                  folder_id=folder["id"])
             message = f"{thread_id}: carpeta creada/encontrada: {folder['id']}"
             print(message)
@@ -1939,7 +1942,7 @@ def _render_index(message: str = "") -> str:
     total = len(quotes)
     unique_clients = len({q["client_email"].casefold() for q in quotes if q["client_email"]})
     action_count = sum(q["status"] in ACTION_STATUSES for q in quotes)
-    completed = sum(q["status"] in {"ready", "ready_review"} for q in quotes)
+    completed = sum(q["status"] in {QuoteStatus.READY, QuoteStatus.READY_REVIEW} for q in quotes)
     services = Counter(service for quote in quotes for service in quote["services"])
     statuses = Counter(q["status_label"] for q in quotes)
     clients = Counter(q["client_name"] for q in quotes if q["client_name"])
@@ -2109,9 +2112,11 @@ def _render_case(thread_id: str, message: str = "") -> str:
         )
     scope_issues = unresolved_scope_issues(analysis)
     issues_summary = "\n".join(f"- {issue}" for issue in scope_issues) or "Sin asuntos pendientes."
-    email_allowed = valid_email_address(review["recipient"]) and review["status"] not in {
-        "ignored", "missing", "ready", "response_sent"
-    } and assessment.get("status") != "technical_review"
+    email_allowed = (
+        valid_email_address(review["recipient"])
+        and review["status"] not in CLOSED_STATUSES
+        and assessment.get("status") != "technical_review"
+    )
     if email_allowed:
         email_body = review["draft_body"] or suggested_reply(
             analysis, config["required_fields"]
@@ -2134,7 +2139,7 @@ def _render_case(thread_id: str, message: str = "") -> str:
       onclick="return confirm('Se enviará este correo a {html.escape(review['recipient'])} en el mismo hilo. ¿Confirmas el envío?');">Enviar ahora</button>
   </div>
 </form>"""
-    elif review["status"] == "response_sent":
+    elif review["status"] == QuoteStatus.RESPONSE_SENT:
         email_form = (
             f"<div class='notice'>Respuesta enviada el {html.escape(review['sent_at'] or 'sin fecha registrada')}.</div>"
             f"<pre>{html.escape(review['draft_body'])}</pre>"
@@ -2146,9 +2151,9 @@ def _render_case(thread_id: str, message: str = "") -> str:
             email_form = "<div class='notice'><strong>Respuesta en pausa.</strong> El equipo de Anka debe revisar el caso antes de solicitar información al cliente.</div>"
         else:
             email_form = "<p class='meta'>Esta solicitud no admite respuesta desde el dashboard en su estado actual.</p>"
-    suggestion_complete = review["status"] not in {"ignored", "missing"}
-    draft_complete = bool(review["draft_id"] or review["status"] == "response_sent")
-    sent_complete = review["status"] == "response_sent"
+    suggestion_complete = review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING}
+    draft_complete = bool(review["draft_id"] or review["status"] == QuoteStatus.RESPONSE_SENT)
+    sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT
     process_html = f"""
 <div class="process">
   <div class="process-step done"><strong>1. Correo recibido</strong><span>Detectado y registrado</span></div>
@@ -2429,11 +2434,11 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
         ))
         if db:
             thread_ids.update(row[0] for row in db.execute(
-                "SELECT thread_id FROM quotes WHERE status='waiting'"
+                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.WAITING}'"
             ))
             if gmail_drafts:
                 thread_ids.update(row[0] for row in db.execute(
-                    "SELECT thread_id FROM quotes WHERE status='review_pending'"
+                    f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.REVIEW_PENDING}'"
                 ))
         for thread_id in sorted(thread_ids):
             try:
@@ -2444,7 +2449,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
                 print(f"{thread_id}: no se pudo leer el hilo en Gmail: {exc}")
                 if db:
                     db.execute(
-                        "UPDATE quotes SET status='missing' WHERE thread_id=?",
+                        f"UPDATE quotes SET status='{QuoteStatus.MISSING}' WHERE thread_id=?",
                         (thread_id,),
                     )
                     db.commit()
@@ -2462,12 +2467,13 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
             row = db.execute(
                 "SELECT last_inbound_id, status FROM quotes WHERE thread_id=?", (thread_id,)
             ).fetchone() if db else None
-            if row and row[1] == "sending" and row[0] == last["id"]:
+            if row and row[1] == QuoteStatus.SENDING and row[0] == last["id"]:
                 print(f"{thread_id}: envío interrumpido; revisar el hilo antes de reintentar")
                 continue
-            if row and row[1] in {"ready", "ignored", "draft_created"} and row[0] == last["id"]:
+            settled = {QuoteStatus.READY, QuoteStatus.IGNORED, QuoteStatus.DRAFT_CREATED}
+            if row and row[1] in settled and row[0] == last["id"]:
                 continue
-            if row and row[0] == last["id"] and not (gmail_drafts and row[1] == "review_pending"):
+            if row and row[0] == last["id"] and not (gmail_drafts and row[1] == QuoteStatus.REVIEW_PENDING):
                 continue
             attachments = []
             for message in inbound:
@@ -2491,12 +2497,12 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
                         packet = save_review_packet(
                             thread_id, recipient, analysis, [], None
                         )
-                        save(db, thread_id, last["id"], "review", recipient, analysis)
+                        save(db, thread_id, last["id"], QuoteStatus.REVIEW, recipient, analysis)
                         print(f"{thread_id}: ficha de revisión guardada: {packet}")
                     continue
                 print(f"{thread_id}: no pasó el prefiltro comercial")
                 if db:
-                    save(db, thread_id, last["id"], "ignored", recipient, {})
+                    save(db, thread_id, last["id"], QuoteStatus.IGNORED, recipient, {})
                 continue
             analysis = analyze(
                 inbound, config["required_fields"], config["llm"], attachments
@@ -2509,7 +2515,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
             if not analysis["is_quote_request"]:
                 print(f"{thread_id}: no es solicitud de cotización")
                 if db:
-                    save(db, thread_id, last["id"], "ignored", recipient, analysis)
+                    save(db, thread_id, last["id"], QuoteStatus.IGNORED, recipient, analysis)
                 continue
             print(f"{thread_id}: {analysis['summary']}")
             print(json.dumps(analysis["activities"], ensure_ascii=False, indent=2))
@@ -2524,13 +2530,13 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
                         thread_id, recipient, analysis,
                         reception_questions(analysis, config["required_fields"]), None,
                     )
-                    save(db, thread_id, last["id"], "review", recipient, analysis)
+                    save(db, thread_id, last["id"], QuoteStatus.REVIEW, recipient, analysis)
                     print(f"{thread_id}: ficha de revisión guardada: {packet}")
                 continue
             if not analysis["activities"]:
                 print(f"{thread_id}: sin actividades identificables; requiere revisión manual")
                 if db:
-                    save(db, thread_id, last["id"], "review", recipient, analysis)
+                    save(db, thread_id, last["id"], QuoteStatus.REVIEW, recipient, analysis)
                 continue
             scope_issues = unresolved_scope_issues(analysis)
             if scope_issues:
@@ -2543,7 +2549,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
                         thread_id, recipient, analysis,
                         reception_questions(analysis, config["required_fields"]), None,
                     )
-                    save(db, thread_id, last["id"], "review", recipient, analysis)
+                    save(db, thread_id, last["id"], QuoteStatus.REVIEW, recipient, analysis)
                     print(f"{thread_id}: ficha de revisión guardada: {packet}")
                 continue
             questions = reception_questions(analysis, config["required_fields"])
@@ -2560,21 +2566,21 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
                             thread_id, recipient, analysis, questions, draft_body
                         )
                         save(
-                            db, thread_id, last["id"], "draft_created", recipient,
+                            db, thread_id, last["id"], QuoteStatus.DRAFT_CREATED, recipient,
                             analysis, sent_message_id=draft_id,
                         )
                         print(f"{thread_id}: borrador creado en Gmail para {recipient}: {draft_id}")
                         print(f"{thread_id}: ficha de apoyo guardada: {packet}")
                     elif review_only:
                         packet = save_review_packet(thread_id, recipient, analysis, questions, body)
-                        save(db, thread_id, last["id"], "review_pending", recipient, analysis)
+                        save(db, thread_id, last["id"], QuoteStatus.REVIEW_PENDING, recipient, analysis)
                         print(f"{thread_id}: guardado para revisión humana: {packet}")
                     else:
-                        save(db, thread_id, last["id"], "sending", recipient, analysis)
+                        save(db, thread_id, last["id"], QuoteStatus.SENDING, recipient, analysis)
                         sent_id = send_reply(
                             gmail, thread, recipient, body, account_addresses
                         )
-                        save(db, thread_id, last["id"], "waiting", recipient, analysis,
+                        save(db, thread_id, last["id"], QuoteStatus.WAITING, recipient, analysis,
                              sent_message_id=sent_id)
                 continue
             name = safe_folder_name(
@@ -2584,11 +2590,11 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
             if db:
                 if review_only:
                     packet = save_review_packet(thread_id, recipient, analysis, [], None, name)
-                    save(db, thread_id, last["id"], "ready_review", recipient, analysis)
+                    save(db, thread_id, last["id"], QuoteStatus.READY_REVIEW, recipient, analysis)
                     print(f"{thread_id}: guardado para revisión humana: {packet}")
                 else:
                     folder = ensure_folder(drive, config["drive_parent_id"], name)
-                    save(db, thread_id, last["id"], "ready", recipient, analysis,
+                    save(db, thread_id, last["id"], QuoteStatus.READY, recipient, analysis,
                          folder_id=folder["id"])
                     print(f"Carpeta creada/encontrada: {folder['id']}")
     finally:

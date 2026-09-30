@@ -26,7 +26,7 @@ def parse_activities_form(form: dict[str, list[str]]) -> list[dict]:
     try:
         count = min(int(form.get("row_count", ["0"])[0]), MAX_ROWS)
     except ValueError:
-        raise ValueError("Formulario de actividades no válido.")
+        raise ValueError("Formulario de actividades no válido.") from None
     activities = []
     for index in range(count + 1):  # +1: fila nueva al final
         if form.get(f"a{index}_del", [""])[0]:

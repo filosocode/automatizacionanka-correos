@@ -1,0 +1,8 @@
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP"]
+# Deuda conocida: líneas largas heredadas; se corrigen al dividir app.py.
+ignore = ["E501"]

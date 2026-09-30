@@ -7,6 +7,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from status import QuoteStatus, sql_in
+
 
 def open_db(data_dir: Path) -> sqlite3.Connection:
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -52,15 +54,15 @@ def open_db(data_dir: Path) -> sqlite3.Connection:
         read_at TEXT,
         UNIQUE(thread_id, kind, source_key)
     )""")
-    db.execute("""INSERT OR IGNORE INTO dashboard_notifications
+    db.execute(f"""INSERT OR IGNORE INTO dashboard_notifications
                   (thread_id, kind, source_key, title, message, created_at)
                   SELECT thread_id, 'request_received', last_inbound_id,
                          'Correo nuevo recibido',
                          'La solicitud ya fue analizada y agregada al dashboard.',
                          first_seen_at
                   FROM quotes
-                  WHERE first_seen_at IS NOT NULL AND status <> 'ignored'""")
-    db.execute("""INSERT OR IGNORE INTO dashboard_notifications
+                  WHERE first_seen_at IS NOT NULL AND status <> '{QuoteStatus.IGNORED}'""")
+    db.execute(f"""INSERT OR IGNORE INTO dashboard_notifications
                   (thread_id, kind, source_key, title, message, created_at)
                   SELECT thread_id, 'draft_suggested', last_inbound_id,
                          'Respuesta sugerida lista para revisar',
@@ -68,7 +70,8 @@ def open_db(data_dir: Path) -> sqlite3.Connection:
                          COALESCE(updated_at, first_seen_at)
                   FROM quotes
                   WHERE first_seen_at IS NOT NULL
-                    AND status IN ('review_pending', 'review', 'ready_review', 'draft_created')""")
+                    AND status IN {sql_in(QuoteStatus.REVIEW_PENDING, QuoteStatus.REVIEW,
+                                          QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED)}""")
     db.commit()
     return db
 
