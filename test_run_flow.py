@@ -12,6 +12,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+import logging_setup
 import pipeline
 import quotes
 import settings
@@ -171,6 +172,64 @@ class RunFlowTests(unittest.TestCase):
         saved = json.loads(rows[0][3])
         self.assertEqual(saved["routing"]["selected_recipient"], "cliente@example.com")
         self.assertIn("received_at", saved)
+
+
+class LogPrivacyTests(unittest.TestCase):
+    """El archivo de registro guarda resultados por hilo, nunca contenido de clientes."""
+
+    CLIENT_EMAIL = "cliente.secreto@empresa-privada.co"
+    SUMMARY = "Levantamiento topográfico confidencial del parque Solaris"
+
+    def run_logged(self, gmail, analysis, **flags):
+        with tempfile.TemporaryDirectory() as log_dir:
+            console = io.StringIO()
+            logging_setup.configure_logging(Path(log_dir), stream=console)
+            self.addCleanup(logging_setup.reset_logging)
+            RunFlowTests().run_flow(gmail, analysis, **flags)
+            logging_setup.reset_logging()
+            file_text = (Path(log_dir) / "anka.log").read_text(encoding="utf-8")
+        return console.getvalue(), file_text
+
+    def thread(self):
+        return {"id": "t-log", "messages": [encoded_message(
+            "client-1", self.CLIENT_EMAIL, "Solicito cotización de un levantamiento.", 1)]}
+
+    def analysis(self, **extra):
+        return complete_analysis(location="") | {"summary": self.SUMMARY} | extra
+
+    def test_file_has_the_outcome_but_no_client_content(self):
+        console, file_text = self.run_logged(
+            FakeGmail(self.thread()), self.analysis(), gmail_drafts=True, review_only=False,
+        )
+        self.assertIn("t-log: solicitud de cotización analizada", file_text)
+        self.assertIn("t-log: borrador creado en Gmail: draft-1", file_text)
+        for secret in (self.CLIENT_EMAIL, "empresa-privada", self.SUMMARY, "Levantamiento topográfico",
+                       "Borrador para", "ubicación del proyecto"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, file_text)
+
+    def test_console_keeps_the_full_detail_the_operator_used_to_see(self):
+        console, _ = self.run_logged(
+            FakeGmail(self.thread()), self.analysis(), gmail_drafts=True, review_only=False,
+        )
+        self.assertIn(self.SUMMARY, console)
+        self.assertIn("Borrador para", console)
+        self.assertIn(self.CLIENT_EMAIL, console)
+
+    def test_manual_review_and_direct_send_leave_an_audit_line(self):
+        _, review_file = self.run_logged(
+            FakeGmail(self.thread()), self.analysis(activities=[]), review_only=True,
+        )
+        self.assertIn("t-log: sin actividades identificables; requiere revisión manual", review_file)
+        _, send_file = self.run_logged(FakeGmail(self.thread()), self.analysis())
+        self.assertIn("t-log: preguntas enviadas al cliente; se espera respuesta", send_file)
+        self.assertNotIn(self.CLIENT_EMAIL, send_file)
+
+    def test_warning_level_marks_the_cases_that_need_a_human(self):
+        with self.assertLogs("anka.pipeline", "WARNING") as logs:
+            RunFlowTests().run_flow(FakeGmail(self.thread()), self.analysis(activities=[]),
+                                    review_only=True)
+        self.assertTrue(any("requiere revisión manual" in line for line in logs.output))
 
 
 class DecideAnalysisTests(unittest.TestCase):

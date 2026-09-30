@@ -19,9 +19,12 @@ from reception import (
     question_email, reception_questions, safe_folder_name,
 )
 from settings import load_config
+from logging_setup import SENSITIVE, get_logger
 from store import add_dashboard_notification, save
 
 from quotes import get_quote, init_db
+
+log = get_logger(__name__)
 
 
 def resolve_case_recipient(thread_id: str) -> dict:
@@ -104,6 +107,7 @@ def save_dashboard_draft(thread_id: str, body: str) -> str:
         db.commit()
     finally:
         db.close()
+    log.info("%s: borrador guardado en Gmail desde el dashboard", thread_id)
     return f"Borrador guardado en Gmail para {quote['recipient']}."
 
 
@@ -143,6 +147,7 @@ def send_dashboard_reply(thread_id: str, body: str) -> str:
         db.commit()
     finally:
         db.close()
+    log.info("%s: correo enviado desde el dashboard", thread_id)
     return f"Correo enviado a {quote['recipient']} en el mismo hilo."
 
 
@@ -181,7 +186,8 @@ def approve_review(
             save(db, thread_id, last_id, QuoteStatus.WAITING, recipient, analysis,
                  sent_message_id=sent_id)
             message = f"{thread_id}: correo enviado a {recipient}."
-            print(message)
+            log.info("%s: correo enviado tras aprobación", thread_id)
+            log.info("%s", message, extra=SENSITIVE)
             return message
         elif status == QuoteStatus.READY_REVIEW:
             if not config.get("drive_parent_id"):
@@ -194,7 +200,7 @@ def approve_review(
             save(db, thread_id, last_id, QuoteStatus.READY, recipient, analysis,
                  folder_id=folder["id"])
             message = f"{thread_id}: carpeta creada/encontrada: {folder['id']}"
-            print(message)
+            log.info("%s", message)
             return message
         else:
             raise SystemExit(

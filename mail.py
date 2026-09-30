@@ -10,6 +10,9 @@ from datetime import datetime
 from email.message import EmailMessage
 from email.utils import getaddresses, parseaddr
 from attachments import extract_attachment_text
+from logging_setup import get_logger
+
+log = get_logger(__name__)
 
 
 
@@ -134,6 +137,7 @@ def extract_message_attachments(gmail: Any, message: dict) -> list[dict]:
                     part["filename"], part["mime_type"], _decode_websafe(encoded)
                 )
         except Exception as exc:
+            log.warning("Adjunto no legible en el mensaje %s: %s", message.get("id"), type(exc).__name__)
             text, reason = "", f"error al descargar o leer: {exc}"
         record.update({
             "status": "extraido" if text else "bloqueado",
@@ -184,7 +188,7 @@ def own_addresses(config: dict, gmail: Any) -> set[str]:
         if primary:
             addresses.add(normalized_address(primary))
     except Exception as exc:
-        print(f"No se pudo consultar la cuenta principal de Gmail: {exc}")
+        log.warning("No se pudo consultar la cuenta principal de Gmail: %s", exc)
     return {address for address in addresses if address}
 
 

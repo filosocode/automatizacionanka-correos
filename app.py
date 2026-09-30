@@ -15,6 +15,7 @@ from llm import analyze_text
 from modes import (
     print_mode, set_mode,
 )
+from logging_setup import configure_logging
 from settings import ACTIVE_MODES, load_config, unknown_config_keys
 from quotes import dashboard_upsert, list_reviews
 from case_actions import approve_review
@@ -320,6 +321,7 @@ def main() -> None:
         help="Modo a activar con set-mode.",
     )
     args = parser.parse_args()
+    configure_logging()
     if args.command != "auth":
         warn_unknown_config_keys()
     if args.command == "dashboard-upsert":

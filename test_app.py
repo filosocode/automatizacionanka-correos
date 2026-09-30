@@ -467,15 +467,14 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertFalse(commercial_candidate(messages, ["factura"]))
 
     def test_watch_handles_keyboard_interrupt_from_sleep(self):
-        output = io.StringIO()
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("pipeline.load_config", return_value={"active_mode": "local"}), patch(
             "pipeline.run"
         ) as run_mock, patch("pipeline.time.sleep", side_effect=KeyboardInterrupt):
-            with redirect_stdout(output):
+            with self.assertLogs("anka.pipeline", "INFO") as logs:
                 pipeline.watch(False, False, 30)
         run_mock.assert_called_once_with(False, False, False)
-        self.assertIn("Vigilancia detenida por el usuario.", output.getvalue())
+        self.assertIn("Vigilancia detenida por el usuario.", " ".join(logs.output))
 
     def test_watch_stops_in_chatgpt_work_mode(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
@@ -577,13 +576,14 @@ class QuoteFlowTests(unittest.TestCase):
                 "cliente@example.com", analysis,
             )
             db.close()
-            message = case_actions.save_dashboard_draft(
-                "thread-dashboard", "Hola,\n\nGracias por su solicitud."
-            )
-            draft_quote = quotes.get_quote("thread-dashboard")
-            sent_message = case_actions.send_dashboard_reply(
-                "thread-dashboard", "Hola,\n\nGracias por su solicitud revisada."
-            )
+            with self.assertLogs("anka.case_actions", "INFO") as audit:
+                message = case_actions.save_dashboard_draft(
+                    "thread-dashboard", "Hola,\n\nGracias por su solicitud."
+                )
+                draft_quote = quotes.get_quote("thread-dashboard")
+                sent_message = case_actions.send_dashboard_reply(
+                    "thread-dashboard", "Hola,\n\nGracias por su solicitud revisada."
+                )
             sent_quote = quotes.get_quote("thread-dashboard")
             notification_kinds = {
                 item["kind"] for item in quotes.unread_notifications()
@@ -594,6 +594,12 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertEqual(gmail.sent_drafts, ["draft-1"])
         self.assertIn("Correo enviado", sent_message)
         self.assertEqual(sent_quote["status"], "response_sent")
+        # Auditoría: queda constancia de cada acción, sin el destinatario ni el texto.
+        trail = "\n".join(audit.output)
+        self.assertIn("thread-dashboard: borrador guardado en Gmail desde el dashboard", trail)
+        self.assertIn("thread-dashboard: correo enviado desde el dashboard", trail)
+        self.assertNotIn("cliente@example.com", trail)
+        self.assertNotIn("Gracias por su solicitud", trail)
         self.assertIn("draft_saved", notification_kinds)
         self.assertIn("response_sent", notification_kinds)
 
@@ -751,7 +757,8 @@ class HandlerErrorTests(unittest.TestCase):
         handler._send_html = lambda content, status=200: sent.update(status=status)
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("web.load_config", side_effect=SystemExit("falta config")):
-            handler.do_POST()
+            with self.assertLogs("anka.web", "ERROR"):
+                handler.do_POST()
         self.assertEqual(sent["status"], 500)
 
 
@@ -947,9 +954,13 @@ class CheckStatusTests(unittest.TestCase):
     def test_checked_run_records_error_instead_of_raising(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("pipeline.run", side_effect=SystemExit("falta token")):
-            result = pipeline.checked_run(True, True, False, "dashboard")
+            with self.assertLogs("anka.pipeline", "ERROR") as logs:
+                result = pipeline.checked_run(True, True, False, "dashboard")
         self.assertEqual(result["error"], "falta token")
         self.assertIn("falló: falta token", pipeline.describe_check(result))
+        # El error queda con su traceback en el registro, no solo como texto en last_check.
+        self.assertIsNotNone(logs.records[0].exc_info)
+        self.assertIn("(dashboard)", logs.output[0])
 
     def test_sync_status_text_by_mode(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)

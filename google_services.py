@@ -6,6 +6,9 @@ import os
 from typing import TYPE_CHECKING, Any
 
 import settings
+from logging_setup import get_logger
+
+log = get_logger(__name__)
 
 if TYPE_CHECKING:
     from google.oauth2.credentials import Credentials
@@ -35,7 +38,7 @@ def credentials(force_auth: bool = False) -> Credentials:
     if token_path.exists():
         creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
         if not creds.has_scopes(SCOPES):
-            print("token.json necesita permisos nuevos; se abrira la autorizacion de Google.")
+            log.warning("token.json necesita permisos nuevos; se abrira la autorizacion de Google.")
             creds = None
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())

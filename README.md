@@ -109,3 +109,18 @@ Para actualizar (requiere [uv](https://docs.astral.sh/uv/)), cambia el rango si 
 uv pip compile requirements.txt --universal --python-version 3.11 --generate-hashes -o requirements.lock
 uv pip compile requirements-dev.txt --universal --python-version 3.11 --generate-hashes -o requirements-dev.lock
 ```
+
+## Registro (`logging`)
+
+El piloto y el dashboard escriben en dos destinos (`logging_setup.py`, se configura al iniciar cualquier comando de `app.py`):
+
+- **Consola** (`stdout`): el mismo texto de siempre, con todo el detalle (resumen, actividades, borrador).
+- **Archivo** `logs/anka.log` en la carpeta de datos, rotativo (1 MB × 5): fecha, nivel, módulo y mensaje. **Sin datos de clientes**: solo identificadores de hilo y resultados (`t-123: borrador creado en Gmail: r-456`), rechazos de seguridad, advertencias y errores con su traceback. Cualquier dirección de correo que se cuele se reemplaza por `<correo>`.
+
+`ANKA_LOG_LEVEL=DEBUG` (o `WARNING`, `ERROR`) cambia el nivel. Si el archivo no se puede abrir, se avisa y el programa sigue sin él.
+
+Reglas para el código nuevo:
+
+- Usa `log = get_logger(__name__)`, no `print`, para lo que sea registro. `print` queda solo para la salida de un comando (`mode`, `reviews`, `drive-tree`...).
+- Todo mensaje que lleve contenido de un cliente (correo, destinatario, actividades, borrador, nombres de archivo) se marca con `extra=SENSITIVE`: va a la consola y no al archivo. Ejemplo: `log.info("%s: %s", thread_id, resumen, extra=SENSITIVE)`.
+- En un `except` amplio, registra con `log.exception(...)`: el traceback es lo que permite diagnosticar después.

@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections.abc import Sequence
 from enum import StrEnum
-from typing import Any
+from typing import Any, NamedTuple
 from status import (
     QuoteStatus,
 )
 import settings
+from logging_setup import SENSITIVE, get_logger
 from google_services import services, ensure_folder
 from mail import (
     candidate_thread_ids, create_reply_draft, extract_message_attachments,
@@ -34,6 +36,7 @@ from store import save
 from quotes import init_db, save_review_packet
 
 
+log = get_logger(__name__)
 LAST_CHECK_FILE = "last_check.json"
 
 
@@ -64,6 +67,7 @@ def checked_run(apply: bool, review_only: bool, gmail_drafts: bool, source: str)
         run(apply, review_only, gmail_drafts)
     except (Exception, SystemExit) as exc:
         error = str(exc) or exc.__class__.__name__
+        log.exception("Error en la revisión de Gmail (%s)", source)
     after = _quote_snapshot()
     result = {
         "at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -147,12 +151,19 @@ class Action(StrEnum):
     FOLDER = "folder"      # crear la carpeta del proyecto en Drive
 
 
+class Note(NamedTuple):
+    """Mensaje de registro de una decisión. `sensitive` = lleva datos de un cliente."""
+    text: str
+    sensitive: bool = False
+    level: int = logging.INFO
+
+
 @dataclass
 class Decision:
     """Qué hacer con un hilo. Se calcula sin tocar Gmail, SQLite ni Drive."""
     status: QuoteStatus
     analysis: dict
-    logs: list[str] = field(default_factory=list)
+    logs: list[Note] = field(default_factory=list)
     action: Action = Action.NONE
     packet: bool = False               # guardar ficha de revisión
     questions: list[str] = field(default_factory=list)
@@ -169,11 +180,14 @@ def decide_prefilter(
     if any(item.get("status") == "bloqueado" for item in attachments):
         return Decision(
             QuoteStatus.REVIEW, analysis_base, packet=True,
-            logs=[f"{thread_id}: adjuntos no legibles impiden clasificar el alcance"],
+            logs=[Note(
+                f"{thread_id}: adjuntos no legibles impiden clasificar el alcance",
+                level=logging.WARNING,
+            )],
         )
     return Decision(
         QuoteStatus.IGNORED, {},
-        logs=[f"{thread_id}: no pasó el prefiltro comercial"],
+        logs=[Note(f"{thread_id}: no pasó el prefiltro comercial")],
     )
 
 
@@ -185,27 +199,38 @@ def decide_analysis(
     if not analysis["is_quote_request"]:
         return Decision(
             QuoteStatus.IGNORED, analysis,
-            logs=[f"{thread_id}: no es solicitud de cotización"],
+            logs=[Note(f"{thread_id}: no es solicitud de cotización")],
         )
     logs = [
-        f"{thread_id}: {analysis['summary']}",
-        json.dumps(analysis["activities"], ensure_ascii=False, indent=2),
+        Note(f"{thread_id}: solicitud de cotización analizada; "
+             f"{len(analysis['activities'])} actividad(es)"),
+        Note(f"{thread_id}: {analysis['summary']}", sensitive=True),
+        Note(json.dumps(analysis["activities"], ensure_ascii=False, indent=2), sensitive=True),
     ]
     required = config["required_fields"]
     if blocked:
         names = ", ".join(item["filename"] for item in blocked)
-        logs.append(f"{thread_id}: adjuntos no legibles ({names}); requiere revisión manual")
+        logs.append(Note(
+            f"{thread_id}: {len(blocked)} adjunto(s) no legible(s); requiere revisión manual",
+            level=logging.WARNING,
+        ))
+        logs.append(Note(f"{thread_id}: adjuntos no legibles: {names}", sensitive=True,
+                         level=logging.WARNING))
         return Decision(
             QuoteStatus.REVIEW, analysis, logs, packet=True,
             questions=reception_questions(analysis, required),
         )
     if not analysis["activities"]:
-        logs.append(f"{thread_id}: sin actividades identificables; requiere revisión manual")
+        logs.append(Note(
+            f"{thread_id}: sin actividades identificables; requiere revisión manual",
+            level=logging.WARNING,
+        ))
         return Decision(QuoteStatus.REVIEW, analysis, logs)
     if unresolved_scope_issues(analysis):
-        logs.append(
-            f"{thread_id}: dependencias o contradicciones pendientes; requiere revisión manual"
-        )
+        logs.append(Note(
+            f"{thread_id}: dependencias o contradicciones pendientes; requiere revisión manual",
+            level=logging.WARNING,
+        ))
         return Decision(
             QuoteStatus.REVIEW, analysis, logs, packet=True,
             questions=reception_questions(analysis, required),
@@ -213,7 +238,8 @@ def decide_analysis(
     questions = reception_questions(analysis, required)
     if questions:
         body = question_email(questions, is_forwarded)
-        logs.append(f"{thread_id}: faltan datos. Borrador para {recipient}:\n{body}")
+        logs.append(Note(f"{thread_id}: faltan datos; se propone pedirlos al cliente"))
+        logs.append(Note(f"{thread_id}: Borrador para {recipient}:\n{body}", sensitive=True))
         if gmail_drafts:
             return Decision(
                 QuoteStatus.DRAFT_CREATED, analysis, logs, Action.GMAIL_DRAFT,
@@ -228,7 +254,8 @@ def decide_analysis(
     name = safe_folder_name(
         analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion")
     )
-    logs.append(f"{thread_id}: alcance completo; carpeta: {name}")
+    logs.append(Note(f"{thread_id}: alcance completo"))
+    logs.append(Note(f"{thread_id}: carpeta propuesta: {name}", sensitive=True))
     if review_only:
         return Decision(
             QuoteStatus.READY_REVIEW, analysis, logs, Action.QUEUE,
@@ -252,8 +279,8 @@ def apply_decision(
     ctx: RunContext, thread: dict, thread_id: str, last: dict, recipient: str, d: Decision,
 ) -> None:
     """Ejecuta los efectos de una decisión. Sin base de datos (simulación) solo informa."""
-    for line in d.logs:
-        print(line)
+    for note in d.logs:
+        log.log(note.level, "%s", note.text, extra=SENSITIVE if note.sensitive else None)
     db = ctx.db
     if not db:
         return
@@ -279,17 +306,23 @@ def apply_decision(
         folder = ensure_folder(ctx.drive, ctx.config["drive_parent_id"], d.folder_name)
         save(db, thread_id, last["id"], d.status, recipient, d.analysis,
              folder_id=folder["id"])
-        print(f"Carpeta creada/encontrada: {folder['id']}")
+        log.info("%s: carpeta creada/encontrada: %s", thread_id, folder["id"])
     elif d.action is Action.GMAIL_DRAFT:
         save(db, thread_id, last["id"], d.status, recipient, d.analysis,
              sent_message_id=draft_id)
-        print(f"{thread_id}: borrador creado en Gmail para {recipient}: {draft_id}")
-        print(f"{thread_id}: ficha de apoyo guardada: {packet}")
+        log.info("%s: borrador creado en Gmail: %s", thread_id, draft_id)
+        log.info("%s: destinatario del borrador: %s", thread_id, recipient, extra=SENSITIVE)
+        log.info("%s: ficha de apoyo guardada: %s", thread_id, packet.name if packet else "")
     else:
         save(db, thread_id, last["id"], d.status, recipient, d.analysis)
         if packet:
-            verb = "guardado para revisión humana" if d.action is Action.QUEUE                 else "ficha de revisión guardada"
-            print(f"{thread_id}: {verb}: {packet}")
+            verb = (
+                "guardado para revisión humana" if d.action is Action.QUEUE
+                else "ficha de revisión guardada"
+            )
+            log.info("%s: %s: %s", thread_id, verb, packet.name)
+    if d.action is Action.SEND:
+        log.info("%s: preguntas enviadas al cliente; se espera respuesta", thread_id)
 
 
 def _skip_reason(row: Sequence[Any] | None, last_id: str, gmail_drafts: bool) -> str | None:
@@ -307,13 +340,13 @@ def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
     config = ctx.config
     inbound = inbound_messages(thread, ctx.account_addresses)
     if not inbound:
-        print(f"{thread_id}: solo contiene mensajes propios; se omite")
+        log.info("%s: solo contiene mensajes propios; se omite", thread_id)
         return
     last = inbound[-1]
     routing = forwarded_routing(last, config)
     recipient = routing["selected_recipient"]
     if not recipient:
-        print(f"{thread_id}: sin remitente; requiere revisión")
+        log.warning("%s: sin remitente; requiere revisión", thread_id)
         return
     row = ctx.db.execute(
         "SELECT last_inbound_id, status FROM quotes WHERE thread_id=?", (thread_id,)
@@ -321,7 +354,7 @@ def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
     skip = _skip_reason(row, last["id"], ctx.gmail_drafts)
     if skip is not None:
         if skip:
-            print(f"{thread_id}: {skip}")
+            log.warning("%s: %s", thread_id, skip)
         return
     attachments = []
     for message in inbound:
@@ -384,7 +417,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
                     userId="me", id=thread_id, format="full"
                 ).execute()
             except Exception as exc:
-                print(f"{thread_id}: no se pudo leer el hilo en Gmail: {exc}")
+                log.warning("%s: no se pudo leer el hilo en Gmail: %s", thread_id, exc)
                 if db:
                     db.execute(
                         f"UPDATE quotes SET status='{QuoteStatus.MISSING}' WHERE thread_id=?",
@@ -401,15 +434,15 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
 def watch(apply: bool, review_only: bool, seconds: int, gmail_drafts: bool = False) -> None:
     if seconds < 30:
         raise SystemExit("--watch-seconds debe ser de al menos 30 segundos.")
-    print(f"Vigilando Gmail cada {seconds} segundos. Presiona Ctrl+C para detener.")
+    log.info("Vigilando Gmail cada %s segundos. Presiona Ctrl+C para detener.", seconds)
     try:
         while True:
-            print(time.strftime("\n[%Y-%m-%d %H:%M:%S] Revisando buzón..."))
+            log.info(time.strftime("\n[%Y-%m-%d %H:%M:%S] Revisando buzón..."))
             ensure_local_or_api_mode(load_config())  # en modo Work el bot se detiene
             try:
                 checked_run(apply, review_only, gmail_drafts, "piloto")
-            except Exception as exc:
-                print(f"Error en ciclo de revisión: {exc}")
+            except Exception:
+                log.exception("Error en ciclo de revisión")
             time.sleep(seconds)
     except KeyboardInterrupt:
-        print("\nVigilancia detenida por el usuario.")
+        log.info("\nVigilancia detenida por el usuario.")

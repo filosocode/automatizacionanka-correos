@@ -290,20 +290,36 @@ class ErrorPageTests(unittest.TestCase):
 
     def test_forbidden_page_escapes_the_reason(self):
         body = ("csrf_token=" + web.CSRF_TOKEN).encode()
-        sent = self.request("POST", "/refresh", body, origin="http://evil.example")
+        with self.assertLogs("anka.web", "WARNING") as logs:
+            sent = self.request("POST", "/refresh", body, origin="http://evil.example")
         self.assertEqual(sent["status"], 403)
         self.assertIn("<div class='empty'>", sent["page"])
         self.assertNotIn("&lt;div class=", sent["page"])
+        self.assertIn("Origen no permitido", logs.output[0])  # los rechazos quedan registrados
 
     def test_error_text_from_an_exception_is_escaped(self):
         body = ("csrf_token=" + web.CSRF_TOKEN).encode()
         boom = RuntimeError(f"<img src=x onerror={MARK}(1)>")
         with patch("web.checked_run", side_effect=boom):
-            sent = self.request("POST", "/refresh", body)
+            with self.assertLogs("anka.web", "ERROR") as logs:
+                sent = self.request("POST", "/refresh", body)
         self.assertEqual(sent["status"], 500)
         self.assertNotIn("<img src=x", sent["page"])
         self.assertIn("&lt;img src=x", sent["page"])
         self.assertIn("<div class='empty'>", sent["page"])
+        self.assertIn("Error atendiendo POST /refresh", logs.output[0])
+        self.assertIsNotNone(logs.records[0].exc_info)  # el traceback ya no se pierde
+
+    def test_get_that_raises_returns_a_500_page_and_logs_the_traceback(self):
+        failure = RuntimeError("falla al armar el resumen")
+        with patch("web._render_index", side_effect=failure):
+            with self.assertLogs("anka.web", "ERROR") as logs:
+                sent = self.request("GET", "/?message=hola")
+        self.assertEqual(sent["status"], 500)
+        self.assertIn("falla al armar el resumen", sent["page"])
+        self.assertIn("Error atendiendo GET /", logs.output[0])
+        self.assertNotIn("message=hola", logs.output[0])  # la consulta no se registra
+        self.assertIsNotNone(logs.records[0].exc_info)
 
 
 if __name__ == "__main__":

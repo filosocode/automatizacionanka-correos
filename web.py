@@ -33,12 +33,15 @@ from modes import (
     set_mode,
 )
 from internal_context import internal_commercial_context
+from logging_setup import get_logger
 from settings import load_config
 from templating import render
 
 from case_actions import approve_review, resolve_case_recipient, save_dashboard_draft, send_dashboard_reply
 from pipeline import checked_run, describe_check, sync_status_text
 from quotes import CLIENT_TYPES, SECTORS, STATUS_LABELS, all_quotes, get_quote, mark_notifications_read, save_activities, save_quote_metadata, unread_notifications
+
+log = get_logger(__name__)
 
 
 def _page(title: str, body: Markup, message: str = "") -> str:
@@ -173,6 +176,7 @@ def _render_case(thread_id: str, message: str = "") -> str:
         try:
             review = resolve_case_recipient(thread_id)["quote"]
         except Exception:
+            log.warning("%s: no se pudo confirmar el destinatario en Gmail", thread_id, exc_info=True)
             recipient_error = (
                 "No se pudo confirmar el destinatario en Gmail. "
                 "El guardado y el envío están bloqueados para evitar un correo incorrecto."
@@ -274,9 +278,18 @@ class ReviewHandler(BaseHTTPRequestHandler):
         return urllib.parse.parse_qs(data)
 
     def _reject(self, reason: str) -> None:
+        origin = getattr(self, "client_address", ("?",))[0]
+        log.warning("Solicitud rechazada (%s) desde %s", reason, origin)
         self._send_html(_page("Solicitud rechazada", render("empty.html", text=reason)), 403)
 
     def do_GET(self) -> None:
+        try:
+            self._get()
+        except (Exception, SystemExit) as exc:
+            log.exception("Error atendiendo GET %s", self.path.split("?")[0])
+            self._send_html(_page("Error", render("empty.html", text=str(exc))), 500)
+
+    def _get(self) -> None:
         if not is_local_host_header(self.headers.get("Host", "")):
             return self._reject("Host no permitido.")
         parsed = urllib.parse.urlparse(self.path)
@@ -378,6 +391,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
             else:
                 self._send_html(_page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
         except (Exception, SystemExit) as exc:
+            log.exception("Error atendiendo POST %s", parsed.path)
             self._send_html(_page("Error", render("empty.html", text=str(exc))), 500)
 
     def _redirect(self, location: str) -> None:
