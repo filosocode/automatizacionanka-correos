@@ -1,0 +1,74 @@
+<div class="page-head"><div><h1>{{ project_name }}</h1><p>{{ summary }}</p></div><a class="button secondary" href="/requests">Volver</a></div>
+<div class="layout">
+  <section class="section">
+    <span class="badge">{{ review.status_label }}</span>
+    <div class="meta">Destinatario: {{ review.recipient }}</div>
+    <div class="meta">Hilo: {{ thread_id }}</div>
+    <div class="process">
+      <div class="process-step done"><strong>1. Correo recibido</strong><span>Detectado y registrado</span></div>
+      <div class="process-step done"><strong>2. Lectura inicial</strong><span>{{ service_family }}</span></div>
+      <div class="process-step {{ 'done' if suggestion_complete else '' }}"><strong>3. Aclaración sugerida</strong><span>{{ 'Lista para revisión' if suggestion_complete else 'No disponible' }}</span></div>
+      <div class="process-step {{ 'done' if draft_complete or sent_complete else 'current' }}"><strong>4. Gestión de respuesta</strong><span>{{ 'Enviada' if sent_complete else ('Borrador guardado' if draft_complete else 'Pendiente de aprobación') }}</span></div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-head"><h2>Evaluación de recepción</h2><span class="badge info">Sin cotizar</span></div>
+    {{ assessment_panel }}
+  </section>
+  <section class="section"><h2>Información comercial</h2>
+<form method="post" action="/metadata">
+  <input type="hidden" name="thread_id" value="{{ thread_id }}">
+  <div class="filters">
+    <label>Cliente o empresa<input name="client_name" value="{{ review.client_name }}"></label>
+    <label>Tipo de cliente<select name="client_type">{% for value in client_types %}<option value='{{ value }}'{% if value == review.client_type %} selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
+    <label>Sector<select name="sector">{% for value in sectors %}<option value='{{ value }}'{% if value == review.sector %} selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
+  </div>
+  <label>Notas comerciales<textarea name="notes" style="min-height:90px">{{ review.notes }}</textarea></label>
+  <div class="toolbar" style="margin-top:12px"><button type="submit">Guardar datos comerciales</button></div>
+</form></section>
+  <section class="section">
+    <div class="section-head"><h2>Contexto comercial interno</h2><span class="badge info">Solo Anka</span></div>
+    {{ internal_context }}
+  </section>
+  <section class="section">
+    <h2>Actividades detectadas</h2>
+    {{ activities_editor }}
+  </section>
+  <section class="section">
+    <h2>Adjuntos</h2>
+    {{ attachments_table }}
+  </section>
+  <section class="section">
+    <h2>Enrutamiento y validaciones</h2>
+    <pre>{{ routing_summary }}</pre>
+    <h2 style="margin-top:16px;">Asuntos pendientes</h2>
+    <pre>{{ issues_summary }}</pre>
+  </section>
+  <section class="section">
+    <h2>Respuesta al cliente</h2>
+    <p class="meta">Revisa el destinatario y el contenido. Ningún correo se envía sin pulsar “Enviar ahora”.</p>
+    {% if email == 'form' %}
+{% if review.draft_id %}<div class='notice'>Ya existe un borrador en Gmail. Al guardarlo de nuevo se actualizará.</div>{% else %}<div class='notice'><strong>Respuesta sugerida lista.</strong> Todavía no está guardada ni enviada en Gmail.</div>{% endif %}
+<form method="post">
+  <input type="hidden" name="thread_id" value="{{ thread_id }}">
+  <label>Respuesta para {{ review.recipient }}
+    <textarea name="body" style="min-height:260px">{{ email_body }}</textarea>
+  </label>
+  <div class="toolbar" style="margin-top:14px">
+    <button type="submit" formaction="/draft">Guardar borrador en Gmail</button>
+    <button type="submit" formaction="/send" class="danger"
+      data-confirm="Se enviará este correo a {{ review.recipient }} en el mismo hilo. ¿Confirmas el envío?">Enviar ahora</button>
+  </div>
+</form>
+    {% elif email == 'sent' %}
+<div class='notice'>Respuesta enviada el {{ review.sent_at or 'sin fecha registrada' }}.</div><pre>{{ review.draft_body }}</pre>
+    {% elif email == 'recipient_error' %}
+<div class='notice' style='border-color:#e2b8b3;background:#faecea'>{{ recipient_error }}</div>
+    {% elif email == 'technical' %}
+<div class='notice'><strong>Respuesta en pausa.</strong> El equipo de Anka debe revisar el caso antes de solicitar información al cliente.</div>
+    {% else %}
+<p class='meta'>Esta solicitud no admite respuesta desde el dashboard en su estado actual.</p>
+    {% endif %}
+    <div style="margin-top:14px">{% if sufficient %}<div class='notice'><strong>Recepción completa.</strong> La información puede pasar a revisión interna. Este dashboard todavía no prepara precios ni cotizaciones.</div>{% endif %}</div>
+  </section>
+</div>

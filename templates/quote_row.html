@@ -1,0 +1,8 @@
+<article class="case case-row" data-search="{{ search }}"
+         data-status="{{ status }}" data-type="{{ client_type }}">
+  <div><h3>{{ project }}{% if is_new %} <span class='badge'>Nuevo</span>{% endif %}</h3><div class="meta">{{ client_name }}</div></div>
+  <div><strong>{{ services }}</strong><div class="meta">{{ sector }}</div></div>
+  <span class="badge {{ badge_class }}">{{ status_label }}</span>
+  <div class="meta">{{ date }}</div>
+  <a class="button secondary" href="/case?thread_id={{ thread_id | urlquote }}">Abrir</a>
+</article>

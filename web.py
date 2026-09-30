@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections import Counter
-import html
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
 import re
@@ -33,39 +32,23 @@ from modes import (
 )
 from internal_context import internal_commercial_context
 from settings import load_config
+from templating import render
 
 from case_actions import approve_review, resolve_case_recipient, save_dashboard_draft, send_dashboard_reply
 from pipeline import checked_run, describe_check, sync_status_text
 from quotes import CLIENT_TYPES, SECTORS, STATUS_LABELS, all_quotes, get_quote, mark_notifications_read, save_activities, save_quote_metadata, unread_notifications
 
 
-def _page(title: str, body: str, message: str = "") -> str:
+def _page(title: str, body: Markup, message: str = "") -> str:
     try:
         mode = load_config().get("active_mode")
     except (SystemExit, OSError, ValueError):
         mode = None
-    return render_page(title, Markup(body), message, len(unread_notifications(100)), mode,
+    return render_page(title, body, message, len(unread_notifications(100)), mode,
                        bool(os.getenv("OPENAI_API_KEY")))
 
 
-def _review_summary(review: dict) -> str:
-    analysis = review["analysis"]
-    summary = analysis.get("summary") or "Sin resumen disponible"
-    project = analysis.get("project_name") or "Sin nombre de proyecto"
-    return f"""
-<div class="case">
-  <span class="badge">{html.escape(review['status_label'])}</span>
-  <h2>{html.escape(project)}</h2>
-  <div>{html.escape(summary)}</div>
-  <div class="meta">Cliente: {html.escape(review['recipient'])}</div>
-  <div class="meta">Hilo: {html.escape(review['thread_id'])}</div>
-  <a class="button" href="/case?thread_id={urllib.parse.quote(review['thread_id'])}">
-    Revisar caso
-  </a>
-</div>"""
-
-
-def _dashboard_insights(quotes: list[dict], services: Counter, clients: Counter) -> str:
+def _dashboard_insights(quotes: list[dict], services: Counter, clients: Counter) -> Markup:
     items = []
     if services:
         service, count = services.most_common(1)[0]
@@ -77,195 +60,112 @@ def _dashboard_insights(quotes: list[dict], services: Counter, clients: Counter)
     unclassified = sum(q["client_type"] == "No clasificado" for q in quotes)
     if unclassified:
         items.append(("Datos por completar", f"{unclassified} solicitud(es) aún no tienen tipo de cliente."))
-    if not items:
-        return "<p class='meta'>Las conclusiones aparecerán cuando ingresen solicitudes.</p>"
-    return "".join(
-        f"<div class='insight'><strong>{html.escape(title)}</strong>"
-        f"<span class='meta'>{html.escape(detail)}</span></div>"
-        for title, detail in items
-    )
+    return render("insights.html", items=items)
 
 
-def _notifications_panel(notifications: list[dict]) -> str:
+def _notifications_panel(notifications: list[dict]) -> Markup:
     if not notifications:
-        return ""
-    rows = []
-    for item in notifications:
-        timestamp = item["created_at"][:16].replace("T", " ") if item["created_at"] else ""
-        rows.append(f"""
-<article class="notification">
-  <span class="notification-dot"></span>
-  <div><strong>{html.escape(item['title'])}</strong>
-    <div>{html.escape(item['project_name'])}</div>
-    <div class="meta">{html.escape(item['message'])} {html.escape(timestamp)}</div>
-  </div>
-  <a class="button secondary" href="/case?thread_id={urllib.parse.quote(item['thread_id'])}">Revisar</a>
-</article>""")
-    return f"""
-<section class="notifications">
-  <div class="section-head"><div><h2>Novedades</h2><div class="meta">Correos y respuestas que requieren tu atención.</div></div>
-    <form method="post" action="/notifications/read"><button class="secondary" type="submit">Marcar como revisadas</button></form>
-  </div>
-  {''.join(rows)}
-</section>"""
+        return Markup("")
+    items = [
+        {
+            "title": item["title"], "project_name": item["project_name"],
+            "message": item["message"], "thread_id": item["thread_id"],
+            "timestamp": item["created_at"][:16].replace("T", " ") if item["created_at"] else "",
+        }
+        for item in notifications
+    ]
+    return render("notifications_panel.html", items=items)
 
 
 def _render_index(message: str = "") -> str:
     quotes = all_quotes()
     notifications = unread_notifications(8)
     unread_threads = {item["thread_id"] for item in notifications}
-    sync_text = sync_status_text()
-    total = len(quotes)
-    unique_clients = len({q["client_email"].casefold() for q in quotes if q["client_email"]})
-    action_count = sum(q["status"] in ACTION_STATUSES for q in quotes)
-    completed = sum(q["status"] in {QuoteStatus.READY, QuoteStatus.READY_REVIEW} for q in quotes)
     services = Counter(service for quote in quotes for service in quote["services"])
-    statuses = Counter(q["status_label"] for q in quotes)
     clients = Counter(q["client_name"] for q in quotes if q["client_name"])
-    client_types = Counter(q["client_type"] for q in quotes)
     recent_action = [q for q in quotes if q["status"] in ACTION_STATUSES][:5]
-    recent_html = "".join(
-        _quote_row(q, q["thread_id"] in unread_threads) for q in recent_action
+    body = render(
+        "index.html",
+        sync_text=sync_status_text(),
+        notifications=_notifications_panel(notifications),
+        total=len(quotes),
+        unique_clients=len({q["client_email"].casefold() for q in quotes if q["client_email"]}),
+        action_count=sum(q["status"] in ACTION_STATUSES for q in quotes),
+        completed=sum(q["status"] in {QuoteStatus.READY, QuoteStatus.READY_REVIEW} for q in quotes),
+        services=_metric_rows(services),
+        statuses=_metric_rows(Counter(q["status_label"] for q in quotes), "blue"),
+        client_types=_metric_rows(Counter(q["client_type"] for q in quotes)),
+        insights=_dashboard_insights(quotes, services, clients),
+        recent=[_quote_row(q, q["thread_id"] in unread_threads) for q in recent_action],
     )
-    if not recent_html:
-        recent_html = "<div class='empty'>No hay solicitudes que requieran atención.</div>"
-    body = f"""
-<div class="page-head">
-  <div><h1>Resumen comercial</h1><p>Qué está llegando, quién lo solicita y dónde hace falta actuar. {html.escape(sync_text)}</p></div>
-  <a class="button secondary" href="/requests">Ver todas las solicitudes</a>
-</div>
-{_notifications_panel(notifications)}
-<div class="grid kpis">
-  <div class="kpi"><div class="kpi-label">Solicitudes registradas</div><div class="kpi-value">{total}</div><div class="kpi-note">Excluye correos descartados</div></div>
-  <div class="kpi"><div class="kpi-label">Clientes identificados</div><div class="kpi-value">{unique_clients}</div><div class="kpi-note">Por correo de cliente</div></div>
-  <div class="kpi"><div class="kpi-label">Requieren atención</div><div class="kpi-value">{action_count}</div><div class="kpi-note">Faltantes o revisión técnica</div></div>
-  <div class="kpi"><div class="kpi-label">Información suficiente</div><div class="kpi-value">{completed}</div><div class="kpi-note">Listas para revisión interna</div></div>
-</div>
-<div class="grid dashboard-grid">
-  <section class="section"><div class="section-head"><h2>Servicios solicitados</h2><span class="meta">Top 6</span></div>{_metric_rows(services)}</section>
-  <section class="section"><div class="section-head"><h2>Estado de solicitudes</h2><span class="meta">Actual</span></div>{_metric_rows(statuses, 'blue')}</section>
-  <section class="section"><div class="section-head"><h2>Tipos de cliente</h2><span class="meta">Clasificación comercial</span></div>{_metric_rows(client_types)}</section>
-  <section class="section"><div class="section-head"><h2>Lectura rápida</h2></div>{_dashboard_insights(quotes, services, clients)}</section>
-</div>
-<section style="margin-top:24px">
-  <div class="section-head" style="margin-bottom:12px"><h2>Requieren atención</h2><a href="/requests" class="meta">Ver todo</a></div>
-  <div class="grid">{recent_html}</div>
-</section>"""
     return _page("Resumen comercial", body, message)
 
 
-def _quote_row(quote: dict, is_new: bool = False) -> str:
-    analysis = quote["analysis"]
-    project = analysis.get("project_name") or "Solicitud sin nombre"
+def _quote_row(quote: dict, is_new: bool = False) -> Markup:
+    project = quote["analysis"].get("project_name") or "Solicitud sin nombre"
     services = ", ".join(quote["services"]) or "Servicio por clasificar"
-    badge_class = "warn" if quote["status"] in ACTION_STATUSES else "info"
-    new_badge = " <span class='badge'>Nuevo</span>" if is_new else ""
-    return f"""
-<article class="case case-row" data-search="{html.escape((project + ' ' + quote['client_name'] + ' ' + services).casefold())}"
-         data-status="{html.escape(quote['status'])}" data-type="{html.escape(quote['client_type'])}">
-  <div><h3>{html.escape(project)}{new_badge}</h3><div class="meta">{html.escape(quote['client_name'])}</div></div>
-  <div><strong>{html.escape(services)}</strong><div class="meta">{html.escape(quote['sector'])}</div></div>
-  <span class="badge {badge_class}">{html.escape(quote['status_label'])}</span>
-  <div class="meta">{html.escape((quote['updated_at'] or quote['first_seen_at'] or 'Sin fecha')[:10])}</div>
-  <a class="button secondary" href="/case?thread_id={urllib.parse.quote(quote['thread_id'])}">Abrir</a>
-</article>"""
+    return render(
+        "quote_row.html",
+        project=project, services=services, is_new=is_new,
+        search=(project + " " + quote["client_name"] + " " + services).casefold(),
+        status=quote["status"], client_type=quote["client_type"],
+        client_name=quote["client_name"], sector=quote["sector"],
+        badge_class="warn" if quote["status"] in ACTION_STATUSES else "info",
+        status_label=quote["status_label"],
+        date=(quote["updated_at"] or quote["first_seen_at"] or "Sin fecha")[:10],
+        thread_id=quote["thread_id"],
+    )
 
 
 def _render_requests(message: str = "") -> str:
     quotes = all_quotes()
     unread_threads = {item["thread_id"] for item in unread_notifications(100)}
-    rows = "".join(
-        _quote_row(quote, quote["thread_id"] in unread_threads) for quote in quotes
+    body = render(
+        "requests.html",
+        rows=[_quote_row(quote, quote["thread_id"] in unread_threads) for quote in quotes],
+        status_options=list(STATUS_LABELS.items()),
+        type_options=CLIENT_TYPES,
     )
-    if not rows:
-        rows = "<div class='empty'>Todavía no hay solicitudes registradas.</div>"
-    status_options = "".join(
-        f"<option value='{html.escape(key)}'>{html.escape(label)}</option>"
-        for key, label in STATUS_LABELS.items()
-    )
-    type_options = "".join(
-        f"<option value='{html.escape(value)}'>{html.escape(value)}</option>"
-        for value in CLIENT_TYPES
-    )
-    body = f"""
-<div class="page-head"><div><h1>Solicitudes</h1><p>Consulta y completa la información comercial de cada oportunidad.</p></div><a class="button secondary" href="/export.xlsx">Exportar todo a Excel</a></div>
-<div class="filters">
-  <label>Buscar<input id="search" type="search" placeholder="Proyecto, cliente o servicio"></label>
-  <label>Estado<select id="status"><option value="">Todos</option>{status_options}</select></label>
-  <label>Tipo de cliente<select id="client-type"><option value="">Todos</option>{type_options}</select></label>
-</div>
-<div id="requests" class="grid">{rows}</div>
-<div id="no-results" class="empty" hidden>No hay solicitudes con esos filtros.</div>
-<script>
-const search = document.querySelector('#search');
-const statusFilter = document.querySelector('#status');
-const typeFilter = document.querySelector('#client-type');
-const rows = [...document.querySelectorAll('.case-row')];
-function filterRows() {{
-  const term = search.value.trim().toLocaleLowerCase('es');
-  let visible = 0;
-  rows.forEach(row => {{
-    const show = (!term || row.dataset.search.includes(term)) &&
-      (!statusFilter.value || row.dataset.status === statusFilter.value) &&
-      (!typeFilter.value || row.dataset.type === typeFilter.value);
-    row.hidden = !show;
-    if (show) visible += 1;
-  }});
-  document.querySelector('#no-results').hidden = visible !== 0;
-}}
-[search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', filterRows));
-</script>"""
     return _page("Solicitudes", body, message)
 
 
-def _internal_context_panel(client_name: str) -> str:
+def _internal_context_panel(client_name: str) -> Markup:
     context = internal_commercial_context(client_name)
     if not context:
-        return "<p class='meta'>El índice comercial interno todavía no está disponible.</p>"
+        return Markup("<p class='meta'>El índice comercial interno todavía no está disponible.</p>")
 
-    def compact_list(items: list[tuple[str, int]], limit: int = 5) -> str:
-        if not items:
-            return "<p class='meta'>Sin patrones suficientes.</p>"
-        return "<ul class='context-list'>" + "".join(
-            f"<li><span>{html.escape(str(label))}</span><strong>{int(count)}</strong></li>"
-            for label, count in items[:limit]
-        ) + "</ul>"
+    def top(items, limit: int = 5) -> list[tuple[str, int]]:
+        return [(str(label), int(count)) for label, count in list(items)[:limit]]
 
     profile = context.get("profile")
+    profile_ctx = None
     if profile:
-        project_types = list(profile.get("project_types", {}).items())[:5]
-        sectors = list(profile.get("sectors", {}).items())[:4]
-        requests = list(profile.get("usual_requests", {}).items())[:6]
-        profile_html = f"""
-<div class="context-profile">
-  <div><span class="meta">Coincidencia histórica</span><strong>{html.escape(profile.get('client_name', 'Cliente'))}</strong></div>
-  <div><span class="meta">Tipo de empresa inferido</span><strong>{html.escape(profile.get('company_type', 'No clasificado'))}</strong><small>Confianza {html.escape(profile.get('company_type_confidence', 'baja'))}</small></div>
-  <div><span class="meta">Documentos comerciales</span><strong>{int(profile.get('commercial_document_count', 0))}</strong></div>
-</div>
-<div class="context-grid">
-  <div><h3>Proyectos asociados</h3>{compact_list(project_types)}</div>
-  <div><h3>Sectores asociados</h3>{compact_list(sectors)}</div>
-  <div><h3>Datos solicitados habitualmente</h3>{compact_list(requests)}</div>
-</div>"""
-    else:
-        profile_html = f"""
-<div class="notice internal-note"><strong>Sin coincidencia de cliente.</strong> Escribe el nombre de la empresa en Información comercial y guarda para consultar su historial. Mientras tanto se muestran patrones generales de {int(context.get('client_profiles', 0))} perfiles.</div>
-<div class="context-grid">
-  <div><h3>Proyectos más frecuentes</h3>{compact_list(context.get('project_types', []))}</div>
-  <div><h3>Sectores más frecuentes</h3>{compact_list(context.get('sectors', []))}</div>
-  <div><h3>Datos solicitados habitualmente</h3>{compact_list(context.get('usual_requests', []))}</div>
-</div>"""
-
-    return f"""
-<div class="notice internal-note"><strong>Uso interno confidencial.</strong> Este historial sirve para orientar la revisión. No se copia al borrador, no contiene precios y no debe compartirse con el cliente.</div>
-{profile_html}
-<p class="meta" style="margin-bottom:0">Fuente: archivo histórico T&amp;E, lectura agregada del {html.escape(context.get('generated_at', ''))}.</p>"""
+        profile_ctx = {
+            "client_name": profile.get("client_name", "Cliente"),
+            "company_type": profile.get("company_type", "No clasificado"),
+            "confidence": profile.get("company_type_confidence", "baja"),
+            "documents": int(profile.get("commercial_document_count", 0)),
+            "project_types": top(list(profile.get("project_types", {}).items())[:5]),
+            "sectors": top(list(profile.get("sectors", {}).items())[:4]),
+            "usual_requests": top(list(profile.get("usual_requests", {}).items())[:6]),
+        }
+    return render(
+        "internal_context.html",
+        profile=profile_ctx,
+        general={
+            "profiles": int(context.get("client_profiles", 0)),
+            "project_types": top(context.get("project_types", [])),
+            "sectors": top(context.get("sectors", [])),
+            "usual_requests": top(context.get("usual_requests", [])),
+        },
+        generated_at=context.get("generated_at", ""),
+    )
 
 
 def _render_case(thread_id: str, message: str = "") -> str:
     review = get_quote(thread_id)
     if not review:
-        return _page("Caso no encontrado", "<div class='empty'>La solicitud no existe.</div>", message)
+        return _page("Caso no encontrado", render("empty.html", text="La solicitud no existe."), message)
     recipient_error = ""
     if not valid_email_address(review["recipient"]):
         try:
@@ -288,121 +188,43 @@ def _render_case(thread_id: str, message: str = "") -> str:
         )
     scope_issues = unresolved_scope_issues(analysis)
     issues_summary = "\n".join(f"- {issue}" for issue in scope_issues) or "Sin asuntos pendientes."
+    technical = assessment.get("status") == "technical_review"
     email_allowed = (
         valid_email_address(review["recipient"])
         and review["status"] not in CLOSED_STATUSES
-        and assessment.get("status") != "technical_review"
+        and not technical
     )
+    email_body = ""
     if email_allowed:
-        email_body = review["draft_body"] or suggested_reply(
-            analysis, config["required_fields"]
-        )
-        draft_note = (
-            "<div class='notice'>Ya existe un borrador en Gmail. Al guardarlo de nuevo se actualizará.</div>"
-            if review["draft_id"] else
-            "<div class='notice'><strong>Respuesta sugerida lista.</strong> Todavía no está guardada ni enviada en Gmail.</div>"
-        )
-        email_form = f"""
-{draft_note}
-<form method="post">
-  <input type="hidden" name="thread_id" value="{html.escape(thread_id)}">
-  <label>Respuesta para {html.escape(review['recipient'])}
-    <textarea name="body" style="min-height:260px">{html.escape(email_body)}</textarea>
-  </label>
-  <div class="toolbar" style="margin-top:14px">
-    <button type="submit" formaction="/draft">Guardar borrador en Gmail</button>
-    <button type="submit" formaction="/send" class="danger"
-      data-confirm="Se enviará este correo a {html.escape(review['recipient'])} en el mismo hilo. ¿Confirmas el envío?">Enviar ahora</button>
-  </div>
-</form>"""
+        email = "form"
+        email_body = review["draft_body"] or suggested_reply(analysis, config["required_fields"])
     elif review["status"] == QuoteStatus.RESPONSE_SENT:
-        email_form = (
-            f"<div class='notice'>Respuesta enviada el {html.escape(review['sent_at'] or 'sin fecha registrada')}.</div>"
-            f"<pre>{html.escape(review['draft_body'])}</pre>"
-        )
+        email = "sent"
+    elif recipient_error:
+        email = "recipient_error"
+    elif technical:
+        email = "technical"
     else:
-        if recipient_error:
-            email_form = f"<div class='notice' style='border-color:#e2b8b3;background:#faecea'>{html.escape(recipient_error)}</div>"
-        elif assessment.get("status") == "technical_review":
-            email_form = "<div class='notice'><strong>Respuesta en pausa.</strong> El equipo de Anka debe revisar el caso antes de solicitar información al cliente.</div>"
-        else:
-            email_form = "<p class='meta'>Esta solicitud no admite respuesta desde el dashboard en su estado actual.</p>"
-    suggestion_complete = review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING}
-    draft_complete = bool(review["draft_id"] or review["status"] == QuoteStatus.RESPONSE_SENT)
+        email = "unavailable"
     sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT
-    process_html = f"""
-<div class="process">
-  <div class="process-step done"><strong>1. Correo recibido</strong><span>Detectado y registrado</span></div>
-  <div class="process-step done"><strong>2. Lectura inicial</strong><span>{html.escape(assessment.get('service_family', 'Por clasificar'))}</span></div>
-  <div class="process-step {'done' if suggestion_complete else ''}"><strong>3. Aclaración sugerida</strong><span>{'Lista para revisión' if suggestion_complete else 'No disponible'}</span></div>
-  <div class="process-step {'done' if draft_complete or sent_complete else 'current'}"><strong>4. Gestión de respuesta</strong><span>{'Enviada' if sent_complete else ('Borrador guardado' if draft_complete else 'Pendiente de aprobación')}</span></div>
-</div>"""
-    project_form = ""
-    if assessment.get("status") == "sufficient_for_internal_review":
-        project_form = (
-            "<div class='notice'><strong>Recepción completa.</strong> La información puede "
-            "pasar a revisión interna. Este dashboard todavía no prepara precios ni cotizaciones.</div>"
-        )
-    client_type_options = "".join(
-        f"<option value='{html.escape(value)}'"
-        f"{' selected' if value == review['client_type'] else ''}>{html.escape(value)}</option>"
-        for value in CLIENT_TYPES
+    body = render(
+        "case.html",
+        review=review, thread_id=thread_id,
+        project_name=analysis.get("project_name") or "Solicitud sin nombre",
+        summary=analysis.get("summary") or "Sin resumen disponible",
+        service_family=assessment.get("service_family", "Por clasificar"),
+        suggestion_complete=review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING},
+        draft_complete=bool(review["draft_id"] or sent_complete),
+        sent_complete=sent_complete,
+        assessment_panel=_reception_assessment_panel(assessment),
+        client_types=CLIENT_TYPES, sectors=SECTORS,
+        internal_context=_internal_context_panel(review["client_name"]),
+        activities_editor=activities_editor(thread_id, analysis.get("activities", [])),
+        attachments_table=_attachments_table(analysis.get("attachments", [])),
+        routing_summary=routing_summary, issues_summary=issues_summary,
+        email=email, email_body=email_body, recipient_error=recipient_error,
+        sufficient=assessment.get("status") == "sufficient_for_internal_review",
     )
-    sector_options = "".join(
-        f"<option value='{html.escape(value)}'"
-        f"{' selected' if value == review['sector'] else ''}>{html.escape(value)}</option>"
-        for value in SECTORS
-    )
-    metadata_form = f"""
-<form method="post" action="/metadata">
-  <input type="hidden" name="thread_id" value="{html.escape(thread_id)}">
-  <div class="filters">
-    <label>Cliente o empresa<input name="client_name" value="{html.escape(review['client_name'])}"></label>
-    <label>Tipo de cliente<select name="client_type">{client_type_options}</select></label>
-    <label>Sector<select name="sector">{sector_options}</select></label>
-  </div>
-  <label>Notas comerciales<textarea name="notes" style="min-height:90px">{html.escape(review['notes'])}</textarea></label>
-  <div class="toolbar" style="margin-top:12px"><button type="submit">Guardar datos comerciales</button></div>
-</form>"""
-    body = f"""
-<div class="page-head"><div><h1>{html.escape(analysis.get('project_name') or 'Solicitud sin nombre')}</h1><p>{html.escape(analysis.get('summary') or 'Sin resumen disponible')}</p></div><a class="button secondary" href="/requests">Volver</a></div>
-<div class="layout">
-  <section class="section">
-    <span class="badge">{html.escape(review['status_label'])}</span>
-    <div class="meta">Destinatario: {html.escape(review['recipient'])}</div>
-    <div class="meta">Hilo: {html.escape(thread_id)}</div>
-    {process_html}
-  </section>
-  <section class="section">
-    <div class="section-head"><h2>Evaluación de recepción</h2><span class="badge info">Sin cotizar</span></div>
-    {_reception_assessment_panel(assessment)}
-  </section>
-  <section class="section"><h2>Información comercial</h2>{metadata_form}</section>
-  <section class="section">
-    <div class="section-head"><h2>Contexto comercial interno</h2><span class="badge info">Solo Anka</span></div>
-    {_internal_context_panel(review['client_name'])}
-  </section>
-  <section class="section">
-    <h2>Actividades detectadas</h2>
-    {activities_editor(thread_id, analysis.get('activities', []))}
-  </section>
-  <section class="section">
-    <h2>Adjuntos</h2>
-    {_attachments_table(analysis.get('attachments', []))}
-  </section>
-  <section class="section">
-    <h2>Enrutamiento y validaciones</h2>
-    <pre>{html.escape(routing_summary)}</pre>
-    <h2 style="margin-top:16px;">Asuntos pendientes</h2>
-    <pre>{html.escape(issues_summary)}</pre>
-  </section>
-  <section class="section">
-    <h2>Respuesta al cliente</h2>
-    <p class="meta">Revisa el destinatario y el contenido. Ningún correo se envía sin pulsar “Enviar ahora”.</p>
-    {email_form}
-    <div style="margin-top:14px">{project_form}</div>
-  </section>
-</div>"""
     return _page("Revisar caso", body, message)
 
 
@@ -450,7 +272,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         return urllib.parse.parse_qs(data)
 
     def _reject(self, reason: str) -> None:
-        self._send_html(_page("Solicitud rechazada", f"<div class='empty'>{html.escape(reason)}</div>"), 403)
+        self._send_html(_page("Solicitud rechazada", render("empty.html", text=reason)), 403)
 
     def do_GET(self) -> None:
         if not is_local_host_header(self.headers.get("Host", "")):
@@ -464,7 +286,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
             quotes = [get_quote(thread_id)] if thread_id else all_quotes()
             quotes = [item for item in quotes if item]
             if thread_id and not quotes:
-                return self._send_html(_page("No encontrado", "<div class='empty'>La solicitud no existe.</div>"), 404)
+                return self._send_html(_page("No encontrado", render("empty.html", text="La solicitud no existe.")), 404)
             data = build_workbook(quotes)
             stamp = datetime.now().strftime("%Y%m%d-%H%M")
             name = f"actividades-{thread_id[:8] or 'todas'}-{stamp}.xlsx"
@@ -481,7 +303,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 query.get("thread_id", [""])[0], query.get("message", [""])[0]
             ))
         else:
-            self._send_html(_page("No encontrado", "<div class='empty'>Página no encontrada.</div>"), 404)
+            self._send_html(_page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
 
     def do_POST(self) -> None:
         host = self.headers.get("Host", "")
@@ -552,9 +374,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 mark_notifications_read()
                 self._redirect("/?message=" + urllib.parse.quote("Novedades marcadas como revisadas."))
             else:
-                self._send_html(_page("No encontrado", "<div class='empty'>Página no encontrada.</div>"), 404)
+                self._send_html(_page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
         except (Exception, SystemExit) as exc:
-            self._send_html(_page("Error", f"<div class='empty'>{html.escape(str(exc))}</div>"), 500)
+            self._send_html(_page("Error", render("empty.html", text=str(exc))), 500)
 
     def _redirect(self, location: str) -> None:
         self.send_response(303)

@@ -10,6 +10,7 @@
 
 import _isolate  # noqa: F401  (debe ir primero)
 
+import io
 import os
 import re
 import tempfile
@@ -264,6 +265,45 @@ class InjectionTests(Pages):
                 break
         else:
             self.fail("No se encontró el botón de envío en la página del caso hostil")
+
+
+class ErrorPageTests(unittest.TestCase):
+    """403/404/500 pasan por el mismo layout: el mensaje se escapa, el contenedor no."""
+
+    def request(self, method, path, body=b"", host="127.0.0.1:1", origin=None):
+        handler = web.ReviewHandler.__new__(web.ReviewHandler)
+        sent = {}
+        handler.headers = {"Host": host, "Content-Length": str(len(body))}
+        if origin:
+            handler.headers["Origin"] = origin
+        handler.path = path
+        handler.rfile = io.BytesIO(body)
+        handler._send_html = lambda content, status=200: sent.update(status=status, page=content)
+        with tempfile.TemporaryDirectory() as temp_dir,                 patch.object(settings, "DATA_DIR", Path(temp_dir)),                 patch("web.load_config", return_value=test_config()):
+            getattr(handler, f"do_{method}")()
+        return sent
+
+    def test_not_found_page_keeps_its_markup(self):
+        sent = self.request("GET", "/no-existe")
+        self.assertEqual(sent["status"], 404)
+        self.assertIn("<div class='empty'>Página no encontrada.</div>", sent["page"])
+
+    def test_forbidden_page_escapes_the_reason(self):
+        body = ("csrf_token=" + web.CSRF_TOKEN).encode()
+        sent = self.request("POST", "/refresh", body, origin="http://evil.example")
+        self.assertEqual(sent["status"], 403)
+        self.assertIn("<div class='empty'>", sent["page"])
+        self.assertNotIn("&lt;div class=", sent["page"])
+
+    def test_error_text_from_an_exception_is_escaped(self):
+        body = ("csrf_token=" + web.CSRF_TOKEN).encode()
+        boom = RuntimeError(f"<img src=x onerror={MARK}(1)>")
+        with patch("web.checked_run", side_effect=boom):
+            sent = self.request("POST", "/refresh", body)
+        self.assertEqual(sent["status"], 500)
+        self.assertNotIn("<img src=x", sent["page"])
+        self.assertIn("&lt;img src=x", sent["page"])
+        self.assertIn("<div class='empty'>", sent["page"])
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@ Fuentes técnicas: [Gmail Python quickstart](https://developers.google.com/works
 | Reglas | `reception`, `internal_context`, `modes` | Qué falta y qué preguntar, contexto comercial interno, modo de operación. |
 | Datos | `store`, `quotes`, `activities` | SQLite, consultas del dashboard, tabla de actividades y Excel. |
 | Flujo | `pipeline`, `case_actions` | `pipeline.decide_*` decide qué hacer con cada hilo sin efectos; `apply_decision` ejecuta. Acciones del dashboard sobre un caso. |
-| Interfaz | `web`, `dashboard_views` | Servidor local con protección CSRF y páginas HTML. |
+| Interfaz | `web`, `dashboard_views`, `templating`, `templates/` | Servidor local con protección CSRF; páginas y fragmentos HTML con plantillas Jinja2. |
 
 ## Pruebas y calidad
 
@@ -71,3 +71,13 @@ En los tests, parchea cada nombre en el módulo que lo **usa** (por ejemplo `pip
 El esquema de `quotes.sqlite3` está versionado con `PRAGMA user_version`. Para cambiarlo, agrega una función al final de `MIGRATIONS` en `store.py`; nunca edites las existentes. Al abrir una base con datos y una versión anterior, el programa deja primero una copia `quotes.sqlite3.bak-vN` y aplica cada paso en su propia transacción. Una base creada por una versión más nueva del programa se rechaza sin modificarla.
 
 Los tests mandan los datos a una carpeta temporal (`_isolate.py`), así que nunca tocan `%LOCALAPPDATA%\AnkaCorreos`. Todo módulo de tests nuevo debe importar `_isolate` primero.
+
+## HTML del dashboard
+
+Todo el HTML sale de `templates/` con escape automático (`templating.render`). Reglas:
+
+- Nunca armes HTML con f-strings ni `|safe` para datos que vienen de un correo. Pasa los valores a la plantilla; se escapan solos. Un fragmento ya renderizado (`Markup`) se puede anidar en otra plantilla.
+- No uses manejadores en línea (`onclick=...`). Para confirmar una acción usa `data-confirm="..."`; un único listener en `layout.html` lo lee.
+- Los formularios `POST` deben escribirse con `method="post"` (comillas dobles): el CSRF los detecta por ese texto.
+
+`test_html_render.py` protege esto de dos maneras. Compara cada página con una instantánea en `golden/` (si cambias una plantilla a propósito, regenera con `UPDATE_GOLDEN=1 python -m unittest test_html_render` y revisa el diff de `golden/`), y renderiza datos hostiles en todos los campos que controla un cliente para comprobar que no aparecen etiquetas, atributos ni scripts nuevos.

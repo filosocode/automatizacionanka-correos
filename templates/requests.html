@@ -1,0 +1,27 @@
+<div class="page-head"><div><h1>Solicitudes</h1><p>Consulta y completa la información comercial de cada oportunidad.</p></div><a class="button secondary" href="/export.xlsx">Exportar todo a Excel</a></div>
+<div class="filters">
+  <label>Buscar<input id="search" type="search" placeholder="Proyecto, cliente o servicio"></label>
+  <label>Estado<select id="status"><option value="">Todos</option>{% for key, label in status_options %}<option value='{{ key }}'>{{ label }}</option>{% endfor %}</select></label>
+  <label>Tipo de cliente<select id="client-type"><option value="">Todos</option>{% for value in type_options %}<option value='{{ value }}'>{{ value }}</option>{% endfor %}</select></label>
+</div>
+<div id="requests" class="grid">{% if rows %}{% for row in rows %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todavía no hay solicitudes registradas.</div>{% endif %}</div>
+<div id="no-results" class="empty" hidden>No hay solicitudes con esos filtros.</div>
+<script>
+const search = document.querySelector('#search');
+const statusFilter = document.querySelector('#status');
+const typeFilter = document.querySelector('#client-type');
+const rows = [...document.querySelectorAll('.case-row')];
+function filterRows() {
+  const term = search.value.trim().toLocaleLowerCase('es');
+  let visible = 0;
+  rows.forEach(row => {
+    const show = (!term || row.dataset.search.includes(term)) &&
+      (!statusFilter.value || row.dataset.status === statusFilter.value) &&
+      (!typeFilter.value || row.dataset.type === typeFilter.value);
+    row.hidden = !show;
+    if (show) visible += 1;
+  });
+  document.querySelector('#no-results').hidden = visible !== 0;
+}
+[search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', filterRows));
+</script>
