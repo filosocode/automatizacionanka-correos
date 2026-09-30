@@ -18,8 +18,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from dataclasses import dataclass, field
 from datetime import datetime
 from email.message import EmailMessage
+from enum import Enum
 from email.utils import getaddresses, parseaddr
 from pathlib import Path
 
@@ -2414,6 +2416,218 @@ def candidate_thread_ids(gmail, query: str) -> list[str]:
             return sorted(ids)
 
 
+class Action(str, Enum):
+    """Efecto externo que exige una decisión, además de guardar el estado."""
+    NONE = "none"
+    SEND = "send"          # enviar las preguntas al cliente y esperar respuesta
+    GMAIL_DRAFT = "draft"  # crear borrador en Gmail
+    QUEUE = "queue"        # dejar la respuesta propuesta en la cola de revisión
+    FOLDER = "folder"      # crear la carpeta del proyecto en Drive
+
+
+@dataclass
+class Decision:
+    """Qué hacer con un hilo. Se calcula sin tocar Gmail, SQLite ni Drive."""
+    status: QuoteStatus
+    analysis: dict
+    logs: list[str] = field(default_factory=list)
+    action: Action = Action.NONE
+    packet: bool = False               # guardar ficha de revisión
+    questions: list[str] = field(default_factory=list)
+    body: str = ""                     # borrador de preguntas al cliente
+    folder_name: str = ""
+
+
+def decide_prefilter(
+    thread_id: str, analysis_base: dict, attachments: list[dict], is_candidate: bool,
+) -> Decision | None:
+    """Descarta el hilo antes de analizarlo; None si debe pasar al análisis."""
+    if is_candidate:
+        return None
+    if any(item.get("status") == "bloqueado" for item in attachments):
+        return Decision(
+            QuoteStatus.REVIEW, analysis_base, packet=True,
+            logs=[f"{thread_id}: adjuntos no legibles impiden clasificar el alcance"],
+        )
+    return Decision(
+        QuoteStatus.IGNORED, {},
+        logs=[f"{thread_id}: no pasó el prefiltro comercial"],
+    )
+
+
+def decide_analysis(
+    thread_id: str, analysis: dict, blocked: list[dict], recipient: str, is_forwarded: bool,
+    config: dict, *, review_only: bool, gmail_drafts: bool,
+) -> Decision:
+    """Decide el destino de un hilo ya analizado."""
+    if not analysis["is_quote_request"]:
+        return Decision(
+            QuoteStatus.IGNORED, analysis,
+            logs=[f"{thread_id}: no es solicitud de cotización"],
+        )
+    logs = [
+        f"{thread_id}: {analysis['summary']}",
+        json.dumps(analysis["activities"], ensure_ascii=False, indent=2),
+    ]
+    required = config["required_fields"]
+    if blocked:
+        names = ", ".join(item["filename"] for item in blocked)
+        logs.append(f"{thread_id}: adjuntos no legibles ({names}); requiere revisión manual")
+        return Decision(
+            QuoteStatus.REVIEW, analysis, logs, packet=True,
+            questions=reception_questions(analysis, required),
+        )
+    if not analysis["activities"]:
+        logs.append(f"{thread_id}: sin actividades identificables; requiere revisión manual")
+        return Decision(QuoteStatus.REVIEW, analysis, logs)
+    if unresolved_scope_issues(analysis):
+        logs.append(
+            f"{thread_id}: dependencias o contradicciones pendientes; requiere revisión manual"
+        )
+        return Decision(
+            QuoteStatus.REVIEW, analysis, logs, packet=True,
+            questions=reception_questions(analysis, required),
+        )
+    questions = reception_questions(analysis, required)
+    if questions:
+        body = question_email(questions, is_forwarded)
+        logs.append(f"{thread_id}: faltan datos. Borrador para {recipient}:\n{body}")
+        if gmail_drafts:
+            return Decision(
+                QuoteStatus.DRAFT_CREATED, analysis, logs, Action.GMAIL_DRAFT,
+                packet=True, questions=questions, body=body,
+            )
+        if review_only:
+            return Decision(
+                QuoteStatus.REVIEW_PENDING, analysis, logs, Action.QUEUE,
+                packet=True, questions=questions, body=body,
+            )
+        return Decision(QuoteStatus.WAITING, analysis, logs, Action.SEND, body=body)
+    name = safe_folder_name(
+        analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion")
+    )
+    logs.append(f"{thread_id}: alcance completo; carpeta: {name}")
+    if review_only:
+        return Decision(
+            QuoteStatus.READY_REVIEW, analysis, logs, Action.QUEUE,
+            packet=True, folder_name=name,
+        )
+    return Decision(QuoteStatus.READY, analysis, logs, Action.FOLDER, folder_name=name)
+
+
+@dataclass
+class RunContext:
+    config: dict
+    gmail: object
+    drive: object
+    db: sqlite3.Connection | None
+    account_addresses: set[str]
+    review_only: bool
+    gmail_drafts: bool
+
+
+def apply_decision(
+    ctx: RunContext, thread: dict, thread_id: str, last: dict, recipient: str, d: Decision,
+) -> None:
+    """Ejecuta los efectos de una decisión. Sin base de datos (simulación) solo informa."""
+    for line in d.logs:
+        print(line)
+    db = ctx.db
+    if not db:
+        return
+    packet_body = d.body
+    draft_id = None
+    if d.action is Action.GMAIL_DRAFT:
+        packet_body = draft_body_with_review_note(d.analysis, d.questions, d.body, last)
+        draft_id = create_reply_draft(
+            ctx.gmail, thread, recipient, packet_body, ctx.account_addresses
+        )
+    packet = None
+    if d.packet:
+        packet = save_review_packet(
+            thread_id, recipient, d.analysis, d.questions, packet_body or None,
+            d.folder_name or None,
+        )
+    if d.action is Action.SEND:
+        save(db, thread_id, last["id"], QuoteStatus.SENDING, recipient, d.analysis)
+        sent_id = send_reply(ctx.gmail, thread, recipient, d.body, ctx.account_addresses)
+        save(db, thread_id, last["id"], d.status, recipient, d.analysis,
+             sent_message_id=sent_id)
+    elif d.action is Action.FOLDER:
+        folder = ensure_folder(ctx.drive, ctx.config["drive_parent_id"], d.folder_name)
+        save(db, thread_id, last["id"], d.status, recipient, d.analysis,
+             folder_id=folder["id"])
+        print(f"Carpeta creada/encontrada: {folder['id']}")
+    elif d.action is Action.GMAIL_DRAFT:
+        save(db, thread_id, last["id"], d.status, recipient, d.analysis,
+             sent_message_id=draft_id)
+        print(f"{thread_id}: borrador creado en Gmail para {recipient}: {draft_id}")
+        print(f"{thread_id}: ficha de apoyo guardada: {packet}")
+    else:
+        save(db, thread_id, last["id"], d.status, recipient, d.analysis)
+        if packet:
+            verb = "guardado para revisión humana" if d.action is Action.QUEUE                 else "ficha de revisión guardada"
+            print(f"{thread_id}: {verb}: {packet}")
+
+
+def _skip_reason(row, last_id: str, gmail_drafts: bool) -> str | None:
+    """None si el hilo debe procesarse; si no, el motivo ("" = omitir sin avisar)."""
+    if not row or row[0] != last_id:
+        return None
+    if row[1] == QuoteStatus.SENDING:
+        return "envío interrumpido; revisar el hilo antes de reintentar"
+    if gmail_drafts and row[1] == QuoteStatus.REVIEW_PENDING:
+        return None
+    return ""
+
+
+def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
+    config = ctx.config
+    inbound = inbound_messages(thread, ctx.account_addresses)
+    if not inbound:
+        print(f"{thread_id}: solo contiene mensajes propios; se omite")
+        return
+    last = inbound[-1]
+    routing = forwarded_routing(last, config)
+    recipient = routing["selected_recipient"]
+    if not recipient:
+        print(f"{thread_id}: sin remitente; requiere revisión")
+        return
+    row = ctx.db.execute(
+        "SELECT last_inbound_id, status FROM quotes WHERE thread_id=?", (thread_id,)
+    ).fetchone() if ctx.db else None
+    skip = _skip_reason(row, last["id"], ctx.gmail_drafts)
+    if skip is not None:
+        if skip:
+            print(f"{thread_id}: {skip}")
+        return
+    attachments = []
+    for message in inbound:
+        attachments.extend(extract_message_attachments(ctx.gmail, message))
+    blocked = [item for item in attachments if item.get("status") == "bloqueado"]
+    required = config["required_fields"]
+
+    unreadable = blank_analysis(
+        "No fue posible clasificar el hilo porque hay adjuntos sin contenido legible."
+    )
+    unreadable["routing"] = routing
+    unreadable["attachments"] = attachment_report(attachments, unreadable, required)
+    decision = decide_prefilter(
+        thread_id, unreadable, attachments,
+        commercial_candidate(inbound, config.get("commercial_filter_terms", []), attachments),
+    )
+    if decision is None:
+        analysis = analyze(inbound, required, config["llm"], attachments)
+        analysis["received_at"] = message_datetime(last)
+        analysis["routing"] = routing
+        analysis["attachments"] = attachment_report(attachments, analysis, required)
+        decision = decide_analysis(
+            thread_id, analysis, blocked, recipient, routing["is_forwarded"], config,
+            review_only=ctx.review_only, gmail_drafts=ctx.gmail_drafts,
+        )
+    apply_decision(ctx, thread, thread_id, last, recipient, decision)
+
+
 def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> None:
     config = load_config()
     ensure_local_or_api_mode(config)
@@ -2426,8 +2640,10 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
     if apply and not review_only and not gmail_drafts and not config.get("drive_parent_id"):
         raise SystemExit("Para --apply define drive_parent_id en config.json.")
     gmail, drive = services()
-    account_addresses = own_addresses(config, gmail)
     db = init_db() if apply else None
+    ctx = RunContext(
+        config, gmail, drive, db, own_addresses(config, gmail), review_only, gmail_drafts,
+    )
     try:
         thread_ids = set(candidate_thread_ids(
             gmail, config.get("gmail_query", "in:inbox newer_than:7d")
@@ -2454,149 +2670,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
                     )
                     db.commit()
                 continue
-            inbound = inbound_messages(thread, account_addresses)
-            if not inbound:
-                print(f"{thread_id}: solo contiene mensajes propios; se omite")
-                continue
-            last = inbound[-1]
-            routing = forwarded_routing(last, config)
-            recipient = routing["selected_recipient"]
-            if not recipient:
-                print(f"{thread_id}: sin remitente; requiere revisión")
-                continue
-            row = db.execute(
-                "SELECT last_inbound_id, status FROM quotes WHERE thread_id=?", (thread_id,)
-            ).fetchone() if db else None
-            if row and row[1] == QuoteStatus.SENDING and row[0] == last["id"]:
-                print(f"{thread_id}: envío interrumpido; revisar el hilo antes de reintentar")
-                continue
-            settled = {QuoteStatus.READY, QuoteStatus.IGNORED, QuoteStatus.DRAFT_CREATED}
-            if row and row[1] in settled and row[0] == last["id"]:
-                continue
-            if row and row[0] == last["id"] and not (gmail_drafts and row[1] == QuoteStatus.REVIEW_PENDING):
-                continue
-            attachments = []
-            for message in inbound:
-                attachments.extend(extract_message_attachments(gmail, message))
-            blocked_attachments = [
-                item for item in attachments if item.get("status") == "bloqueado"
-            ]
-            if not commercial_candidate(
-                inbound, config.get("commercial_filter_terms", []), attachments
-            ):
-                if blocked_attachments:
-                    analysis = blank_analysis(
-                        "No fue posible clasificar el hilo porque hay adjuntos sin contenido legible."
-                    )
-                    analysis["routing"] = routing
-                    analysis["attachments"] = attachment_report(
-                        attachments, analysis, config["required_fields"]
-                    )
-                    print(f"{thread_id}: adjuntos no legibles impiden clasificar el alcance")
-                    if db:
-                        packet = save_review_packet(
-                            thread_id, recipient, analysis, [], None
-                        )
-                        save(db, thread_id, last["id"], QuoteStatus.REVIEW, recipient, analysis)
-                        print(f"{thread_id}: ficha de revisión guardada: {packet}")
-                    continue
-                print(f"{thread_id}: no pasó el prefiltro comercial")
-                if db:
-                    save(db, thread_id, last["id"], QuoteStatus.IGNORED, recipient, {})
-                continue
-            analysis = analyze(
-                inbound, config["required_fields"], config["llm"], attachments
-            )
-            analysis["received_at"] = message_datetime(last)
-            analysis["routing"] = routing
-            analysis["attachments"] = attachment_report(
-                attachments, analysis, config["required_fields"]
-            )
-            if not analysis["is_quote_request"]:
-                print(f"{thread_id}: no es solicitud de cotización")
-                if db:
-                    save(db, thread_id, last["id"], QuoteStatus.IGNORED, recipient, analysis)
-                continue
-            print(f"{thread_id}: {analysis['summary']}")
-            print(json.dumps(analysis["activities"], ensure_ascii=False, indent=2))
-            if blocked_attachments:
-                blocked_names = ", ".join(item["filename"] for item in blocked_attachments)
-                print(
-                    f"{thread_id}: adjuntos no legibles ({blocked_names}); "
-                    "requiere revisión manual"
-                )
-                if db:
-                    packet = save_review_packet(
-                        thread_id, recipient, analysis,
-                        reception_questions(analysis, config["required_fields"]), None,
-                    )
-                    save(db, thread_id, last["id"], QuoteStatus.REVIEW, recipient, analysis)
-                    print(f"{thread_id}: ficha de revisión guardada: {packet}")
-                continue
-            if not analysis["activities"]:
-                print(f"{thread_id}: sin actividades identificables; requiere revisión manual")
-                if db:
-                    save(db, thread_id, last["id"], QuoteStatus.REVIEW, recipient, analysis)
-                continue
-            scope_issues = unresolved_scope_issues(analysis)
-            if scope_issues:
-                print(
-                    f"{thread_id}: dependencias o contradicciones pendientes; "
-                    "requiere revisión manual"
-                )
-                if db:
-                    packet = save_review_packet(
-                        thread_id, recipient, analysis,
-                        reception_questions(analysis, config["required_fields"]), None,
-                    )
-                    save(db, thread_id, last["id"], QuoteStatus.REVIEW, recipient, analysis)
-                    print(f"{thread_id}: ficha de revisión guardada: {packet}")
-                continue
-            questions = reception_questions(analysis, config["required_fields"])
-            if questions:
-                body = question_email(questions, routing["is_forwarded"])
-                print(f"{thread_id}: faltan datos. Borrador para {recipient}:\n{body}")
-                if db:
-                    if gmail_drafts:
-                        draft_body = draft_body_with_review_note(analysis, questions, body, last)
-                        draft_id = create_reply_draft(
-                            gmail, thread, recipient, draft_body, account_addresses
-                        )
-                        packet = save_review_packet(
-                            thread_id, recipient, analysis, questions, draft_body
-                        )
-                        save(
-                            db, thread_id, last["id"], QuoteStatus.DRAFT_CREATED, recipient,
-                            analysis, sent_message_id=draft_id,
-                        )
-                        print(f"{thread_id}: borrador creado en Gmail para {recipient}: {draft_id}")
-                        print(f"{thread_id}: ficha de apoyo guardada: {packet}")
-                    elif review_only:
-                        packet = save_review_packet(thread_id, recipient, analysis, questions, body)
-                        save(db, thread_id, last["id"], QuoteStatus.REVIEW_PENDING, recipient, analysis)
-                        print(f"{thread_id}: guardado para revisión humana: {packet}")
-                    else:
-                        save(db, thread_id, last["id"], QuoteStatus.SENDING, recipient, analysis)
-                        sent_id = send_reply(
-                            gmail, thread, recipient, body, account_addresses
-                        )
-                        save(db, thread_id, last["id"], QuoteStatus.WAITING, recipient, analysis,
-                             sent_message_id=sent_id)
-                continue
-            name = safe_folder_name(
-                analysis["project_name"], thread_id,
-                config.get("folder_prefix", "Cotizacion"))
-            print(f"{thread_id}: alcance completo; carpeta: {name}")
-            if db:
-                if review_only:
-                    packet = save_review_packet(thread_id, recipient, analysis, [], None, name)
-                    save(db, thread_id, last["id"], QuoteStatus.READY_REVIEW, recipient, analysis)
-                    print(f"{thread_id}: guardado para revisión humana: {packet}")
-                else:
-                    folder = ensure_folder(drive, config["drive_parent_id"], name)
-                    save(db, thread_id, last["id"], QuoteStatus.READY, recipient, analysis,
-                         folder_id=folder["id"])
-                    print(f"Carpeta creada/encontrada: {folder['id']}")
+            process_thread(ctx, thread_id, thread)
     finally:
         if db:
             db.close()
