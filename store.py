@@ -10,10 +10,11 @@ from pathlib import Path
 from status import QuoteStatus, sql_in
 
 
-def open_db(data_dir: Path) -> sqlite3.Connection:
-    data_dir.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(data_dir / "quotes.sqlite3")
-    db.row_factory = sqlite3.Row
+QUOTES_EXTRA_COLUMNS = ("first_seen_at", "updated_at", "draft_id", "draft_body", "sent_at")
+
+
+def _migration_1_quotes(db: sqlite3.Connection) -> None:
+    """Tabla de solicitudes; completa las columnas que faltan en bases anteriores."""
     db.execute("""CREATE TABLE IF NOT EXISTS quotes (
         thread_id TEXT PRIMARY KEY, last_inbound_id TEXT NOT NULL,
         status TEXT NOT NULL, recipient TEXT NOT NULL,
@@ -21,19 +22,13 @@ def open_db(data_dir: Path) -> sqlite3.Connection:
         first_seen_at TEXT, updated_at TEXT, draft_id TEXT,
         draft_body TEXT, sent_at TEXT
     )""")
-    existing_columns = {
-        row["name"] for row in db.execute("PRAGMA table_info(quotes)").fetchall()
-    }
-    if "first_seen_at" not in existing_columns:
-        db.execute("ALTER TABLE quotes ADD COLUMN first_seen_at TEXT")
-    if "updated_at" not in existing_columns:
-        db.execute("ALTER TABLE quotes ADD COLUMN updated_at TEXT")
-    if "draft_id" not in existing_columns:
-        db.execute("ALTER TABLE quotes ADD COLUMN draft_id TEXT")
-    if "draft_body" not in existing_columns:
-        db.execute("ALTER TABLE quotes ADD COLUMN draft_body TEXT")
-    if "sent_at" not in existing_columns:
-        db.execute("ALTER TABLE quotes ADD COLUMN sent_at TEXT")
+    existing = {row["name"] for row in db.execute("PRAGMA table_info(quotes)").fetchall()}
+    for column in QUOTES_EXTRA_COLUMNS:
+        if column not in existing:
+            db.execute(f"ALTER TABLE quotes ADD COLUMN {column} TEXT")
+
+
+def _migration_2_quote_metadata(db: sqlite3.Connection) -> None:
     db.execute("""CREATE TABLE IF NOT EXISTS quote_metadata (
         thread_id TEXT PRIMARY KEY,
         client_type TEXT NOT NULL DEFAULT 'No clasificado',
@@ -43,6 +38,9 @@ def open_db(data_dir: Path) -> sqlite3.Connection:
         updated_at TEXT NOT NULL,
         FOREIGN KEY(thread_id) REFERENCES quotes(thread_id)
     )""")
+
+
+def _migration_3_notifications(db: sqlite3.Connection) -> None:
     db.execute("""CREATE TABLE IF NOT EXISTS dashboard_notifications (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         thread_id TEXT NOT NULL,
@@ -54,6 +52,60 @@ def open_db(data_dir: Path) -> sqlite3.Connection:
         read_at TEXT,
         UNIQUE(thread_id, kind, source_key)
     )""")
+
+
+# Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
+# reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
+MIGRATIONS = (
+    _migration_1_quotes,
+    _migration_2_quote_metadata,
+    _migration_3_notifications,
+)
+SCHEMA_VERSION = len(MIGRATIONS)
+
+
+def migrate(db: sqlite3.Connection, db_path: Path | None = None) -> None:
+    """Lleva la base a SCHEMA_VERSION, cada paso en su propia transacción.
+
+    Antes de migrar una base con datos deja una copia `quotes.sqlite3.bak-vN`.
+    Rechaza bases creadas por una versión más nueva del programa.
+    """
+    current = db.execute("PRAGMA user_version").fetchone()[0]
+    if current > SCHEMA_VERSION:
+        raise RuntimeError(
+            f"La base es de una versión más nueva (esquema {current}) que este programa "
+            f"({SCHEMA_VERSION}). Actualiza el programa; no se modificó nada."
+        )
+    if current == SCHEMA_VERSION:
+        return
+    has_data = db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='quotes'"
+    ).fetchone()
+    if has_data and db_path is not None:
+        backup = db_path.with_name(f"{db_path.name}.bak-v{current}")
+        if not backup.exists():
+            target = sqlite3.connect(backup)
+            try:
+                db.backup(target)
+            finally:
+                target.close()
+    for version in range(current + 1, SCHEMA_VERSION + 1):
+        db.execute("BEGIN")
+        try:
+            MIGRATIONS[version - 1](db)
+            db.execute(f"PRAGMA user_version = {version}")
+        except BaseException:
+            db.rollback()
+            raise
+        db.commit()
+
+
+def _derive_notifications(db: sqlite3.Connection) -> None:
+    """Crea las novedades que corresponden a solicitudes ya guardadas.
+
+    Es idempotente y corre en cada apertura a propósito: `save()` no genera novedades,
+    esta derivación es lo que las produce (UNIQUE evita duplicados).
+    """
     db.execute(f"""INSERT OR IGNORE INTO dashboard_notifications
                   (thread_id, kind, source_key, title, message, created_at)
                   SELECT thread_id, 'request_received', last_inbound_id,
@@ -72,7 +124,20 @@ def open_db(data_dir: Path) -> sqlite3.Connection:
                   WHERE first_seen_at IS NOT NULL
                     AND status IN {sql_in(QuoteStatus.REVIEW_PENDING, QuoteStatus.REVIEW,
                                           QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED)}""")
-    db.commit()
+
+
+def open_db(data_dir: Path) -> sqlite3.Connection:
+    data_dir.mkdir(parents=True, exist_ok=True)
+    db_path = data_dir / "quotes.sqlite3"
+    db = sqlite3.connect(db_path)
+    db.row_factory = sqlite3.Row
+    try:
+        migrate(db, db_path)
+        _derive_notifications(db)
+        db.commit()
+    except BaseException:
+        db.close()
+        raise
     return db
 
 

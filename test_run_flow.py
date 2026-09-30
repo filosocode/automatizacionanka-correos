@@ -1,5 +1,7 @@
 """Caracterización del bucle de `pipeline.run`: qué estado queda para cada tipo de hilo."""
 
+import _isolate  # noqa: F401  (debe ir primero)
+
 import base64
 import io
 import json

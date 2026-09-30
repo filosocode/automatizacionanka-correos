@@ -1,3 +1,4 @@
+import _isolate  # noqa: F401  (debe ir primero)
 import base64
 import io
 import json
@@ -290,7 +291,9 @@ class QuoteFlowTests(unittest.TestCase):
             "draft_id": None, "sent_at": "", "client_name": "Cliente",
             "client_type": "No clasificado", "sector": "No clasificado", "notes": "",
         }
-        with patch("web.get_quote", return_value=review), patch(
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            settings, "DATA_DIR", Path(temp_dir)
+        ), patch("web.get_quote", return_value=review), patch(
             "web.load_config", return_value=test_config()
         ), patch("internal_context.load_internal_commercial_index", return_value={}):
             page = web._render_case("thread-1")

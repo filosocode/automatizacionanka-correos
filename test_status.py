@@ -1,3 +1,4 @@
+import _isolate  # noqa: F401  (debe ir primero)
 import unittest
 
 import quotes

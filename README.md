@@ -63,3 +63,9 @@ python -m ruff check .
 ```
 
 En los tests, parchea cada nombre en el módulo que lo **usa** (por ejemplo `pipeline.services`), no en el que lo define. Los tests que tocan datos parchean `settings.DATA_DIR`.
+
+## Cambios en la base de datos
+
+El esquema de `quotes.sqlite3` está versionado con `PRAGMA user_version`. Para cambiarlo, agrega una función al final de `MIGRATIONS` en `store.py`; nunca edites las existentes. Al abrir una base con datos y una versión anterior, el programa deja primero una copia `quotes.sqlite3.bak-vN` y aplica cada paso en su propia transacción. Una base creada por una versión más nueva del programa se rechaza sin modificarla.
+
+Los tests mandan los datos a una carpeta temporal (`_isolate.py`), así que nunca tocan `%LOCALAPPDATA%\AnkaCorreos`. Todo módulo de tests nuevo debe importar `_isolate` primero.
