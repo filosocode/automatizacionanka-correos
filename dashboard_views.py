@@ -291,6 +291,12 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
     </div>
   </header>
   <main>{notice}{body}</main>
+  <script>
+    document.addEventListener('click', event => {{
+      const button = event.target.closest('[data-confirm]');
+      if (button && !confirm(button.dataset.confirm)) event.preventDefault();
+    }});
+  </script>
 </body>
 </html>"""
 

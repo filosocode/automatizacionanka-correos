@@ -311,7 +311,7 @@ def _render_case(thread_id: str, message: str = "") -> str:
   <div class="toolbar" style="margin-top:14px">
     <button type="submit" formaction="/draft">Guardar borrador en Gmail</button>
     <button type="submit" formaction="/send" class="danger"
-      onclick="return confirm('Se enviará este correo a {html.escape(review['recipient'])} en el mismo hilo. ¿Confirmas el envío?');">Enviar ahora</button>
+      data-confirm="Se enviará este correo a {html.escape(review['recipient'])} en el mismo hilo. ¿Confirmas el envío?">Enviar ahora</button>
   </div>
 </form>"""
     elif review["status"] == QuoteStatus.RESPONSE_SENT:
