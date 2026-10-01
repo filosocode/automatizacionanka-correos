@@ -25,7 +25,8 @@ from store import add_dashboard_notification, record_event, save
 
 from drive_contents import populate_project_folder
 from pipeline import _confirmed_client
-from quotes import delete_quotes, get_quote, init_db, set_client_name
+from change_control import known_addresses, mark_change_sent
+from quotes import case_has_links, delete_quotes, get_quote, init_db, set_client_name
 
 log = get_logger(__name__)
 
@@ -67,7 +68,8 @@ def _case_email_context(thread_id: str) -> tuple[dict, Any, dict, set[str]]:
     quote = get_quote(thread_id)
     if not quote:
         raise ValueError("La solicitud ya no existe.")
-    if quote["status"] in CLOSED_STATUSES:
+    reopened = quote["status"] in (QuoteStatus.READY, QuoteStatus.RESPONSE_SENT) and case_has_links(thread_id)
+    if quote["status"] in CLOSED_STATUSES and not reopened:
         raise ValueError("Esta solicitud no admite una respuesta desde el dashboard.")
     context = resolve_case_recipient(thread_id)
     quote = context["quote"]
@@ -77,12 +79,23 @@ def _case_email_context(thread_id: str) -> tuple[dict, Any, dict, set[str]]:
     return quote, gmail, thread, account_addresses
 
 
-def save_dashboard_draft(thread_id: str, body: str) -> str:
+def _recipient(thread_id: str, quote: dict, to: str) -> str:
+    """Destinatario: el del caso, o una persona que ya participa en él (nunca una dirección cualquiera)."""
+    to = to.strip()
+    if not to or to.casefold() == quote["recipient"].casefold():
+        return str(quote["recipient"])
+    if to.casefold() not in known_addresses(thread_id):
+        raise ValueError("Solo puedes escribir a personas que ya participan en este caso.")
+    return to
+
+
+def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     body = body.strip()
     if not body:
         raise ValueError("El borrador no puede estar vacío.")
     quote, gmail, thread, account_addresses = _case_email_context(thread_id)
-    email = reply_email(thread, quote["recipient"], body, account_addresses)
+    recipient = _recipient(thread_id, quote, to)
+    email = reply_email(thread, recipient, body, account_addresses)
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
     if quote["draft_id"]:
         result = gmail.users().drafts().update(
@@ -105,21 +118,23 @@ def save_dashboard_draft(thread_id: str, body: str) -> str:
         add_dashboard_notification(
             db, thread_id, "draft_saved", draft_id,
             "Borrador guardado en Gmail",
-            f"El borrador quedó guardado para {quote['recipient']} y todavía no ha sido enviado.",
+            f"El borrador quedó guardado para {recipient} y todavía no ha sido enviado.",
         )
         db.commit()
     finally:
         db.close()
     log.info("%s: borrador guardado en Gmail desde el dashboard", thread_id)
-    return f"Borrador guardado en Gmail para {quote['recipient']}."
+    return f"Borrador guardado en Gmail para {recipient}."
 
 
-def send_dashboard_reply(thread_id: str, body: str) -> str:
+def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int = 0,
+                         purpose: str = "") -> str:
     body = body.strip()
     if not body:
         raise ValueError("El correo no puede estar vacío.")
     quote, gmail, thread, account_addresses = _case_email_context(thread_id)
-    email = reply_email(thread, quote["recipient"], body, account_addresses)
+    recipient = _recipient(thread_id, quote, to)
+    email = reply_email(thread, recipient, body, account_addresses)
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
     if quote["draft_id"]:
         gmail.users().drafts().update(
@@ -136,7 +151,7 @@ def send_dashboard_reply(thread_id: str, body: str) -> str:
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     # Un caso con información suficiente sigue abierto para crear su carpeta en Drive:
     # enviar un acuse o una aclaración no debe cerrarlo.
-    new_status = (QuoteStatus.READY_REVIEW if quote["status"] == QuoteStatus.READY_REVIEW
+    new_status = (quote["status"] if quote["status"] in (QuoteStatus.READY_REVIEW, QuoteStatus.READY)
                   else QuoteStatus.RESPONSE_SENT)
     db = init_db()
     try:
@@ -147,17 +162,27 @@ def send_dashboard_reply(thread_id: str, body: str) -> str:
             (new_status, result["id"], body, now, now, thread_id),
         )
         record_event(db, thread_id, "sent", "dashboard", result["id"],
-                     f"Correo enviado desde el dashboard a {quote['recipient']}.", now)
+                     f"Correo enviado desde el dashboard a {recipient}.", now)
         add_dashboard_notification(
             db, thread_id, QuoteStatus.RESPONSE_SENT, result["id"],
             "Respuesta enviada",
-            f"El correo fue enviado a {quote['recipient']} en el mismo hilo.",
+            f"El correo fue enviado a {recipient} en el mismo hilo.",
         )
         db.commit()
     finally:
         db.close()
     log.info("%s: correo enviado desde el dashboard", thread_id)
-    message = f"Correo enviado a {quote['recipient']} en el mismo hilo."
+    if change_id and purpose:
+        mark_change_sent(thread_id, change_id, purpose, recipient)
+    if purpose == "scope_update":
+        db = init_db()
+        try:
+            record_event(db, thread_id, "scope_update_sent", "dashboard", now,
+                         f"Avisaste al cliente ({recipient}) de la actualización de la tabla.", now)
+            db.commit()
+        finally:
+            db.close()
+    message = f"Correo enviado a {recipient} en el mismo hilo."
     if new_status == QuoteStatus.READY_REVIEW:
         message += " " + auto_create_project_folder(thread_id)
     return message

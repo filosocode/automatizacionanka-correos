@@ -79,7 +79,8 @@ def _reception_assessment_panel(assessment: dict) -> Markup:
     )
 
 
-def activities_editor(thread_id: str, activities: list[dict]) -> Markup:
+def activities_editor(thread_id: str, activities: list[dict],
+                      reasons: list[tuple[str, str]] | None = None) -> Markup:
     """Tabla editable: colores por estado, celdas vacias en gris y una fila nueva al final."""
     def cells(item: dict) -> list[dict]:
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
@@ -93,5 +94,6 @@ def activities_editor(thread_id: str, activities: list[dict]) -> Markup:
     return render(
         "activities_editor.html",
         thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS,
+        reasons=reasons or [],
         headers=[label for _, label in ACTIVITY_COLUMNS],
     )

@@ -11,7 +11,7 @@
 <body>
   <header>
     <div class="brand"><span class="brand-mark">A</span><div><strong>Anka</strong><span>Inteligencia comercial</span></div></div>
-    <nav><a href="/">Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests">Solicitudes</a><a href="/discarded">Descartadas</a></nav>
+    <nav><a href="/">Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests">Solicitudes</a><a href="/discarded">Descartadas</a><a href="/archive">Archivo</a></nav>
     <div class="toolbar">
       <span id="bridge-chip" class="bridge-chip" hidden></span>
       {{ mode_selector }}
@@ -24,6 +24,7 @@
   <main>{% if message %}<div class='notice'>{{ message }}</div>{% endif %}{{ body }}</main>
   <script>
     document.addEventListener('click', event => {
+      if (event.target.closest('[data-print]')) window.print();
       const button = event.target.closest('[data-confirm]');
       if (button && !confirm(button.dataset.confirm)) event.preventDefault();
     });

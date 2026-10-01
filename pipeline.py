@@ -23,6 +23,7 @@ from drive_layout import (
 from drive_contents import populate_project_folder
 from google_services import services
 from mail import (
+    message_text,
     candidate_thread_ids, create_reply_draft, extract_message_attachments,
     forwarded_routing, header, inbound_messages, message_datetime, own_addresses, send_reply,
 )
@@ -36,6 +37,8 @@ from modes import (
     ensure_local_or_api_mode,
 )
 from settings import load_config
+from change_control import apply_guard, find_codes
+from email.utils import parseaddr
 from store import save
 
 from quotes import init_db, save_review_packet
@@ -456,6 +459,14 @@ def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
         analysis["routing"] = routing
         analysis["email"] = email
         analysis["attachments"] = attachment_report(attachments, analysis, required)
+        if ctx.db:
+            # R11: con T asignada, la tabla solo cambia por el contacto registrado y citando el código
+            sender_name, sender_email = parseaddr(header(last, "From"))
+            body_text = message_text(last.get("payload", {}))
+            apply_guard(
+                ctx.db, thread_id, analysis, routing.get("original_sender_email") or sender_email,
+                sender_name, sorted(find_codes(email["subject"] + "\n" + body_text)), last["id"],
+                email["subject"], " ".join(body_text.split())[:160], "python")
         decision = decide_analysis(
             thread_id, analysis, blocked, recipient, routing["is_forwarded"], config,
             review_only=ctx.review_only, gmail_drafts=ctx.gmail_drafts,

@@ -56,6 +56,10 @@ Casos **sintéticos** para probar la skill. No son correos reales de clientes. S
 **Situación:** alcance completo de un cliente que no tiene carpeta en Drive.
 **Esperado:** no crear la carpeta del cliente ni la del proyecto por cuenta propia; dejar el caso esperando aprobación diciendo que falta confirmar el cliente. «Energía Norte S.A.S.» y «ENERGIA NORTE» se consideran el mismo cliente; «Energía Norte» y «Norte Energía» no.
 
+## 15. Cambios después de la T (R11)
+**Situación:** el caso ya tiene la T `T26145`; el contacto registrado es Ana. Llega un mensaje que pide cambiar el plazo.
+**Esperado:** solo si lo envía Ana **y** cita `T26145` (o `T&E26145`) la tabla se actualiza. Si lo envía otra persona (aunque sea de la misma empresa), de otro dominio, o no cita el código, la tabla **no cambia**: el cambio queda como propuesta pendiente. En todos los casos informa `requested_by_email`, `requested_by_name` y `cited_codes`. Los casos exactos están en `casos_paridad.json` (clave `cambios`).
+
 ## 14. Cliente conocido (R4, R5, R7)
 **Situación:** alcance completo de un remitente cuyo cliente ya confirmó una persona y cuya carpeta existe, en el año de la carpeta padre.
 **Esperado:** crear `{año}/{cliente}/{solicitud}`; si la carpeta padre es de otro año, no crear nada y avisar.

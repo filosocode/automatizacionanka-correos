@@ -15,7 +15,9 @@
   <tbody>{% for row in rows %}<tr{% if row.is_new %} class='nueva'{% endif %}>{% for cell in row.cells %}{% if cell.key == 'estado' %}<td><select name='a{{ row.index }}_estado' class='estado-{{ cell.value or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == cell.value %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>{% else %}<td><textarea name='a{{ row.index }}_{{ cell.key }}' rows='2'{% if not cell.value or cell.value == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ cell.value }}</textarea></td>{% endif %}{% endfor %}{% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'> Quitar</label></td>{% endif %}</tr>{% endfor %}</tbody></table></div>
   <div class="toolbar" style="margin-top:12px">
     <button type="submit">Guardar tabla</button>
+    <label class="reason">Motivo (opcional)
+      <select name="reason">{% for value, label in reasons %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
     <a class="button secondary" href="/export.xlsx?thread_id={{ thread_id | urlquote }}">Descargar Excel</a>
   </div>
-  <p class="meta">Los cambios quedan marcados como edición manual. Una fila nueva se guarda solo si tiene datos.</p>
+  <p class="meta">Tus ediciones solo quedan en el historial (versión, qué cambió y cuándo); no se envía nada al cliente. Una fila nueva se guarda solo si tiene datos.</p>
 </form>

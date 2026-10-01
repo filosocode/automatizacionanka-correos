@@ -53,6 +53,11 @@ def extract(message: dict) -> tuple[dict, str] | None:
             raise ValueError("thread_id no coincide con el hilo del borrador.")
         if payload["status"] not in STATUSES or payload.get("engine") != "chatgpt_work":
             raise ValueError("Estado o motor no permitido.")
+        for key in ("requested_by_email", "requested_by_name"):
+            if not isinstance(payload.get(key, ""), str):
+                raise ValueError(key + " debe ser texto.")
+        if not isinstance(payload.get("cited_codes", []), list):
+            raise ValueError("cited_codes debe ser una lista.")
         for key in ("activities", "missing_data", "attachments", "contradictions", "scope_dependencies"):
             if not isinstance(payload.get(key, []), list):
                 raise ValueError(key + " debe ser una lista.")
@@ -163,10 +168,10 @@ def main() -> None:
             result = sync_once(gmail, dashboard_upsert, checkpoint, cache)
             try:
                 follow = sync_thread_activity(gmail, seen)
-                if follow["events"] or follow["moved"]:
+                if follow["events"] or follow["moved"] or follow["related"]:
                     print(f"Seguimiento Gmail: {follow['events']} hechos nuevos; "
                           f"{follow['moved']} casos movidos.", flush=True)
-                result["events"] = follow["events"]
+                result["events"] = follow["events"] + follow["related"]
             except Exception as exc:  # el seguimiento no debe frenar la importación de borradores
                 error = f"Seguimiento: {type(exc).__name__}: {exc}"[:200]
                 print(error, flush=True)

@@ -3,6 +3,7 @@
 import _isolate  # noqa: F401  (debe ir primero)
 
 import base64
+import re
 import json
 import tempfile
 import unittest
@@ -136,9 +137,15 @@ class FollowupGmail:
     def messages(self):
         return self
 
-    def list(self, **_):
-        return _Exec({"messages": [{"id": k, "threadId": m["threadId"]}
-                                   for k, m in self.messages_.items()]})
+    def list(self, q="", **_):
+        terms = re.findall(r"from:([^\s)]+)", q)
+        picked = [
+            (k, m) for k, m in self.messages_.items()
+            if not terms or (
+                "SENT" not in m["labelIds"] and any(
+                    t in m["payload"]["headers"][0]["value"].casefold() for t in terms))
+        ]
+        return _Exec({"messages": [{"id": k, "threadId": m["threadId"]} for k, m in picked]})
 
     def get(self, id, **_):
         self.gets += 1
@@ -172,7 +179,7 @@ class FollowupTests(unittest.TestCase):
     def test_send_from_gmail_moves_case_and_records_origin_once(self):
         gmail = FollowupGmail({"s1": mail("T1", True, self.t0 + 600, "c@example.com")})
         seen = set()
-        self.assertEqual(gmail_followup.sync_thread_activity(gmail, seen), {"events": 1, "moved": 1})
+        self.assertEqual(gmail_followup.sync_thread_activity(gmail, seen), {"events": 1, "moved": 1, "related": 0})
         self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.WAITING)
         self.assertIn(("sent", "gmail"), self.events())
         # segunda pasada y reinicio del proceso (seen vacío): ni duplica ni vuelve a bajar el mensaje
@@ -203,9 +210,176 @@ class FollowupTests(unittest.TestCase):
         self.assertIn("El cliente respondió", {n["title"] for n in quotes.unread_notifications(20)})
 
     def test_unknown_threads_are_ignored_without_downloading(self):
-        gmail = FollowupGmail({"x": mail("OTRO", True, self.t0 + 5, "z@example.com")})
+        gmail = FollowupGmail({"x": mail("OTRO", False, self.t0 + 5, "z@otraempresa.com")})
         self.assertEqual(gmail_followup.sync_thread_activity(gmail, set())["events"], 0)
         self.assertEqual(gmail.gets, 0)
+
+
+class NextStepTests(unittest.TestCase):
+    """Respuesta del cliente sin analizar y propuestas del modelo sobre una tabla editada a mano."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        quotes.dashboard_upsert(b64(json.dumps(payload(
+            message="m1", received_at="2026-10-01T10:00:00-05:00"))))
+
+    def reply(self, ref, minutes_after, ago_minutes=0):
+        when = datetime.fromisoformat("2026-10-01T10:00:00-05:00") + timedelta(minutes=minutes_after)
+        db = init_db()
+        from store import record_event
+        record_event(db, "T1", "received", "gmail", ref, "Correo recibido", when.isoformat())
+        db.commit()
+        db.close()
+
+    def test_reply_pending_until_analysis_covers_it(self):
+        self.reply("m1", 0)                       # el correo original: ya analizado
+        self.assertEqual(quotes.get_quote("T1")["reply_pending"], "")
+        self.reply("m2", 15)                      # respuesta posterior
+        self.assertTrue(quotes.get_quote("T1")["reply_pending"])
+        quotes.dashboard_upsert(b64(json.dumps(payload(
+            message="m2", received_at="2026-10-01T10:15:00-05:00", summary="con respuesta"))))
+        self.assertEqual(quotes.get_quote("T1")["reply_pending"], "")
+
+    def test_small_clock_difference_is_not_a_reply(self):
+        self.reply("x1", 1)                       # llegada 1 min después de la fecha del correo
+        self.assertEqual(quotes.get_quote("T1")["reply_pending"], "")
+
+    def test_banner_and_chip_show_pending_reply(self):
+        import web
+        self.reply("m2", 15)
+        with patch("web.load_config", return_value={"active_mode": "chatgpt_work", "required_fields": []}):
+            page = web._render_case("T1")
+            row = web._quote_row(quotes.get_quote("T1"))
+        self.assertIn("respondió", page)
+        self.assertIn("ChatGPT Work", page)       # pasaron más de 30 min desde 2026
+        self.assertIn("Respondió", row)
+
+    def test_model_proposal_can_be_adopted_or_dismissed(self):
+        quotes.save_activities("T1", [{"activity": "a", "quantity": "1"}])
+        quotes.dashboard_upsert(b64(json.dumps(payload(
+            message="m2", activities=[{"activity": "a", "quantity": "2"}, {"activity": "b"}]))))
+        proposal = quotes.get_quote("T1")["proposal"]
+        self.assertEqual({item["kind"] for item in proposal}, {"nueva", "distinta"})
+        quotes.resolve_model_proposal("T1", use_proposal=True)
+        stored = quotes.get_quote("T1")
+        self.assertEqual([a["activity"] for a in stored["analysis"]["activities"]], ["a", "b"])
+        self.assertNotIn("manual_edit", stored["analysis"])
+        self.assertEqual(stored["proposal"], [])
+        # descartar: la tabla propia se queda y la propuesta desaparece
+        quotes.save_activities("T1", [{"activity": "solo mía"}])
+        quotes.dashboard_upsert(b64(json.dumps(payload(message="m3", activities=[{"activity": "z"}]))))
+        quotes.resolve_model_proposal("T1", use_proposal=False)
+        stored = quotes.get_quote("T1")
+        self.assertEqual(stored["analysis"]["activities"], [{"activity": "solo mía"}])
+        self.assertEqual(stored["proposal"], [])
+        db = init_db()
+        kinds = [e["kind"] for e in case_events(db, "T1")]
+        db.close()
+        self.assertEqual(kinds.count("proposal"), 2)
+
+
+class RelatedThreadTests(unittest.TestCase):
+    """Correos de la misma persona o empresa en otro hilo: se proponen, no se unen solos."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        quotes.dashboard_upsert(b64(json.dumps(payload(
+            client_email="ana@acme.com", client_name="Ana", project_name="Llanos 8",
+            received_at="2026-10-01T10:00:00-05:00"))))
+        self.t0 = int(datetime.fromisoformat("2026-10-01T10:00:00-05:00").timestamp())
+
+    def run_sync(self, messages):
+        gmail = FollowupGmail(messages)
+        return gmail_followup.sync_thread_activity(gmail, set()), gmail
+
+    def links(self):
+        return quotes.get_quote("T1")["links"]
+
+    def test_same_person_in_another_thread_is_proposed(self):
+        result, _ = self.run_sync({"n1": mail("NUEVO", False, self.t0 + 3600, "Ana <ana@acme.com>")})
+        self.assertEqual(result["related"], 1)
+        self.assertEqual(self.links()[0]["reason"], "sender")
+        # el caso no cambia por sí solo
+        self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.DRAFT_CREATED)
+
+    def test_other_person_of_same_company_is_flagged_as_domain(self):
+        self.run_sync({"n1": mail("NUEVO", False, self.t0 + 3600, "Luis <luis@acme.com>")})
+        link = self.links()[0]
+        self.assertEqual((link["reason"], link["sender_name"]), ("domain", "Luis"))
+        self.assertIn("otra persona de la misma empresa", quotes.reason_label(link["reason"]))
+
+    def test_subject_mentioning_the_project_is_noted(self):
+        message = mail("NUEVO", False, self.t0 + 3600, "luis@acme.com")
+        message["payload"]["headers"].append({"name": "Subject", "value": "Cambio en Llanos 8"})
+        self.run_sync({"n1": message})
+        self.assertEqual(self.links()[0]["reason"], "domain+subject")
+
+    def test_personal_email_domains_do_not_match_by_company(self):
+        quotes.dashboard_upsert(b64(json.dumps(payload(
+            thread="T2", client_email="x@gmail.com", received_at="2026-10-01T10:00:00-05:00"))))
+        self.run_sync({"n1": mail("NUEVO", False, self.t0 + 3600, "otro@gmail.com")})
+        self.assertEqual(quotes.get_quote("T2")["links"], [])
+
+    def test_unrelated_company_is_ignored_and_not_downloaded(self):
+        result, gmail = self.run_sync({"n1": mail("NUEVO", False, self.t0 + 3600, "z@otra.com")})
+        self.assertEqual(result["related"], 0)
+        self.assertEqual(gmail.gets, 0)
+
+    def test_second_pass_does_not_duplicate_the_proposal(self):
+        messages = {"n1": mail("NUEVO", False, self.t0 + 3600, "ana@acme.com")}
+        self.run_sync(messages)
+        result, _ = self.run_sync(messages)
+        self.assertEqual(result["related"], 0)
+        self.assertEqual(len(self.links()), 1)
+
+    def test_confirming_leaves_trace_with_author_and_dismissing_hides_it(self):
+        self.run_sync({"n1": mail("N1", False, self.t0 + 3600, "Luis <luis@acme.com>"),
+                       "n2": mail("N2", False, self.t0 + 7200, "ana@acme.com")})
+        first, second = self.links()
+        quotes.resolve_link("T1", first["id"], accept=True)
+        quotes.resolve_link("T1", second["id"], accept=False)
+        self.assertEqual(self.links(), [])
+        events = {e["kind"]: e for e in quotes.thread_events("T1")}
+        self.assertEqual(events["linked"]["actor_email"], "luis@acme.com")
+        self.assertIn("dismissed", events)
+        people = quotes.case_people("T1", {"ana@acme.com"})
+        self.assertEqual([(p["email"], p["role"]) for p in people],
+                         [("luis@acme.com", "Otra persona")])
+        self.assertIn("ya se había resuelto", quotes.resolve_link("T1", first["id"], True))
+
+    def test_banner_offers_both_reply_templates_and_form_for_closed_case(self):
+        import web
+        db = init_db()
+        db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.READY,))
+        db.commit()
+        db.close()
+        self.run_sync({"n1": mail("NUEVO", False, self.t0 + 3600, "Luis <luis@acme.com>")})
+        config = {"active_mode": "chatgpt_work", "required_fields": []}
+        with patch("web.load_config", return_value=config):
+            page = web._render_case("T1")
+            verify = web._render_case("T1", template="verify")
+        self.assertIn("en otro hilo", page)
+        self.assertIn("confirmar recibido", page)
+        self.assertIn("validar el cambio de persona", page)
+        self.assertIn("Enviar ahora", page)                  # un caso cerrado con aviso admite respuesta
+        self.assertIn("autorizado(a) para solicitar cambios", verify)
+
+    def test_closed_case_without_notices_stays_blocked(self):
+        db = init_db()
+        db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.READY,))
+        db.commit()
+        db.close()
+        import case_actions
+        with self.assertRaises(ValueError):                   # sin aviso de otro hilo no se reabre
+            case_actions._case_email_context("T1")
 
 
 class HeartbeatTests(unittest.TestCase):

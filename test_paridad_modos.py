@@ -194,6 +194,139 @@ class SharedCaseCatalogue(unittest.TestCase):
         self.assertIn("casos_paridad.json", doc)
 
 
+class ChangeRuleR11(unittest.TestCase):
+    """R11: con T asignada, la tabla solo cambia por el contacto registrado citando el código.
+
+    El mismo catálogo se ejecuta por el camino de Work (dashboard_upsert, con los campos que informa
+    la skill) y por el de Python (apply_guard, usado por el piloto); ambos deben decidir igual.
+    """
+
+    OLD = [{"activity": "a", "quantity": "40", "unit": "días"}]
+    NEW = [{"activity": "a", "quantity": "30", "unit": "días"}]
+
+    def setUp(self):
+        self.rules = load_rules()["cambios"]
+        self.cases = load_cases()["cambios"]
+        self.fresh()
+
+    def fresh(self):
+        """Base de datos vacía (el código de una T es único, así que cada caso necesita la suya)."""
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        patcher = patch.object(settings, "DATA_DIR", Path(temp.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def b64(payload):
+        return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+
+    def seed(self, thread, code):
+        """Caso con tabla de 40 días, contacto Ana y (opcional) T asignada a las 10:00."""
+        import change_control
+        quotes.dashboard_upsert(self.b64({
+            "thread_id": thread, "message_id": "m0", "status": "Faltan datos", "engine": "chatgpt_work",
+            "client_email": "ana@empresa.co", "client_name": "Ana", "project_name": "P",
+            "activities": self.OLD, "received_at": "2026-10-01T09:00:00-05:00"}))
+        if code:
+            change_control.assign_code(thread, code)
+            db = quotes.init_db()
+            db.execute("UPDATE quotes SET code_assigned_at='2026-10-01T10:00:00-05:00' WHERE thread_id=?",
+                       (thread,))
+            db.commit()
+            db.close()
+
+    def table(self, thread):
+        quote = quotes.get_quote(thread)
+        return quote["analysis"]["activities"], quote["analysis"].get("pending_model_activities")
+
+    def expected(self, case):
+        return (self.OLD, self.NEW) if case["esperado"] == "pendiente" else (self.NEW, None)
+
+    def test_python_constants_match_the_rules_file(self):
+        import change_control
+        self.assertIs(self.rules["tabla_solo_contacto_con_codigo"],
+                      change_control.TABLE_UPDATE_ONLY_BY_CONTACT_WITH_CODE)
+        self.assertIs(self.rules["correo_a_no_contacto_revela_codigo"],
+                      change_control.MAIL_TO_NON_CONTACT_REVEALS_CODE)
+        self.assertEqual(self.rules["se_exige_desde"], "asignacion_de_la_t")
+        self.assertTrue(change_control.CODE_REQUIRED_AFTER_ASSIGNMENT)
+
+    def test_every_case_through_the_work_path(self):
+        import change_control
+        for case in self.cases:
+            with self.subTest(case=case["id"]):
+                self.fresh()
+                self.seed(case["id"], case["codigo_del_caso"])
+                sender = case["de"].split("<")[-1].strip(" >")
+                moment = "2026-10-01T09:30:00-05:00" if case["anterior_a_la_t"] else "2026-10-01T11:00:00-05:00"
+                quotes.dashboard_upsert(self.b64({
+                    "thread_id": case["id"], "message_id": "m1", "status": "Faltan datos",
+                    "engine": "chatgpt_work", "client_email": "ana@empresa.co", "client_name": "Ana",
+                    "project_name": "P", "activities": self.NEW, "received_at": moment,
+                    "requested_by_email": sender, "requested_by_name": case["de"].split("<")[0].strip(),
+                    "cited_codes": sorted(change_control.find_codes(case["cuerpo"]))}))
+                self.assertEqual(self.table(case["id"]), self.expected(case), case["descripcion"])
+
+    def test_every_case_through_the_python_path(self):
+        import change_control
+        for case in self.cases:
+            with self.subTest(case=case["id"]):
+                self.fresh()
+                self.seed(case["id"], case["codigo_del_caso"])
+                analysis = {"activities": [dict(r) for r in self.NEW], "project_name": "P",
+                            "received_at": "2026-10-01 09:30" if case["anterior_a_la_t"] else "2026-10-01 11:00"}
+                db = quotes.init_db()
+                change_control.apply_guard(
+                    db, case["id"], analysis, case["de"].split("<")[-1].strip(" >"), "x",
+                    sorted(change_control.find_codes(case["cuerpo"])), "m1", "Asunto", "texto", "python")
+                db.close()
+                expected_table, expected_pending = self.expected(case)
+                self.assertEqual(analysis["activities"], expected_table, case["descripcion"])
+                self.assertEqual(analysis.get("pending_model_activities"), expected_pending)
+
+    def test_work_must_report_who_wrote_otherwise_the_table_is_kept(self):
+        self.seed("sin-autor", "26145")
+        quotes.dashboard_upsert(self.b64({
+            "thread_id": "sin-autor", "message_id": "m1", "status": "Faltan datos", "engine": "chatgpt_work",
+            "client_email": "ana@empresa.co", "project_name": "P", "activities": self.NEW,
+            "received_at": "2026-10-01T11:00:00-05:00"}))
+        self.assertEqual(self.table("sin-autor"), (self.OLD, self.NEW))
+        kinds = {e["kind"] for e in quotes.thread_events("sin-autor")}
+        self.assertIn("table_locked", kinds)
+
+    def test_a_blocked_message_becomes_a_pending_change_for_the_dashboard(self):
+        self.seed("c1", "26145")
+        quotes.dashboard_upsert(self.b64({
+            "thread_id": "c1", "message_id": "m1", "status": "Faltan datos", "engine": "chatgpt_work",
+            "client_email": "ana@empresa.co", "project_name": "P", "activities": self.NEW,
+            "received_at": "2026-10-01T11:00:00-05:00", "requested_by_email": "luis@empresa.co",
+            "requested_by_name": "Luis", "cited_codes": []}))
+        change = quotes.get_quote("c1")["changes"][0]
+        self.assertEqual((change["is_contact"], change["has_code"], change["same_company"]), (0, 0, 1))
+
+    def test_the_pilot_pipeline_applies_the_same_rule(self):
+        """Integración: run() de Python con un mensaje de otra persona sobre un caso con T."""
+        thread = RunFlowTests.thread("Ahora el plazo es de 30 días", thread_id="t-1")
+        gmail = FakeGmail(thread)
+        drive = FakeDriveTree({"Minera Sur": {}})
+        with patch("pipeline.load_config", return_value=test_config()), patch(
+                "pipeline.services", return_value=(gmail, drive)), patch(
+                "pipeline.analyze", return_value=complete_analysis(location="")):
+            self.seed("t-1", "26145")
+            db = quotes.init_db()
+            db.execute("UPDATE quotes SET contact_email='ana@empresa.co', last_inbound_id='old', "
+                       "status='waiting', code_assigned_at='2000-01-01T00:00:00-05:00' WHERE thread_id='t-1'")
+            db.commit()
+            db.close()
+            with patch("pipeline.analyze", return_value=complete_analysis(location="")):
+                pipeline.run(True, review_only=True)
+        activities, pending = self.table("t-1")
+        self.assertEqual(activities, self.OLD)          # el cliente de la prueba no es Ana: no cambia
+        self.assertTrue(pending)
+        self.assertTrue(quotes.get_quote("t-1")["changes"])
+
+
 class OllamaAndApiBehaveTheSame(unittest.TestCase):
     """Los modos local y api comparten el flujo: solo cambia quién analiza el correo."""
 

@@ -41,5 +41,15 @@
     {"carpeta_padre": "2026", "fecha_solicitud": "2027-01-05T09:00:00-05:00", "bloquea": true},
     {"carpeta_padre": "2025", "fecha_solicitud": "2026-02-01T09:00:00-05:00", "bloquea": true},
     {"carpeta_padre": "Cotizaciones", "fecha_solicitud": "2030-01-01T00:00:00-05:00", "bloquea": false}
+  ],
+  "cambios": [
+    {"id": "sin_codigo_en_el_caso", "descripcion": "El caso aún no tiene T: el cliente escribe libremente", "codigo_del_caso": null, "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "Cambiar el plazo a 30 días", "anterior_a_la_t": false, "esperado": "aplica"},
+    {"id": "contacto_cita_t", "descripcion": "El contacto cita la T", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "Ref. T26145: el plazo es de 30 días", "anterior_a_la_t": false, "esperado": "aplica"},
+    {"id": "contacto_cita_te", "descripcion": "El contacto cita la T&E", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "Ref. T&E26145: el plazo es de 30 días", "anterior_a_la_t": false, "esperado": "aplica"},
+    {"id": "contacto_sin_codigo", "descripcion": "El contacto no cita el código", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "El plazo ahora es de 30 días", "anterior_a_la_t": false, "esperado": "pendiente"},
+    {"id": "otra_persona_misma_empresa_cita_t", "descripcion": "Otra persona de la misma empresa, con el código", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Luis Gómez <luis@empresa.co>", "cuerpo": "T26145: el plazo es de 30 días", "anterior_a_la_t": false, "esperado": "pendiente"},
+    {"id": "otra_persona_otro_dominio_sin_codigo", "descripcion": "Otra persona de otro dominio, sin código", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Pedro <pedro@otra.com>", "cuerpo": "El plazo ahora es de 30 días", "anterior_a_la_t": false, "esperado": "pendiente"},
+    {"id": "cita_el_codigo_de_otro_caso", "descripcion": "El contacto cita la T de otro proyecto", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "Ref. T26146: el plazo es de 30 días", "anterior_a_la_t": false, "esperado": "pendiente"},
+    {"id": "mensaje_anterior_a_la_t", "descripcion": "Mensaje anterior a la asignación de la T", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "El plazo es de 40 días", "anterior_a_la_t": true, "esperado": "aplica"}
   ]
 }

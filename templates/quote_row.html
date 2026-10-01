@@ -1,7 +1,7 @@
 <article class="case case-row" data-search="{{ search }}"
          data-status="{{ status }}" data-type="{{ client_type }}"{% if selectable %} data-selectable{% endif %}>
   {% if selectable %}<input class="row-check" type="checkbox" name="thread_id" value="{{ thread_id }}" form="bulk-delete" aria-label="Seleccionar {{ project }}">{% endif %}
-  <div><h3>{{ project }}{% if is_new %} <span class='badge'>Nuevo</span>{% endif %}</h3><div class="meta">{{ client_name }}</div></div>
+  <div><h3>{{ project }}{% if is_new %} <span class='badge'>Nuevo</span>{% endif %}{% if reply_pending %} <span class='badge warn'>Respondió</span>{% endif %}</h3><div class="meta">{{ client_name }}{% if code %} · {{ code }}{% endif %}</div></div>
   <div><strong>{{ services }}</strong><div class="meta">{{ sector }}</div></div>
   <span class="badge {{ badge_class }}">{{ status_label }}</span>
   <div class="meta">{{ date }}</div>

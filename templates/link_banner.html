@@ -1,0 +1,17 @@
+<div class="next-step warn">
+  <div>
+    <strong>Llegó un correo de {{ who }} en otro hilo</strong>
+    <span>«{{ link.subject }}» · {{ reason }}.{% if link.snippet %} Dice: «{{ link.snippet }}»{% endif %}</span>
+    <span>¿Es sobre este caso?{% if more %} (hay {{ more }} aviso(s) más){% endif %}</span>
+    <span class="meta">Responder al cliente en este hilo:
+      <a href="/case?thread_id={{ thread_id | urlquote }}&template=ack#respuesta">confirmar recibido</a>{% if show_verify %} ·
+      <a href="/case?thread_id={{ thread_id | urlquote }}&template=verify#respuesta">validar el cambio de persona</a>{% endif %}
+      (se prepara el texto; tú lo revisas y lo envías)</span>
+  </div>
+  <form method="post" action="/link" class="toolbar">
+    <input type="hidden" name="thread_id" value="{{ thread_id }}">
+    <input type="hidden" name="link_id" value="{{ link.id }}">
+    <button type="submit" name="decision" value="yes">Es de este caso</button>
+    <button type="submit" class="secondary" name="decision" value="no">No es de este caso</button>
+  </form>
+</div>

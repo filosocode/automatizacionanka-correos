@@ -243,3 +243,19 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 [hidden] { display: none !important; }
 .timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .timeline li { padding-left: 12px; border-left: 3px solid #cfd8dc; }
+.next-step { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; margin-bottom: 16px; border-radius: 8px; border: 1px solid #cfd8dc; background: #eef4f6; }
+.next-step.warn { background: #fbedd9; border-color: #e6c9a0; }
+.next-step div { display: grid; gap: 2px; }
+.next-step span { font-size: 14px; }
+.proposal { border: 1px dashed #c9a56a; background: #fffaf2; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
+.proposal ul { margin: 8px 0 12px; padding-left: 18px; }
+.chip { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #e3edf1; }
+.chip.nueva { background: #dcfce7; color: #166534; }
+.chip.distinta { background: #fef3c7; color: #92400e; }
+.people { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 14px; }
+.people th, .people td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e3e8ea; vertical-align: top; }
+.code { font-size: 20px; letter-spacing: .5px; }
+.code-panel p { margin: 4px 0 10px; }
+@media print { header, .toolbar, nav, #bridge-chip, #fresh-banner { display: none !important; } }
+.reason { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-left: 12px; }
+.edit-note { margin: 0 0 10px; }

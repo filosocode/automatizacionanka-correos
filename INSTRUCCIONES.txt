@@ -33,6 +33,10 @@ Requiere revisión técnica interna o Información suficiente para revisión int
 client_email: correo real del contacto verificado; si solo está verificado el remitente,
 usa su correo y aclara la identidad comercial pendiente en summary.
 client_name, project_name, summary, received_at (ISO 8601), gmail_url, engine="chatgpt_work".
+requested_by_email, requested_by_name: quien escribió el mensaje del cliente analizado (R11); no inventes.
+cited_codes: lista con los códigos de oferta que cita ese mensaje, tal como aparecen (p. ej. "T26145"); [] si no cita.
+Si el caso ya tiene T, la tabla solo se actualiza con un mensaje del contacto registrado que cite el código; si no, no
+cambies la tabla y describe el cambio pedido. Nunca generes ni escribas el código en un borrador para otra persona.
 activities: lista de objetos con activity, servicio_tecnica, ubicacion, quantity, unit,
 entregable, plazo_restriccion, fuente, estado, notes.
 missing_data: lista de textos distinguiendo crítico/recomendable.
