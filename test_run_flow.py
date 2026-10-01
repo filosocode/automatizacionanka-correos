@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import logging_setup
+from fake_drive import FakeDriveTree
 import pipeline
 import quotes
 import settings
@@ -21,6 +22,7 @@ from status import QuoteStatus
 from test_app import FakeGmail, FakeRequest, complete_analysis, encoded_message, test_config
 
 QUOTE_TEXT = "Solicito cotización de un levantamiento de 10 ha."
+INTERNAL_DATE = 1788271200000  # 2026-09-01: el año de la carpeta padre de los tests
 
 
 class UnreadableThreadGmail(FakeGmail):
@@ -41,18 +43,28 @@ class UnreadableThreadGmail(FakeGmail):
 
 
 class RunFlowTests(unittest.TestCase):
-    def run_flow(self, gmail, analysis=None, *, seed=None, **flags):
-        """Ejecuta run() aislado; devuelve (fila, analyze_mock, paquetes, gmail, folder_mock)."""
+    def run_flow(self, gmail, analysis=None, *, seed=None, drive=None, metadata=None, **flags):
+        """Ejecuta run() aislado; devuelve (filas, analyze_mock, paquetes, drive).
+
+        `drive` es un FakeDriveTree (por defecto uno con el cliente "Minera Sur" bajo "2026");
+        `metadata` = {thread_id: nombre_de_cliente} que una persona ya confirmó.
+        """
         flags.setdefault("review_only", False)
+        drive = drive or FakeDriveTree({"Minera Sur": {}})
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("pipeline.load_config", return_value=test_config()), patch(
-            "pipeline.services", return_value=(gmail, object())
-        ), patch("pipeline.analyze", return_value=analysis) as analyze_mock, patch(
-            "pipeline.ensure_folder", return_value={"id": "folder-1"}
-        ) as folder_mock:
+            "pipeline.services", return_value=(gmail, drive)
+        ), patch("pipeline.analyze", return_value=analysis) as analyze_mock:
             if seed:
                 db = quotes.init_db()
                 store.save(db, *seed)
+                db.close()
+            for thread_id, client in (metadata or {}).items():
+                db = quotes.init_db()
+                db.execute(
+                    "INSERT INTO quote_metadata (thread_id, client_name, updated_at) VALUES (?, ?, 'x')",
+                    (thread_id, client))
+                db.commit()
                 db.close()
             with redirect_stdout(io.StringIO()):
                 pipeline.run(True, **flags)
@@ -67,12 +79,12 @@ class RunFlowTests(unittest.TestCase):
             queue = Path(temp_dir) / "review_queue"
             packets = [p.read_text(encoding="utf-8") for p in queue.glob("*.txt")] \
                 if queue.exists() else []
-        return rows, analyze_mock, packets, folder_mock
+        return rows, analyze_mock, packets, drive
 
     @staticmethod
     def thread(text=QUOTE_TEXT, thread_id="t-1", parts=None, subject="Solicitud de cotización"):
         return {"id": thread_id, "messages": [
-            encoded_message("client-1", "cliente@example.com", text, 1, parts=parts,
+            encoded_message("client-1", "cliente@example.com", text, INTERNAL_DATE, parts=parts,
                             subject=subject)
         ]}
 
@@ -155,19 +167,13 @@ class RunFlowTests(unittest.TestCase):
         self.assertEqual(rows[0][5], "sent-1")
         self.assertEqual(len(gmail.sent_messages), 1)
 
-    def test_complete_scope_direct_mode_creates_drive_folder(self):
-        rows, _, _, folder_mock = self.run_flow(FakeGmail(self.thread()), complete_analysis())
-        self.assertEqual(rows[0][1], QuoteStatus.READY)
-        self.assertEqual(rows[0][4], "folder-1")
-        folder_mock.assert_called_once()
-
     def test_complete_scope_review_only_never_touches_drive(self):
-        rows, _, packets, folder_mock = self.run_flow(
+        rows, _, packets, drive = self.run_flow(
             FakeGmail(self.thread()), complete_analysis(), review_only=True
         )
         self.assertEqual(rows[0][1], QuoteStatus.READY_REVIEW)
         self.assertEqual(len(packets), 1)
-        folder_mock.assert_not_called()
+        self.assertEqual(drive.created, [])
 
     def test_unreadable_attachment_never_lets_a_no_quote_verdict_discard_the_thread(self):
         # La solicitud puede estar dentro del adjunto que no se pudo leer.
@@ -183,12 +189,12 @@ class RunFlowTests(unittest.TestCase):
 
     def test_already_processed_inbound_is_not_reanalyzed(self):
         seed = ("t-1", "client-1", QuoteStatus.READY, "cliente@example.com", {})
-        rows, analyze_mock, _, folder_mock = self.run_flow(
+        rows, analyze_mock, _, drive = self.run_flow(
             FakeGmail(self.thread()), complete_analysis(), seed=seed
         )
         self.assertEqual(rows[0][1], QuoteStatus.READY)
         analyze_mock.assert_not_called()
-        folder_mock.assert_not_called()
+        self.assertEqual(drive.created, [])
 
     def test_interrupted_send_is_never_retried(self):
         seed = ("t-1", "client-1", QuoteStatus.SENDING, "cliente@example.com", {})
@@ -220,6 +226,90 @@ class RunFlowTests(unittest.TestCase):
         saved = json.loads(rows[0][3])
         self.assertEqual(saved["routing"]["selected_recipient"], "cliente@example.com")
         self.assertIn("received_at", saved)
+
+
+class DriveStructureFlowTests(unittest.TestCase):
+    """Carpeta del proyecto: se crea sola solo cuando el cliente es seguro; si no, espera a una persona."""
+
+    def run_complete(self, *, thread=None, drive=None, metadata=None, seed=None, **flags):
+        thread = thread or RunFlowTests.thread()
+        return RunFlowTests().run_flow(
+            FakeGmail(thread), complete_analysis(), drive=drive, metadata=metadata, seed=seed, **flags)
+
+    def assert_held(self, rows, drive, why):
+        self.assertEqual(rows[0][1], QuoteStatus.READY_REVIEW)
+        self.assertIsNone(rows[0][4])  # sin folder_id
+        self.assertEqual(drive.created, [])
+        pending = json.loads(rows[0][3])["drive"]["pending"]
+        self.assertIn(why, pending)
+
+    def test_known_client_gets_the_request_folder_under_its_existing_client_folder(self):
+        seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
+        rows, _, _, drive = self.run_complete(metadata={"t-1": "MINERA SUR S.A.S."}, seed=seed)
+        self.assertEqual(rows[0][1], QuoteStatus.READY)
+        self.assertEqual(len(drive.created), 1)
+        self.assertRegex(drive.created[0], r"^2026/Minera Sur/Cotizacion - Proyecto Norte - ")
+        self.assertIsNotNone(rows[0][4])
+
+    def test_without_a_confirmed_client_the_folder_waits_for_a_person(self):
+        rows, _, _, drive = self.run_complete()
+        self.assert_held(rows, drive, "cliente")
+
+    def test_a_client_confirmed_in_a_previous_thread_of_the_same_sender_is_reused(self):
+        db_seed = ("t-prev", "p-1", QuoteStatus.READY, "cliente@example.com", {})
+        rows, _, _, drive = RunFlowTests().run_flow(
+            FakeGmail(RunFlowTests.thread(thread_id="t-new")), complete_analysis(),
+            seed=db_seed, metadata={"t-prev": "Minera Sur"})
+        new = [r for r in rows if r[0] != "p-1"][0]
+        self.assertEqual(new[1], QuoteStatus.READY)
+        self.assertRegex(drive.created[0], r"^2026/Minera Sur/")
+
+    def test_a_client_without_a_folder_is_never_created_automatically(self):
+        seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
+        rows, _, _, drive = self.run_complete(metadata={"t-1": "Empresa Nueva"}, seed=seed)
+        self.assert_held(rows, drive, "Empresa Nueva")
+
+    def test_ambiguous_client_folders_wait_for_a_person(self):
+        seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
+        drive = FakeDriveTree({"Acme": {}, "ACME SAS": {}})
+        rows, _, _, drive = self.run_complete(metadata={"t-1": "Acme Corp"}, seed=seed, drive=drive)
+        self.assert_held(rows, drive, "varias")
+
+    def test_parent_folder_of_another_year_waits_for_a_person(self):
+        seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
+        drive = FakeDriveTree({"Minera Sur": {}}, root_name="2025")
+        rows, _, _, drive = self.run_complete(metadata={"t-1": "Minera Sur"}, seed=seed, drive=drive)
+        self.assert_held(rows, drive, "2025")
+
+    def test_forwarded_request_looks_up_the_original_sender_not_the_internal_reviewer(self):
+        forwarded = {"id": "t-1", "messages": [encoded_message(
+            "fwd-1", "Diego <diego@anka.com.co>",
+            "---------- Mensaje reenviado ---------\n"
+            "De: Cliente Real <real@minera.co>\n"
+            "Asunto: x\n\nSolicitamos cotización de levantamiento.",
+            INTERNAL_DATE, subject="Fwd: Solicitud de cotización")]}
+        db_seed = ("t-prev", "p-1", QuoteStatus.READY, "diego@anka.com.co",
+                   {"routing": {"original_sender_email": "real@minera.co"}})
+        rows, _, _, drive = RunFlowTests().run_flow(
+            FakeGmail(forwarded), complete_analysis(), seed=db_seed, metadata={"t-prev": "Minera Sur"})
+        new = [r for r in rows if r[0] != "p-1"][0]
+        self.assertEqual(new[1], QuoteStatus.READY)
+        self.assertRegex(drive.created[0], r"^2026/Minera Sur/")
+
+    def test_a_held_case_says_why_without_putting_the_client_name_in_the_file_log(self):
+        seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
+        with self.assertLogs("anka.pipeline", "WARNING") as logs:
+            self.run_complete(metadata={"t-1": "Empresa Secreta"}, seed=seed)
+        text = " ".join(logs.output)
+        self.assertIn("pendiente de confirmación", text)
+
+    def test_a_held_case_is_not_retried_on_every_review(self):
+        rows, analyze_mock, _, _ = self.run_complete()
+        self.assertEqual(rows[0][1], QuoteStatus.READY_REVIEW)
+        seed = ("t-1", "client-1", QuoteStatus.READY_REVIEW, "cliente@example.com", {})
+        _, analyze_mock, _, drive = self.run_complete(seed=seed)
+        analyze_mock.assert_not_called()
+        self.assertEqual(drive.created, [])
 
 
 class LogPrivacyTests(unittest.TestCase):

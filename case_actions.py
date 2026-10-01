@@ -10,7 +10,8 @@ from typing import Any
 from status import (
     CLOSED_STATUSES, QuoteStatus,
 )
-from google_services import services, ensure_folder
+from drive_layout import DriveLayoutError, create_project_folder, year_mismatch
+from google_services import services
 from mail import (
     forwarded_routing, inbound_messages, own_addresses, reply_email,
     send_reply, valid_email_address,
@@ -22,7 +23,7 @@ from settings import load_config
 from logging_setup import SENSITIVE, get_logger
 from store import add_dashboard_notification, save
 
-from quotes import get_quote, init_db
+from quotes import get_quote, init_db, set_client_name
 
 log = get_logger(__name__)
 
@@ -151,9 +152,22 @@ def send_dashboard_reply(thread_id: str, body: str) -> str:
     return f"Correo enviado a {quote['recipient']} en el mismo hilo."
 
 
+def _saved_client_name(db: Any, thread_id: str) -> str:
+    row = db.execute(
+        "SELECT client_name FROM quote_metadata WHERE thread_id=? AND client_name <> ''", (thread_id,),
+    ).fetchone()
+    return str(row[0]) if row else ""
+
+
 def approve_review(
-    thread_id: str, body_file: str | None = None, body_text: str | None = None
+    thread_id: str, body_file: str | None = None, body_text: str | None = None,
+    client_name: str | None = None, new_client: bool = False,
 ) -> str:
+    """Aprueba un caso: envía las preguntas (review_pending) o crea la carpeta (ready_review).
+
+    Para la carpeta, `client_name` es la carpeta del cliente; `new_client=True` es la
+    confirmación explícita de que puede crearse si no existe.
+    """
     config = load_config()
     gmail, drive = services()
     account_addresses = own_addresses(config, gmail)
@@ -190,17 +204,33 @@ def approve_review(
             log.info("%s", message, extra=SENSITIVE)
             return message
         elif status == QuoteStatus.READY_REVIEW:
-            if not config.get("drive_parent_id"):
+            parent = config.get("drive_parent_id")
+            if not parent:
                 raise SystemExit("Para aprobar alcance completo define drive_parent_id en config.json.")
-            name = safe_folder_name(
-                analysis["project_name"], thread_id,
-                config.get("folder_prefix", "Cotizacion"),
+            client = (client_name or "").strip() or _saved_client_name(db, thread_id)
+            if not client:
+                raise SystemExit("Indica la carpeta del cliente.")
+            mismatch = year_mismatch(drive, parent, analysis.get("received_at", ""))
+            if mismatch:
+                raise SystemExit(mismatch)
+            request_name = safe_folder_name(
+                analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion"),
             )
-            folder = ensure_folder(drive, config["drive_parent_id"], name)
+            try:
+                result = create_project_folder(
+                    drive, parent, client, request_name, create_client=new_client,
+                )
+            except DriveLayoutError as exc:
+                raise SystemExit(str(exc)) from exc
+            analysis.pop("drive", None)
             save(db, thread_id, last_id, QuoteStatus.READY, recipient, analysis,
-                 folder_id=folder["id"])
-            message = f"{thread_id}: carpeta creada/encontrada: {folder['id']}"
-            log.info("%s", message)
+                 folder_id=result.folder["id"])
+            set_client_name(thread_id, client)  # los próximos correos del remitente se resuelven solos
+            log.info("%s: carpeta del proyecto creada tras aprobación: %s", thread_id, result.folder["id"])
+            message = f"{thread_id}: carpeta creada/encontrada: {result.folder['id']}"
+            if result.client_created:
+                log.info("%s: carpeta de cliente nuevo creada tras confirmación", thread_id)
+                message += " Se creó también la carpeta del cliente nuevo."
             return message
         else:
             raise SystemExit(

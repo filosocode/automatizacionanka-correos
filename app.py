@@ -308,6 +308,14 @@ def main() -> None:
         "--body-file",
         help="Archivo UTF-8 con el correo revisado que se enviará al aprobar una pregunta.",
     )
+    parser.add_argument(
+        "--client-name",
+        help="Carpeta del cliente en Drive al aprobar un alcance completo.",
+    )
+    parser.add_argument(
+        "--new-client", action="store_true",
+        help="Confirma que puede crearse la carpeta del cliente si no existe.",
+    )
     parser.add_argument("--host", default="127.0.0.1", help=argparse.SUPPRESS)
     parser.add_argument("--port", type=int, default=8765, help=argparse.SUPPRESS)
     parser.add_argument("--no-browser", action="store_true", help=argparse.SUPPRESS)
@@ -365,7 +373,10 @@ def main() -> None:
     elif args.command == "approve":
         if not args.thread_id:
             parser.error("approve requiere --thread-id.")
-        approve_review(args.thread_id, args.body_file)
+        approve_review(
+            args.thread_id, args.body_file,
+            client_name=args.client_name, new_client=args.new_client,
+        )
     elif args.command == "review-ui":
         review_ui(args.host, args.port, not args.no_browser)
     else:

@@ -96,6 +96,14 @@ CASES = [
      "", None),
     ("t-hostile", QuoteStatus.REVIEW_PENDING, HOSTILE_EMAIL, hostile_analysis(),
      (HOSTILE, HOSTILE, HOSTILE, HOSTILE), HOSTILE, None),
+    ("t-folder-held", QuoteStatus.READY_REVIEW, "listo@example.com",
+     analysis(project_name="Proyecto Retenido", drive={"pending": "No hay un cliente confirmado para este remitente."}),
+     ("Minera Sur", "No clasificado", "No clasificado", ""), "", None),
+    ("t-folder-hostile", QuoteStatus.READY_REVIEW, "listo@example.com",
+     analysis(project_name="Proyecto Hostil", drive={"pending": HOSTILE}),
+     (HOSTILE, "No clasificado", "No clasificado", ""), "", None),
+    ("t-folder-done", QuoteStatus.READY, "listo@example.com",
+     analysis(project_name="Proyecto con Carpeta"), ("Minera Sur", "No clasificado", "No clasificado", ""), "", None),
     ("t-discarded", QuoteStatus.IGNORED, "noreply@tienda.com",
      {"ignored_reason": "remitente automático (no-reply)",
       "email": {"subject": "Ofertas de oficina", "from": "Tienda <noreply@tienda.com>"}},
@@ -134,6 +142,8 @@ def seed(data_dir: Path) -> None:
             (body, draft_id, "2026-09-02T10:00:00-05:00" if status == QuoteStatus.RESPONSE_SENT else None,
              "2026-09-02T10:00:00-05:00", thread_id),
         )
+        if status == QuoteStatus.READY:
+            db.execute("UPDATE quotes SET folder_id='folder-abc123' WHERE thread_id=?", (thread_id,))
         db.execute(
             "INSERT INTO quote_metadata (thread_id, client_name, client_type, sector, notes, updated_at)"
             " VALUES (?, ?, ?, ?, ?, '2026-09-02T10:00:00-05:00')",
@@ -255,7 +265,8 @@ class InjectionTests(Pages):
                     {a for a in parsed.attrs if a.startswith("on")},
                     "No debe haber manejadores de eventos en línea (onclick, onerror, ...)",
                 )
-                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm"})
+                # data-confirm y required son atributos propios del código, nunca de datos.
+                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required"})
                 self.assertEqual(parsed.scripts, legit_scripts[name])
 
     def test_hostile_page_does_not_add_scripts_beyond_the_legitimate_ones(self):

@@ -29,7 +29,7 @@ Inteligencia comercial
 <a href="/">
 Resumen
 <span class="nav-count">
-13
+18
 </span>
 </a>
 <a href="/requests">
@@ -125,6 +125,42 @@ Revisar
 Respuesta sugerida lista para revisar
 </strong>
 <div>
+Proyecto Hostil
+</div>
+<div class="meta">
+Revisa el destinatario y el texto antes de guardarlo en Gmail o enviarlo. 2026-09-02 10:00
+</div>
+</div>
+<a class="button secondary" href="/case?thread_id=t-folder-hostile">
+Revisar
+</a>
+</article>
+<article class="notification">
+<span class="notification-dot">
+</span>
+<div>
+<strong>
+Respuesta sugerida lista para revisar
+</strong>
+<div>
+Proyecto Retenido
+</div>
+<div class="meta">
+Revisa el destinatario y el texto antes de guardarlo en Gmail o enviarlo. 2026-09-02 10:00
+</div>
+</div>
+<a class="button secondary" href="/case?thread_id=t-folder-held">
+Revisar
+</a>
+</article>
+<article class="notification">
+<span class="notification-dot">
+</span>
+<div>
+<strong>
+Respuesta sugerida lista para revisar
+</strong>
+<div>
 "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </div>
 <div class="meta">
@@ -207,42 +243,6 @@ Revisa el destinatario y el texto antes de guardarlo en Gmail o enviarlo. 2026-0
 Revisar
 </a>
 </article>
-<article class="notification">
-<span class="notification-dot">
-</span>
-<div>
-<strong>
-Correo nuevo recibido
-</strong>
-<div>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</div>
-<div class="meta">
-La solicitud ya fue analizada y agregada al dashboard. 2026-09-01 09:00
-</div>
-</div>
-<a class="button secondary" href="/case?thread_id=t-hostile-scope">
-Revisar
-</a>
-</article>
-<article class="notification">
-<span class="notification-dot">
-</span>
-<div>
-<strong>
-Correo nuevo recibido
-</strong>
-<div>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</div>
-<div class="meta">
-La solicitud ya fue analizada y agregada al dashboard. 2026-09-01 09:00
-</div>
-</div>
-<a class="button secondary" href="/case?thread_id=t-hostile">
-Revisar
-</a>
-</article>
 </section>
 <div class="grid kpis">
 <div class="kpi">
@@ -250,7 +250,7 @@ Revisar
 Solicitudes registradas
 </div>
 <div class="kpi-value">
-7
+10
 </div>
 <div class="kpi-note">
 Excluye correos descartados
@@ -272,7 +272,7 @@ Por correo de cliente
 Requieren atención
 </div>
 <div class="kpi-value">
-5
+7
 </div>
 <div class="kpi-note">
 Faltantes o revisión técnica
@@ -283,7 +283,7 @@ Faltantes o revisión técnica
 Información suficiente
 </div>
 <div class="kpi-value">
-1
+4
 </div>
 <div class="kpi-note">
 Listas para revisión interna
@@ -310,7 +310,7 @@ Topografía convencional
 </div>
 </div>
 <div class="metric-count">
-4
+7
 </div>
 </div>
 <div class="metric-row">
@@ -318,11 +318,11 @@ Topografía convencional
 Batimetría
 </div>
 <div class="metric-track">
-<div class="metric-fill" style="width:75%">
+<div class="metric-fill" style="width:86%">
 </div>
 </div>
 <div class="metric-count">
-3
+6
 </div>
 </div>
 <div class="metric-row">
@@ -330,7 +330,7 @@ Batimetría
 "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </div>
 <div class="metric-track">
-<div class="metric-fill" style="width:50%">
+<div class="metric-fill" style="width:29%">
 </div>
 </div>
 <div class="metric-count">
@@ -358,7 +358,7 @@ Información suficiente para revisión interna
 </div>
 </div>
 <div class="metric-count">
-3
+5
 </div>
 </div>
 <div class="metric-row">
@@ -366,7 +366,7 @@ Información suficiente para revisión interna
 Requiere revisión técnica interna
 </div>
 <div class="metric-track">
-<div class="metric-fill blue" style="width:67%">
+<div class="metric-fill blue" style="width:40%">
 </div>
 </div>
 <div class="metric-count">
@@ -378,7 +378,19 @@ Requiere revisión técnica interna
 Respuesta enviada
 </div>
 <div class="metric-track">
-<div class="metric-fill blue" style="width:33%">
+<div class="metric-fill blue" style="width:20%">
+</div>
+</div>
+<div class="metric-count">
+1
+</div>
+</div>
+<div class="metric-row">
+<div class="metric-label" title="Proyecto creado">
+Proyecto creado
+</div>
+<div class="metric-track">
+<div class="metric-fill blue" style="width:20%">
 </div>
 </div>
 <div class="metric-count">
@@ -390,7 +402,7 @@ Respuesta enviada
 Borrador preparado
 </div>
 <div class="metric-track">
-<div class="metric-fill blue" style="width:33%">
+<div class="metric-fill blue" style="width:20%">
 </div>
 </div>
 <div class="metric-count">
@@ -418,7 +430,7 @@ No clasificado
 </div>
 </div>
 <div class="metric-count">
-3
+6
 </div>
 </div>
 <div class="metric-row">
@@ -426,7 +438,7 @@ No clasificado
 Empresa privada
 </div>
 <div class="metric-track">
-<div class="metric-fill" style="width:67%">
+<div class="metric-fill" style="width:33%">
 </div>
 </div>
 <div class="metric-count">
@@ -438,7 +450,7 @@ Empresa privada
 "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </div>
 <div class="metric-track">
-<div class="metric-fill" style="width:33%">
+<div class="metric-fill" style="width:17%">
 </div>
 </div>
 <div class="metric-count">
@@ -450,7 +462,7 @@ Empresa privada
 Entidad pública
 </div>
 <div class="metric-track">
-<div class="metric-fill" style="width:33%">
+<div class="metric-fill" style="width:17%">
 </div>
 </div>
 <div class="metric-count">
@@ -470,15 +482,15 @@ Lectura rápida
 Servicio más solicitado
 </strong>
 <span class="meta">
-Topografía convencional aparece en 4 solicitud(es).
+Topografía convencional aparece en 7 solicitud(es).
 </span>
 </div>
 <div class="insight">
 <strong>
-cliente@example.com
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </strong>
 <span class="meta">
-2 solicitud(es). Es el cliente con más solicitudes registradas.
+3 solicitud(es). Es el cliente con más solicitudes registradas.
 </span>
 </div>
 <div class="insight">
@@ -486,7 +498,7 @@ cliente@example.com
 Datos por completar
 </strong>
 <span class="meta">
-3 solicitud(es) aún no tienen tipo de cliente.
+6 solicitud(es) aún no tienen tipo de cliente.
 </span>
 </div>
 </section>

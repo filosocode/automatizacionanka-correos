@@ -16,7 +16,10 @@ from status import (
 )
 import settings
 from logging_setup import SENSITIVE, get_logger
-from google_services import services, ensure_folder
+from drive_layout import (
+    AmbiguousClient, ClientNotFound, create_project_folder, year_mismatch,
+)
+from google_services import services
 from mail import (
     candidate_thread_ids, create_reply_draft, extract_message_attachments,
     forwarded_routing, header, inbound_messages, message_datetime, own_addresses, send_reply,
@@ -308,10 +311,7 @@ def apply_decision(
         save(db, thread_id, last["id"], d.status, recipient, d.analysis,
              sent_message_id=sent_id)
     elif d.action is Action.FOLDER:
-        folder = ensure_folder(ctx.drive, ctx.config["drive_parent_id"], d.folder_name)
-        save(db, thread_id, last["id"], d.status, recipient, d.analysis,
-             folder_id=folder["id"])
-        log.info("%s: carpeta creada/encontrada: %s", thread_id, folder["id"])
+        _create_project_folder_or_hold(ctx, thread_id, last, recipient, d)
     elif d.action is Action.GMAIL_DRAFT:
         save(db, thread_id, last["id"], d.status, recipient, d.analysis,
              sent_message_id=draft_id)
@@ -328,6 +328,70 @@ def apply_decision(
             log.info("%s: %s: %s", thread_id, verb, packet.name)
     if d.action is Action.SEND:
         log.info("%s: preguntas enviadas al cliente; se espera respuesta", thread_id)
+
+
+def _confirmed_client(db: sqlite3.Connection, thread_id: str, analysis: dict, recipient: str) -> str:
+    """Cliente que una persona ya confirmó: el de este hilo o el de otro del mismo remitente."""
+    row = db.execute(
+        "SELECT client_name FROM quote_metadata WHERE thread_id=? AND client_name <> ''",
+        (thread_id,),
+    ).fetchone()
+    if row:
+        return str(row[0])
+    routing = analysis.get("routing", {})
+    sender = routing.get("original_sender_email") or (
+        None if routing.get("is_forwarded") else recipient
+    )
+    if not sender:
+        return ""
+    row = db.execute(
+        """SELECT m.client_name FROM quote_metadata m JOIN quotes q ON q.thread_id = m.thread_id
+           WHERE m.client_name <> '' AND m.thread_id <> ?
+             AND (lower(q.recipient) = lower(?)
+                  OR lower(json_extract(q.analysis_json, '$.routing.original_sender_email')) = lower(?))
+           ORDER BY m.updated_at DESC LIMIT 1""",
+        (thread_id, sender, sender),
+    ).fetchone()
+    return str(row[0]) if row else ""
+
+
+def _create_project_folder_or_hold(
+    ctx: RunContext, thread_id: str, last: dict, recipient: str, d: Decision,
+) -> None:
+    """Crea `Año/Cliente/Solicitud` solo si el cliente es seguro; si no, lo deja para una persona.
+
+    Nunca crea una carpeta de cliente por cuenta propia (ver drive_layout).
+    """
+    db = ctx.db
+    assert db is not None
+    parent = ctx.config["drive_parent_id"]
+    hold: tuple[str, str] | None = None  # (código genérico, mensaje completo)
+    folder: dict | None = None
+    mismatch = year_mismatch(ctx.drive, parent, d.analysis.get("received_at", ""))
+    client = _confirmed_client(db, thread_id, d.analysis, recipient)
+    if mismatch:
+        hold = ("año de la carpeta padre", mismatch)
+    elif not client:
+        hold = ("cliente sin confirmar",
+                "No hay un cliente confirmado para este remitente. Indica la carpeta del cliente.")
+    else:
+        try:
+            folder = create_project_folder(ctx.drive, parent, client, d.folder_name).folder
+        except ClientNotFound as exc:
+            hold = ("cliente sin carpeta", str(exc))
+        except AmbiguousClient as exc:
+            hold = ("carpetas de cliente ambiguas", str(exc))
+    if hold or folder is None:
+        code, message = hold or ("sin carpeta", "No se pudo crear la carpeta.")
+        analysis = d.analysis | {"drive": {"pending": message}}
+        save_review_packet(thread_id, recipient, analysis, [], None, d.folder_name)
+        save(db, thread_id, last["id"], QuoteStatus.READY_REVIEW, recipient, analysis)
+        log.warning("%s: carpeta del proyecto pendiente de confirmación (%s)", thread_id, code)
+        log.info("%s: %s", thread_id, message, extra=SENSITIVE)
+        return
+    d.analysis.pop("drive", None)
+    save(db, thread_id, last["id"], d.status, recipient, d.analysis, folder_id=folder["id"])
+    log.info("%s: carpeta creada/encontrada: %s", thread_id, folder["id"])
 
 
 def _skip_reason(row: Sequence[Any] | None, last_id: str, gmail_drafts: bool) -> str | None:

@@ -29,7 +29,7 @@ Inteligencia comercial
 <a href="/">
 Resumen
 <span class="nav-count">
-13
+18
 </span>
 </a>
 <a href="/requests">
@@ -541,6 +541,36 @@ Asuntos pendientes
 <pre>
 Sin asuntos pendientes.
 </pre>
+</section>
+<section class="section">
+<h2>
+Carpeta del proyecto en Drive
+</h2>
+<p class="meta">
+Se creará
+<strong>
+Año / Cliente / Solicitud
+</strong>
+dentro de la carpeta configurada. La carpeta de un cliente nuevo solo se crea si lo confirmas.
+</p>
+<form method="post" action="/approve">
+<input type="hidden" name="thread_id" value="t-ready">
+<div class="filters">
+<label>
+Carpeta del cliente
+<input name="client_name" value="" required="">
+</label>
+</div>
+<label>
+<input type="checkbox" name="new_client" value="1">
+Es un cliente nuevo: crear su carpeta
+</label>
+<div class="toolbar" style="margin-top:12px">
+<button type="submit">
+Crear carpeta del proyecto
+</button>
+</div>
+</form>
 </section>
 <section class="section">
 <h2>

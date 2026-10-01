@@ -235,6 +235,7 @@ def _render_case(thread_id: str, message: str = "") -> str:
         routing_summary=routing_summary, issues_summary=issues_summary,
         email=email, email_body=email_body, recipient_error=recipient_error,
         sufficient=assessment.get("status") == "sufficient_for_internal_review",
+        drive_pending=(analysis.get("drive") or {}).get("pending", ""),
     )
     return _page("Revisar caso", body, message)
 
@@ -350,8 +351,18 @@ class ReviewHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/approve":
                 thread_id = form.get("thread_id", [""])[0]
                 body = form.get("body", [None])[0]
-                message = approve_review(thread_id, body_text=body)
-                self._redirect("/?message=" + urllib.parse.quote(message))
+                try:
+                    message = approve_review(
+                        thread_id, body_text=body,
+                        client_name=form.get("client_name", [None])[0],
+                        new_client=form.get("new_client", [""])[0] == "1",
+                    )
+                except SystemExit as exc:  # orientación para la persona, no un fallo del servidor
+                    message = str(exc)
+                self._redirect(
+                    "/case?thread_id=" + urllib.parse.quote(thread_id)
+                    + "&message=" + urllib.parse.quote(message)
+                )
             elif parsed.path == "/metadata":
                 thread_id = form.get("thread_id", [""])[0]
                 save_quote_metadata(

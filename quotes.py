@@ -209,6 +209,7 @@ def all_quotes(include_ignored: bool = False) -> list[dict]:
             "recipient": row["recipient"],
             "client_email": client_email,
             "client_name": row["client_name"] or routing.get("original_sender") or client_email,
+            "client_name_saved": row["client_name"] or "",
             "client_type": row["client_type"] or "No clasificado",
             "sector": row["sector"] or "No clasificado",
             "notes": row["notes"] or "",
@@ -296,6 +297,22 @@ def save_quote_metadata(thread_id: str, client_name: str, client_type: str,
                       client_name=excluded.client_name, notes=excluded.notes,
                       updated_at=excluded.updated_at""",
                    (thread_id, client_type, sector, client_name.strip(), notes.strip(), now))
+        db.commit()
+    finally:
+        db.close()
+
+
+def set_client_name(thread_id: str, client_name: str) -> None:
+    """Guarda el cliente confirmado de un caso sin tocar el resto de sus datos comerciales."""
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    db = init_db()
+    try:
+        db.execute("""INSERT INTO quote_metadata
+                      (thread_id, client_type, sector, client_name, notes, updated_at)
+                      VALUES (?, 'No clasificado', 'No clasificado', ?, '', ?)
+                      ON CONFLICT(thread_id) DO UPDATE SET
+                      client_name=excluded.client_name, updated_at=excluded.updated_at""",
+                   (thread_id, client_name.strip(), now))
         db.commit()
     finally:
         db.close()

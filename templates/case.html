@@ -44,6 +44,24 @@
     <h2 style="margin-top:16px;">Asuntos pendientes</h2>
     <pre>{{ issues_summary }}</pre>
   </section>
+  {% if review.status == 'ready_review' %}
+  <section class="section">
+    <h2>Carpeta del proyecto en Drive</h2>
+    <p class="meta">Se creará <strong>Año / Cliente / Solicitud</strong> dentro de la carpeta configurada. La carpeta de un cliente nuevo solo se crea si lo confirmas.</p>
+    {% if drive_pending %}<div class='notice'>{{ drive_pending }}</div>{% endif %}
+    <form method="post" action="/approve">
+      <input type="hidden" name="thread_id" value="{{ thread_id }}">
+      <div class="filters"><label>Carpeta del cliente<input name="client_name" value="{{ review.client_name_saved }}" required></label></div>
+      <label><input type="checkbox" name="new_client" value="1"> Es un cliente nuevo: crear su carpeta</label>
+      <div class="toolbar" style="margin-top:12px"><button type="submit">Crear carpeta del proyecto</button></div>
+    </form>
+  </section>
+  {% elif review.status == 'ready' and review.folder_id %}
+  <section class="section">
+    <h2>Carpeta del proyecto en Drive</h2>
+    <p><a class="button secondary" href="https://drive.google.com/drive/folders/{{ review.folder_id | urlquote }}">Abrir carpeta en Drive</a></p>
+  </section>
+  {% endif %}
   <section class="section">
     <h2>Respuesta al cliente</h2>
     <p class="meta">Revisa el destinatario y el contenido. Ningún correo se envía sin pulsar “Enviar ahora”.</p>
