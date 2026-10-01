@@ -7,7 +7,9 @@ import html
 import json
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, NoReturn
 
 from gmail_followup import sync_thread_activity
 from work_heartbeat import other_bridge_running, write_heartbeat
@@ -18,8 +20,8 @@ EXIT_STOP = 2  # el .bat no reinicia con este código
 DEFAULT_ACCOUNT = "ankacomercialia@gmail.com"
 STATUSES = {"Nueva solicitud", "En análisis", "Faltan datos", "Requiere aclaraciones del cliente", "Revisión técnica", "Requiere revisión técnica interna", "Borrador preparado", "Alcance completo", "Información suficiente para revisión interna", "Descartada"}
 
-def body_text(part):
-    values = []
+def body_text(part: dict) -> list[str]:
+    values: list[str] = []
     data = part.get("body", {}).get("data")
     if data and part.get("mimeType") in ("text/plain", "text/html"):
         raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8")
@@ -31,7 +33,7 @@ def body_text(part):
         values.extend(body_text(child))
     return values
 
-def extract(message):
+def extract(message: dict) -> tuple[dict, str] | None:
     for text in body_text(message.get("payload", {})):
         if START not in text:
             continue
@@ -58,8 +60,9 @@ def extract(message):
         return payload, canonical
     return None
 
-def _list_drafts(gmail):
-    drafts, page = [], None
+def _list_drafts(gmail: Any) -> list[dict]:
+    drafts: list[dict] = []
+    page = None
     while True:
         result = gmail.users().drafts().list(userId="me", maxResults=100, pageToken=page).execute()
         drafts.extend(result.get("drafts", []))
@@ -68,7 +71,8 @@ def _list_drafts(gmail):
             return drafts
 
 
-def sync_once(gmail, upsert, checkpoint, cache=None):
+def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
+              cache: dict | None = None) -> dict:
     """Una pasada. `cache` (draft_id -> (message_id, stamp, hallazgo)) evita bajar de nuevo
     borradores sin cambios: Gmail da un message id nuevo cada vez que se edita un borrador."""
     cache = {} if cache is None else cache
@@ -76,7 +80,7 @@ def sync_once(gmail, upsert, checkpoint, cache=None):
     drafts = _list_drafts(gmail)
     for stale in set(cache) - {draft["id"] for draft in drafts}:
         del cache[stale]
-    candidates = {}
+    candidates: dict[str, tuple[int, tuple[dict, str]]] = {}
     failures = 0
     for draft in drafts:
         try:
@@ -98,7 +102,7 @@ def sync_once(gmail, upsert, checkpoint, cache=None):
             failures += 1
             print(f"Borrador {draft['id']}: no importado ({type(exc).__name__}).", flush=True)
     updated = 0
-    for thread, (_, (payload, raw)) in candidates.items():
+    for thread, (_, (_payload, raw)) in candidates.items():
         digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
         if state.get(thread) == digest:
             continue
@@ -119,13 +123,13 @@ def sync_once(gmail, upsert, checkpoint, cache=None):
     return {"drafts": len(drafts), "updated": updated, "failures": failures}
 
 
-def fatal(message):
+def fatal(message: str) -> NoReturn:
     """Error que no se arregla reintentando: el .bat no debe reiniciar el puente."""
     print(message, flush=True)
     raise SystemExit(EXIT_STOP)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--seconds", type=int, default=60)
@@ -141,8 +145,8 @@ def main():
         fatal("Ya hay otro puente activo (ver work_sync_heartbeat.json). No se inicia un segundo.")
     account = load_config().get("work_sync_account", DEFAULT_ACCOUNT).lower()
     checkpoint = DATA_DIR / "work_dashboard_sync_state.json"
-    cache = {}
-    seen = set()
+    cache: dict = {}
+    seen: set[str] = set()
     gmail = None
     print("Sincronización Work activa. Solo lectura de Gmail y escritura en dashboard local.", flush=True)
     while True:
@@ -180,4 +184,4 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("Sincronización detenida.")
-        raise SystemExit(EXIT_STOP)
+        raise SystemExit(EXIT_STOP) from None

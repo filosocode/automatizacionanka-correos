@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from email.utils import parseaddr
+from typing import Any
 
 from logging_setup import get_logger
 from quotes import init_db
@@ -40,7 +41,7 @@ def _headers(message: dict) -> dict:
     return {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
 
 
-def _list_messages(gmail) -> list[dict]:
+def _list_messages(gmail: Any) -> list[dict]:
     found, page = [], None
     while True:
         result = gmail.users().messages().list(
@@ -51,7 +52,7 @@ def _list_messages(gmail) -> list[dict]:
             return found
 
 
-def sync_thread_activity(gmail, seen: set[str]) -> dict:
+def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
     """Anota en cada caso conocido los correos enviados y recibidos y mueve su estado si procede.
 
     `seen` guarda los mensajes ya revisados en este proceso; la base evita duplicar entre reinicios.
@@ -64,7 +65,7 @@ def sync_thread_activity(gmail, seen: set[str]) -> dict:
             "SELECT thread_id, ref FROM case_events WHERE kind IN ('sent', 'received')")}
         events = moved = 0
         for item in _list_messages(gmail):
-            thread_id, message_id = item.get("threadId"), item["id"]
+            thread_id, message_id = str(item.get("threadId") or ""), item["id"]
             if message_id in seen or thread_id not in cases:
                 continue
             if (thread_id, message_id) in known:

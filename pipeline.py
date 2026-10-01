@@ -33,7 +33,7 @@ from reception import (
 )
 from llm import analyze
 from modes import (
-    automation_interval_label, codex_automation_status, ensure_local_or_api_mode,
+    ensure_local_or_api_mode,
 )
 from settings import load_config
 from store import save

@@ -2,7 +2,6 @@
 
 import _isolate  # noqa: F401  (debe ir primero)
 
-import json
 import sqlite3
 import tempfile
 import time
