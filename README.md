@@ -137,3 +137,15 @@ El sistema **no usa palabras clave para decidir si un correo es una solicitud**:
 Un remitente humano nunca se descarta aquí, aunque Gmail lo ponga en Promociones. `commercial_filter_terms` en `config.json` solo sirve para rescatar un aviso automático que hable de cotizaciones (por ejemplo, el portal de un cliente). Si el modelo concluye que no es una solicitud pero hay adjuntos que no se pudieron leer, el caso va a revisión manual en vez de descartarse.
 
 Todo lo descartado queda en la pestaña **Descartadas** del dashboard con su motivo, remitente y asunto. El botón **Rescatar** marca el hilo para que la próxima revisión de Gmail lo analice aunque parezca automático (solo funciona con el piloto de Python activo, no en modo `chatgpt_work`). Contrapartida: más correos llegan al modelo local (unos segundos o minutos cada uno, sin costo de API).
+
+## Estructura de Drive
+
+Las carpetas siguen la convención `Año / Cliente / Solicitud`. `drive_parent_id` en `config.json` es la carpeta **del año vigente** (por ejemplo `2026`); al cambiar de año hay que apuntarlo a la nueva (si la solicitud es de otro año que la carpeta padre, el sistema no crea nada y avisa). Dentro de ella:
+
+- La carpeta del **cliente** se busca por nombre sin importar mayúsculas, tildes ni sufijos como S.A.S. o Ltda. Si hay una sola coincidencia se reutiliza; si hay varias parecidas, decide una persona. **Nunca se crea una carpeta de cliente por cuenta propia.**
+- La carpeta de la **solicitud** (`Cotizacion - <proyecto> - <id>`) se crea sola solo cuando el cliente está confirmado: lo confirmó una persona en ese hilo, o en otro hilo del mismo remitente. Si no, el caso queda en "Información suficiente para revisión interna" con el motivo, y en la pantalla del caso aparece **Carpeta del proyecto en Drive**: se escribe la carpeta del cliente, se marca "cliente nuevo" solo si hay que crearla, y se pulsa **Crear carpeta del proyecto**. Así los siguientes correos de ese remitente se resuelven solos.
+- Por línea de comandos: `python app.py approve --thread-id <id> --client-name "Minera Sur" [--new-client]`.
+
+## Los tres modos de operación
+
+Ollama (`local`), API (`api`) y ChatGPT Work (`chatgpt_work`) deben comportarse igual. Las reglas viven en un solo documento (`skills/anka-cotizaciones-correo/references/reglas_operativas.md`), `local` y `api` comparten el mismo código y Work usa la skill, y `test_paridad_modos.py` falla si alguno se separa. El procedimiento para cambiar cualquier regla está en [ESTANDAR_CAMBIOS.md](ESTANDAR_CAMBIOS.md).

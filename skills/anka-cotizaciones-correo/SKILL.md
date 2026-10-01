@@ -25,7 +25,7 @@ Es la skill operativa. Las reglas generales de criterio (no inventar datos, sepa
 3. Construye una tabla de actividades. Cada fila debe tener actividad, servicio/tecnica candidata, ubicacion, magnitud, unidad, entregable, plazo/restriccion, fuente y estado.
 4. Determina si el alcance esta incompleto para la siguiente etapa de cotizacion.
 5. Si faltan datos, redacta un borrador breve en espanol claro, con preguntas agrupadas y sin tecnicismos innecesarios.
-6. Si el alcance parece completo, recomienda pasar a revision comercial/tecnica antes de crear carpeta o cotizacion final.
+6. Si el alcance parece completo, recomienda pasar a revision comercial/tecnica antes de cotizar. La carpeta de Drive se crea solo segun las reglas operativas de abajo (R4 a R7); si el cliente no esta confirmado, deja el caso esperando aprobacion.
 7. Cuando llegue una respuesta del cliente, reconcilia la nueva informacion con la tabla anterior. Una respuesta parcial no convierte el alcance en completo.
 
 ## Criterio de solicitud de cotizacion
@@ -33,6 +33,19 @@ Es la skill operativa. Las reglas generales de criterio (no inventar datos, sepa
 Considera candidato cuando el correo pida cotizar, presupuestar, proponer, valorar o estimar un servicio de topografia, geomatica, inspeccion, captura o procesamiento de datos espaciales. Tambien aplica cuando el asunto o el cuerpo sugieran una necesidad comercial aunque no use literalmente "cotizacion" (por ejemplo, preguntar por valor, tiempos o disponibilidad de un servicio). Un prefiltro por palabras clave solo debe descartar ruido inequivoco; ante la duda, la solicitud pasa a analisis o a revision, no se descarta.
 
 Descarta o deja en revision los casos que sean publicidad, mensajes administrativos, notificaciones automaticas, duplicados evidentes, o solicitudes sin relacion con servicios de Anka.
+
+## Reglas operativas (versión 1)
+
+Estas reglas son idénticas en los tres modos (Ollama, API y ChatGPT Work) y viven en [reglas_operativas.md](references/reglas_operativas.md), que es la fuente única. Si algo aquí difiere de ese archivo, prevalece ese archivo; avisa para corregir esta skill. Detalle y ejemplos: [casos_prueba.md](references/casos_prueba.md).
+
+- **R1 · Descarte.** Descarta sin analizar solo ruido evidente: todos los mensajes del cliente en el hilo deben tener una señal inequívoca de automatización (remitente no-reply, `List-Unsubscribe`, `Auto-Submitted`, envío masivo, spam de Gmail). Un remitente humano nunca se descarta por esta vía, aunque Gmail lo ponga en Promociones. Un aviso automático que mencione una cotización sí se analiza.
+- **R2 · Adjuntos.** Un adjunto ilegible nunca descarta un hilo: si el texto no parece una solicitud pero hay adjuntos que no pudiste leer, el caso va a revisión manual.
+- **R3 · Trazabilidad del descarte.** Todo descarte guarda su motivo para que una persona lo revise y pueda rescatarlo.
+- **R4 · Estructura de Drive.** Usa `{año}/{cliente}/{solicitud}`. La carpeta padre es la del año vigente: no crees carpetas si la solicitud es de un año distinto al de la carpeta padre.
+- **R5 · Cliente.** Compara nombres de cliente sin importar mayúsculas, tildes ni sufijos societarios al final (S.A.S., Ltda., S.A., Inc., Corp.). Si exactamente una carpeta coincide, reutilízala; si hay varias parecidas, decide una persona.
+- **R6 · Cliente nuevo.** Nunca crees una carpeta de cliente nueva sin confirmación de una persona.
+- **R7 · Carpeta del proyecto.** La carpeta del proyecto solo se crea con un cliente confirmado (por una persona, en este hilo o en otro del mismo remitente) cuya carpeta ya existe. Si no, deja el caso esperando aprobación y di qué falta.
+- **R8 · Correos.** Los correos al cliente siempre son borradores con revisión humana; no envíes sin aprobación.
 
 ## Datos faltantes frecuentes
 

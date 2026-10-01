@@ -21,20 +21,36 @@ _AUTOMATED_SENDER = re.compile(
 )
 
 
-def _automated_signal(message: dict) -> str | None:
-    """Motivo (genérico, sin datos del remitente) por el que un mensaje es automático."""
+# Señales de ruido evidente: identificador -> motivo (genérico, sin datos del remitente).
+# Los identificadores son parte del estándar de reglas (skills/.../reglas_operativas.md).
+NOISE_SIGNALS = {
+    "remitente_no_reply": "remitente automático (no-reply)",
+    "list_unsubscribe": "lista de correo o boletín (List-Unsubscribe)",
+    "auto_submitted": "mensaje automático (Auto-Submitted)",
+    "precedence_masivo": "envío masivo (Precedence)",
+    "spam_gmail": "marcado como spam por Gmail",
+}
+
+
+def _noise_signal_id(message: dict) -> str | None:
     local = parseaddr(header(message, "From"))[1].split("@")[0].casefold()
     if _AUTOMATED_SENDER.match(local):
-        return "remitente automático (no-reply)"
+        return "remitente_no_reply"
     if header(message, "List-Unsubscribe"):
-        return "lista de correo o boletín (List-Unsubscribe)"
+        return "list_unsubscribe"
     if header(message, "Auto-Submitted").strip().casefold() not in ("", "no"):
-        return "mensaje automático (Auto-Submitted)"
+        return "auto_submitted"
     if header(message, "Precedence").strip().casefold() in {"bulk", "list", "junk", "auto_reply"}:
-        return "envío masivo (Precedence)"
+        return "precedence_masivo"
     if "SPAM" in message.get("labelIds", []):
-        return "marcado como spam por Gmail"
+        return "spam_gmail"
     return None
+
+
+def _automated_signal(message: dict) -> str | None:
+    """Motivo (genérico) por el que un mensaje es automático, o None."""
+    signal = _noise_signal_id(message)
+    return NOISE_SIGNALS[signal] if signal else None
 
 
 def automated_noise_reason(messages: list[dict]) -> str | None:
