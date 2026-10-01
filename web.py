@@ -39,7 +39,7 @@ from templating import render
 
 from case_actions import approve_review, resolve_case_recipient, save_dashboard_draft, send_dashboard_reply
 from pipeline import checked_run, describe_check, sync_status_text
-from quotes import CLIENT_TYPES, SECTORS, STATUS_LABELS, all_quotes, get_quote, mark_notifications_read, save_activities, save_quote_metadata, unread_notifications
+from quotes import CLIENT_TYPES, discarded_quotes, rescue_discarded, SECTORS, STATUS_LABELS, all_quotes, get_quote, mark_notifications_read, save_activities, save_quote_metadata, unread_notifications
 
 log = get_logger(__name__)
 
@@ -132,6 +132,11 @@ def _render_requests(message: str = "") -> str:
         type_options=CLIENT_TYPES,
     )
     return _page("Solicitudes", body, message)
+
+
+def _render_discarded(message: str = "") -> str:
+    body = render("discarded.html", rows=discarded_quotes())
+    return _page("Descartadas", body, message)
 
 
 def _internal_context_panel(client_name: str) -> Markup:
@@ -313,6 +318,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self.wfile.write(data)
         elif parsed.path == "/requests":
             self._send_html(_render_requests(query.get("message", [""])[0]))
+        elif parsed.path == "/discarded":
+            self._send_html(_render_discarded(query.get("message", [""])[0]))
         elif parsed.path == "/case":
             self._send_html(_render_case(
                 query.get("thread_id", [""])[0], query.get("message", [""])[0]
@@ -385,6 +392,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/mode":
                 message = set_mode(form.get("mode", [""])[0])
                 self._redirect("/?message=" + urllib.parse.quote(message))
+            elif parsed.path == "/rescue":
+                message = rescue_discarded(form.get("thread_id", [""])[0])
+                self._redirect("/discarded?message=" + urllib.parse.quote(message))
             elif parsed.path == "/notifications/read":
                 mark_notifications_read()
                 self._redirect("/?message=" + urllib.parse.quote("Novedades marcadas como revisadas."))

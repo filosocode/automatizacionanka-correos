@@ -11,7 +11,7 @@
 <body>
   <header>
     <div class="brand"><span class="brand-mark">A</span><div><strong>Anka</strong><span>Inteligencia comercial</span></div></div>
-    <nav><a href="/">Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests">Solicitudes</a></nav>
+    <nav><a href="/">Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests">Solicitudes</a><a href="/discarded">Descartadas</a></nav>
     <div class="toolbar">
       {{ mode_selector }}
       <form method="post" action="/refresh">

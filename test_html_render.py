@@ -96,6 +96,17 @@ CASES = [
      "", None),
     ("t-hostile", QuoteStatus.REVIEW_PENDING, HOSTILE_EMAIL, hostile_analysis(),
      (HOSTILE, HOSTILE, HOSTILE, HOSTILE), HOSTILE, None),
+    ("t-discarded", QuoteStatus.IGNORED, "noreply@tienda.com",
+     {"ignored_reason": "remitente automático (no-reply)",
+      "email": {"subject": "Ofertas de oficina", "from": "Tienda <noreply@tienda.com>"}},
+     ("", "No clasificado", "No clasificado", ""), "", None),
+    ("t-discarded-rescued", QuoteStatus.IGNORED, "ana@empresa.co",
+     {"ignored_reason": "El modelo no la identificó como solicitud de cotización",
+      "email": {"subject": "Gracias", "from": "Ana <ana@empresa.co>"}, "force_analysis": True},
+     ("", "No clasificado", "No clasificado", ""), "", None),
+    ("t-discarded-hostile", QuoteStatus.IGNORED, HOSTILE_EMAIL,
+     {"ignored_reason": HOSTILE, "email": {"subject": HOSTILE, "from": HOSTILE}},
+     (HOSTILE, "No clasificado", "No clasificado", HOSTILE), "", None),
     ("t-hostile-scope", QuoteStatus.REVIEW, HOSTILE_EMAIL, hostile_scope_analysis(),
      (HOSTILE, "No clasificado", "No clasificado", HOSTILE), "", None),
 ]
@@ -198,6 +209,8 @@ class Pages(unittest.TestCase):
             pages["index"] = web._render_index()
             pages["index_mensaje"] = web._render_index("Mensaje de prueba")
             pages["requests"] = web._render_requests()
+            pages["discarded"] = web._render_discarded()
+            pages["discarded_mensaje"] = web._render_discarded("Se reanalizará <pronto>")
             for case in CASES:
                 pages[f"case_{case[0]}"] = web._render_case(case[0])
             pages["case_no_existe"] = web._render_case("no-existe")

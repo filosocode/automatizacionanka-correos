@@ -60,10 +60,10 @@ Puede haber varias respuestas parciales y varias versiones de la tabla. Los env�
 
 ## Estado de implementación (actualizado 29 de septiembre de 2026)
 
-`app.py` ya no es solo exploratorio: incluye estado persistente en SQLite, prefiltro por palabras clave (`commercial_filter_terms`), extracción local de adjuntos (TXT, CSV, JSON, XML, KML/KMZ, PDF con texto, DOCX, XLSX), borradores en el mismo hilo de Gmail, panel de revisión y política de reenvíos. Sigue habiendo brechas frente a este diseño:
+`app.py` ya no es solo exploratorio: incluye estado persistente en SQLite, descarte solo de ruido evidente (sin palabras clave obligatorias) con vista de descartadas, extracción local de adjuntos (TXT, CSV, JSON, XML, KML/KMZ, PDF con texto, DOCX, XLSX), borradores en el mismo hilo de Gmail, panel de revisión y política de reenvíos. Sigue habiendo brechas frente a este diseño:
 
 - **No hay deduplicación por hash** del contenido ni versión de análisis: cada hilo pendiente vuelve a consultar al modelo.
-- **El prefiltro por palabras clave puede descartar solicitudes válidas** que no usen esos términos, lo contrario del principio de este diseño. Debe revisarse con la muestra etiquetada.
+- ~~El prefiltro por palabras clave puede descartar solicitudes válidas~~ **Resuelto (octubre de 2026):** solo se descarta sin analizar el ruido evidente (remitente no-reply, listas de correo con `List-Unsubscribe`, mensajes automáticos, spam de Gmail) y solo si **todos** los mensajes del cliente lo son. Todo lo demás pasa al modelo. Cada descarte guarda su motivo y se puede revisar y rescatar en el dashboard (Descartadas). `commercial_filter_terms` ahora solo rescata del descarte un aviso automático que mencione una cotización. Sigue pendiente medir con la muestra etiquetada cuántas solicitudes pierde el modelo.
 - **Las reglas obligatorias por servicio** siguen siendo un único `required_fields` global, no reglas por familia de servicio aprobadas por Anka.
 - **La evidencia por celda** se guarda como campo `fuente`, sin validación automática contra el texto original.
 - El envío automático (`run --apply` sin `--review-only`/`--gmail-drafts`) no debe activarse hasta medir el piloto con correos reales.

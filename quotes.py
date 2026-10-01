@@ -16,7 +16,10 @@ from mail import (
 from reception import (
     reception_assessment,
 )
+from logging_setup import get_logger
 from store import open_db, save
+
+log = get_logger(__name__)
 
 
 
@@ -224,6 +227,54 @@ def all_quotes(include_ignored: bool = False) -> list[dict]:
 
 def get_quote(thread_id: str) -> dict | None:
     return next((item for item in all_quotes(True) if item["thread_id"] == thread_id), None)
+
+
+def discarded_quotes() -> list[dict]:
+    """Hilos descartados, con el motivo, para que una persona pueda revisarlos y rescatarlos."""
+    result = []
+    for quote in all_quotes(True):
+        if quote["status"] != QuoteStatus.IGNORED:
+            continue
+        analysis = quote["analysis"]
+        email = analysis.get("email") or {}
+        result.append({
+            "thread_id": quote["thread_id"],
+            "reason": analysis.get("ignored_reason") or "Descartado por una versión anterior (sin motivo guardado)",
+            "subject": email.get("subject") or "",
+            "sender": email.get("from") or quote["recipient"],
+            "date": (quote["updated_at"] or quote["first_seen_at"] or "")[:10],
+            "rescued": bool(analysis.get("force_analysis")),
+        })
+    return result
+
+
+def rescue_discarded(thread_id: str) -> str:
+    """Marca un hilo descartado para que la próxima revisión de Gmail lo analice.
+
+    No cambia su estado: lo reprocesa el ciclo normal (`pipeline.run`), que salta el
+    filtro de ruido para los hilos con `force_analysis`.
+    """
+    db = init_db()
+    try:
+        row = db.execute(
+            "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError("La solicitud no existe.")
+        if row["status"] != QuoteStatus.IGNORED:
+            raise ValueError("Solo se pueden rescatar los correos descartados.")
+        analysis = _load_analysis(row["analysis_json"])
+        analysis["force_analysis"] = True
+        db.execute(
+            "UPDATE quotes SET last_inbound_id='', analysis_json=?, updated_at=? WHERE thread_id=?",
+            (json.dumps(analysis, ensure_ascii=False),
+             datetime.now().astimezone().isoformat(timespec="seconds"), thread_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+    log.info("%s: rescatado del descarte; se reanalizará en la próxima revisión", thread_id)
+    return "Se reanalizará en la próxima revisión de Gmail."
 
 
 def save_quote_metadata(thread_id: str, client_name: str, client_type: str,

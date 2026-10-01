@@ -76,9 +76,55 @@ class RunFlowTests(unittest.TestCase):
                             subject=subject)
         ]}
 
-    def test_message_without_commercial_terms_is_ignored_without_analysis(self):
-        rows, analyze_mock, _, _ = self.run_flow(FakeGmail(self.thread("Hola, ¿cómo estás?", subject="Saludo")))
+    def test_implicit_request_without_keywords_reaches_the_model(self):
+        # Antes un filtro de palabras clave la descartaba sin que el modelo la viera.
+        gmail = FakeGmail(self.thread("Buenas, ¿cuánto vale medir un lote de 5 ha en Cota?",
+                                      subject="Consulta"))
+        rows, analyze_mock, _, _ = self.run_flow(gmail, complete_analysis(), review_only=True)
+        analyze_mock.assert_called_once()
+        self.assertEqual(rows[0][1], QuoteStatus.READY_REVIEW)
+
+    def automated_thread(self, subject="Ofertas", text="Descuentos de oficina"):
+        return {"id": "t-1", "messages": [
+            encoded_message("n-1", "Tienda <noreply@tienda.com>", text, 1, subject=subject)]}
+
+    def test_automated_newsletter_is_ignored_with_a_reason_without_analysis(self):
+        rows, analyze_mock, _, _ = self.run_flow(FakeGmail(self.automated_thread()))
+        analyze_mock.assert_not_called()
         self.assertEqual(rows[0][1], QuoteStatus.IGNORED)
+        saved = json.loads(rows[0][3])
+        self.assertIn("no-reply", saved["ignored_reason"])
+        self.assertEqual(saved["email"]["subject"], "Ofertas")
+        self.assertIn("noreply@tienda.com", saved["email"]["from"])
+
+    def test_automated_message_that_mentions_a_quote_is_still_analyzed(self):
+        gmail = FakeGmail(self.automated_thread("Solicitud de cotización #88", "Se registró."))
+        rows, analyze_mock, _, _ = self.run_flow(gmail, complete_analysis(), review_only=True)
+        analyze_mock.assert_called_once()
+        self.assertEqual(rows[0][1], QuoteStatus.READY_REVIEW)
+
+    def test_model_verdict_of_no_quote_is_ignored_and_records_why_and_the_email(self):
+        analysis = complete_analysis() | {"is_quote_request": False}
+        rows, _, _, _ = self.run_flow(FakeGmail(self.thread("Gracias por todo.", subject="Saludo")),
+                                      analysis)
+        saved = json.loads(rows[0][3])
+        self.assertEqual(rows[0][1], QuoteStatus.IGNORED)
+        self.assertIn("modelo", saved["ignored_reason"])
+        self.assertEqual(saved["email"]["subject"], "Saludo")
+
+    def test_rescued_thread_is_analyzed_even_if_it_looks_automated(self):
+        seed = ("t-1", "", QuoteStatus.IGNORED, "noreply@tienda.com",
+                {"ignored_reason": "remitente automático (no-reply)", "force_analysis": True})
+        rows, analyze_mock, _, _ = self.run_flow(
+            FakeGmail(self.automated_thread()), complete_analysis(), seed=seed, review_only=True)
+        analyze_mock.assert_called_once()
+        self.assertEqual(rows[0][1], QuoteStatus.READY_REVIEW)
+        self.assertNotIn("force_analysis", json.loads(rows[0][3]))
+
+    def test_discarded_thread_without_rescue_is_not_analyzed_again(self):
+        seed = ("t-1", "n-1", QuoteStatus.IGNORED, "noreply@tienda.com", {"ignored_reason": "x"})
+        _, analyze_mock, _, _ = self.run_flow(
+            FakeGmail(self.automated_thread()), complete_analysis(), seed=seed)
         analyze_mock.assert_not_called()
 
     def test_non_quote_analysis_is_ignored(self):
@@ -123,15 +169,17 @@ class RunFlowTests(unittest.TestCase):
         self.assertEqual(len(packets), 1)
         folder_mock.assert_not_called()
 
-    def test_unreadable_attachment_without_commercial_terms_needs_review(self):
+    def test_unreadable_attachment_never_lets_a_no_quote_verdict_discard_the_thread(self):
+        # La solicitud puede estar dentro del adjunto que no se pudo leer.
         attachment = base64.urlsafe_b64encode(b"binary").decode()
         parts = [{"filename": "plano.dwg", "mimeType": "application/acad",
                   "body": {"attachmentId": "att-1"}}]
         gmail = FakeGmail(self.thread("Hola, adjunto.", parts=parts, subject="Plano"),
                           {("client-1", "att-1"): attachment})
-        rows, analyze_mock, _, _ = self.run_flow(gmail, review_only=True)
+        analysis = complete_analysis() | {"is_quote_request": False}
+        rows, analyze_mock, _, _ = self.run_flow(gmail, analysis, review_only=True)
+        analyze_mock.assert_called_once()
         self.assertEqual(rows[0][1], QuoteStatus.REVIEW)
-        analyze_mock.assert_not_called()
 
     def test_already_processed_inbound_is_not_reanalyzed(self):
         seed = ("t-1", "client-1", QuoteStatus.READY, "cliente@example.com", {})
@@ -266,10 +314,15 @@ class DecideAnalysisTests(unittest.TestCase):
         self.assertEqual(decision.action, pipeline.Action.FOLDER)
         self.assertIn("Proyecto Norte", decision.folder_name)
 
-    def test_prefilter_lets_candidates_through(self):
-        self.assertIsNone(pipeline.decide_prefilter("t-1", {}, [], True))
-        ignored = pipeline.decide_prefilter("t-1", {}, [], False)
+    def test_prefilter_only_discards_when_there_is_a_noise_reason(self):
+        self.assertIsNone(pipeline.decide_prefilter("t-1", None, {}))
+        ignored = pipeline.decide_prefilter("t-1", "lista de correo", {"subject": "S"})
         self.assertEqual(ignored.status, QuoteStatus.IGNORED)
+        self.assertEqual(ignored.analysis["ignored_reason"], "lista de correo")
+        self.assertEqual(ignored.analysis["email"], {"subject": "S"})
+        self.assertFalse(any(note.sensitive for note in ignored.logs))
+        private = pipeline.decide_prefilter("t-1", "lista", {"subject": "ASUNTO SECRETO"})
+        self.assertNotIn("ASUNTO SECRETO", " ".join(note.text for note in private.logs))
 
 
 if __name__ == "__main__":

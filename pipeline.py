@@ -19,11 +19,11 @@ from logging_setup import SENSITIVE, get_logger
 from google_services import services, ensure_folder
 from mail import (
     candidate_thread_ids, create_reply_draft, extract_message_attachments,
-    forwarded_routing, inbound_messages, message_datetime, own_addresses, send_reply,
+    forwarded_routing, header, inbound_messages, message_datetime, own_addresses, send_reply,
 )
 from reception import (
-    attachment_report, blank_analysis, commercial_candidate, draft_body_with_review_note,
-    question_email, reception_questions, safe_folder_name,
+    attachment_report, automated_noise_reason, draft_body_with_review_note,
+    mentions_commercial_terms, question_email, reception_questions, safe_folder_name,
     unresolved_scope_issues,
 )
 from llm import analyze
@@ -171,23 +171,17 @@ class Decision:
     folder_name: str = ""
 
 
-def decide_prefilter(
-    thread_id: str, analysis_base: dict, attachments: list[dict], is_candidate: bool,
-) -> Decision | None:
-    """Descarta el hilo antes de analizarlo; None si debe pasar al análisis."""
-    if is_candidate:
+def decide_prefilter(thread_id: str, noise_reason: str | None, email: dict) -> Decision | None:
+    """Descarta un hilo sin analizarlo solo si es ruido evidente; None si debe analizarse.
+
+    El motivo y el asunto/remitente se guardan para que una persona pueda revisar lo
+    descartado en el dashboard y rescatarlo.
+    """
+    if not noise_reason:
         return None
-    if any(item.get("status") == "bloqueado" for item in attachments):
-        return Decision(
-            QuoteStatus.REVIEW, analysis_base, packet=True,
-            logs=[Note(
-                f"{thread_id}: adjuntos no legibles impiden clasificar el alcance",
-                level=logging.WARNING,
-            )],
-        )
     return Decision(
-        QuoteStatus.IGNORED, {},
-        logs=[Note(f"{thread_id}: no pasó el prefiltro comercial")],
+        QuoteStatus.IGNORED, {"ignored_reason": noise_reason, "email": email},
+        logs=[Note(f"{thread_id}: descartado sin analizar: {noise_reason}")],
     )
 
 
@@ -197,6 +191,17 @@ def decide_analysis(
 ) -> Decision:
     """Decide el destino de un hilo ya analizado."""
     if not analysis["is_quote_request"]:
+        if blocked:
+            # La solicitud puede estar dentro del adjunto que no se pudo leer: no se descarta.
+            return Decision(
+                QuoteStatus.REVIEW, analysis, packet=True,
+                logs=[Note(
+                    f"{thread_id}: el texto no parece una solicitud, pero hay "
+                    f"{len(blocked)} adjunto(s) no legible(s); requiere revisión manual",
+                    level=logging.WARNING,
+                )],
+            )
+        analysis.setdefault("ignored_reason", "El modelo no la identificó como solicitud de cotización")
         return Decision(
             QuoteStatus.IGNORED, analysis,
             logs=[Note(f"{thread_id}: no es solicitud de cotización")],
@@ -336,6 +341,16 @@ def _skip_reason(row: Sequence[Any] | None, last_id: str, gmail_drafts: bool) ->
     return ""
 
 
+def _rescued(row: Sequence[Any] | None) -> bool:
+    """¿Una persona pidió reanalizar este hilo descartado desde el dashboard?"""
+    if not row or len(row) < 3:
+        return False
+    try:
+        return bool(json.loads(row[2] or "{}").get("force_analysis"))
+    except (TypeError, ValueError):
+        return False
+
+
 def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
     config = ctx.config
     inbound = inbound_messages(thread, ctx.account_addresses)
@@ -349,32 +364,29 @@ def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
         log.warning("%s: sin remitente; requiere revisión", thread_id)
         return
     row = ctx.db.execute(
-        "SELECT last_inbound_id, status FROM quotes WHERE thread_id=?", (thread_id,)
+        "SELECT last_inbound_id, status, analysis_json FROM quotes WHERE thread_id=?",
+        (thread_id,),
     ).fetchone() if ctx.db else None
     skip = _skip_reason(row, last["id"], ctx.gmail_drafts)
     if skip is not None:
         if skip:
             log.warning("%s: %s", thread_id, skip)
         return
-    attachments = []
-    for message in inbound:
-        attachments.extend(extract_message_attachments(ctx.gmail, message))
-    blocked = [item for item in attachments if item.get("status") == "bloqueado"]
-    required = config["required_fields"]
-
-    unreadable = blank_analysis(
-        "No fue posible clasificar el hilo porque hay adjuntos sin contenido legible."
-    )
-    unreadable["routing"] = routing
-    unreadable["attachments"] = attachment_report(attachments, unreadable, required)
-    decision = decide_prefilter(
-        thread_id, unreadable, attachments,
-        commercial_candidate(inbound, config.get("commercial_filter_terms", []), attachments),
-    )
+    email = {"subject": header(last, "Subject"), "from": header(last, "From")}
+    noise = None if _rescued(row) else automated_noise_reason(inbound)
+    if noise and mentions_commercial_terms(inbound, config.get("commercial_filter_terms", [])):
+        noise = None  # un aviso automático que habla de cotizaciones sí se analiza
+    decision = decide_prefilter(thread_id, noise, email)
     if decision is None:
+        attachments = []
+        for message in inbound:
+            attachments.extend(extract_message_attachments(ctx.gmail, message))
+        blocked = [item for item in attachments if item.get("status") == "bloqueado"]
+        required = config["required_fields"]
         analysis = analyze(inbound, required, config["llm"], attachments)
         analysis["received_at"] = message_datetime(last)
         analysis["routing"] = routing
+        analysis["email"] = email
         analysis["attachments"] = attachment_report(attachments, analysis, required)
         decision = decide_analysis(
             thread_id, analysis, blocked, recipient, routing["is_forwarded"], config,
@@ -406,6 +418,10 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
         if db:
             thread_ids.update(row[0] for row in db.execute(
                 f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.WAITING}'"
+            ))
+            thread_ids.update(row[0] for row in db.execute(
+                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.IGNORED}' "
+                "AND json_extract(analysis_json, '$.force_analysis') = 1"
             ))
             if gmail_drafts:
                 thread_ids.update(row[0] for row in db.execute(

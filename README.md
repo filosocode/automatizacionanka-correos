@@ -124,3 +124,16 @@ Reglas para el código nuevo:
 - Usa `log = get_logger(__name__)`, no `print`, para lo que sea registro. `print` queda solo para la salida de un comando (`mode`, `reviews`, `drive-tree`...).
 - Todo mensaje que lleve contenido de un cliente (correo, destinatario, actividades, borrador, nombres de archivo) se marca con `extra=SENSITIVE`: va a la consola y no al archivo. Ejemplo: `log.info("%s: %s", thread_id, resumen, extra=SENSITIVE)`.
 - En un `except` amplio, registra con `log.exception(...)`: el traceback es lo que permite diagnosticar después.
+
+## Qué se descarta y cómo recuperarlo
+
+El sistema **no usa palabras clave para decidir si un correo es una solicitud**: eso lo decide el modelo. Antes de llamarlo solo descarta ruido evidente (`reception.automated_noise_reason`), y únicamente si todos los mensajes del cliente en el hilo tienen una señal inequívoca de automatización:
+
+- remitente `no-reply`, `noreply`, `notifications`, `mailer-daemon`, `postmaster` o `bounce`;
+- cabecera `List-Unsubscribe` (boletines y listas);
+- `Auto-Submitted` distinto de `no`, o `Precedence` de tipo `bulk`, `list`, `junk` o `auto_reply`;
+- marcado como spam por Gmail.
+
+Un remitente humano nunca se descarta aquí, aunque Gmail lo ponga en Promociones. `commercial_filter_terms` en `config.json` solo sirve para rescatar un aviso automático que hable de cotizaciones (por ejemplo, el portal de un cliente). Si el modelo concluye que no es una solicitud pero hay adjuntos que no se pudieron leer, el caso va a revisión manual en vez de descartarse.
+
+Todo lo descartado queda en la pestaña **Descartadas** del dashboard con su motivo, remitente y asunto. El botón **Rescatar** marca el hilo para que la próxima revisión de Gmail lo analice aunque parezca automático (solo funciona con el piloto de Python activo, no en modo `chatgpt_work`). Contrapartida: más correos llegan al modelo local (unos segundos o minutos cada uno, sin costo de API).

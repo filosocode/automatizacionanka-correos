@@ -35,6 +35,9 @@ Resumen
 <a href="/requests">
 Solicitudes
 </a>
+<a href="/discarded">
+Descartadas
+</a>
 </nav>
 <div class="toolbar">
 <form method="post" action="/mode" class="mode-form">

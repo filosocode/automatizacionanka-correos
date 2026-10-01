@@ -26,7 +26,7 @@ import store
 import dashboard_views
 from attachments import extract_attachment_text
 from mail import attachment_names, extract_message_attachments, forwarded_routing, has_attachments, inbound_messages, message_text
-from reception import commercial_candidate, draft_body_with_review_note, missing_questions, safe_folder_name, unresolved_scope_issues
+from reception import draft_body_with_review_note, missing_questions, safe_folder_name, unresolved_scope_issues
 
 
 class InternalCommercialContextTests(unittest.TestCase):
@@ -456,15 +456,6 @@ class QuoteFlowTests(unittest.TestCase):
             safe_folder_name('Obra: Norte/Sur', '1234567890abcdef', 'Cotizacion'),
             'Cotizacion - Obra Norte Sur - 90abcdef',
         )
-
-    def test_commercial_prefilter_matches_accents(self):
-        body = base64.urlsafe_b64encode(b"Solicito cotizacion").decode()
-        messages = [{"payload": {
-            "headers": [{"name": "Subject", "value": "Levantamiento"}],
-            "parts": [{"mimeType": "text/plain", "body": {"data": body}}],
-        }}]
-        self.assertTrue(commercial_candidate(messages, ["cotización"]))
-        self.assertFalse(commercial_candidate(messages, ["factura"]))
 
     def test_watch_handles_keyboard_interrupt_from_sleep(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)

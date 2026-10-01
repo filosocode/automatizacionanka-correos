@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from email.utils import parseaddr
 
 from mail import attachment_names, header, message_datetime, message_text
 
@@ -14,12 +15,47 @@ def normalized_text(value: str) -> str:
     return value
 
 
-def commercial_candidate(
+_AUTOMATED_SENDER = re.compile(
+    r"^(?:no[-_.]?reply|do[-_.]?not[-_.]?reply|mailer-daemon|postmaster|notifications?|bounces?)"
+    r"(?:[+\-_.].*)?$"
+)
+
+
+def _automated_signal(message: dict) -> str | None:
+    """Motivo (genérico, sin datos del remitente) por el que un mensaje es automático."""
+    local = parseaddr(header(message, "From"))[1].split("@")[0].casefold()
+    if _AUTOMATED_SENDER.match(local):
+        return "remitente automático (no-reply)"
+    if header(message, "List-Unsubscribe"):
+        return "lista de correo o boletín (List-Unsubscribe)"
+    if header(message, "Auto-Submitted").strip().casefold() not in ("", "no"):
+        return "mensaje automático (Auto-Submitted)"
+    if header(message, "Precedence").strip().casefold() in {"bulk", "list", "junk", "auto_reply"}:
+        return "envío masivo (Precedence)"
+    if "SPAM" in message.get("labelIds", []):
+        return "marcado como spam por Gmail"
+    return None
+
+
+def automated_noise_reason(messages: list[dict]) -> str | None:
+    """Motivo para descartar un hilo sin analizarlo, o None si debe analizarse.
+
+    Descarta solo ruido evidente: TODOS los mensajes del cliente deben tener una señal
+    inequívoca de automatización. Un remitente humano nunca se descarta aquí, aunque
+    Gmail lo clasifique como Promociones. Decidir si es una solicitud es trabajo del modelo.
+    """
+    if not messages:
+        return None
+    reasons = [_automated_signal(message) for message in messages]
+    return reasons[0] if all(reasons) else None
+
+
+def mentions_commercial_terms(
     messages: list[dict], terms: list[str], attachments: list[dict] | None = None
 ) -> bool:
-    """Prefiltro barato para evitar procesar ruido no comercial."""
+    """¿Menciona el hilo algún término comercial? Rescata correos automáticos del descarte."""
     if not terms:
-        return True
+        return False
     haystack = []
     for message in messages:
         haystack.extend([
