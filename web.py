@@ -22,19 +22,20 @@ from dashboard_views import (
     _reception_assessment_panel, activities_editor, render_page,
 )
 from status import (
-    ACTION_STATUSES, CLOSED_STATUSES, QuoteStatus,
+    CLOSED_STATUSES, QuoteStatus,
 )
 from mail import (
     valid_email_address,
 )
 from reception import (
-    reception_assessment, suggested_reply, unresolved_scope_issues,
+    reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
 )
 from modes import (
     set_mode,
 )
 from internal_context import internal_commercial_context
 from logging_setup import get_logger
+import settings
 from settings import load_config
 from templating import render
 
@@ -46,7 +47,7 @@ from change_control import (
     suggest_number,
 )
 from gmail_followup import case_contacts
-from quotes import EDIT_REASONS, archived_threads, last_manual_version, table_versions, case_change_log, chain_status, case_has_links, case_people, reason_label, resolve_link, ago_text, change_marker, minutes_since, REPLY_OVERDUE_MINUTES, resolve_model_proposal, CLIENT_TYPES, resolve_technical_review, discarded_quotes, rescue_discarded, SECTORS, STATUS_LABELS, all_quotes, get_quote, thread_events, mark_notifications_read, save_activities, save_quote_metadata, unread_notifications
+from quotes import EDIT_REASONS, case_conversation, archived_threads, last_manual_version, table_versions, case_change_log, chain_status, case_has_links, case_people, reason_label, resolve_link, ago_text, change_marker, minutes_since, REPLY_OVERDUE_MINUTES, resolve_model_proposal, CLIENT_TYPES, resolve_technical_review, discarded_quotes, rescue_discarded, SECTORS, STATUS_LABELS, all_quotes, get_quote, thread_events, mark_notifications_read, save_activities, save_quote_metadata, unread_notifications
 
 log = get_logger(__name__)
 
@@ -95,20 +96,23 @@ def _render_index(message: str = "") -> str:
     unread_threads = {item["thread_id"] for item in notifications}
     services = Counter(service for quote in quotes for service in quote["services"])
     clients = Counter(q["client_name"] for q in quotes if q["client_name"])
-    recent_action = [q for q in quotes if q["status"] in ACTION_STATUSES][:5]
+    stages = {q["thread_id"]: _case_stage(q) for q in quotes}
+    todo_cases = [q for q in quotes if stages[q["thread_id"]][1]]
     body = render(
         "index.html",
         sync_text=sync_status_text(),
         notifications=_notifications_panel(notifications),
         total=len(quotes),
         unique_clients=len({q["client_email"].casefold() for q in quotes if q["client_email"]}),
-        action_count=sum(q["status"] in ACTION_STATUSES for q in quotes),
-        completed=sum(q["status"] in {QuoteStatus.READY, QuoteStatus.READY_REVIEW} for q in quotes),
+        action_count=len(todo_cases),
+        waiting=sum(stages[q["thread_id"]][0] == "Esperando al cliente" for q in quotes),
+        quoting=sum(bool(q.get("quote_code")) and q.get("code_stage") != "TE" for q in quotes),
+        approved=sum(q.get("code_stage") == "TE" for q in quotes),
         services=_metric_rows(services),
-        statuses=_metric_rows(Counter(q["status_label"] for q in quotes), "blue"),
+        statuses=_metric_rows(Counter(stages[q["thread_id"]][0] for q in quotes), "blue"),
         client_types=_metric_rows(Counter(q["client_type"] for q in quotes)),
         insights=_dashboard_insights(quotes, services, clients),
-        recent=[_quote_row(q, q["thread_id"] in unread_threads) for q in recent_action],
+        todo=[_quote_row(q, q["thread_id"] in unread_threads) for q in todo_cases],
     )
     return _page("Resumen comercial", body, message)
 
@@ -122,8 +126,8 @@ def _quote_row(quote: dict, is_new: bool = False, selectable: bool = False) -> M
         search=(project + " " + quote["client_name"] + " " + services).casefold(),
         status=quote["status"], client_type=quote["client_type"],
         client_name=quote["client_name"], sector=quote["sector"],
-        badge_class="warn" if quote["status"] in ACTION_STATUSES else "info",
-        status_label=quote["status_label"],
+        badge_class="warn" if _case_stage(quote)[1] else "info",
+        status_label=_case_stage(quote)[0],
         date=(quote["updated_at"] or quote["first_seen_at"] or "Sin fecha")[:10],
         thread_id=quote["thread_id"], reply_pending=bool(quote.get("reply_pending", "")),
         code=code_label(quote["quote_code"], quote.get("code_stage") or "T") if quote.get("quote_code") else "",
@@ -138,6 +142,22 @@ def _edit_note(thread_id: str) -> Markup:
     return render("edit_note.html", version=latest["version"], thread_id=thread_id,
                   when=latest["created_at"][:16].replace("T", " "), summary=latest["summary"],
                   notified=latest["notified"])
+
+
+def _suggested_questions(analysis: dict, assessment: dict) -> str:
+    """Preguntas para el cliente que dejó el análisis (sin los puntos internos), una por línea."""
+    found: list[str] = []
+    for item in list(assessment.get("questions", [])) + list(analysis.get("other_questions", [])):
+        text = str(item).strip()
+        if not text or "interno" in text.casefold().split(":")[0]:
+            continue
+        for prefix in ("Crítico:", "Critico:", "Recomendable:"):
+            if text.startswith(prefix):
+                text = text[len(prefix):].strip()
+        text = text[:1].upper() + text[1:]
+        if text and text not in found:
+            found.append(text)
+    return "\n".join(found)
 
 
 def _link_banner(review: dict) -> Markup:
@@ -166,6 +186,12 @@ def _reply_template(kind: str, review: dict, change: dict | None = None) -> str:
             f"por favor cite este código ({code}); las solicitudes que no lo incluyan no podrán "
             f"procesarse. Le recomendamos escribir siempre desde el correo registrado ({contact}) o "
             "desde el dominio de su empresa.\n\nSaludos,\nGrupo Anka"
+        )
+    if kind == "acuse":
+        return (
+            "Hola,\n\nGracias por su solicitud. Confirmamos que la hemos recibido y estamos revisando "
+            "la información compartida para definir el alcance. Si necesitamos alguna aclaración "
+            "adicional, nos comunicaremos por este mismo hilo.\n\nSaludos,\nGrupo Anka"
         )
     if kind == "scope_update":
         latest = last_manual_version(review["thread_id"])
@@ -246,10 +272,41 @@ def _change_todo(review: dict) -> Markup:
     return Markup("")
 
 
+def _info_validated(review: dict) -> bool:
+    """¿La información del caso ya está validada para empezar a cotizar?
+
+    Sí cuando el alcance está completo, una persona dio la información por suficiente, o ya hay T.
+    """
+    analysis = review["analysis"]
+    return bool(review.get("quote_code")) or review["status"] in (
+        QuoteStatus.READY_REVIEW, QuoteStatus.READY
+    ) or (analysis.get("manual_review") or {}).get("decision") == "sufficient"
+
+
+def _stepper(review: dict) -> Markup:
+    """Recorrido del caso: dónde está y qué sigue, de un vistazo."""
+    code = review.get("quote_code", "")
+    stage = review.get("code_stage", "")
+    validated = _info_validated(review)
+    current = 4 if stage == "TE" else 3 if code else 2 if validated else 1
+    current_notes = {
+        1: review["status_label"], 2: "Listo para emitir la T",
+        3: code_label(code, "T") + " · cotizando" if code else "",
+        4: code_label(code, "TE") + " · aprobada" if code else "",
+    }
+    titles = {1: "Revisar y aclarar", 2: "Información validada", 3: "T emitida", 4: "T&E aprobada"}
+    steps = [{"title": titles[n],
+              "note": "Completado" if n < current else current_notes[n] if n == current else "Pendiente",
+              "state": "done" if n < current else "current" if n == current else ""}
+             for n in range(1, 5)]
+    return render("stepper.html", steps=steps)
+
+
 def _code_panel(review: dict) -> Markup:
     code = review.get("quote_code", "")
     stage = review.get("code_stage", "")
-    can_assign = review["status"] not in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
+    can_assign = (review["status"] not in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
+                  and _info_validated(review))
     if not code and not can_assign:
         return Markup("")
     return render(
@@ -285,6 +342,16 @@ def _next_step_banner(review: dict, work_mode: bool) -> Markup:
             title=f"El modelo sugiere {len(review['proposal'])} cambio(s) en tu tabla",
             text="Llegó información nueva y tu tabla editada no se tocó.",
             action_href="#proposal", action_label="Revisar")
+    if review["status"] == QuoteStatus.REVIEW:
+        return render(
+            "next_step.html", tone="warn", title="Falta tu decisión de revisión técnica",
+            text="Decide si la información es suficiente o si hay que preguntar al cliente.",
+            action_href="#decision", action_label="Decidir")
+    if _info_validated(review) and not review.get("quote_code") and review["status"] != QuoteStatus.IGNORED:
+        return render(
+            "next_step.html", tone="info", title="Información validada: puedes emitir la T",
+            text="Damos por recibido el proyecto y empezamos a cotizar.",
+            action_href="#emitir-t", action_label="Emitir la T")
     return Markup("")
 
 
@@ -302,7 +369,8 @@ def _render_requests(message: str = "") -> str:
     unread_threads = {item["thread_id"] for item in unread_notifications(100)}
     body = render(
         "requests.html",
-        rows=[_quote_row(quote, quote["thread_id"] in unread_threads, selectable=True) for quote in quotes],
+        rows=[_quote_row(quote, quote["thread_id"] in unread_threads, selectable=True)
+              for quote in sorted(quotes, key=lambda q: not _case_stage(q)[1])],  # primero lo que pide acción
         status_options=list(STATUS_LABELS.items()),
         type_options=CLIENT_TYPES,
     )
@@ -362,6 +430,8 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
                 "No se pudo confirmar el destinatario en Gmail. "
                 "El guardado y el envío están bloqueados para evitar un correo incorrecto."
             )
+    if review.get("reply_pending"):
+        review = {**review, "status_label": REPLY_LABEL}
     analysis = review["analysis"]
     assessment = review.get("reception_assessment") or reception_assessment(analysis)
     config = load_config()
@@ -383,13 +453,31 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
         and not technical
     )
     email_body = ""
+    blank_reply = False
     if email_allowed:
         email = "form"
         change = next((c for c in review.get("changes", []) if c["id"] == change_id), None)
-        if template in ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update") or reopened:
-            email_body = _reply_template(template or "ack", review, change)
+        if template in ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse"):
+            email_body = _reply_template(template, review, change)
+        elif reopened:
+            email_body = ""          # caso ya avanzado: respuesta libre, en blanco
+            blank_reply = True
         else:
-            email_body = review["draft_body"] or suggested_reply(analysis, config["required_fields"])
+            # Con preguntas por hacer se propone el texto; si no hay nada que preguntar, el cuadro
+            # queda en blanco para que la persona escriba lo que quiera (o pida el acuse sugerido).
+            has_questions = bool(
+                reception_questions(analysis, config["required_fields"])
+                or (analysis.get("manual_review") or {}).get("questions"))
+            accepted = (review["status"] in (QuoteStatus.READY_REVIEW, QuoteStatus.READY)
+                        or bool(review.get("quote_code"))
+                        or (analysis.get("manual_review") or {}).get("decision") == "sufficient")
+            blank_reply = (not review["draft_body"] and not (analysis.get("work_reply") or {}).get("text")
+                           and (accepted or not has_questions) and template != "acuse")
+            work_reply = analysis.get("work_reply") or {}
+            own_draft = review["draft_body"] if review["draft_id"] and review["draft_id"] != work_reply.get("draft_id") else ""
+            email_body = "" if blank_reply else (
+                own_draft or work_reply.get("text") or review["draft_body"]
+                or suggested_reply(analysis, config["required_fields"]))
     elif review["status"] == QuoteStatus.RESPONSE_SENT:
         email = "sent"
     elif recipient_error:
@@ -430,6 +518,13 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=review["status"] == QuoteStatus.REVIEW,
         manual_review=_manual_review_note(analysis.get("manual_review")),
+        prefill_questions=_suggested_questions(analysis, assessment) if technical else "",
+        blank_reply=blank_reply,
+        conversation=render("conversation.html", messages=[
+            {**m, "when": (m["occurred_at"] or "")[:16].replace("T", " "),
+             "fresh": split_quoted(m["body"])[0], "quoted": split_quoted(m["body"])[1]}
+            for m in case_conversation(thread_id)]),
+        stepper=_stepper(review),
         compose_to=compose_to, compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),
@@ -504,11 +599,97 @@ def _render_acta(thread_id: str) -> str:
     return _page("Acta de cambios", body)
 
 
+REPLY_LABEL = "Cliente respondió · por analizar"
+
+
+_QUOTE_START = re.compile(
+    r"(?:\n\s*(?:El|On)\s[^\n]{0,200}\n?[^\n]{0,160}?(?:escribi[óo]|wrote)\s*:)"   # «El jue… escribió:»
+    r"|(?:\n\s*>)"                                                                    # líneas citadas
+    r"|(?:\n\s*-{2,}\s*(?:Original Message|Mensaje original)\s*-{2,})"
+    r"|(?:\n\s*De:\s[^\n]+\n\s*(?:Enviado|Fecha)\s*:)", re.IGNORECASE)
+
+
+def split_quoted(body: str) -> tuple[str, str]:
+    """(mensaje nuevo, historial citado). El historial se muestra plegado para no repetir lo ya leído."""
+    text = (body or "").replace("\r\n", "\n").replace("▎", "").strip()
+    found = _QUOTE_START.search("\n" + text)
+    if not found or found.start() <= 1:
+        return text, ""
+    cut = found.start() - 1
+    return text[:cut].strip(), text[cut:].strip()
+
+
+def _outgoing_pending(changes: list[dict]) -> bool:
+    """¿Hay un cambio confirmado al que aún le faltan correos por enviar?"""
+    for change in changes:
+        if change["state"] != "change":
+            continue
+        for purpose, _ in required_messages(bool(change["has_code"]), bool(change["is_contact"])):
+            if not (change["contact_notified_at"] if purpose == "notify_contact" else change["reply_sent_at"]):
+                return True
+    return False
+
+
+def _case_stage(quote: dict) -> tuple[str, bool]:
+    """(texto, requiere acción): la etapa del caso o lo que espera de una persona, en una frase."""
+    changes = quote.get("changes", [])
+    status = quote["status"]
+    if any(c["state"] == "pending" for c in changes):
+        return "Cambio por revisar", True
+    if _outgoing_pending(changes):
+        return "Faltan correos por enviar", True
+    if quote.get("links"):
+        return "Posible actualización", True
+    if quote.get("reply_pending"):
+        return REPLY_LABEL, True
+    if status == QuoteStatus.REVIEW:
+        return "Falta tu decisión técnica", True
+    if quote.get("proposal"):
+        return "Propuesta del modelo por revisar", True
+    code = quote.get("quote_code", "")
+    if code:
+        if quote.get("code_stage") == "TE":
+            return f"{code_label(code, 'TE')} · aprobada", False
+        return f"{code_label(code, 'T')} · cotizando", False
+    labels = {
+        QuoteStatus.REVIEW_PENDING: ("Por aclarar con el cliente", True),
+        QuoteStatus.DRAFT_CREATED: ("Borrador por revisar", True),
+        QuoteStatus.SENDING: ("Envío interrumpido", True),
+        QuoteStatus.MISSING: ("Hilo no disponible", True),
+        QuoteStatus.WAITING: ("Esperando al cliente", False),
+        QuoteStatus.RESPONSE_SENT: ("Esperando al cliente", False),
+        QuoteStatus.READY_REVIEW: ("Listo para emitir la T", True),
+        QuoteStatus.READY: ("Listo para emitir la T", True),
+        QuoteStatus.IGNORED: ("Descartada", False),
+    }
+    return labels.get(status, (quote["status_label"], False))
 SOURCE_LABELS = {"dashboard": "Dashboard", "gmail": "Gmail", "work": "ChatGPT Work",
                  "python": "Piloto"}
 
 
-CSRF_TOKEN = secrets.token_urlsafe(32)
+def _persistent_csrf_token() -> str:
+    """Token de seguridad que sobrevive a los reinicios del dashboard.
+
+    Antes se generaba en cada arranque, así que una página abierta antes de un reinicio (por
+    ejemplo, al cambiar el código) fallaba al enviar con «Token de seguridad inválido».
+    """
+    path = settings.DATA_DIR / "csrf_token"
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+        if len(value) >= 32:
+            return value
+    except OSError:
+        pass
+    value = secrets.token_urlsafe(32)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value, encoding="utf-8")
+    except OSError:
+        pass  # sin disco: el token vale solo para este arranque, como antes
+    return value
+
+
+CSRF_TOKEN = _persistent_csrf_token()
 
 
 POST_FORM_PATTERN = re.compile(r'(<form\b[^>]*\bmethod="post"[^>]*>)', re.IGNORECASE)

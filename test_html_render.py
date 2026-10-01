@@ -265,8 +265,9 @@ class InjectionTests(Pages):
                     {a for a in parsed.attrs if a.startswith("on")},
                     "No debe haber manejadores de eventos en línea (onclick, onerror, ...)",
                 )
-                # data-confirm y required son atributos propios del código, nunca de datos.
-                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required"})
+                # data-confirm, required y pattern son atributos propios del código, nunca de datos
+                # (pattern valida el número de la T, que solo aparece con la información validada).
+                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "pattern"})
                 self.assertEqual(parsed.scripts, legit_scripts[name])
 
     def test_hostile_page_does_not_add_scripts_beyond_the_legitimate_ones(self):

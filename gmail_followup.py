@@ -21,7 +21,8 @@ from change_control import company_domain, mentions_code
 from logging_setup import get_logger
 from quotes import init_db
 from status import QuoteStatus
-from store import add_dashboard_notification, record_event, register_change
+from mail import message_text
+from store import add_dashboard_notification, add_message, record_event, register_change
 
 log = get_logger(__name__)
 
@@ -158,8 +159,7 @@ def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
                 seen.add(message_id)
                 continue
             message = gmail.users().messages().get(
-                userId="me", id=message_id, format="metadata",
-                metadataHeaders=["From", "To", "Subject"]).execute()
+                userId="me", id=message_id, format="full").execute()
             case = cases[thread_id]
             when = int(message.get("internalDate", "0"))
             try:
@@ -172,6 +172,11 @@ def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
                 continue
             headers = _headers(message)
             snippet = " ".join(str(message.get("snippet", "")).split())[:SNIPPET_CHARS]
+            add_message(
+                db, thread_id, message_id,
+                "sent" if "SENT" in message.get("labelIds", []) else "received",
+                headers.get("from", ""), headers.get("subject", ""),
+                message_text(message.get("payload", {})) or snippet, _iso(when))
             if "SENT" in message.get("labelIds", []):
                 to = parseaddr(headers.get("to", ""))[1] or "el destinatario"
                 if record_event(db, thread_id, "sent", "gmail", message_id,
@@ -206,6 +211,7 @@ def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
                             f"Hay un correo nuevo de {who} en el hilo.")
             db.commit()
             seen.add(message_id)
+        _backfill_messages(gmail, db)
         related = _find_related(gmail, db, cases, seen, linked)
         return {"events": events, "moved": moved, "related": related}
     finally:
@@ -285,3 +291,24 @@ def _find_related(gmail: Any, db: Any, cases: dict, seen: set[str], linked: set[
             db.commit()
     return created
 
+
+
+def _backfill_messages(gmail: Any, db: Any, limit: int = 20) -> None:
+    """Guarda el texto de correos ya anotados antes de existir la lectura de mensajes (no toca el historial)."""
+    rows = db.execute(
+        """SELECT e.thread_id, e.ref, e.kind FROM case_events e
+           WHERE e.kind IN ('sent', 'received') AND NOT EXISTS (
+               SELECT 1 FROM case_messages m WHERE m.thread_id = e.thread_id AND m.message_id = e.ref)
+           ORDER BY e.id DESC LIMIT ?""", (limit,)).fetchall()
+    for row in rows:
+        try:
+            message = gmail.users().messages().get(userId="me", id=row["ref"], format="full").execute()
+        except Exception:
+            add_message(db, row["thread_id"], row["ref"], row["kind"], "", "", "(no se pudo leer el mensaje en Gmail)", "")
+            continue
+        headers = _headers(message)
+        add_message(db, row["thread_id"], row["ref"], row["kind"], headers.get("from", ""),
+                    headers.get("subject", ""),
+                    message_text(message.get("payload", {})) or str(message.get("snippet", "")),
+                    _iso(int(message.get("internalDate", "0"))))
+    db.commit()

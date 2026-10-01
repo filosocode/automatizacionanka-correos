@@ -14,10 +14,10 @@
     <nav><a href="/">Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests">Solicitudes</a><a href="/discarded">Descartadas</a><a href="/archive">Archivo</a></nav>
     <div class="toolbar">
       <span id="bridge-chip" class="bridge-chip" hidden></span>
-      {{ mode_selector }}
-      <form method="post" action="/refresh">
+      <details class="settings"><summary>Ajustes</summary><div class="settings-box">{{ mode_selector }}</div></details>
+      {% if not is_work %}<form method="post" action="/refresh">
         <button type="submit">Actualizar correo</button>
-      </form>
+      </form>{% endif %}
     </div>
   </header>
   <div id="fresh-banner" class="notice" hidden>Hay cambios nuevos. <a href="#" id="fresh-reload">Recargar</a></div>

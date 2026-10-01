@@ -1,0 +1,6 @@
+<section class="section stepper">
+  <div class="process">
+    {% for step in steps %}<div class="process-step {{ step.state }}"><strong>{{ loop.index }}. {{ step.title }}</strong><span>{{ step.note }}</span></div>
+    {% endfor %}
+  </div>
+</section>

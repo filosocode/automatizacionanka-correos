@@ -17,6 +17,20 @@ ACTIVITY_COLUMNS = [
     ("notes", "Notas"),
 ]
 ESTADOS = ("confirmado", "pendiente", "contradictorio")
+
+
+def normalize_estado(value: object) -> str:
+    """Lleva cualquier texto de estado a uno de los tres valores (R12).
+
+    «confirmado; soporte pendiente» o «confirmado en fuentes; revisión pendiente» no están
+    confirmados del todo: si el texto menciona algo pendiente o por aclarar, es `pendiente`.
+    """
+    text = str(value or "").casefold()
+    if "contradic" in text:
+        return "contradictorio"
+    if any(mark in text for mark in ("pendiente", "revisi", "requiere", "aclar", "falta", "no indicad")):
+        return "pendiente"
+    return "confirmado" if text.startswith("confirmado") else "pendiente"
 MAX_ROWS = 200
 MAX_CELL = 2000
 

@@ -31,7 +31,7 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
                 mode: str | None = None, api_key_set: bool = True) -> str:
     return str(render(
         "layout.html", title=title, body=body, message=message, unread_count=unread_count,
-        mode_selector=mode_selector(mode, api_key_set),
+        mode_selector=mode_selector(mode, api_key_set), is_work=(mode == "chatgpt_work"),
     ))
 
 

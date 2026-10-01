@@ -39,6 +39,9 @@ Si el caso ya tiene T, la tabla solo se actualiza con un mensaje del contacto re
 cambies la tabla y describe el cambio pedido. Nunca generes ni escribas el código en un borrador para otra persona.
 activities: lista de objetos con activity, servicio_tecnica, ubicacion, quantity, unit,
 entregable, plazo_restriccion, fuente, estado, notes.
+estado (R12): exactamente confirmado, pendiente o contradictorio, sin texto añadido. Solo confirmado si todos los datos
+esenciales de esa fila (ubicacion, magnitud y unidad, entregable, plazo o restriccion y, cuando aplique, metodo y
+precision) estan explicitos en el correo o los adjuntos; si falta alguno, pendiente, y en notes escribe que falta.
 missing_data: lista de textos distinguiendo crítico/recomendable.
 attachments: lista de objetos filename, status, reason, blocked_fields (lista).
 contradictions: lista de objetos topic, details, sources (lista), status.

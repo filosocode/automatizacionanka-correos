@@ -12,13 +12,13 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from gmail_followup import sync_thread_activity
+from status import canonical_work_status
 from work_heartbeat import other_bridge_running, write_heartbeat
 
 START = "[ANKA_DASHBOARD_JSON_V1]"
 END = "[/ANKA_DASHBOARD_JSON_V1]"
 EXIT_STOP = 2  # el .bat no reinicia con este código
 DEFAULT_ACCOUNT = "ankacomercialia@gmail.com"
-STATUSES = {"Nueva solicitud", "En análisis", "Faltan datos", "Requiere aclaraciones del cliente", "Revisión técnica", "Requiere revisión técnica interna", "Borrador preparado", "Alcance completo", "Información suficiente para revisión interna", "Descartada"}
 
 def body_text(part: dict) -> list[str]:
     values: list[str] = []
@@ -33,7 +33,7 @@ def body_text(part: dict) -> list[str]:
         values.extend(body_text(child))
     return values
 
-def extract(message: dict) -> tuple[dict, str] | None:
+def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
     for text in body_text(message.get("payload", {})):
         if START not in text:
             continue
@@ -51,8 +51,10 @@ def extract(message: dict) -> tuple[dict, str] | None:
                 raise ValueError("Falta campo textual: " + key)
         if payload["thread_id"] != message.get("threadId"):
             raise ValueError("thread_id no coincide con el hilo del borrador.")
-        if payload["status"] not in STATUSES or payload.get("engine") != "chatgpt_work":
-            raise ValueError("Estado o motor no permitido.")
+        status = canonical_work_status(payload["status"])
+        if status is None or payload.get("engine") != "chatgpt_work":
+            raise ValueError(f"Estado o motor no permitido: {payload['status']!r}.")
+        payload["status"] = status  # la etiqueta oficial, aunque Work la escriba sin tildes
         for key in ("requested_by_email", "requested_by_name"):
             if not isinstance(payload.get(key, ""), str):
                 raise ValueError(key + " debe ser texto.")
@@ -61,6 +63,10 @@ def extract(message: dict) -> tuple[dict, str] | None:
         for key in ("activities", "missing_data", "attachments", "contradictions", "scope_dependencies"):
             if not isinstance(payload.get(key, []), list):
                 raise ValueError(key + " debe ser una lista.")
+        # El correo limpio para el cliente (lo que sigue al bloque JSON) y el borrador de Gmail que
+        # lo contiene: el dashboard los muestra en «Respuesta al cliente» y consume el borrador al enviar.
+        payload["draft_reply"] = text.split(END, 1)[1].strip()
+        payload["draft_id"] = draft_id
         canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         return payload, canonical
     return None
@@ -95,7 +101,7 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
                 _, stamp, found = cached
             else:
                 message = gmail.users().drafts().get(userId="me", id=draft["id"], format="full").execute()["message"]
-                found = extract(message)
+                found = extract(message, draft["id"])
                 stamp = int(message.get("internalDate", "0"))
                 if message_id:
                     cache[draft["id"]] = (message_id, stamp, found)
@@ -105,7 +111,7 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
                     candidates[thread] = (stamp, found)
         except Exception as exc:
             failures += 1
-            print(f"Borrador {draft['id']}: no importado ({type(exc).__name__}).", flush=True)
+            print(f"Borrador {draft['id']}: no importado ({type(exc).__name__}: {exc}).", flush=True)
     updated = 0
     for thread, (_, (_payload, raw)) in candidates.items():
         digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()

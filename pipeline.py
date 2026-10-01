@@ -37,6 +37,7 @@ from modes import (
     ensure_local_or_api_mode,
 )
 from settings import load_config
+from activities import normalize_estado
 from change_control import apply_guard, find_codes
 from email.utils import parseaddr
 from store import save
@@ -459,6 +460,9 @@ def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
         analysis["routing"] = routing
         analysis["email"] = email
         analysis["attachments"] = attachment_report(attachments, analysis, required)
+        for row in analysis.get("activities", []):
+            if isinstance(row, dict) and "estado" in row:
+                row["estado"] = normalize_estado(row["estado"])  # R12
         if ctx.db:
             # R11: con T asignada, la tabla solo cambia por el contacto registrado y citando el código
             sender_name, sender_email = parseaddr(header(last, "From"))

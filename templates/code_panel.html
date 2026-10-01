@@ -1,4 +1,4 @@
-<section class="section code-panel">
+<section class="section code-panel" id="emitir-t">
   {% if code %}
   <div class="section-head"><h2>Código de la oferta</h2><span class="badge info">{{ stage_label }}</span></div>
   <p><strong class="code">{{ code }}</strong>
@@ -11,14 +11,14 @@
   </form>
   {% endif %}
   {% elif can_assign %}
-  <div class="section-head"><h2>Aceptar el proyecto</h2><span class="badge">Sin código todavía</span></div>
-  <p class="meta">Mientras no haya código, el cliente puede escribir sin citarlo (dudas, aclaraciones). Al aceptar el proyecto se genera la T: desde ahí todo cambio debe citarla y se avisa al contacto registrado ({{ contact }}).</p>
+  <div class="section-head"><h2>Listo para cotizar: emitir la T</h2><span class="badge">Información validada</span></div>
+  <p class="meta">La información ya está validada. Al emitir la T damos por recibido el proyecto: se genera el código, se prepara el correo de «proyecto recibido» para {{ contact }} y, desde ahí, todo cambio debe citar el código.</p>
   <form method="post" action="/code">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <div class="filters"><label>Número de la T (año + consecutivo)<input name="number" value="{{ suggestion }}" pattern="[0-9]{5}" required></label></div>
     <p class="meta">Es una sugerencia según los códigos de este dashboard; confírmala o corrígela con el consecutivo real.</p>
     <div class="toolbar"><button type="submit"
-      data-confirm="Se asignará la T a este caso y se preparará el correo de «proyecto recibido». ¿Confirmas el número?">Aceptar proyecto y asignar la T</button></div>
+      data-confirm="Se emitirá la T para este caso y se preparará el correo de «proyecto recibido». ¿Confirmas el número?">Emitir la T y preparar el correo de recibido</button></div>
   </form>
   {% endif %}
 </section>

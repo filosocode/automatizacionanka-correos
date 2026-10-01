@@ -136,30 +136,42 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     recipient = _recipient(thread_id, quote, to)
     email = reply_email(thread, recipient, body, account_addresses)
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
-    if quote["draft_id"]:
-        gmail.users().drafts().update(
-            userId="me", id=quote["draft_id"],
-            body={"message": {"raw": raw, "threadId": thread_id}},
-        ).execute()
-        result = gmail.users().drafts().send(
-            userId="me", body={"id": quote["draft_id"]}
-        ).execute()
-    else:
+    # Se envía el borrador existente (el del dashboard o el que dejó Work) para no dejar uno huérfano
+    # con la sección interna; si ya no existe en Gmail, se envía como mensaje nuevo en el hilo.
+    draft_id = quote["draft_id"] or (quote["analysis"].get("work_reply") or {}).get("draft_id") or ""
+    result = None
+    if draft_id:
+        try:
+            gmail.users().drafts().update(
+                userId="me", id=draft_id, body={"message": {"raw": raw, "threadId": thread_id}},
+            ).execute()
+            result = gmail.users().drafts().send(userId="me", body={"id": draft_id}).execute()
+        except Exception as exc:
+            if getattr(getattr(exc, "resp", None), "status", None) != 404:
+                raise
+            log.warning("%s: el borrador ya no existe en Gmail; se envía como mensaje nuevo", thread_id)
+    if result is None:
         result = gmail.users().messages().send(
             userId="me", body={"raw": raw, "threadId": thread_id}
         ).execute()
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     # Un caso con información suficiente sigue abierto para crear su carpeta en Drive:
     # enviar un acuse o una aclaración no debe cerrarlo.
-    new_status = (quote["status"] if quote["status"] in (QuoteStatus.READY_REVIEW, QuoteStatus.READY)
-                  else QuoteStatus.RESPONSE_SENT)
+    if quote["status"] in (QuoteStatus.READY_REVIEW, QuoteStatus.READY):
+        new_status = quote["status"]
+    elif quote["status"] == QuoteStatus.REVIEW_PENDING:
+        new_status = QuoteStatus.WAITING  # se preguntó al cliente: espera su respuesta (igual que approve_review)
+    else:
+        new_status = QuoteStatus.RESPONSE_SENT
     db = init_db()
     try:
+        analysis = dict(quote["analysis"])
+        analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
         db.execute(
-            """UPDATE quotes SET status=?, sent_message_id=?,
+            """UPDATE quotes SET status=?, sent_message_id=?, analysis_json=?,
                                  draft_id=NULL, draft_body=?, sent_at=?, updated_at=?
                WHERE thread_id=?""",
-            (new_status, result["id"], body, now, now, thread_id),
+            (new_status, result["id"], json.dumps(analysis, ensure_ascii=False), body, now, now, thread_id),
         )
         record_event(db, thread_id, "sent", "dashboard", result["id"],
                      f"Correo enviado desde el dashboard a {recipient}.", now)

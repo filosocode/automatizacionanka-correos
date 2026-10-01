@@ -188,6 +188,30 @@ def latest_table_version(db: sqlite3.Connection, thread_id: str) -> sqlite3.Row 
                       (thread_id,)).fetchone()
 
 
+def _migration_8_case_messages(db: sqlite3.Connection) -> None:
+    """Texto de los correos del hilo (cliente y Anka) para leerlos en el caso sin ir a Gmail."""
+    db.execute("""CREATE TABLE IF NOT EXISTS case_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        thread_id TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        sender TEXT NOT NULL DEFAULT '',
+        subject TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL DEFAULT '',
+        occurred_at TEXT NOT NULL,
+        UNIQUE(thread_id, message_id)
+    )""")
+
+
+def add_message(db: sqlite3.Connection, thread_id: str, message_id: str, direction: str, sender: str,
+                subject: str, body: str, occurred_at: str) -> None:
+    db.execute(
+        """INSERT OR IGNORE INTO case_messages
+           (thread_id, message_id, direction, sender, subject, body, occurred_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (thread_id, message_id, direction, sender, subject[:200], body[:8000], occurred_at))
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -198,6 +222,7 @@ MIGRATIONS = (
     _migration_5_traceability,
     _migration_6_codes_and_evidence,
     _migration_7_table_versions,
+    _migration_8_case_messages,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

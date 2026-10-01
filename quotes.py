@@ -16,11 +16,13 @@ import settings
 from mail import (
     _decode_websafe,
 )
+from activities import normalize_estado
 from reception import (
-    reception_assessment,
+    reception_assessment, unresolved_scope_issues,
 )
 from logging_setup import get_logger
 from change_control import apply_guard
+from status import canonical_work_status
 from store import add_table_version, latest_table_version, case_events, open_db, record_event, register_change, save, verify_chain
 
 log = get_logger(__name__)
@@ -289,6 +291,18 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
     finally:
         db.close()
     return message
+
+
+def case_conversation(thread_id: str, limit: int = 12) -> list[dict]:
+    """Correos del hilo, el más reciente primero."""
+    db = init_db()
+    try:
+        rows = db.execute(
+            "SELECT direction, sender, subject, body, occurred_at FROM case_messages WHERE thread_id=? "
+            "ORDER BY occurred_at DESC, id DESC LIMIT ?", (thread_id, limit)).fetchall()
+    finally:
+        db.close()
+    return [dict(row) for row in rows]
 
 
 def case_change_log(thread_id: str) -> list[dict]:
@@ -764,6 +778,7 @@ def dashboard_upsert(payload_base64: str) -> None:
     missing = sorted(field for field in required if not str(payload.get(field, "")).strip())
     if missing:
         raise SystemExit("Faltan campos del dashboard: " + ", ".join(missing))
+    payload["status"] = canonical_work_status(payload["status"]) or payload["status"]
     status_map = {
         "Nueva solicitud": QuoteStatus.REVIEW_PENDING,
         "En análisis": QuoteStatus.REVIEW,
@@ -777,6 +792,9 @@ def dashboard_upsert(payload_base64: str) -> None:
         "Descartada": QuoteStatus.IGNORED,
     }
     activities = payload.get("activities", [])
+    if isinstance(activities, list):
+        activities = [{**item, "estado": normalize_estado(item["estado"])}
+                      if isinstance(item, dict) and "estado" in item else item for item in activities]
     if isinstance(activities, str):
         activities = [{
             "activity": activities,
@@ -831,6 +849,9 @@ def dashboard_upsert(payload_base64: str) -> None:
         "scope_dependencies": dependencies,
         "contradictions": contradictions,
         "attachments": attachments,
+        "work_reply": ({"text": str(payload.get("draft_reply") or "").strip(),
+                        "draft_id": str(payload.get("draft_id") or "")}
+                       if str(payload.get("draft_reply") or "").strip() else {}),
         "received_at": payload.get("received_at", ""),
         "gmail_url": payload.get("gmail_url", ""),
         "engine": payload.get("engine", ""),
@@ -845,6 +866,11 @@ def dashboard_upsert(payload_base64: str) -> None:
     thread_id = payload["thread_id"]
     message_id = payload.get("message_id") or thread_id
     status = status_map.get(payload["status"], payload["status"])
+    if status in (QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED
+                  ) and unresolved_scope_issues(analysis):
+        # Igual que el piloto de Python (decide_analysis): con dependencias o contradicciones
+        # pendientes el caso pasa a revisión técnica interna, donde una persona decide.
+        status = QuoteStatus.REVIEW
     db = init_db()
     try:
         apply_guard(
@@ -856,8 +882,12 @@ def dashboard_upsert(payload_base64: str) -> None:
         row = db.execute(
             "SELECT status, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)
         ).fetchone()
-        if row and row["status"] in _DASHBOARD_PROTECTED:
-            # un caso ya avanzado en el dashboard no retrocede por un borrador posterior
+        reanalysis_of_same_message = bool(row) and row["last_inbound_id"] == message_id
+        protected = _DASHBOARD_PROTECTED if reanalysis_of_same_message else _DASHBOARD_PROTECTED - {
+            QuoteStatus.RESPONSE_SENT}
+        if row and row["status"] in protected:
+            # un caso ya avanzado en el dashboard no retrocede por un borrador posterior; solo una
+            # respuesta nueva del cliente puede mover un caso que estaba esperando su respuesta
             status = row["status"]
         save(db, thread_id, message_id, status,
              payload.get("internal_sender") or payload["client_email"], analysis)

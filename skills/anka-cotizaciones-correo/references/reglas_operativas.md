@@ -10,7 +10,7 @@ Estas reglas valen **igual en los tres modos** de operación:
 
 Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actualizan el código y la skill. Las pruebas `test_paridad_modos.py` fallan si alguno de los tres se separa. El procedimiento completo está en `ESTANDAR_CAMBIOS.md`.
 
-**Versión de las reglas: 5**
+**Versión de las reglas: 6**
 
 ## Reglas
 
@@ -27,6 +27,7 @@ Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actua
 | R9 | Cuando una persona envía desde el dashboard la respuesta de un caso con información suficiente, la carpeta del proyecto se crea sola con el cliente que ya tiene el caso (el confirmado por una persona o el del mismo remitente). Si ese cliente no tiene carpeta y no existe ninguna igual ni parecida, se crea también la carpeta del cliente. Si hay una carpeta de cliente parecida, o una solicitud del cliente con nombre parecido o con el mismo archivo adjunto, no se crea nada y decide una persona. Esto lo hace el dashboard (Python) igual en los tres modos; ChatGPT Work nunca crea carpetas. |
 | R10 | Al crear la carpeta del proyecto se llena con el contenido de la plantilla de Drive: toda la documentación que envió el cliente (PDF, Word, Excel, KMZ, KML, DWG, shapefile, imágenes y demás adjuntos; solo se omiten los logos incrustados en firmas) y una hoja de Google con la tabla de actividades. No se pisa ningún archivo existente y un fallo al copiar no deshace la carpeta. Lo hace el código Python (dashboard y piloto); ChatGPT Work no crea ni llena carpetas. El PDF de alcance generado con el resumen queda pendiente. |
 | R11 | Antes de la T el cliente puede escribir sin código. Cuando una persona acepta el proyecto en el dashboard se asigna la **T** (`T` + año de 2 cifras + consecutivo de 3, p. ej. `T26145`; al aprobarse pasa a `T&E26145`, mismo número); ni Work ni Python generan ni inventan el código. Desde la T, la tabla de actividades **solo se actualiza con un mensaje posterior a la T** que venga del **contacto registrado** (quien escribió primero) **y** cite el código del caso. Un mensaje de otra persona, de otro dominio o sin el código **no modifica la tabla**: lo que propone queda como propuesta pendiente y el dashboard avisa. Quien analiza informa `requested_by_email`, `requested_by_name` y `cited_codes`; el dashboard valida. Una edición del comercial en el dashboard no pide validación ni envía correos: solo deja historial. Los correos a quien no es el contacto registrado nunca incluyen el código. |
+| R12 | El estado de cada actividad es exactamente `confirmado`, `pendiente` o `contradictorio`, sin texto añadido. Solo es `confirmado` si todos los datos esenciales de esa fila (ubicación, magnitud y unidad, entregable, plazo o restricción y, cuando aplique, método y precisión) están explícitos en el correo o los adjuntos; si falta alguno es `pendiente` y en `notes` se anota qué falta. `contradictorio` cuando las fuentes discrepan. El dashboard normaliza cualquier otro texto a uno de los tres valores. |
 
 ## Bloque legible por máquina
 
@@ -34,7 +35,7 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
 
 ```json reglas
 {
-  "version": 5,
+  "version": 6,
   "descarte": {
     "senales": ["remitente_no_reply", "list_unsubscribe", "auto_submitted", "precedence_masivo", "spam_gmail"],
     "requiere_todos_los_mensajes": true,
@@ -48,6 +49,7 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
     "proyecto_requiere_cliente_confirmado": true
   },
   "correo_al_cliente": {"envio_automatico": false},
+  "actividades": {"estados": ["confirmado", "pendiente", "contradictorio"]},
   "cambios": {
     "codigo": "T + año de 2 cifras + consecutivo de 3",
     "se_exige_desde": "asignacion_de_la_t",
@@ -65,7 +67,8 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
     "R8": "los correos al cliente siempre son borradores",
     "R9": "al enviar la respuesta desde el dashboard",
     "R10": "se llena con el contenido de la plantilla de Drive",
-    "R11": "solo se actualiza con un mensaje posterior a la T"
+    "R11": "solo se actualiza con un mensaje posterior a la T",
+    "R12": "solo es confirmado si todos los datos esenciales"
   }
 }
 ```

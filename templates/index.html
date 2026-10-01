@@ -1,21 +1,24 @@
 <div class="page-head">
-  <div><h1>Resumen comercial</h1><p>Qué está llegando, quién lo solicita y dónde hace falta actuar. {{ sync_text }}</p></div>
+  <div><h1>Qué hacer hoy</h1><p>Lo que espera una acción tuya, primero. {% if todo %}Tienes {{ todo | length }} caso(s) por atender.{% else %}No hay nada pendiente de tu parte.{% endif %}</p></div>
   <a class="button secondary" href="/requests">Ver todas las solicitudes</a>
 </div>
 {{ notifications }}
-<div class="grid kpis">
-  <div class="kpi"><div class="kpi-label">Solicitudes registradas</div><div class="kpi-value">{{ total }}</div><div class="kpi-note">Excluye correos descartados</div></div>
-  <div class="kpi"><div class="kpi-label">Clientes identificados</div><div class="kpi-value">{{ unique_clients }}</div><div class="kpi-note">Por correo de cliente</div></div>
-  <div class="kpi"><div class="kpi-label">Requieren atención</div><div class="kpi-value">{{ action_count }}</div><div class="kpi-note">Faltantes o revisión técnica</div></div>
-  <div class="kpi"><div class="kpi-label">Información suficiente</div><div class="kpi-value">{{ completed }}</div><div class="kpi-note">Listas para revisión interna</div></div>
-</div>
-<div class="grid dashboard-grid">
-  <section class="section"><div class="section-head"><h2>Servicios solicitados</h2><span class="meta">Top 6</span></div>{{ services }}</section>
-  <section class="section"><div class="section-head"><h2>Estado de solicitudes</h2><span class="meta">Actual</span></div>{{ statuses }}</section>
-  <section class="section"><div class="section-head"><h2>Tipos de cliente</h2><span class="meta">Clasificación comercial</span></div>{{ client_types }}</section>
-  <section class="section"><div class="section-head"><h2>Lectura rápida</h2></div>{{ insights }}</section>
-</div>
-<section style="margin-top:24px">
-  <div class="section-head" style="margin-bottom:12px"><h2>Requieren atención</h2><a href="/requests" class="meta">Ver todo</a></div>
-  <div class="grid">{% if recent %}{% for row in recent %}{{ row }}{% endfor %}{% else %}<div class='empty'>No hay solicitudes que requieran atención.</div>{% endif %}</div>
+<section>
+  <div class="grid">{% if todo %}{% for row in todo %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todo al día. Los casos que esperan al cliente o están cotizando no requieren acción por ahora.</div>{% endif %}</div>
 </section>
+<div class="grid kpis" style="margin-top:24px">
+  <div class="kpi"><div class="kpi-label">Requieren acción</div><div class="kpi-value">{{ action_count }}</div><div class="kpi-note">Lo de arriba</div></div>
+  <div class="kpi"><div class="kpi-label">Esperando al cliente</div><div class="kpi-value">{{ waiting }}</div><div class="kpi-note">Ya les escribiste</div></div>
+  <div class="kpi"><div class="kpi-label">Cotizando (con T)</div><div class="kpi-value">{{ quoting }}</div><div class="kpi-note">T emitida, aún sin aprobar</div></div>
+  <div class="kpi"><div class="kpi-label">Aprobadas (T&amp;E)</div><div class="kpi-value">{{ approved }}</div><div class="kpi-note">Oferta aprobada</div></div>
+</div>
+<details class="more">
+  <summary>Ver estadísticas ({{ total }} solicitudes)</summary>
+  <div class="grid dashboard-grid">
+    <section class="section"><div class="section-head"><h2>Servicios solicitados</h2><span class="meta">Top 6</span></div>{{ services }}</section>
+    <section class="section"><div class="section-head"><h2>Etapa de las solicitudes</h2><span class="meta">Actual</span></div>{{ statuses }}</section>
+    <section class="section"><div class="section-head"><h2>Tipos de cliente</h2><span class="meta">Clasificación comercial</span></div>{{ client_types }}</section>
+    <section class="section"><div class="section-head"><h2>Lectura rápida</h2></div>{{ insights }}</section>
+  </div>
+  <p class="meta">{{ sync_text }}</p>
+</details>

@@ -259,3 +259,18 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 @media print { header, .toolbar, nav, #bridge-chip, #fresh-banner { display: none !important; } }
 .reason { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-left: 12px; }
 .edit-note { margin: 0 0 10px; }
+.msg { border: 1px solid #e3e8ea; border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
+.msg.received { background: #f3f8fa; }
+.msg.sent { background: #f7f7f2; }
+.msg summary { cursor: pointer; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.msg pre { margin: 8px 0 2px; }
+.msg .quoted { margin-top: 6px; }
+.msg .quoted pre { color: var(--muted); font-size: 13px; }
+.more { margin-top: 6px; }
+.more > summary { cursor: pointer; font-weight: 650; padding: 10px 2px; color: var(--muted); }
+.more[open] > summary { margin-bottom: 10px; }
+.more > section { margin-bottom: 14px; }
+.settings { position: relative; }
+.settings > summary { cursor: pointer; list-style: none; padding: 8px 12px; border-radius: 6px; color: var(--muted); font-weight: 600; font-size: 14px; }
+.settings > summary:hover { background: #edf1f1; }
+.settings-box { position: absolute; right: 0; top: 40px; z-index: 10; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.12); min-width: 330px; }

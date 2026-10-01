@@ -19,7 +19,7 @@ import web
 from quotes import init_db
 from status import QuoteStatus
 from store import record_event, verify_chain
-from test_work_sync import FollowupGmail, _Exec, b64, mail, payload
+from test_work_sync import FollowupGmail, _Exec, b64, draft_message, mail, payload
 
 CONFIG = {"active_mode": "chatgpt_work", "required_fields": []}
 
@@ -40,6 +40,8 @@ def coded_mail(thread, who, when, body="", subject="Cambio", sent=False):
     message = mail(thread, sent, when, who)
     message["body"], message["subject"] = body, subject
     message["snippet"] = body[:100]
+    message["payload"]["mimeType"] = "text/plain"
+    message["payload"]["body"] = {"data": base64.urlsafe_b64encode(body.encode()).decode()}
     return message
 
 
@@ -329,6 +331,396 @@ class VersionTests(Base):
         self.assertIn("Edición interna posterior a la T", acta)
         self.assertIn("Corrección mía", acta)
         self.assertEqual(acta.count("Edición interna posterior a la T"), 1)
+
+
+class TechnicalReviewFlowTests(Base):
+    """Un caso de Work con dependencias pendientes no puede quedar bloqueado sin salida."""
+
+    def upsert_with_dependency(self, thread="T9", status="Faltan datos"):
+        quotes.dashboard_upsert(b64(json.dumps(payload(
+            thread=thread, status=status, scope_dependencies=[
+                {"description": "Validar la geometría del KML", "source": "a.kml", "status": "pendiente"}]))))
+
+    def test_pending_dependencies_send_the_case_to_technical_review_like_the_pilot(self):
+        for status in ("Faltan datos", "Borrador preparado", "Alcance completo"):
+            with self.subTest(status=status):
+                self.upsert_with_dependency(status=status)
+                self.assertEqual(quotes.get_quote("T9")["status"], QuoteStatus.REVIEW)
+
+    def test_the_person_can_decide_and_then_send_the_questions(self):
+        self.upsert_with_dependency()
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_case("T9")
+        self.assertIn("Decisión de la revisión técnica", page)
+        self.assertNotIn('formaction="/send"', page)                 # primero decide una persona
+        quotes.resolve_technical_review("T9", "ask_client", "¿Qué precisión requieren?")
+        self.assertEqual(quotes.get_quote("T9")["status"], QuoteStatus.REVIEW_PENDING)
+        with patch("web.load_config", return_value=CONFIG):
+            self.assertIn('formaction="/send"', web._render_case("T9"))   # ya puede enviar
+
+    def test_questions_from_the_analysis_are_prefilled_in_the_decision_box(self):
+        self.upsert_with_dependency()
+        with patch("web.load_config", return_value={"active_mode": "chatgpt_work",
+                                                    "required_fields": ["ubicación"]}):
+            page = web._render_case("T9")
+        box = page.split('name="questions"')[1].split("</textarea>")[0]
+        self.assertIn("ubicaci", box.casefold())                      # la pregunta viene escrita
+        self.assertIn("Son las preguntas que dejó el análisis", page)
+
+    def test_accepted_case_has_a_blank_reply_box_with_an_optional_acknowledgement(self):
+        self.upsert_with_dependency()
+        quotes.resolve_technical_review("T9", "sufficient")
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_case("T9")
+            acuse = web._render_case("T9", template="acuse")
+        box = page.split('name="body"')[1].split("</textarea>")[0]
+        self.assertEqual(box.split(">", 1)[1].strip(), "")            # en blanco
+        self.assertIn("usa un acuse de recibo sugerido", page)
+        self.assertIn("Confirmamos que la hemos recibido", acuse)     # el acuse sigue disponible
+
+    def test_a_case_with_questions_still_gets_the_suggested_text(self):
+        quotes.dashboard_upsert(b64(json.dumps(payload(thread="T8", missing_data=["Crítico: plano del predio"]))))
+        with patch("web.load_config", return_value={"active_mode": "chatgpt_work",
+                                                    "required_fields": ["ubicación"]}):
+            page = web._render_case("T8")
+        box = page.split('name="body"')[1].split("</textarea>")[0]
+        self.assertIn("confirmar lo siguiente", box)
+
+    def test_sufficient_decision_unblocks_the_case_too(self):
+        self.upsert_with_dependency()
+        quotes.resolve_technical_review("T9", "sufficient")
+        self.assertEqual(quotes.get_quote("T9")["status"], QuoteStatus.READY_REVIEW)
+
+
+class WorkDraftTests(Base):
+    """El borrador que deja Work aparece en el dashboard y se consume al enviar."""
+
+    def work_case(self, thread="W1", **extra):
+        quotes.dashboard_upsert(b64(json.dumps(payload(
+            thread=thread, status="Faltan datos", draft_reply="Hola Ana,\n\n¿Podría confirmar el datum?\n\nSaludos",
+            draft_id="D-work", missing_data=["Crítico: confirmar el datum.", "Crítico interno: revisar el KML.",
+                                              "Recomendable: confirmar fecha de inicio."], **extra))))
+
+    def test_work_draft_text_fills_the_reply_box_and_questions_fill_the_decision_box(self):
+        self.work_case(scope_dependencies=[{"description": "KML", "source": "a.kml", "status": "pendiente"}])
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_case("W1")
+        questions = page.split('name="questions"')[1].split("</textarea>")[0]
+        self.assertIn("Confirmar el datum.", questions)
+        self.assertIn("Confirmar fecha de inicio.", questions)
+        self.assertNotIn("KML", questions)                           # lo interno no se le pregunta al cliente
+        quotes.resolve_technical_review("W1", "ask_client", "¿Datum?")
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_case("W1")
+        box = page.split('name="body"')[1].split("</textarea>")[0]
+        self.assertIn("Podría confirmar el datum", box.replace("¿", ""))   # el borrador de Work
+
+    def test_sending_consumes_the_work_draft_instead_of_leaving_it_orphaned(self):
+        self.work_case()
+        calls = []
+
+        class Drafts:
+            def update(self, **kw):
+                calls.append(("update", kw["id"]))
+                return _Exec({})
+
+            def send(self, **kw):
+                calls.append(("send", kw["body"]["id"]))
+                return _Exec({"id": "sent-1"})
+
+        class Users:
+            def drafts(self):
+                return Drafts()
+
+        class Gmail:
+            def users(self):
+                return Users()
+
+        quote = quotes.get_quote("W1")
+        context = (quote, Gmail(), {"id": "W1", "messages": []}, set())
+        with patch.object(case_actions, "_case_email_context", return_value=context), \
+                patch.object(case_actions, "reply_email", return_value=type("E", (), {"as_bytes": lambda self: b"x"})()):
+            case_actions.send_dashboard_reply("W1", "Hola, texto final")
+        self.assertEqual(calls, [("update", "D-work"), ("send", "D-work")])
+        self.assertNotIn("work_reply", quotes.get_quote("W1")["analysis"])   # ya no se vuelve a proponer
+
+    def test_a_missing_work_draft_falls_back_to_a_new_message(self):
+        self.work_case()
+
+        class NotFound(Exception):
+            resp = type("R", (), {"status": 404})()
+
+        class Drafts:
+            def update(self, **kw):
+                raise NotFound()
+
+        class Messages:
+            def send(self, **kw):
+                return _Exec({"id": "sent-2"})
+
+        class Users:
+            def drafts(self):
+                return Drafts()
+
+            def messages(self):
+                return Messages()
+
+        class Gmail:
+            def users(self):
+                return Users()
+
+        context = (quotes.get_quote("W1"), Gmail(), {"id": "W1", "messages": []}, set())
+        with patch.object(case_actions, "_case_email_context", return_value=context), \
+                patch.object(case_actions, "reply_email", return_value=type("E", (), {"as_bytes": lambda self: b"x"})()):
+            self.assertIn("Correo enviado", case_actions.send_dashboard_reply("W1", "Hola"))
+
+
+class CsrfTokenTests(Base):
+    def test_token_survives_dashboard_restarts(self):
+        first = web._persistent_csrf_token()
+        self.assertGreaterEqual(len(first), 32)
+        self.assertEqual(web._persistent_csrf_token(), first)          # un reinicio no lo cambia
+        Path(self.temp.name, "csrf_token").unlink()
+        self.assertNotEqual(web._persistent_csrf_token(), first)        # sin archivo se genera uno nuevo
+
+
+class RowStateAndStatusFlowTests(Base):
+    """R12 (estado de las filas) y el avance de un caso tras la respuesta del cliente."""
+
+    def test_state_text_is_normalized_to_one_of_three_values(self):
+        from activities import ESTADOS, normalize_estado
+        cases = {
+            "confirmado": "confirmado", "Confirmado": "confirmado",
+            "confirmado en fuentes; revisión pendiente": "pendiente",
+            "confirmado; soporte pendiente": "pendiente",
+            "requiere aclaración": "pendiente", "pendiente": "pendiente", "": "pendiente",
+            "contradiccion": "contradictorio", "contradictorio": "contradictorio",
+        }
+        for text, expected in cases.items():
+            self.assertEqual(normalize_estado(text), expected, text)
+        self.assertEqual(set(cases.values()), set(ESTADOS))
+
+    def test_work_rows_with_free_text_states_arrive_normalized(self):
+        quotes.dashboard_upsert(b64(json.dumps(payload(thread="E1", activities=[
+            {"activity": "a", "estado": "confirmado en fuentes; revisión pendiente"},
+            {"activity": "b", "estado": "confirmado"}]))))
+        states = [r["estado"] for r in quotes.get_quote("E1")["analysis"]["activities"]]
+        self.assertEqual(states, ["pendiente", "confirmado"])
+
+    def test_rules_file_lists_the_same_states_as_the_dashboard(self):
+        from activities import ESTADOS
+        text = Path("skills/anka-cotizaciones-correo/references/reglas_operativas.md").read_text(encoding="utf-8")
+        block = json.loads(text.split("```json reglas\n")[1].split("\n```")[0])
+        self.assertEqual(tuple(block["actividades"]["estados"]), ESTADOS)
+
+    def set_status(self, status):
+        db = init_db()
+        db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (status,))
+        db.commit()
+        db.close()
+
+    def test_a_new_client_message_moves_a_case_that_was_waiting_after_our_reply(self):
+        self.set_status(QuoteStatus.RESPONSE_SENT)
+        quotes.dashboard_upsert(b64(json.dumps(payload(message="m2", status="Alcance completo"))))
+        self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.READY_REVIEW)
+
+    def test_re_analysing_the_same_message_does_not_move_a_sent_case(self):
+        self.set_status(QuoteStatus.RESPONSE_SENT)
+        quotes.dashboard_upsert(b64(json.dumps(payload(message="m1", status="Alcance completo"))))
+        self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.RESPONSE_SENT)
+
+    def test_closed_cases_are_still_protected_from_new_drafts(self):
+        self.set_status(QuoteStatus.READY)
+        quotes.dashboard_upsert(b64(json.dumps(payload(message="m2", status="Faltan datos"))))
+        self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.READY)
+
+
+class GuidedFlowTests(Base):
+    """La pantalla del caso sigue un hilo: leer, revisar, responder y, solo con la información validada, emitir la T."""
+
+    def page(self, thread="T1", **kw):
+        with patch("web.load_config", return_value=CONFIG):
+            return web._render_case(thread, **kw)
+
+    def set_status(self, status):
+        db = init_db()
+        db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (status,))
+        db.commit()
+        db.close()
+
+    def test_the_t_is_only_offered_once_the_information_is_validated(self):
+        self.set_status(QuoteStatus.REVIEW_PENDING)
+        self.assertNotIn("Emitir la T", self.page())                     # aún se está aclarando
+        self.set_status(QuoteStatus.READY_REVIEW)
+        page = self.page()
+        self.assertIn("Listo para cotizar: emitir la T", page)
+        self.assertIn("Información validada: puedes emitir la T", page)    # el aviso de arriba lo guía
+
+    def test_a_manual_sufficient_decision_also_validates(self):
+        quotes.dashboard_upsert(b64(json.dumps(payload(
+            thread="T5", scope_dependencies=[{"description": "KML", "source": "a", "status": "pendiente"}]))))
+        self.assertNotIn("Emitir la T", self.page("T5"))
+        quotes.resolve_technical_review("T5", "sufficient")
+        self.assertIn("Emitir la T", self.page("T5"))
+
+    def test_the_stepper_shows_where_the_case_is(self):
+        page = self.page()
+        self.assertIn("1. Revisar y aclarar", page)
+        self.assertIn("process-step current", page)
+        self.set_status(QuoteStatus.READY_REVIEW)
+        self.assign()
+        page = self.page()
+        self.assertIn("T26145 · cotizando", page)
+        self.assertNotIn("Listo para cotizar: emitir la T", page)        # ya se emitió
+
+    def test_sections_follow_a_top_to_bottom_thread(self):
+        self.set_status(QuoteStatus.READY_REVIEW)
+        page = self.page()
+        order = ["Conversación con el cliente", "Actividades detectadas", "Respuesta al cliente",
+                 "Listo para cotizar: emitir la T", "Detalles y trazabilidad del caso", "Seguimiento"]
+        positions = [page.index(title) for title in order]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_conversation_shows_what_the_client_wrote(self):
+        self.sync({"m1": coded_mail("T1", "Ana <ana@acme.com>", self.t0 + 600,
+                                    "Les confirmo el datum MAGNA-SIRGAS y las coordenadas.")})
+        page = self.page()
+        self.assertIn("Conversación con el cliente", page)
+        self.assertIn("datum MAGNA-SIRGAS", page)
+        self.assertEqual(len(quotes.case_conversation("T1")), 1)
+
+    def test_a_case_with_a_pending_reply_says_so_in_its_label(self):
+        db = init_db()
+        from store import record_event as rec
+        rec(db, "T1", "received", "gmail", "r9", "x", "2026-10-01T12:00:00-05:00", "ana@acme.com", "Ana")
+        db.commit()
+        db.close()
+        self.assertIn("Cliente respondió · por analizar", self.page())
+        self.assertIn("Cliente respondió · por analizar", web._quote_row(quotes.get_quote("T1")))
+
+
+class WorkStatusSpellingTests(unittest.TestCase):
+    def test_status_without_accents_is_accepted_as_the_official_label(self):
+        from status import canonical_work_status as canonical
+        self.assertEqual(canonical("Informacion suficiente para revision interna"),
+                         "Información suficiente para revisión interna")
+        self.assertEqual(canonical("  FALTAN   datos "), "Faltan datos")
+        self.assertIsNone(canonical("Otra cosa"))
+
+    def test_bridge_imports_a_draft_whose_status_has_no_accents(self):
+        import work_dashboard_sync as sync
+        data = payload(status="Informacion suficiente para revision interna")
+        found = sync.extract(draft_message(data), "D1")
+        self.assertIsNotNone(found)
+        self.assertEqual(found[0]["status"], "Información suficiente para revisión interna")
+        self.assertEqual(found[0]["draft_id"], "D1")
+        self.assertIn("Hola", found[0]["draft_reply"])
+
+
+class UxFixesTests(Base):
+    """Los cinco arreglos de la evaluación UX: etapa en la lista, textos al día, historial plegado,
+    «qué hacer hoy» y un encabezado sin controles peligrosos."""
+
+    def set_status(self, status):
+        db = init_db()
+        db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (status,))
+        db.commit()
+        db.close()
+
+    def stage(self):
+        return web._case_stage(quotes.get_quote("T1"))
+
+    # 1. etapa y siguiente acción
+    def test_every_case_says_its_stage_and_whether_it_needs_you(self):
+        cases = [
+            (QuoteStatus.REVIEW_PENDING, ("Por aclarar con el cliente", True)),
+            (QuoteStatus.WAITING, ("Esperando al cliente", False)),
+            (QuoteStatus.RESPONSE_SENT, ("Esperando al cliente", False)),
+            (QuoteStatus.REVIEW, ("Falta tu decisión técnica", True)),
+            (QuoteStatus.READY_REVIEW, ("Listo para emitir la T", True)),
+            (QuoteStatus.READY, ("Listo para emitir la T", True)),
+        ]
+        for status, expected in cases:
+            with self.subTest(status=status):
+                self.set_status(status)
+                self.assertEqual(self.stage(), expected)
+
+    def test_with_a_code_the_stage_is_the_offer_and_urgent_things_come_first(self):
+        self.assign()
+        self.assertEqual(self.stage(), ("T26145 · cotizando", False))
+        change_control.promote_to_te("T1")
+        self.assertEqual(self.stage(), ("T&E26145 · aprobada", False))
+        self.sync({"m1": coded_mail("T1", "Luis <luis@acme.com>", self.t0 + 7200, "Cambiar plazo")})
+        self.assertEqual(self.stage(), ("Cambio por revisar", True))      # lo urgente gana a la etapa
+
+    def test_the_list_shows_the_stage_and_puts_cases_that_need_action_first(self):
+        quotes.dashboard_upsert(b64(json.dumps(payload(thread="T2", message="mx"))))
+        self.set_status(QuoteStatus.WAITING)                              # T1 espera al cliente
+        db = init_db()
+        db.execute("UPDATE quotes SET status=? WHERE thread_id='T2'", (QuoteStatus.REVIEW_PENDING,))
+        db.commit()
+        db.close()
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_requests()
+        self.assertIn("Esperando al cliente", page)
+        self.assertIn("Por aclarar con el cliente", page)
+        self.assertLess(page.index("Por aclarar con el cliente"), page.index("Esperando al cliente"))
+
+    # 2. textos al día
+    def test_no_stale_prompts_once_the_t_exists(self):
+        self.set_status(QuoteStatus.READY)
+        self.assign()
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_case("T1")
+        self.assertNotIn("Respuesta sugerida lista", page)
+        self.assertNotIn("Recepción completa", page)
+        self.assertNotIn("Listo para emitir la T</span>", page)           # el paso 2 ya no lo repite
+        self.assertIn("Completado", page)
+        box = page.split('name="body"')[1].split("</textarea>")[0]
+        self.assertEqual(box.split(">", 1)[1].strip(), "")                # respuesta libre, en blanco
+
+    # 3. historial citado plegado
+    def test_quoted_history_is_split_from_the_new_message(self):
+        body = ("Hola, van las coordenadas.\nPC-01: E 1, N 2\n\nEl jue, 1 oct 2026 a las 17:59, Anka comercial ia (<\n"
+                "ankacomercialia@gmail.com>) escribió:\n> Hola Andrés, gracias\n> por la información")
+        fresh, quoted = web.split_quoted(body)
+        self.assertEqual(fresh, "Hola, van las coordenadas.\nPC-01: E 1, N 2")
+        self.assertIn("escribió:", quoted)
+        self.assertIn("> Hola Andrés", quoted)
+        self.assertEqual(web.split_quoted("Solo mensaje nuevo ▎ sin cita")[1], "")
+        self.assertEqual(web.split_quoted("A\nDe: x@y.com\nEnviado: ayer\ntexto")[0], "A")
+        self.assertEqual(web.split_quoted("A\n-----Original Message-----\nB")[1].startswith("-----"), True)
+
+    def test_conversation_folds_the_quoted_part(self):
+        self.sync({"m1": coded_mail(
+            "T1", "Ana <ana@acme.com>", self.t0 + 600,
+            "Les confirmo el datum.\n\nEl jue, 1 oct 2026 a las 17:59, Anka escribió:\n> pregunta anterior")})
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_case("T1")
+        self.assertIn("Mostrar el mensaje citado", page)
+        self.assertIn("Les confirmo el datum.", page)
+
+    # 4. «qué hacer hoy»
+    def test_summary_is_a_to_do_list_first(self):
+        self.set_status(QuoteStatus.REVIEW_PENDING)
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_index()
+        self.assertIn("Qué hacer hoy", page)
+        self.assertIn("Por aclarar con el cliente", page)
+        self.assertIn("Ver estadísticas", page)                           # las gráficas quedan plegadas
+        self.assertLess(page.index("Por aclarar con el cliente"), page.index("Ver estadísticas"))
+        self.set_status(QuoteStatus.WAITING)
+        with patch("web.load_config", return_value=CONFIG):
+            self.assertIn("No hay nada pendiente de tu parte", web._render_index())
+
+    # 5. encabezado
+    def test_header_hides_the_mode_picker_in_settings_and_the_useless_refresh_in_work(self):
+        from dashboard_views import render_page
+        work = render_page("t", "x", "", 0, "chatgpt_work")
+        local = render_page("t", "x", "", 0, "local")
+        self.assertIn("Ajustes", work)
+        self.assertNotIn("Actualizar correo", work)                       # en Work no hace nada
+        self.assertIn("Actualizar correo", local)
 
 
 if __name__ == "__main__":
