@@ -104,7 +104,7 @@ class MigrationTests(unittest.TestCase):
                     store.open_db(Path(d))
             check = sqlite3.connect(Path(d) / "quotes.sqlite3")
             try:
-                self.assertEqual(check.execute("PRAGMA user_version").fetchone()[0], 3)
+                self.assertEqual(check.execute("PRAGMA user_version").fetchone()[0], store.SCHEMA_VERSION)
                 tables = {r[0] for r in check.execute("SELECT name FROM sqlite_master")}
                 self.assertNotIn("half_done", tables)
             finally:

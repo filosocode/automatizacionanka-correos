@@ -77,7 +77,8 @@ class ApproveFolderTests(unittest.TestCase):
         self.assertIn("cliente nuevo", message)
 
     def test_new_client_flag_does_not_duplicate_an_existing_client(self):
-        self.approve(client_name="Minera Sur", new_client=True)
+        self.approve(client_name="Minera Sur", new_client=True,
+            allow_similar_project=False)
         self.assertEqual(len(self.drive.created), 1)
 
     def test_client_name_is_required_unless_a_person_already_set_it(self):
@@ -144,7 +145,8 @@ class ApproveRouteTests(unittest.TestCase):
 
     def test_form_fields_reach_approve_review_and_the_user_returns_to_the_case(self):
         sent, mock = self.post({"thread_id": "t-1", "client_name": "Minera+Sur", "new_client": "1"})
-        mock.assert_called_once_with("t-1", body_text=None, client_name="Minera Sur", new_client=True)
+        mock.assert_called_once_with("t-1", body_text=None, client_name="Minera Sur", new_client=True,
+            allow_similar_project=False)
         self.assertEqual(sent["status"], 303)
         self.assertTrue(sent["location"].startswith("/case?thread_id=t-1&message="))
 

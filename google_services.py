@@ -79,6 +79,14 @@ def list_folders(drive: Any, parent_id: str = "root") -> list[dict]:
             return sorted(folders, key=lambda f: f["name"].casefold())
 
 
+def list_file_names(drive: Any, parent_id: str) -> list[str]:
+    """Nombres de los archivos (no carpetas) directamente dentro de `parent_id`."""
+    escaped = parent_id.replace("\\", "\\\\").replace("'", "\\'")
+    query = f"'{escaped}' in parents and mimeType != '{FOLDER_MIME}' and trashed = false"
+    result = drive.files().list(q=query, fields="files(name)", pageSize=200).execute()
+    return [str(f["name"]) for f in result.get("files", [])]
+
+
 def ensure_folder(drive: Any, parent_id: str, name: str) -> dict:
     for folder in list_folders(drive, parent_id):
         if folder["name"] == name:

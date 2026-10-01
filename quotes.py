@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from datetime import datetime
@@ -17,7 +18,7 @@ from reception import (
     reception_assessment,
 )
 from logging_setup import get_logger
-from store import open_db, save
+from store import case_events, open_db, record_event, save
 
 log = get_logger(__name__)
 
@@ -278,6 +279,74 @@ def rescue_discarded(thread_id: str) -> str:
     return "Se reanalizará en la próxima revisión de Gmail."
 
 
+def delete_quotes(thread_ids: list[str]) -> str:
+    """Borra del dashboard los hilos indicados: solicitud, datos comerciales, novedades y paquete de revisión.
+
+    Solo toca la base local y `review_queue`; no modifica Gmail, Drive ni Notion.
+    """
+    ids = list(dict.fromkeys(thread_ids))
+    if not ids:
+        return "No seleccionaste ninguna solicitud."
+    marks = ",".join("?" * len(ids))
+    db = init_db()
+    try:
+        found = [row["thread_id"] for row in db.execute(
+            f"SELECT thread_id FROM quotes WHERE thread_id IN ({marks})", ids)]
+        if found:
+            found_marks = ",".join("?" * len(found))
+            for table in ("dashboard_notifications", "quote_metadata", "case_events", "quotes"):
+                db.execute(f"DELETE FROM {table} WHERE thread_id IN ({found_marks})", found)
+        db.commit()
+    finally:
+        db.close()
+    for thread_id in found:
+        review_packet_path(thread_id).unlink(missing_ok=True)
+    log.info("Eliminadas %d solicitud(es) del dashboard: %s", len(found), ", ".join(found))
+    if not found:
+        return "Las solicitudes seleccionadas ya no existían."
+    return f"Se eliminaron {len(found)} solicitud(es) del dashboard."
+
+
+def resolve_technical_review(thread_id: str, decision: str, questions_text: str = "") -> str:
+    """Una persona cierra la revisión técnica: pasa a información suficiente o pregunta al cliente.
+
+    Guarda la decisión en `analysis["manual_review"]` (quita el bloqueo técnico de la evaluación)
+    y mueve el estado. No envía nada. Si llega un mensaje nuevo en el hilo, el reanálisis
+    reemplaza el análisis y la decisión se descarta: lo nuevo se revisa otra vez.
+    """
+    if decision not in ("sufficient", "ask_client"):
+        raise ValueError("Decisión no válida.")
+    questions = [line.strip()[:500] for line in questions_text.splitlines() if line.strip()][:10]
+    if decision == "ask_client" and not questions:
+        raise ValueError("Escribe al menos una pregunta para el cliente (una por línea).")
+    db = init_db()
+    try:
+        row = db.execute(
+            "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError("La solicitud ya no existe.")
+        if row["status"] != QuoteStatus.REVIEW:
+            raise ValueError("Solo se puede decidir sobre casos en revisión técnica interna.")
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        analysis = _load_analysis(row["analysis_json"])
+        analysis["manual_review"] = {
+            "decision": decision, "at": now, "questions": questions if decision == "ask_client" else [],
+        }
+        new_status = QuoteStatus.READY_REVIEW if decision == "sufficient" else QuoteStatus.REVIEW_PENDING
+        db.execute(
+            "UPDATE quotes SET status=?, analysis_json=?, updated_at=? WHERE thread_id=?",
+            (new_status, json.dumps(analysis, ensure_ascii=False), now, thread_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+    log.info("%s: revisión técnica resuelta por una persona (%s)", thread_id, decision)
+    if decision == "sufficient":
+        return "Marcado como información suficiente. Ya puedes crear la carpeta del proyecto en Drive."
+    return "Listo: revisa y envía las preguntas en la sección Respuesta al cliente."
+
+
 def save_quote_metadata(thread_id: str, client_name: str, client_type: str,
                         sector: str, notes: str) -> None:
     if client_type not in CLIENT_TYPES:
@@ -339,6 +408,11 @@ def save_activities(thread_id: str, activities: list[dict]) -> str:
     finally:
         db.close()
     return f"Tabla guardada ({len(activities)} actividades)."
+
+
+_DASHBOARD_PROTECTED = frozenset({
+    QuoteStatus.READY, QuoteStatus.RESPONSE_SENT, QuoteStatus.SENDING,
+})
 
 
 def dashboard_upsert(payload_base64: str) -> None:
@@ -429,13 +503,27 @@ def dashboard_upsert(payload_base64: str) -> None:
             "is_forwarded": bool(payload.get("internal_sender")),
         },
     }
+    thread_id = payload["thread_id"]
+    message_id = payload.get("message_id") or thread_id
+    status = status_map.get(payload["status"], payload["status"])
     db = init_db()
     try:
-        save(
-            db, payload["thread_id"], payload.get("message_id") or payload["thread_id"],
-            status_map.get(payload["status"], payload["status"]),
-            payload.get("internal_sender") or payload["client_email"], analysis,
-        )
+        row = db.execute(
+            "SELECT status, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)
+        ).fetchone()
+        if row and row["status"] in _DASHBOARD_PROTECTED:
+            # un caso ya avanzado en el dashboard no retrocede por un borrador posterior
+            status = row["status"]
+        save(db, thread_id, message_id, status,
+             payload.get("internal_sender") or payload["client_email"], analysis)
+        version = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+        record_event(db, thread_id, "analysis", "work", version,
+                     f"Work analizó el caso: {payload['status']}.", payload.get("received_at", ""))
+        db.commit()
+        meta = db.execute(
+            "SELECT client_type, sector, client_name, notes FROM quote_metadata WHERE thread_id=?",
+            (thread_id,),
+        ).fetchone()
     finally:
         db.close()
     client_type = payload.get("client_type", "No clasificado")
@@ -444,10 +532,40 @@ def dashboard_upsert(payload_base64: str) -> None:
         client_type = "No clasificado"
     if sector not in SECTORS:
         sector = "No clasificado"
-    save_quote_metadata(
-        payload["thread_id"], payload.get("client_name", ""),
-        client_type, sector, payload.get("notes", ""),
-    )
+    client_name = str(payload.get("client_name", "")).strip()
+    notes = str(payload.get("notes", "")).strip()
+    if meta:  # lo que una persona ya fijó en el dashboard tiene prioridad sobre el borrador
+        if meta["client_type"] != "No clasificado":
+            client_type = meta["client_type"]
+        if meta["sector"] != "No clasificado":
+            sector = meta["sector"]
+        client_name = meta["client_name"] or client_name
+        notes = meta["notes"] or notes
+    save_quote_metadata(thread_id, client_name, client_type, sector, notes)
+
+
+def thread_events(thread_id: str) -> list[dict]:
+    """Seguimiento del caso, del más reciente al más antiguo."""
+    db = init_db()
+    try:
+        rows = case_events(db, thread_id)
+    finally:
+        db.close()
+    return [dict(row) for row in reversed(rows)]
+
+
+def change_marker() -> str:
+    """Cambia cuando se añade, edita o borra cualquier caso (para refrescar el dashboard)."""
+    db = init_db()
+    try:
+        row = db.execute(
+            "SELECT COUNT(*) AS n, MAX(COALESCE(updated_at, first_seen_at)) AS ts, "
+            "(SELECT COUNT(*) FROM dashboard_notifications WHERE read_at IS NULL) AS unread, "
+            "(SELECT COUNT(*) || MAX(recorded_at) FROM case_events) AS ev FROM quotes"
+        ).fetchone()
+    finally:
+        db.close()
+    return f"{row['n']}|{row['ts'] or ''}|{row['unread']}|{row['ev']}"
 
 
 def pending_reviews() -> list[dict]:

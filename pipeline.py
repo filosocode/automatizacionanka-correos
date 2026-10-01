@@ -15,10 +15,12 @@ from status import (
     QuoteStatus,
 )
 import settings
+from work_heartbeat import bridge_state
 from logging_setup import SENSITIVE, get_logger
 from drive_layout import (
     AmbiguousClient, ClientNotFound, create_project_folder, year_mismatch,
 )
+from drive_contents import populate_project_folder
 from google_services import services
 from mail import (
     candidate_thread_ids, create_reply_draft, extract_message_attachments,
@@ -126,14 +128,9 @@ def sync_status_text() -> str:
     except SystemExit:
         return "Sin configuración de motor."
     if mode == "chatgpt_work":
-        status = codex_automation_status()
-        state = {"ACTIVE": "activa", "PAUSED": "pausada"}.get(status or "", "no encontrada")
         last = latest_case_activity()
         tail = f" Último caso actualizado: {last[:16].replace('T', ' ')} ({_ago(last)})." if last else ""
-        return (
-            f"Motor ChatGPT Work: la automatización está {state} ({automation_interval_label()})."
-            + tail
-        )
+        return "Motor ChatGPT Work. " + bridge_state()[1] + tail
     label = "Ollama" if mode == "local" else "API de OpenAI"
     last_check = read_last_check()
     if last_check:
@@ -311,7 +308,7 @@ def apply_decision(
         save(db, thread_id, last["id"], d.status, recipient, d.analysis,
              sent_message_id=sent_id)
     elif d.action is Action.FOLDER:
-        _create_project_folder_or_hold(ctx, thread_id, last, recipient, d)
+        _create_project_folder_or_hold(ctx, thread_id, last, recipient, d, thread)
     elif d.action is Action.GMAIL_DRAFT:
         save(db, thread_id, last["id"], d.status, recipient, d.analysis,
              sent_message_id=draft_id)
@@ -356,7 +353,7 @@ def _confirmed_client(db: sqlite3.Connection, thread_id: str, analysis: dict, re
 
 
 def _create_project_folder_or_hold(
-    ctx: RunContext, thread_id: str, last: dict, recipient: str, d: Decision,
+    ctx: RunContext, thread_id: str, last: dict, recipient: str, d: Decision, thread: dict,
 ) -> None:
     """Crea `Año/Cliente/Solicitud` solo si el cliente es seguro; si no, lo deja para una persona.
 
@@ -392,6 +389,13 @@ def _create_project_folder_or_hold(
     d.analysis.pop("drive", None)
     save(db, thread_id, last["id"], d.status, recipient, d.analysis, folder_id=folder["id"])
     log.info("%s: carpeta creada/encontrada: %s", thread_id, folder["id"])
+    try:
+        quote = {"thread_id": thread_id, "analysis": d.analysis, "status": d.status}
+        report = populate_project_folder(
+            ctx.gmail, ctx.drive, thread, folder["id"], quote, ctx.account_addresses)
+        log.info("%s: %s", thread_id, report.summary())
+    except Exception:
+        log.exception("%s: no se pudo llenar la carpeta de Drive", thread_id)
 
 
 def _skip_reason(row: Sequence[Any] | None, last_id: str, gmail_drafts: bool) -> str | None:

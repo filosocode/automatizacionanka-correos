@@ -1,0 +1,64 @@
+PUENTE GMAIL → DASHBOARD LOCAL
+
+No reemplaza app.py, pipeline.py, web.py, quotes.py ni settings.py.
+Copiar work_dashboard_sync.py a D:\Automatizacion_Correos.
+En la terminal con .venv activo ejecutar:
+python .\work_dashboard_sync.py --once
+Para mantenerlo activo:
+python .\work_dashboard_sync.py --seconds 60
+El equipo y el proceso deben permanecer activos. Ctrl+C lo detiene.
+Usa la autorización Google y DATA_DIR existentes. Nunca envía, elimina ni modifica borradores.
+Los borradores anteriores sin bloque JSON no se importan. 0 actualizados no es un error.
+No cambia la tarea de ChatGPT: debes añadir las instrucciones de abajo a UNA tarea.
+No actives dos tareas que creen borradores para el mismo evento. Identifica primero la otra tarea.
+No hay pruebas con tu cuenta Windows realizadas desde ChatGPT.
+
+AÑADIR A LAS INSTRUCCIONES DE LA TAREA ACTUAL
+
+Sincronización del dashboard mediante borrador Gmail:
+En cada borrador preparado para revisión, dentro de la sección interna inicial
+[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]
+incluye un único bloque de JSON válido, sin Markdown ni comentarios, delimitado exactamente por:
+[ANKA_DASHBOARD_JSON_V1]
+{JSON del análisis}
+[/ANKA_DASHBOARD_JSON_V1]
+Después conserva el correo limpio para el cliente. El bloque completo se borra antes de enviar.
+Nunca copies bloques de correos citados. Si actualizas un borrador, sustituye el bloque previo.
+No envíes notificaciones ni correos para transportar el JSON.
+El JSON tiene:
+thread_id: hilo real del borrador.
+message_id: ID del mensaje del cliente analizado (no ID del borrador).
+status: una etiqueta compatible: Borrador preparado, Faltan datos,
+Requiere revisión técnica interna o Información suficiente para revisión interna.
+client_email: correo real del contacto verificado; si solo está verificado el remitente,
+usa su correo y aclara la identidad comercial pendiente en summary.
+client_name, project_name, summary, received_at (ISO 8601), gmail_url, engine="chatgpt_work".
+activities: lista de objetos con activity, servicio_tecnica, ubicacion, quantity, unit,
+entregable, plazo_restriccion, fuente, estado, notes.
+missing_data: lista de textos distinguiendo crítico/recomendable.
+attachments: lista de objetos filename, status, reason, blocked_fields (lista).
+contradictions: lista de objetos topic, details, sources (lista), status.
+scope_dependencies: lista de objetos description, source, status.
+Datos ausentes: no indicado. No inventar IDs, contactos, enlaces ni requisitos.
+En alcance completo, prepara un borrador interno para revisión en el mismo hilo con este bloque;
+no lo envíes y no crees carpetas. El estado es Información suficiente para revisión interna.
+Para publicidad y notificaciones automáticas no crees borradores de sincronización.
+Las respuestas nuevas se procesan aunque el thread_id exista; solo repetir el mismo message_id
+ya procesado es una repetición del evento. Actualizar el caso por thread_id.
+No afirmes que el dashboard se actualizó: indica JSON preparado; sincronización local pendiente.
+
+PRUEBA
+1. Ejecutar --once: verifica cuenta, permisos y módulos.
+2. Añadir el texto anterior a la tarea y usar un nuevo correo de prueba elegible.
+3. Confirmar que el borrador tiene el bloque JSON dentro de la sección interna.
+4. Ejecutar --once y comprobar Dashboard actualizado: <thread_id>.
+5. Recargar dashboard y verificar actividades y preguntas.
+6. Ejecutar --once de nuevo: debería mostrar 0 actualizados para el mismo contenido.
+7. Dejar --seconds 60 activo para las siguientes solicitudes.
+
+LIMITACIONES
+Si el borrador se envía o elimina antes de importar, el proceso no lo encontrará.
+JSON inválido o hilo incorrecto no se importa. Los errores no se marcan como procesados.
+La base de datos y sus escrituras siguen usando dashboard_upsert existente.
+El estado mostrado por sync_status_text sigue describiendo la automatización anterior;
+este paquete no cambia ese indicador. El terminal confirma la sincronización real.

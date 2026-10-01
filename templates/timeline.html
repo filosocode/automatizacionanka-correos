@@ -1,0 +1,9 @@
+<section class="section">
+  <div class="section-head"><h2>Seguimiento</h2><span class="badge info">Dashboard, Gmail y Work</span></div>
+  {% if events %}
+  <ul class="timeline">
+    {% for event in events %}<li><span class="meta">{{ event.when }} · {{ event.origin }}</span> {{ event.summary }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="meta">Aún no hay hechos registrados para este caso.</p>{% endif %}
+</section>

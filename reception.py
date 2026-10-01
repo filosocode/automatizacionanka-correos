@@ -182,7 +182,8 @@ def reception_assessment(analysis: dict) -> dict:
         item.get("status") == "bloqueado"
         for item in analysis.get("attachments", []) if isinstance(item, dict)
     )
-    if issues or blocked or not activities:
+    reviewed = bool(analysis.get("manual_review"))  # una persona ya resolvió la revisión técnica
+    if (not reviewed and (issues or blocked)) or not activities:
         status = "technical_review"
         label = "Requiere revisión técnica interna"
         reason = "Hay documentos no legibles, dependencias, contradicciones o una solicitud que necesita interpretación humana."
@@ -379,6 +380,7 @@ def suggested_supporting_documents(analysis: dict) -> list[str]:
 
 def suggested_reply(analysis: dict, required_fields: list[str] | None = None) -> str:
     questions = reception_questions(analysis, required_fields or [])
+    questions += (analysis.get("manual_review") or {}).get("questions", [])
     documents = suggested_supporting_documents(analysis)
     forwarded = analysis.get("routing", {}).get("is_forwarded", False)
     if questions:

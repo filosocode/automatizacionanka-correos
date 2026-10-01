@@ -27,6 +27,7 @@ ACTIVE_MODES = {"local", "api", "chatgpt_work"}
 KNOWN_CONFIG_KEYS = {
     "active_mode", "gmail_query", "own_addresses", "forwarded_reply_policy", "llm",
     "required_fields", "commercial_filter_terms", "drive_parent_id", "folder_prefix",
+    "work_sync_account",
 }
 FORWARDED_POLICIES = {"internal_reviewer", "original_sender"}
 PROVIDERS = {"ollama", "openai"}
@@ -43,7 +44,7 @@ def validate_config(config: dict) -> list[str]:
     if mode not in ACTIVE_MODES:
         problems.append("active_mode debe ser 'local', 'api' o 'chatgpt_work'.")
 
-    for key in ("gmail_query", "drive_parent_id", "folder_prefix"):
+    for key in ("gmail_query", "drive_parent_id", "folder_prefix", "work_sync_account"):
         if key in config and not isinstance(config[key], str):
             problems.append(f"{key} debe ser texto.")
     for key in ("own_addresses", "commercial_filter_terms"):

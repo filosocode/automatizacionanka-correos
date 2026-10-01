@@ -111,6 +111,12 @@ main { width: min(1240px, 100%); margin: 0 auto; padding: 28px 24px 48px; }
   border-radius: 8px;
 }
 .case-row { grid-template-columns: minmax(180px, 1.4fr) 1fr 160px 130px auto; align-items: center; }
+.case-row[data-selectable] { grid-template-columns: 24px minmax(180px, 1.4fr) 1fr 160px 130px auto; }
+.row-check, .check-all input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.bulk-bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
+.check-all { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
+button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+button.danger:disabled { opacity: .45; cursor: not-allowed; }
 .case-row .button { min-height: 36px; padding: 8px 11px; justify-content: center; }
 .meta { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
 .badge {
@@ -219,7 +225,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
   .button, button { width: 100%; justify-content: center; }
   .mode-form button { width: auto; }
   .kpis, .dashboard-grid { grid-template-columns: 1fr 1fr; }
-  .case-row, .filters { grid-template-columns: 1fr; }
+  .case-row, .case-row[data-selectable], .filters { grid-template-columns: 1fr; }
   .notification { grid-template-columns: 12px minmax(0, 1fr); }
   .notification .button { grid-column: 1 / -1; }
   .process { grid-template-columns: 1fr 1fr; }
@@ -229,3 +235,11 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 @media (max-width: 460px) {
   .kpis, .dashboard-grid { grid-template-columns: 1fr; }
 }
+
+.bridge-chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #e5e7eb; color: #374151; cursor: help; }
+.bridge-chip[data-state="ok"] { background: #dcfce7; color: #166534; }
+.bridge-chip[data-state="error"] { background: #fef3c7; color: #92400e; }
+.bridge-chip[data-state="stopped"], .bridge-chip[data-state="never"] { background: #fee2e2; color: #991b1b; }
+[hidden] { display: none !important; }
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.timeline li { padding-left: 12px; border-left: 3px solid #cfd8dc; }

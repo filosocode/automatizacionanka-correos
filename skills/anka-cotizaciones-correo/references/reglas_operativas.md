@@ -10,7 +10,7 @@ Estas reglas valen **igual en los tres modos** de operación:
 
 Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actualizan el código y la skill. Las pruebas `test_paridad_modos.py` fallan si alguno de los tres se separa. El procedimiento completo está en `ESTANDAR_CAMBIOS.md`.
 
-**Versión de las reglas: 1**
+**Versión de las reglas: 4**
 
 ## Reglas
 
@@ -21,9 +21,11 @@ Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actua
 | R3 | Todo descarte guarda su motivo y puede revisarse y rescatarse por una persona. |
 | R4 | La estructura de Drive es `{año}/{cliente}/{solicitud}`. La carpeta padre configurada es la del año vigente. No se crean carpetas si la solicitud es de un año distinto al de la carpeta padre. |
 | R5 | Los clientes se comparan sin importar mayúsculas, tildes ni sufijos societarios al final (S.A.S., Ltda., S.A., Inc., Corp., etc.). Si exactamente una carpeta de cliente coincide, se reutiliza; si hay varias parecidas, decide una persona. |
-| R6 | Nunca se crea una carpeta de cliente nueva sin confirmación de una persona. |
+| R6 | Nunca se crea una carpeta de cliente nueva sin confirmación de una persona (la única excepción es R9). |
 | R7 | La carpeta del proyecto solo se crea sola con un cliente confirmado (por una persona, en este hilo o en otro hilo del mismo remitente) cuya carpeta ya existe. Si no, el caso queda esperando aprobación. |
 | R8 | Los correos al cliente siempre son borradores con revisión humana, hasta que la medición con correos reales justifique otra cosa. |
+| R9 | Cuando una persona envía desde el dashboard la respuesta de un caso con información suficiente, la carpeta del proyecto se crea sola con el cliente que ya tiene el caso (el confirmado por una persona o el del mismo remitente). Si ese cliente no tiene carpeta y no existe ninguna igual ni parecida, se crea también la carpeta del cliente. Si hay una carpeta de cliente parecida, o una solicitud del cliente con nombre parecido o con el mismo archivo adjunto, no se crea nada y decide una persona. Esto lo hace el dashboard (Python) igual en los tres modos; ChatGPT Work nunca crea carpetas. |
+| R10 | Al crear la carpeta del proyecto se llena con el contenido de la plantilla de Drive: toda la documentación que envió el cliente (PDF, Word, Excel, KMZ, KML, DWG, shapefile, imágenes y demás adjuntos; solo se omiten los logos incrustados en firmas) y una hoja de Google con la tabla de actividades. No se pisa ningún archivo existente y un fallo al copiar no deshace la carpeta. Lo hace el código Python (dashboard y piloto); ChatGPT Work no crea ni llena carpetas. El PDF de alcance generado con el resumen queda pendiente. |
 
 ## Bloque legible por máquina
 
@@ -31,7 +33,7 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
 
 ```json reglas
 {
-  "version": 1,
+  "version": 4,
   "descarte": {
     "senales": ["remitente_no_reply", "list_unsubscribe", "auto_submitted", "precedence_masivo", "spam_gmail"],
     "requiere_todos_los_mensajes": true,
@@ -53,7 +55,9 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
     "R5": "sin importar mayúsculas, tildes ni sufijos societarios",
     "R6": "nunca crees una carpeta de cliente nueva sin confirmación",
     "R7": "la carpeta del proyecto solo se crea con un cliente confirmado",
-    "R8": "los correos al cliente siempre son borradores"
+    "R8": "los correos al cliente siempre son borradores",
+    "R9": "al enviar la respuesta desde el dashboard",
+    "R10": "se llena con el contenido de la plantilla de Drive"
   }
 }
 ```

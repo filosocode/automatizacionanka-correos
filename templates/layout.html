@@ -13,18 +13,48 @@
     <div class="brand"><span class="brand-mark">A</span><div><strong>Anka</strong><span>Inteligencia comercial</span></div></div>
     <nav><a href="/">Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests">Solicitudes</a><a href="/discarded">Descartadas</a></nav>
     <div class="toolbar">
+      <span id="bridge-chip" class="bridge-chip" hidden></span>
       {{ mode_selector }}
       <form method="post" action="/refresh">
         <button type="submit">Actualizar correo</button>
       </form>
     </div>
   </header>
+  <div id="fresh-banner" class="notice" hidden>Hay cambios nuevos. <a href="#" id="fresh-reload">Recargar</a></div>
   <main>{% if message %}<div class='notice'>{{ message }}</div>{% endif %}{{ body }}</main>
   <script>
     document.addEventListener('click', event => {
       const button = event.target.closest('[data-confirm]');
       if (button && !confirm(button.dataset.confirm)) event.preventDefault();
     });
+    (function () {
+      let base = null, dirty = false;
+      const chip = document.getElementById('bridge-chip');
+      document.addEventListener('input', () => { dirty = true; });
+      document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); });
+      async function poll() {
+        try {
+          const r = await fetch('/state', {cache: 'no-store'});
+          if (!r.ok) return;
+          const s = await r.json();
+          if (s.bridge) {
+            chip.hidden = false;
+            chip.dataset.state = s.bridge;
+            chip.title = s.text;
+            chip.textContent = {ok: 'Puente activo', error: 'Puente con avisos',
+                                stopped: 'Puente detenido', never: 'Puente sin iniciar'}[s.bridge];
+          } else { chip.hidden = true; }
+          if (base === null) base = s.v;
+          else if (s.v !== base) {
+            if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
+              document.getElementById('fresh-banner').hidden = false;
+            } else location.reload();
+          }
+        } catch (e) { /* servidor local cerrado: se reintenta */ }
+      }
+      poll();
+      setInterval(poll, 20000);
+    })();
   </script>
 </body>
 </html>

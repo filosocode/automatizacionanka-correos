@@ -54,12 +54,28 @@ def _migration_3_notifications(db: sqlite3.Connection) -> None:
     )""")
 
 
+def _migration_4_case_events(db: sqlite3.Connection) -> None:
+    """Seguimiento de cada caso: qué pasó, cuándo y desde dónde (dashboard, Gmail o Work)."""
+    db.execute("""CREATE TABLE IF NOT EXISTS case_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        thread_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        source TEXT NOT NULL,
+        ref TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        UNIQUE(thread_id, kind, ref)
+    )""")
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
     _migration_1_quotes,
     _migration_2_quote_metadata,
     _migration_3_notifications,
+    _migration_4_case_events,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -148,6 +164,23 @@ def add_dashboard_notification(db: sqlite3.Connection, thread_id: str, kind: str
                   (thread_id, kind, source_key, title, message, created_at)
                   VALUES (?, ?, ?, ?, ?, ?)""",
                (thread_id, kind, source_key, title, message, now))
+
+
+def record_event(db: sqlite3.Connection, thread_id: str, kind: str, source: str, ref: str,
+                 summary: str, occurred_at: str = "") -> bool:
+    """Anota un hecho del caso. Repetirlo (mismo hilo, tipo y referencia) no duplica; True si es nuevo."""
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    cursor = db.execute("""INSERT OR IGNORE INTO case_events
+                  (thread_id, kind, source, ref, summary, occurred_at, recorded_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (thread_id, kind, source, ref, summary, occurred_at or now, now))
+    return cursor.rowcount > 0
+
+
+def case_events(db: sqlite3.Connection, thread_id: str) -> list[sqlite3.Row]:
+    return db.execute(
+        "SELECT kind, source, summary, occurred_at FROM case_events "
+        "WHERE thread_id=? ORDER BY occurred_at, id", (thread_id,)).fetchall()
 
 
 def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, recipient: str,

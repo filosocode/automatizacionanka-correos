@@ -4,6 +4,11 @@
   <label>Estado<select id="status"><option value="">Todos</option>{% for key, label in status_options %}<option value='{{ key }}'>{{ label }}</option>{% endfor %}</select></label>
   <label>Tipo de cliente<select id="client-type"><option value="">Todos</option>{% for value in type_options %}<option value='{{ value }}'>{{ value }}</option>{% endfor %}</select></label>
 </div>
+<form id="bulk-delete" method="post" action="/delete" class="bulk-bar">
+  <label class="check-all"><input id="select-all" type="checkbox"> Seleccionar todas las visibles</label>
+  <span id="selected-count" class="meta">0 seleccionadas</span>
+  <button id="delete-btn" class="danger" type="submit" disabled data-confirm="¿Eliminar los hilos seleccionados, completos? Se borran del dashboard y, si ya tienen carpeta de proyecto, esa carpeta se mueve a la papelera de Drive (recuperable ~30 días). No se toca Gmail ni las carpetas de cliente.">Eliminar seleccionadas</button>
+</form>
 <div id="requests" class="grid">{% if rows %}{% for row in rows %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todavía no hay solicitudes registradas.</div>{% endif %}</div>
 <div id="no-results" class="empty" hidden>No hay solicitudes con esos filtros.</div>
 <script>
@@ -24,4 +29,23 @@ function filterRows() {
   document.querySelector('#no-results').hidden = visible !== 0;
 }
 [search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', filterRows));
+const checks = [...document.querySelectorAll('.row-check')];
+const selectAll = document.querySelector('#select-all');
+const deleteBtn = document.querySelector('#delete-btn');
+function updateSelection() {
+  const picked = checks.filter(c => c.checked).length;
+  document.querySelector('#selected-count').textContent = picked + (picked === 1 ? ' seleccionada' : ' seleccionadas');
+  deleteBtn.disabled = picked === 0;
+}
+selectAll.addEventListener('change', () => {
+  checks.forEach(c => { if (!c.closest('.case-row').hidden) c.checked = selectAll.checked; });
+  updateSelection();
+});
+checks.forEach(c => c.addEventListener('change', updateSelection));
+// una casilla oculta por el filtro no debe borrarse sin que se vea
+[search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', () => {
+  checks.forEach(c => { if (c.closest('.case-row').hidden) c.checked = false; });
+  selectAll.checked = false;
+  updateSelection();
+}));
 </script>

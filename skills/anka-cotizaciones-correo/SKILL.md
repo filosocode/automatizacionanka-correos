@@ -34,7 +34,7 @@ Considera candidato cuando el correo pida cotizar, presupuestar, proponer, valor
 
 Descarta o deja en revision los casos que sean publicidad, mensajes administrativos, notificaciones automaticas, duplicados evidentes, o solicitudes sin relacion con servicios de Anka.
 
-## Reglas operativas (versión 1)
+## Reglas operativas (versión 4)
 
 Estas reglas son idénticas en los tres modos (Ollama, API y ChatGPT Work) y viven en [reglas_operativas.md](references/reglas_operativas.md), que es la fuente única. Si algo aquí difiere de ese archivo, prevalece ese archivo; avisa para corregir esta skill. Detalle y ejemplos: [casos_prueba.md](references/casos_prueba.md).
 
@@ -46,6 +46,8 @@ Estas reglas son idénticas en los tres modos (Ollama, API y ChatGPT Work) y viv
 - **R6 · Cliente nuevo.** Nunca crees una carpeta de cliente nueva sin confirmación de una persona.
 - **R7 · Carpeta del proyecto.** La carpeta del proyecto solo se crea con un cliente confirmado (por una persona, en este hilo o en otro del mismo remitente) cuya carpeta ya existe. Si no, deja el caso esperando aprobación y di qué falta.
 - **R8 · Correos.** Los correos al cliente siempre son borradores con revisión humana; no envíes sin aprobación.
+- **R9 · Carpeta al enviar.** La carpeta del proyecto se crea sola al enviar la respuesta desde el dashboard, no desde esta skill: tú nunca creas carpetas. Para que el dashboard pueda hacerlo, deja el nombre del cliente en `client_name` cuando lo conozcas y no lo inventes. Si hay una carpeta de cliente o una solicitud parecida, el dashboard no crea nada y decide una persona.
+- **R10 · Contenido de la carpeta.** Al crear la carpeta del proyecto se llena con el contenido de la plantilla de Drive: toda la documentación que envió el cliente (cualquier tipo de adjunto) y una hoja con la tabla de actividades. Lo hace el dashboard, no esta skill; tú solo registra bien los adjuntos y las actividades para que ese contenido sea correcto.
 
 ## Datos faltantes frecuentes
 

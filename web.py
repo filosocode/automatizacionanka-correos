@@ -6,6 +6,7 @@ from collections import Counter
 from collections.abc import Iterable
 from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
 import os
 import re
 import secrets
@@ -37,9 +38,10 @@ from logging_setup import get_logger
 from settings import load_config
 from templating import render
 
-from case_actions import approve_review, resolve_case_recipient, save_dashboard_draft, send_dashboard_reply
+from case_actions import approve_review, delete_cases, resolve_case_recipient, save_dashboard_draft, send_dashboard_reply
 from pipeline import checked_run, describe_check, sync_status_text
-from quotes import CLIENT_TYPES, discarded_quotes, rescue_discarded, SECTORS, STATUS_LABELS, all_quotes, get_quote, mark_notifications_read, save_activities, save_quote_metadata, unread_notifications
+from work_heartbeat import bridge_state
+from quotes import change_marker, CLIENT_TYPES, resolve_technical_review, discarded_quotes, rescue_discarded, SECTORS, STATUS_LABELS, all_quotes, get_quote, thread_events, mark_notifications_read, save_activities, save_quote_metadata, unread_notifications
 
 log = get_logger(__name__)
 
@@ -106,12 +108,12 @@ def _render_index(message: str = "") -> str:
     return _page("Resumen comercial", body, message)
 
 
-def _quote_row(quote: dict, is_new: bool = False) -> Markup:
+def _quote_row(quote: dict, is_new: bool = False, selectable: bool = False) -> Markup:
     project = quote["analysis"].get("project_name") or "Solicitud sin nombre"
     services = ", ".join(quote["services"]) or "Servicio por clasificar"
     return render(
         "quote_row.html",
-        project=project, services=services, is_new=is_new,
+        project=project, services=services, is_new=is_new, selectable=selectable,
         search=(project + " " + quote["client_name"] + " " + services).casefold(),
         status=quote["status"], client_type=quote["client_type"],
         client_name=quote["client_name"], sector=quote["sector"],
@@ -122,12 +124,21 @@ def _quote_row(quote: dict, is_new: bool = False) -> Markup:
     )
 
 
+def _manual_review_note(manual: dict | None) -> str:
+    if not manual:
+        return ""
+    when = (manual.get("at") or "")[:16].replace("T", " ")
+    action = ("la marcó como información suficiente" if manual.get("decision") == "sufficient"
+              else "decidió preguntar al cliente")
+    return f"Una persona revisó este caso y {action} ({when})."
+
+
 def _render_requests(message: str = "") -> str:
     quotes = all_quotes()
     unread_threads = {item["thread_id"] for item in unread_notifications(100)}
     body = render(
         "requests.html",
-        rows=[_quote_row(quote, quote["thread_id"] in unread_threads) for quote in quotes],
+        rows=[_quote_row(quote, quote["thread_id"] in unread_threads, selectable=True) for quote in quotes],
         status_options=list(STATUS_LABELS.items()),
         type_options=CLIENT_TYPES,
     )
@@ -217,7 +228,11 @@ def _render_case(thread_id: str, message: str = "") -> str:
         email = "technical"
     else:
         email = "unavailable"
-    sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT
+    events = thread_events(thread_id)
+    # «Enviada» se cumple venga el envío del dashboard, de Gmail o de Work.
+    sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT or any(
+        event["kind"] == "sent" for event in events)
+    no_reply_needed = review["status"] in {QuoteStatus.READY, QuoteStatus.IGNORED}
     body = render(
         "case.html",
         review=review, thread_id=thread_id,
@@ -226,7 +241,7 @@ def _render_case(thread_id: str, message: str = "") -> str:
         service_family=assessment.get("service_family", "Por clasificar"),
         suggestion_complete=review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING},
         draft_complete=bool(review["draft_id"] or sent_complete),
-        sent_complete=sent_complete,
+        sent_complete=sent_complete, no_reply_needed=no_reply_needed,
         assessment_panel=_reception_assessment_panel(assessment),
         client_types=CLIENT_TYPES, sectors=SECTORS,
         internal_context=_internal_context_panel(review["client_name"]),
@@ -236,8 +251,17 @@ def _render_case(thread_id: str, message: str = "") -> str:
         email=email, email_body=email_body, recipient_error=recipient_error,
         sufficient=assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
+        can_resolve=review["status"] == QuoteStatus.REVIEW,
+        manual_review=_manual_review_note(analysis.get("manual_review")),
+        timeline=render("timeline.html", events=[
+            {**event, "when": event["occurred_at"][:16].replace("T", " "),
+             "origin": SOURCE_LABELS.get(event["source"], event["source"])}
+            for event in events]),
     )
     return _page("Revisar caso", body, message)
+
+
+SOURCE_LABELS = {"dashboard": "Dashboard", "gmail": "Gmail", "work": "ChatGPT Work"}
 
 
 CSRF_TOKEN = secrets.token_urlsafe(32)
@@ -302,6 +326,19 @@ class ReviewHandler(BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
         if parsed.path == "/":
             self._send_html(_render_index(query.get("message", [""])[0]))
+        elif parsed.path == "/state":
+            try:
+                work = load_config().get("active_mode") == "chatgpt_work"
+            except (SystemExit, OSError, ValueError):
+                work = False
+            state, text = bridge_state() if work else ("", "")
+            data = json.dumps({"v": change_marker(), "bridge": state, "text": text}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         elif parsed.path == "/export.xlsx":
             thread_id = query.get("thread_id", [""])[0]
             quotes = [get_quote(thread_id)] if thread_id else all_quotes()
@@ -356,6 +393,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
                         thread_id, body_text=body,
                         client_name=form.get("client_name", [None])[0],
                         new_client=form.get("new_client", [""])[0] == "1",
+                        allow_similar_project=form.get("allow_similar", [""])[0] == "1",
                     )
                 except SystemExit as exc:  # orientación para la persona, no un fallo del servidor
                     message = str(exc)
@@ -406,6 +444,20 @@ class ReviewHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/rescue":
                 message = rescue_discarded(form.get("thread_id", [""])[0])
                 self._redirect("/discarded?message=" + urllib.parse.quote(message))
+            elif parsed.path == "/review-decision":
+                thread_id = form.get("thread_id", [""])[0]
+                try:
+                    message = resolve_technical_review(
+                        thread_id, form.get("decision", [""])[0], form.get("questions", [""])[0])
+                except ValueError as exc:  # orientación para la persona, no un fallo del servidor
+                    message = str(exc)
+                self._redirect(
+                    "/case?thread_id=" + urllib.parse.quote(thread_id)
+                    + "&message=" + urllib.parse.quote(message)
+                )
+            elif parsed.path == "/delete":
+                message = delete_cases(form.get("thread_id", []))
+                self._redirect("/requests?message=" + urllib.parse.quote(message))
             elif parsed.path == "/notifications/read":
                 mark_notifications_read()
                 self._redirect("/?message=" + urllib.parse.quote("Novedades marcadas como revisadas."))
