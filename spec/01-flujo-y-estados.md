@@ -49,4 +49,4 @@ stateDiagram-v2
    el estado (la carpeta sigue pendiente).
 5. **Un correo enviado desde Gmail mueve el caso igual que si se enviara desde el dashboard** (`review_pending` y
    `sending` → `waiting`; `draft_created` → `response_sent`).
-6. Cualquier cambio a esta tabla empieza en `transiciones.json`; `test_transiciones.py` ejecuta todas las filas.
+6. Cualquier cambio a esta tabla empieza en `transiciones.json`; `tests/test_transiciones.py` ejecuta todas las filas.

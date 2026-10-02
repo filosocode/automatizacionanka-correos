@@ -1,5 +1,5 @@
 {
-  "descripcion": "Transiciones de estado de un caso en el dashboard (fuente de verdad). Cada fila dice: ante este evento, desde estos estados, el caso queda en `hacia` («igual» = no cambia, «error» = el sistema lo rechaza). test_transiciones.py ejecuta todas las filas contra el código real: si una cambia, cambia aquí primero (ver spec/01-flujo-y-estados.md y ESTANDAR_CAMBIOS.md).",
+  "descripcion": "Transiciones de estado de un caso en el dashboard (fuente de verdad). Cada fila dice: ante este evento, desde estos estados, el caso queda en `hacia` («igual» = no cambia, «error» = el sistema lo rechaza). tests/test_transiciones.py ejecuta todas las filas contra el código real: si una cambia, cambia aquí primero (ver spec/01-flujo-y-estados.md y ESTANDAR_CAMBIOS.md).",
   "estados": {
     "review_pending": "Requiere aclaraciones (faltan datos; hay preguntas por enviar)",
     "review": "Revisión técnica interna (una persona debe decidir)",

@@ -5,6 +5,7 @@ cambian una regla también cambian `reglas_operativas.md` y suben su versión.
 
 | Id | Fecha | Decisión | Por qué | Se descartó |
 |---|---|---|---|---|
+| D-15 | 2026-10-01 | El código se organiza en el paquete `anka/` con cinco capas y una prueba que fija las reglas de dependencia; las pruebas pasan a `tests/` y la documentación a `docs/`. | Una raíz con 57 archivos y módulos de 1.000 líneas que lo mezclaban todo volvían caro cada cambio. | Mantener todo plano y confiar en la disciplina. |
 | D-14 | 2026-10-01 | Adoptar desarrollo guiado por especificaciones: `spec/` como fuente de verdad, requisitos con id, etiquetas `Cubre:` y `check_spec.py` en el CI. | Los fallos del piloto nacieron donde el comportamiento no estaba escrito (estados, contrato con Work). | Herramientas de BDD o generadores: pesan más de lo que aportan. |
 | D-13 | 2026-10-01 | El contrato con Work es un esquema JSON validado por el puente, con un validador propio. | Un estado sin tildes dejó sin importar un borrador; el contrato debe ser ejecutable. | Añadir la dependencia `jsonschema` (el CI instala con hashes). |
 | D-12 | 2026-10-01 | Un solo clic produce un correo: botón bloqueado, caso que lo dice y rechazo del mismo texto en 15 minutos. | Un envío doble real al cliente de prueba. | Solo mensajes de éxito. |

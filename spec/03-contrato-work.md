@@ -3,7 +3,7 @@
 La tarea de ChatGPT Work no ejecuta código de este repositorio: analiza los correos y deja en Gmail un **borrador**
 cuyo texto interno lleva un bloque JSON. El puente (`work_dashboard_sync.py`) lo lee y lo importa al dashboard.
 Requisito: **T-02**. La definición formal es [`contrato_work.schema.json`](contrato_work.schema.json): se valida en el
-puente y en `test_contrato_work.py`.
+puente y en `tests/test_contrato_work.py`.
 
 ## El borrador
 ```
@@ -37,6 +37,6 @@ de cada actividad sigue R12.
 
 ## Cambiar el contrato
 1. Edita el esquema (y este documento si cambia el sentido).
-2. Actualiza `docs/INSTRUCCIONES.txt` (lo que se pega en la tarea de ChatGPT): `test_contrato_work.py` falla si un campo del
+2. Actualiza `docs/INSTRUCCIONES.txt` (lo que se pega en la tarea de ChatGPT): `tests/test_contrato_work.py` falla si un campo del
    esquema no está documentado ahí.
 3. Actualiza la skill de Work (`SKILL.md`) y repite la prueba manual (`docs/PILOTO_ACEPTACION.md`).

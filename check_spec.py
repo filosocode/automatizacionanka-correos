@@ -22,7 +22,7 @@ SPEC = ROOT / "spec"
 RULES = ROOT / "skills" / "anka-cotizaciones-correo" / "references" / "reglas_operativas.md"
 REQUIRED_FILES = (
     "spec/README.md", "spec/00-alcance.md", "spec/01-flujo-y-estados.md", "spec/02-reglas.md",
-    "spec/03-contrato-work.md", "spec/04-ux.md", "spec/05-decisiones.md", "spec/requisitos.md",
+    "spec/03-contrato-work.md", "spec/04-ux.md", "spec/05-decisiones.md", "spec/06-arquitectura.md", "spec/requisitos.md",
     "spec/transiciones.json", "spec/contrato_work.schema.json",
 )
 HEADING = re.compile(r"^### ([A-Z0-9]+-\d+) · ", re.MULTILINE)
@@ -44,7 +44,7 @@ def requirement_ids(root: Path = ROOT) -> set[str]:
 def coverage(root: Path = ROOT) -> dict[str, list[str]]:
     """id → archivos de prueba que lo cubren."""
     found: dict[str, list[str]] = {}
-    for path in sorted(root.glob("test_*.py")):
+    for path in sorted((root / "tests").glob("test_*.py")):
         if path.name == "test_spec.py":
             continue                      # sus ejemplos de etiquetas son datos de prueba, no cobertura
         for match in TAG.finditer(path.read_text(encoding="utf-8")):

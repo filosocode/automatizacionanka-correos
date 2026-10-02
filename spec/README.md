@@ -11,6 +11,7 @@ Work se derivan de aquí y se comparan contra aquí.
 | [03-contrato-work.md](03-contrato-work.md) | ¿Qué debe entregar ChatGPT Work? (esquema en `contrato_work.schema.json`) |
 | [04-ux.md](04-ux.md) | ¿Cómo debe sentirse el dashboard? (criterios y nota vigente) |
 | [05-decisiones.md](05-decisiones.md) | ¿Por qué se decidió así? (registro de decisiones) |
+| [06-arquitectura.md](06-arquitectura.md) | ¿Cómo está organizado el código? (capas y reglas de dependencia) |
 | [requisitos.md](requisitos.md) | Lista de requisitos con identificador, uno por línea de trazabilidad |
 
 ## Cómo se trabaja con ella
@@ -19,7 +20,7 @@ Work se derivan de aquí y se comparan contra aquí.
 2. **Cada requisito tiene pruebas.** Las pruebas se etiquetan con `# Cubre: ID` y `python check_spec.py` falla si un
    requisito queda sin prueba o si una etiqueta apunta a algo que no existe. Corre en `check.bat` y en el CI.
 3. **Los datos mandan.** `transiciones.json` y `contrato_work.schema.json` no son documentación: se ejecutan en las
-   pruebas (`test_transiciones.py`, `test_contrato_work.py`).
+   pruebas (`tests/test_transiciones.py`, `tests/test_contrato_work.py`).
 4. **Lo que Python no puede probar** (cómo interpreta ChatGPT la skill) se registra como prueba manual con fecha y
    versión de las reglas, siguiendo `docs/PILOTO_ACEPTACION.md`.
 

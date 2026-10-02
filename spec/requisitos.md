@@ -80,6 +80,11 @@ La base SQLite se migra por pasos con copia previa y rechaza versiones más nuev
 Ollama, API y ChatGPT Work siguen las mismas reglas, que viven en un solo documento; las pruebas fallan si se
 separan.
 
+### T-12 · Arquitectura en capas
+El código vive en `anka/` en cinco capas (dominio, infra, servicios, web, cli) con dependencias en una sola dirección,
+sin ciclos y sin importar nombres privados de otro módulo; la raíz solo tiene puntos de entrada delgados.
+Ver `06-arquitectura.md`.
+
 ## Experiencia de usuario
 
 ### U-01 · Siguiente paso claro

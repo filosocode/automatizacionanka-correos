@@ -8,8 +8,8 @@ select = ["E", "F", "W", "B", "UP"]
 ignore = ["E501"]
 
 [tool.coverage.run]
-source = ["."]
-omit = ["simulaciones/*", "test_*.py", "_isolate.py", "fake_drive.py", ".venv/*", ".uv-cache/*", ".github/*"]
+source = ["anka", "app.py", "supervisor.py", "work_dashboard_sync.py", "check_spec.py"]
+omit = ["simulaciones/*", "tests/*", ".venv/*", ".uv-cache/*", ".github/*"]
 
 [tool.coverage.report]
 # Piso de cobertura: sube cuando mejore, nunca lo bajes para hacer pasar un cambio.
@@ -19,7 +19,7 @@ skip_covered = false
 [tool.mypy]
 python_version = "3.11"
 files = ["."]
-exclude = ['^simulaciones/', '^\.venv/', '^\.uv-cache/', '^test_', '^_isolate\.py$', '^fake_drive\.py$']
+exclude = ['^simulaciones/', '^\.venv/', '^\.uv-cache/', '^tests/', '^archivo_local/']
 # Las librerías de Google no publican tipos completos.
 ignore_missing_imports = true
 warn_unused_ignores = true

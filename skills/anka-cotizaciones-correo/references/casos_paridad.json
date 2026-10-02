@@ -1,5 +1,5 @@
 {
-  "descripcion": "Catálogo compartido por los tres modos. Python lo ejecuta en test_paridad_modos.py; en ChatGPT Work se usa para probar la skill a mano: cada caso dice si el correo debe pasar a análisis o descartarse sin analizar, según las reglas R1 a R7 de reglas_operativas.md. Son correos sintéticos, no de clientes reales.",
+  "descripcion": "Catálogo compartido por los tres modos. Python lo ejecuta en tests/test_paridad_modos.py; en ChatGPT Work se usa para probar la skill a mano: cada caso dice si el correo debe pasar a análisis o descartarse sin analizar, según las reglas R1 a R7 de reglas_operativas.md. Son correos sintéticos, no de clientes reales.",
   "terminos_rescate": ["cotización", "cotizar", "presupuesto", "propuesta", "levantamiento"],
   "descarte": [
     {"id": "explicita", "descripcion": "Solicitud explícita", "esperado": "pasa", "senal": null,

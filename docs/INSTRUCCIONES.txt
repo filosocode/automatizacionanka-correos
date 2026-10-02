@@ -1,8 +1,7 @@
 PUENTE GMAIL → DASHBOARD LOCAL
 
-No reemplaza app.py, pipeline.py, web.py, quotes.py ni settings.py.
-Copiar work_dashboard_sync.py a D:\Automatizacion_Correos.
-En la terminal con .venv activo ejecutar:
+El puente (work_dashboard_sync.py) ya forma parte del proyecto: lo arranca «Iniciar Anka.bat» junto con el dashboard
+y lo reinicia solo si se cae. Para ejecutarlo a mano, en la terminal con .venv activo y desde la carpeta del proyecto:
 python .\work_dashboard_sync.py --once
 Para mantenerlo activo:
 python .\work_dashboard_sync.py --seconds 60

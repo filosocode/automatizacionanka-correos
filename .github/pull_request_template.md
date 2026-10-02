@@ -16,7 +16,7 @@
 - [ ] Casos nuevos o ajustados en `casos_paridad.json`
 - [ ] Python (`local` y `api`) implementado y probado
 - [ ] `SKILL.md` (`chatgpt_work`) actualizada con la misma regla y versión
-- [ ] `check.bat` pasa, incluido `test_paridad_modos.py`
+- [ ] `check.bat` pasa, incluido `tests/test_paridad_modos.py`
 - [ ] Prueba manual en ChatGPT Work con los casos compartidos (fecha / versión de reglas / resultado):
 - [ ] No aplica: este cambio no altera el comportamiento del flujo
 

@@ -4,11 +4,11 @@ Estas reglas valen **igual en los tres modos** de operación:
 
 | Modo | Quién las aplica |
 |---|---|
-| `local` (Ollama) | El código Python (`reception.py`, `drive_layout.py`, `pipeline.py`) |
+| `local` (Ollama) | El código Python (`anka/dominio/reception.py`, `anka/servicios/drive_layout.py`, `anka/servicios/pipeline.py`) |
 | `api` (OpenAI) | El mismo código Python; solo cambia el motor que analiza el correo |
 | `chatgpt_work` | La skill `anka-cotizaciones-correo` (`SKILL.md`), que copia estas reglas |
 
-Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actualizan el código y la skill. Las pruebas `test_paridad_modos.py` fallan si alguno de los tres se separa. El procedimiento completo está en `docs/ESTANDAR_CAMBIOS.md`.
+Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actualizan el código y la skill. Las pruebas `tests/test_paridad_modos.py` fallan si alguno de los tres se separa. El procedimiento completo está en `docs/ESTANDAR_CAMBIOS.md`.
 
 **Versión de las reglas: 7**
 

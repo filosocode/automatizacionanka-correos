@@ -1,6 +1,53 @@
-# Automatización de solicitudes de cotización
+# Anka · Automatización de solicitudes de cotización
 
-Primera etapa: leer Gmail, identificar solicitudes, preparar una tabla de actividades, pedir datos faltantes en el mismo hilo, incorporar la respuesta y crear una carpeta de proyecto en Drive bajo una carpeta existente.
+Sistema local de apoyo comercial para Grupo Anka (topografía y geomática). **Fase 1:** leer Gmail, identificar las
+solicitudes de cotización, resumirlas en una tabla de actividades, pedir al cliente los datos que falten (en el mismo
+hilo), incorporar su respuesta y crear la carpeta del proyecto en Drive. **No cotiza**: no hay precios en esta fase.
+
+Un comercial lo usa desde un **dashboard web local** que dice, caso por caso, en qué etapa está cada solicitud y qué
+espera de él. Nada sale al cliente sin que una persona lo revise y lo envíe.
+
+## Inicio rápido (Windows)
+
+1. Prepara la máquina y los datos locales (secciones [Preparación](#preparación) y [Datos locales y secretos](#datos-locales-y-secretos)).
+2. Doble clic en **`Iniciar Anka.bat`**: arranca el dashboard (http://127.0.0.1:8765/) y, en modo ChatGPT Work, el
+   puente que trae los borradores de Work al dashboard. Se reinicia solo si se cae o si cambia el código y hace una
+   copia de seguridad diaria. Para que arranque con Windows: `tools\Instalar autoarranque.bat`.
+3. Mira la etiqueta **Puente activo** del encabezado y la pantalla **Qué hacer hoy**.
+
+## Mapa del repositorio
+
+```
+anka/               el código, en capas (ver spec/06-arquitectura.md)
+  dominio/            reglas puras: estados, actividades, recepción, correo, contrato con Work
+  infra/              lo externo: configuración, base SQLite, Gmail/Drive, modelos, registro, copias
+  servicios/          casos de uso: importar, enviar, controlar cambios, seguir al cliente, carpetas de Drive
+  web/                servidor local, vistas y plantillas (templates/)
+  cli/                comandos, lanzador único y puente con Work
+tests/              pruebas (y tests/golden/ con las instantáneas de pantalla)
+spec/               especificación: requisitos, reglas, contrato con Work, transiciones, decisiones
+docs/               documentación para personas (guía comercial, flujo, modos, estándar de cambios)
+skills/             la skill de ChatGPT Work y las reglas operativas que copia
+tools/              scripts de operación de Windows (autoarranque, piloto local)
+evaluacion/         muestra etiquetada para medir al modelo
+.github/            integración continua y plantilla de pull request
+app.py, supervisor.py, work_dashboard_sync.py    puntos de entrada de una línea hacia anka/cli/
+check.bat, check_spec.py                         verificación completa (igual que el CI)
+Iniciar Anka.bat                                 el lanzador de uso diario
+```
+
+## Documentación
+
+| Para… | Lee |
+|---|---|
+| Usar el dashboard | [`docs/GUIA_COMERCIAL.md`](docs/GUIA_COMERCIAL.md) |
+| Entender el flujo de la Fase 1 | [`docs/FLUJO_FASE1.md`](docs/FLUJO_FASE1.md) |
+| Saber qué debe cumplir el sistema | [`spec/README.md`](spec/README.md) (requisitos, reglas, estados, contrato con Work, decisiones) |
+| Cambiar el comportamiento | [`docs/ESTANDAR_CAMBIOS.md`](docs/ESTANDAR_CAMBIOS.md) |
+| Operar los tres modos | [`docs/MODO_OPERACION.md`](docs/MODO_OPERACION.md) |
+| Probar en ChatGPT Work | [`docs/PILOTO_ACEPTACION.md`](docs/PILOTO_ACEPTACION.md) |
+| Trabajar con un agente de IA | [`CLAUDE.md`](CLAUDE.md) |
+| El índice completo | [`docs/README.md`](docs/README.md) |
 
 ## Datos locales y secretos
 
@@ -43,53 +90,46 @@ Fuentes técnicas: [Gmail Python quickstart](https://developers.google.com/works
 
 ## Arquitectura
 
-`app.py` es solo el punto de entrada de la línea de comandos. Cada módulo tiene una responsabilidad y las dependencias van en un solo sentido (de abajo hacia arriba):
-
-| Capa | Módulos | Responsabilidad |
-|---|---|---|
-| Base | `settings`, `status` | Carpeta de datos y configuración; estados de una solicitud (`QuoteStatus`). |
-| Entrada/salida externa | `google_services`, `mail`, `llm`, `attachments` | Gmail y Drive, lectura de mensajes y adjuntos, motor de análisis. |
-| Reglas | `reception`, `internal_context`, `modes` | Qué falta y qué preguntar, contexto comercial interno, modo de operación. |
-| Datos | `store`, `quotes`, `activities` | SQLite, consultas del dashboard, tabla de actividades y Excel. |
-| Flujo | `pipeline`, `case_actions` | `pipeline.decide_*` decide qué hacer con cada hilo sin efectos; `apply_decision` ejecuta. Acciones del dashboard sobre un caso. |
-| Interfaz | `web`, `dashboard_views`, `templating`, `templates/` | Servidor local con protección CSRF; páginas y fragmentos HTML con plantillas Jinja2. |
+El código vive en el paquete `anka/` en cinco capas con dependencias en un solo sentido
+(`cli` y `web` → `servicios` → `infra` → `dominio`), sin ciclos. `tests/test_arquitectura.py` lo verifica.
+El detalle, dónde poner código nuevo y las reglas están en [`spec/06-arquitectura.md`](spec/06-arquitectura.md).
 
 ## Pruebas y calidad
 
 ```
 python -m pip install --require-hashes -r requirements-dev.lock
-python -m unittest discover
+python -m unittest discover -s tests -t .
 python -m ruff check .
 python -m mypy
 ```
 
-`check.bat` corre lint, tipos, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `web.py` (handlers HTTP), `case_actions.py` y `quotes.py`.
+`check.bat` corre lint, tipos, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `anka/web/server.py` (manejadores HTTP) y `anka/cli/`.
 
-En los tests, parchea cada nombre en el módulo que lo **usa** (por ejemplo `pipeline.services`), no en el que lo define. Los tests que tocan datos parchean `settings.DATA_DIR`.
+En los tests, parchea cada nombre en el módulo que lo **usa** (por ejemplo `anka.servicios.pipeline.services`), no en el que lo define. Los tests que tocan datos parchean `settings.DATA_DIR` (`anka.infra.settings`).
 
 ## Cambios en la base de datos
 
-El esquema de `quotes.sqlite3` está versionado con `PRAGMA user_version`. Para cambiarlo, agrega una función al final de `MIGRATIONS` en `store.py`; nunca edites las existentes. Al abrir una base con datos y una versión anterior, el programa deja primero una copia `quotes.sqlite3.bak-vN` y aplica cada paso en su propia transacción. Una base creada por una versión más nueva del programa se rechaza sin modificarla.
+El esquema de `quotes.sqlite3` está versionado con `PRAGMA user_version`. Para cambiarlo, agrega una función al final de `MIGRATIONS` en `anka/infra/store.py`; nunca edites las existentes. Al abrir una base con datos y una versión anterior, el programa deja primero una copia `quotes.sqlite3.bak-vN` y aplica cada paso en su propia transacción. Una base creada por una versión más nueva del programa se rechaza sin modificarla.
 
-Los tests mandan los datos a una carpeta temporal (`_isolate.py`), así que nunca tocan `%LOCALAPPDATA%\AnkaCorreos`. Todo módulo de tests nuevo debe importar `_isolate` primero.
+Los tests mandan los datos a una carpeta temporal (`tests/_isolate.py`), así que nunca tocan `%LOCALAPPDATA%\AnkaCorreos`. Todo módulo de tests nuevo debe empezar con `from tests import _isolate  # noqa: F401`.
 
 ## HTML del dashboard
 
-Todo el HTML sale de `templates/` con escape automático (`templating.render`). Reglas:
+Todo el HTML sale de `anka/web/templates/` con escape automático (`anka.web.templating.render`). Reglas:
 
 - Nunca armes HTML con f-strings ni `|safe` para datos que vienen de un correo. Pasa los valores a la plantilla; se escapan solos. Un fragmento ya renderizado (`Markup`) se puede anidar en otra plantilla.
 - No uses manejadores en línea (`onclick=...`). Para confirmar una acción usa `data-confirm="..."`; un único listener en `layout.html` lo lee.
 - Los formularios `POST` deben escribirse con `method="post"` (comillas dobles): el CSRF los detecta por ese texto.
 
-`test_html_render.py` protege esto de dos maneras. Compara cada página con una instantánea en `golden/` (si cambias una plantilla a propósito, regenera con `UPDATE_GOLDEN=1 python -m unittest test_html_render` y revisa el diff de `golden/`), y renderiza datos hostiles en todos los campos que controla un cliente para comprobar que no aparecen etiquetas, atributos ni scripts nuevos.
+`tests/test_html_render.py` protege esto de dos maneras. Compara cada página con una instantánea en `tests/golden/` (si cambias una plantilla a propósito, regenera con `UPDATE_GOLDEN=1 python -m unittest tests.test_html_render` y revisa el diff de `tests/golden/`), y renderiza datos hostiles en todos los campos que controla un cliente para comprobar que no aparecen etiquetas, atributos ni scripts nuevos.
 
 ## Tipos
 
-`mypy` revisa todos los módulos (los tests quedan fuera) y exige que toda función esté anotada (`disallow_untyped_defs`). Los clientes de Gmail y Drive se tipan como `Any` porque `googleapiclient` construye sus métodos en ejecución. Si añades una función sin anotar, `mypy` falla en `check.bat` y en el CI.
+`mypy` revisa el paquete `anka/` y los puntos de entrada (los tests quedan fuera) y exige que toda función esté anotada (`disallow_untyped_defs`). Los clientes de Gmail y Drive se tipan como `Any` porque `googleapiclient` construye sus métodos en ejecución. Si añades una función sin anotar, `mypy` falla en `check.bat` y en el CI.
 
 ## Validación de `config.json`
 
-`settings.validate_config` revisa el archivo completo y lista **todos** los problemas juntos, no solo el primero:
+`validate_config` (`anka/infra/settings.py`) revisa el archivo completo y lista **todos** los problemas juntos, no solo el primero:
 
 ```
 config.json tiene 2 problema(s):
@@ -97,7 +137,7 @@ config.json tiene 2 problema(s):
  - gmail_query debe ser texto.
 ```
 
-Además, un JSON mal escrito indica la línea y la columna del error; las claves que el programa no usa (por ejemplo `gmail_quary`) se avisan por `stderr` al iniciar cualquier comando; y `set-mode` no guarda una configuración que resultaría inválida. Al añadir una clave nueva, agrégala a `KNOWN_CONFIG_KEYS` y a `validate_config` en `settings.py`, y a `config.example.json` (una prueba comprueba que el ejemplo sea válido).
+Además, un JSON mal escrito indica la línea y la columna del error; las claves que el programa no usa (por ejemplo `gmail_quary`) se avisan por `stderr` al iniciar cualquier comando; y `set-mode` no guarda una configuración que resultaría inválida. Al añadir una clave nueva, agrégala a `KNOWN_CONFIG_KEYS` y a `validate_config` en `anka/infra/settings.py`, y a `config.example.json` (una prueba comprueba que el ejemplo sea válido).
 
 ## Dependencias y versiones exactas
 
@@ -112,7 +152,7 @@ uv pip compile requirements-dev.txt --universal --python-version 3.11 --generate
 
 ## Registro (`logging`)
 
-El piloto y el dashboard escriben en dos destinos (`logging_setup.py`, se configura al iniciar cualquier comando de `app.py`):
+El piloto y el dashboard escriben en dos destinos (`anka/infra/logging_setup.py`, se configura al iniciar cualquier comando de `app.py`):
 
 - **Consola** (`stdout`): el mismo texto de siempre, con todo el detalle (resumen, actividades, borrador).
 - **Archivo** `logs/anka.log` en la carpeta de datos, rotativo (1 MB × 5): fecha, nivel, módulo y mensaje. **Sin datos de clientes**: solo identificadores de hilo y resultados (`t-123: borrador creado en Gmail: r-456`), rechazos de seguridad, advertencias y errores con su traceback. Cualquier dirección de correo que se cuele se reemplaza por `<correo>`.
@@ -127,7 +167,7 @@ Reglas para el código nuevo:
 
 ## Qué se descarta y cómo recuperarlo
 
-El sistema **no usa palabras clave para decidir si un correo es una solicitud**: eso lo decide el modelo. Antes de llamarlo solo descarta ruido evidente (`reception.automated_noise_reason`), y únicamente si todos los mensajes del cliente en el hilo tienen una señal inequívoca de automatización:
+El sistema **no usa palabras clave para decidir si un correo es una solicitud**: eso lo decide el modelo. Antes de llamarlo solo descarta ruido evidente (`automated_noise_reason` en `anka/dominio/reception.py`), y únicamente si todos los mensajes del cliente en el hilo tienen una señal inequívoca de automatización:
 
 - remitente `no-reply`, `noreply`, `notifications`, `mailer-daemon`, `postmaster` o `bounce`;
 - cabecera `List-Unsubscribe` (boletines y listas);
@@ -148,4 +188,4 @@ Las carpetas siguen la convención `Año / Cliente / Solicitud`. `drive_parent_i
 
 ## Los tres modos de operación
 
-Ollama (`local`), API (`api`) y ChatGPT Work (`chatgpt_work`) deben comportarse igual. Las reglas viven en un solo documento (`skills/anka-cotizaciones-correo/references/reglas_operativas.md`), `local` y `api` comparten el mismo código y Work usa la skill, y `test_paridad_modos.py` falla si alguno se separa. El procedimiento para cambiar cualquier regla está en [docs/ESTANDAR_CAMBIOS.md](docs/ESTANDAR_CAMBIOS.md).
+Ollama (`local`), API (`api`) y ChatGPT Work (`chatgpt_work`) deben comportarse igual. Las reglas viven en un solo documento (`skills/anka-cotizaciones-correo/references/reglas_operativas.md`), `local` y `api` comparten el mismo código y Work usa la skill, y `tests/test_paridad_modos.py` falla si alguno se separa. El procedimiento para cambiar cualquier regla está en [docs/ESTANDAR_CAMBIOS.md](docs/ESTANDAR_CAMBIOS.md).
