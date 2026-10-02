@@ -70,7 +70,7 @@ def resolve_case_recipient(thread_id: str) -> dict:
 
 
 def case_email_context(thread_id: str) -> tuple[dict, Any, dict, set[str]]:
-    """Reúne lo necesario para escribir al cliente: caso, Gmail, hilo y direcciones propias; falla si el caso ya no admite correo."""
+    """Reúne lo necesario para escribir al cliente (caso, Gmail, hilo, direcciones); falla si ya no admite correo."""
     quote = get_quote(thread_id)
     if not quote:
         raise ValueError("La solicitud ya no existe.")
@@ -154,7 +154,10 @@ def _already_sent(quote: dict, body: str, recipient: str) -> str:
 
 def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int = 0,
                          purpose: str = "") -> str:
-    """Envía al cliente el correo escrito en el dashboard (una persona ya lo revisó) y deja constancia; rechaza un reenvío idéntico reciente."""
+    """Envía al cliente el correo escrito en el dashboard (ya revisado por una persona) y deja constancia.
+
+    Rechaza un reenvío idéntico reciente.
+    """
     body = body.strip()
     if not body:
         raise ValueError("El correo no puede estar vacío.")
@@ -311,7 +314,8 @@ def auto_create_project_folder(thread_id: str) -> str:
         message = str(exc)
     except Exception as exc:  # Drive o red: el correo ya salió y no se debe perder
         log.exception("%s: no se pudo crear la carpeta automáticamente", thread_id)
-        message = f"No se pudo crear la carpeta automáticamente ({type(exc).__name__}). Inténtalo desde la sección de Drive."
+        message = (f"No se pudo crear la carpeta automáticamente ({type(exc).__name__}). "
+                   "Inténtalo desde la sección de Drive.")
     _note_drive_pending(thread_id, message)
     log.warning("%s: carpeta del proyecto pendiente tras el envío", thread_id)
     return "No creé la carpeta todavía: " + message

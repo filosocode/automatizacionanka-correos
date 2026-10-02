@@ -28,7 +28,10 @@ from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
     assign_code, promote_to_te, resolve_change,
 )
-from anka.servicios.quotes import archived_threads, resolve_link, change_marker, resolve_model_proposal, resolve_technical_review, rescue_discarded, all_quotes, get_quote, mark_notifications_read, save_quote_metadata
+from anka.servicios.quotes import (
+    all_quotes, archived_threads, change_marker, get_quote, mark_notifications_read, rescue_discarded,
+    resolve_link, resolve_model_proposal, resolve_technical_review, save_quote_metadata,
+)
 from anka.servicios.ediciones import save_activities
 
 from anka.web import paginas
@@ -256,7 +259,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
             quotes = [get_quote(thread_id)] if thread_id else all_quotes()
             quotes = [item for item in quotes if item]
             if thread_id and not quotes:
-                return self._send_html(paginas.page("No encontrado", render("empty.html", text="La solicitud no existe.")), 404)
+                return self._send_html(
+                paginas.page("No encontrado", render("empty.html", text="La solicitud no existe.")), 404)
             data = build_workbook(quotes)
             stamp = datetime.now().strftime("%Y%m%d-%H%M")
             name = f"actividades-{thread_id[:8] or 'todas'}-{stamp}.xlsx"
@@ -296,7 +300,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return self._reject("Token de seguridad inválido. Recarga la página e inténtalo de nuevo.")
         action = POST_ROUTES.get(path)
         if action is None:
-            return self._send_html(paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
+            return self._send_html(
+                paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
         try:
             self._redirect(action(form))
         except Exception as exc:

@@ -345,7 +345,7 @@ def archived_threads() -> list[dict]:
 
 
 def case_has_links(thread_id: str) -> bool:
-    """¿El caso ya avanzó más allá del primer análisis: correos vinculados de otros hilos, código de oferta o tabla editada en el dashboard?"""
+    """¿El caso avanzó más allá del primer análisis (correos vinculados, código de oferta o tabla editada)?"""
     db = connect()
     try:
         return db.execute(

@@ -68,7 +68,7 @@ def _cell(value: object) -> str:
 
 
 def build_workbook(quotes: Sequence[Mapping[str, Any]]) -> bytes:
-    """Excel con una hoja «Actividades»: una fila por actividad de cada caso, con su proyecto, cliente y estado, coloreada por confirmación."""
+    """Excel con una hoja «Actividades»: una fila por actividad con su proyecto, cliente y estado, coloreada."""
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter

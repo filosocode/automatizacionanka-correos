@@ -496,7 +496,7 @@ def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
 
 
 def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> None:
-    """Revisa Gmail una vez: simula, o con `apply` guarda para revisión (y envía o crea carpetas si no es `review_only`)."""
+    """Revisa Gmail una vez: simula o, con `apply`, guarda para revisión (y envía o crea carpetas sin `review_only`)."""
     config = load_config()
     ensure_local_or_api_mode(config)
     if review_only and not apply:

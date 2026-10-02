@@ -38,7 +38,7 @@ XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 @dataclass
 class ContentReport:
-    """Qué hizo el llenado de la carpeta del proyecto: archivos copiados, ya existentes, fallidos y estado de la tabla."""
+    """Qué hizo el llenado de la carpeta del proyecto: archivos copiados, existentes, fallidos y estado de la tabla."""
     copied: list[str] = field(default_factory=list)
     existing: list[str] = field(default_factory=list)
     failed: list[str] = field(default_factory=list)

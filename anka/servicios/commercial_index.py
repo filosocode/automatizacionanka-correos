@@ -57,17 +57,21 @@ SECTOR_RULES = {
 }
 
 COMPANY_RULES = {
-    "Entidad publica": ("alcaldia", "gobernacion", "ministerio", "instituto", "municipio", "corporacion autonoma", "empresa publica"),
+    "Entidad publica": ("alcaldia", "gobernacion", "ministerio", "instituto", "municipio",
+                        "corporacion autonoma", "empresa publica"),
     "Empresa de energia": ("energia", "energy", "solar", "electrica", "electrico", "power", "renovable"),
-    "Ingenieria o consultoria": ("ingenier", "consult", "estudios", "disenos", "diseños", "construccion", "constructora"),
+    "Ingenieria o consultoria": ("ingenier", "consult", "estudios", "disenos", "diseños",
+                                 "construccion", "constructora"),
     "Empresa minera o industrial": ("minera", "mineria", "cemento", "industrial", "manufactura"),
     "Operador de infraestructura": ("concesion", "vial", "infraestructura", "aeropuerto", "ferrocarr"),
 }
 
 REQUIREMENT_RULES = {
-    "Ubicacion, poligono o coordenadas": ("ubicacion", "localizacion", "kmz", "kml", "poligono", "coordenad", "shapefile"),
+    "Ubicacion, poligono o coordenadas": ("ubicacion", "localizacion", "kmz", "kml", "poligono",
+                                          "coordenad", "shapefile"),
     "Area, longitud o cantidades": ("hectarea", " hect", " km", "kilomet", "longitud", "area", "cantidad", "numero de"),
-    "Servicio o metodo esperado": ("metodologia", "levantamiento", "lidar", "fotogram", "topograf", "batimetr", "georradar"),
+    "Servicio o metodo esperado": ("metodologia", "levantamiento", "lidar", "fotogram", "topograf",
+                                   "batimetr", "georradar"),
     "Entregables y formatos": ("entregable", "formato", "dwg", "dxf", "las", "laz", "ortofoto", "informe", "plano"),
     "Precision, resolucion o escala": ("precision", "resolucion", "escala", "densidad", "gsd", "tolerancia"),
     "Sistema de referencia": ("sistema de referencia", "datum", "magna", "sirgas", "proyeccion"),
@@ -75,7 +79,8 @@ REQUIREMENT_RULES = {
     "Acceso, permisos o HSE": ("acceso", "permiso", "restriccion", "hse", "sst", "induccion", "seguridad"),
     "Normas o especificaciones": ("norma", "especificacion", "terminos de referencia", "tdr", "pliego"),
     "Campanas o frecuencia": ("campana", "frecuencia", "visita", "monitoreo", "periodicidad"),
-    "Informacion previa o insumos": ("informacion previa", "cartografia base", "diseno", "diseño", "estudio previo", "archivo adjunto"),
+    "Informacion previa o insumos": ("informacion previa", "cartografia base", "diseno", "diseño",
+                                     "estudio previo", "archivo adjunto"),
 }
 
 
@@ -156,7 +161,7 @@ def inferred_company_type(client_name: str) -> tuple[str, str]:
 
 def _scan_client_files(client_dir: Path, source: Path, profile: dict, global_projects: Counter[str],
                        global_sectors: Counter[str], extension_counts: Counter[str]) -> list[Path]:
-    """Recorre los archivos de un cliente, llena su perfil y los contadores globales; devuelve los documentos de solicitud."""
+    """Recorre los archivos de un cliente, llena su perfil y los contadores; devuelve los documentos de solicitud."""
     request_docs: list[Path] = []
     for path in (item for item in client_dir.rglob("*") if item.is_file()):
         if is_sensitive(path):
@@ -183,7 +188,7 @@ def _scan_client_files(client_dir: Path, source: Path, profile: dict, global_pro
 
 
 def build_index(source: Path) -> dict:
-    """Recorre el archivo histórico (solo lectura) y arma el índice comercial por cliente, sin guardar texto ni precios."""
+    """Recorre el archivo histórico (solo lectura) y arma el índice comercial por cliente, sin texto ni precios."""
     if not source.exists():
         raise FileNotFoundError(f"No existe la fuente: {source}")
 

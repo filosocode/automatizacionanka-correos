@@ -37,7 +37,7 @@ def body_text(part: dict) -> list[str]:
     return values
 
 def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
-    """Saca el bloque JSON de Anka del borrador de Work y el borrador que lo contiene; `None` si no hay uno válido al inicio."""
+    """Saca el bloque JSON de Anka de un borrador de Work (con el borrador); `None` si no hay uno válido al inicio."""
     for text in body_text(message.get("payload", {})):
         if START not in text:
             continue

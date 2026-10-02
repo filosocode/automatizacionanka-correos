@@ -287,7 +287,8 @@ _DERIVED_NOTIFICATIONS = (
     ("draft_suggested", "Respuesta sugerida lista para revisar",
      "Revisa el destinatario y el texto antes de guardarlo en Gmail o enviarlo.",
      "COALESCE(updated_at, first_seen_at)",
-     f"status IN {sql_in(QuoteStatus.REVIEW_PENDING, QuoteStatus.REVIEW, QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED)}"),
+     "status IN " + sql_in(QuoteStatus.REVIEW_PENDING, QuoteStatus.REVIEW,
+                           QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED)),
 )
 
 
@@ -413,7 +414,7 @@ def case_events(db: sqlite3.Connection, thread_id: str) -> list[sqlite3.Row]:
 def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, recipient: str,
          analysis: Analisis, folder_id: str | None = None,
          sent_message_id: str | None = None) -> None:
-    """Crea o actualiza el caso (estado, destinatario y análisis) conservando lo que ya tenía, como la fecha de primera vista."""
+    """Crea o actualiza el caso (estado, destinatario, análisis) conservando lo que ya tenía, como la primera vista."""
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     received_at = analysis.get("received_at") or now
     previous = db.execute(
@@ -453,5 +454,6 @@ def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, reci
             first = last is None
             add_table_version(
                 db, thread_id, activities, "model",
-                "Tabla original del modelo" if first else f"El modelo actualizó la tabla ({len(activities)} actividades)")
+                "Tabla original del modelo" if first
+                else f"El modelo actualizó la tabla ({len(activities)} actividades)")
     db.commit()

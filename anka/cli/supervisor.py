@@ -132,7 +132,7 @@ class Child:
 
 
 def main() -> None:
-    """Arranca el dashboard y, en modo Work, el puente; los reinicia si se caen o si cambia el código, y hace la copia diaria."""
+    """Arranca el dashboard y, en modo Work, el puente; los reinicia si se caen o cambia el código; copia a diario."""
     configure_logging(console=sys.stdout is not None)
     stop_old_instances()
     dashboard = Child("Dashboard", ["app.py", "review-ui", "--no-browser"])

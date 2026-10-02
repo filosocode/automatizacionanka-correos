@@ -39,7 +39,10 @@ from anka.servicios.change_control import (
 )
 from anka.servicios.gmail_followup import case_contacts
 from anka.dominio.registros import Cambio, Evento
-from anka.servicios.quotes import case_conversation, case_change_log, chain_status, case_has_links, case_people, reason_label, ago_text, minutes_since, REPLY_OVERDUE_MINUTES, CLIENT_TYPES, SECTORS, get_quote, thread_events
+from anka.servicios.quotes import (
+    CLIENT_TYPES, REPLY_OVERDUE_MINUTES, SECTORS, ago_text, case_change_log, case_conversation, case_has_links,
+    case_people, chain_status, get_quote, minutes_since, reason_label, thread_events,
+)
 from anka.servicios.ediciones import EDIT_REASONS, last_manual_version, table_versions
 
 from anka.web.paginas import REPLY_LABEL, case_stage, page
@@ -518,7 +521,8 @@ def render_acta(thread_id: str) -> str:
         code = code_label(review["quote_code"], stage or "T")
     body = render(
         "acta.html", project=(review["analysis"].get("project_name") if review else "") or "Caso eliminado",
-        code=code, contact=contact, stage_label=STAGE_LABELS.get(stage, ""), generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        code=code, contact=contact, stage_label=STAGE_LABELS.get(stage, ""),
+        generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
         integrity_ok=ok, event_count=count, events=events, changes=case_change_log(thread_id),
         people=case_people(thread_id, {contact}) if contact else case_people(thread_id, set()),
         versions=_acta_versions(thread_id, review),

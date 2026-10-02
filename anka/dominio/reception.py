@@ -160,23 +160,30 @@ def reception_assessment(analysis: Analisis) -> dict:
         questions.append("¿Cuál es el objetivo del trabajo y qué elementos o activos deben revisarse o levantarse?")
     if not location_known:
         if service in {"LiDAR", "Fotogrametría", "Catastro o cartografía"}:
-            questions.append("¿Puede compartir la ubicación y delimitación del área, preferiblemente mediante KMZ/KML, polígono o coordenadas?")
+            questions.append(
+                "¿Puede compartir la ubicación y delimitación del área, preferiblemente mediante KMZ/KML, "
+                "polígono o coordenadas?")
         else:
             questions.append("¿Puede indicar la ubicación del proyecto y el sector o tramo que debe cubrirse?")
     if not magnitude_known:
         magnitude_question = {
             "Batimetría": "¿Cuál es la extensión, longitud o número de secciones del cuerpo de agua que debe cubrirse?",
-            "Termografía o inspección": "¿Cuál es la cantidad de activos, módulos, estructuras o sitios que deben inspeccionarse?",
+            "Termografía o inspección": (
+                "¿Cuál es la cantidad de activos, módulos, estructuras o sitios que deben inspeccionarse?"),
             "Topografía": "¿Cuál es el área, longitud o cantidad aproximada de elementos que deben levantarse?",
         }.get(service, "¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo?")
         questions.append(magnitude_question)
 
     technical_checks = {
-        "Topografía": ["Elementos y nivel de detalle", "Precisión y sistema de referencia", "Entregables y formatos", "Accesos o restricciones"],
-        "LiDAR": ["Densidad o resolución", "Precisión y sistema de referencia", "Productos derivados", "Restricciones de vuelo"],
+        "Topografía": ["Elementos y nivel de detalle", "Precisión y sistema de referencia",
+                       "Entregables y formatos", "Accesos o restricciones"],
+        "LiDAR": ["Densidad o resolución", "Precisión y sistema de referencia",
+                  "Productos derivados", "Restricciones de vuelo"],
         "Fotogrametría": ["GSD o resolución", "Control terrestre", "Entregables y formatos", "Restricciones de vuelo"],
-        "Batimetría": ["Rango de profundidades", "Separación de líneas o secciones", "Datum o referencia vertical", "Acceso y permisos"],
-        "Termografía o inspección": ["Tipo de activo", "Condiciones operativas", "Frecuencia de inspección", "Formato del informe"],
+        "Batimetría": ["Rango de profundidades", "Separación de líneas o secciones",
+                       "Datum o referencia vertical", "Acceso y permisos"],
+        "Termografía o inspección": ["Tipo de activo", "Condiciones operativas",
+                                     "Frecuencia de inspección", "Formato del informe"],
         "Georradar": ["Objeto de búsqueda", "Profundidad esperada", "Condiciones del terreno", "Entregables"],
     }.get(service, ["Método técnico", "Precisión requerida", "Entregables", "Accesos o restricciones"])
 
@@ -189,7 +196,8 @@ def reception_assessment(analysis: Analisis) -> dict:
     if (not reviewed and (issues or blocked)) or not activities:
         status = "technical_review"
         label = "Requiere revisión técnica interna"
-        reason = "Hay documentos no legibles, dependencias, contradicciones o una solicitud que necesita interpretación humana."
+        reason = ("Hay documentos no legibles, dependencias, contradicciones o una solicitud que necesita "
+                  "interpretación humana.")
     elif questions:
         status = "needs_client_information"
         label = "Requiere aclaraciones del cliente"
