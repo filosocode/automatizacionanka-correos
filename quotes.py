@@ -400,6 +400,15 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
     return summary
 
 
+def _waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None) -> str:
+    """Desde cuándo espera el caso la respuesta del cliente ('' si no está esperando)."""
+    if status not in (QuoteStatus.WAITING, QuoteStatus.RESPONSE_SENT) or not sent_at:
+        return ""
+    if latest and _timestamp(latest[0]) >= _timestamp(sent_at):
+        return ""            # el cliente ya respondió después
+    return sent_at
+
+
 def all_quotes(include_ignored: bool = False) -> list[dict]:
     db = init_db()
     try:
@@ -414,6 +423,10 @@ def all_quotes(include_ignored: bool = False) -> list[dict]:
         latest_reply = {r["thread_id"]: (r["occurred_at"], r["ref"]) for r in db.execute(
             "SELECT thread_id, ref, occurred_at FROM case_events "
             "WHERE kind='received' ORDER BY occurred_at, id")}
+        followups = {r["thread_id"]: dict(r) for r in db.execute("SELECT * FROM case_followup")}
+        reminders: dict[str, list[str]] = {}
+        for r in db.execute("SELECT thread_id, ref FROM case_events WHERE kind='reminder_sent' ORDER BY id"):
+            reminders.setdefault(r["thread_id"], []).append(r["ref"])
         changes: dict[str, list[dict]] = {}
         for change in db.execute(
                 "SELECT * FROM case_changes WHERE state IN ('pending', 'change') ORDER BY occurred_at"):
@@ -460,6 +473,14 @@ def all_quotes(include_ignored: bool = False) -> list[dict]:
             "proposal": model_proposal(analysis),
             "links": pending_links.get(row["thread_id"], []),
             "changes": changes.get(row["thread_id"], []),
+            "waiting_since": _waiting_since(row["status"], row["sent_at"] or "", latest_reply.get(row["thread_id"])),
+            "followup": {
+                "auto_enabled": bool(followups.get(row["thread_id"], {}).get("auto_enabled")),
+                "paused": bool(followups.get(row["thread_id"], {}).get("paused")),
+                "contacted_at": followups.get(row["thread_id"], {}).get("contacted_at") or "",
+            },
+            "reminders": [ref for ref in reminders.get(row["thread_id"], [])
+                          if ref.startswith((row["sent_at"] or "") + "|")],
             "quote_code": row["quote_code"] or "",
             "code_stage": row["code_stage"] or "",
             "code_assigned_at": row["code_assigned_at"] or "",

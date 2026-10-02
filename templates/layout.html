@@ -23,6 +23,16 @@
   <div id="fresh-banner" class="notice" hidden>Hay cambios nuevos. <a href="#" id="fresh-reload">Recargar</a></div>
   <main>{% if message %}<div class='notice'>{{ message }}</div>{% endif %}{{ body }}</main>
   <script>
+    // Evita el doble envío: tras el primer clic en «Enviar ahora» el botón queda bloqueado.
+    document.addEventListener('submit', event => {
+      const sender = event.submitter;
+      if (sender && sender.getAttribute('formaction') === '/send') {
+        setTimeout(() => { sender.disabled = true; sender.textContent = 'Enviando…'; }, 0);
+      }
+    });
+    window.addEventListener('pageshow', event => {
+      if (event.persisted) location.reload();
+    });
     document.addEventListener('click', event => {
       if (event.target.closest('[data-print]')) window.print();
       const button = event.target.closest('[data-confirm]');

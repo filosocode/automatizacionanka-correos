@@ -98,6 +98,19 @@ Levantamiento topográfico solicitado.
 Volver
 </a>
 </div>
+<div class="next-step warn">
+<div>
+<strong>
+Llamar al cliente
+</strong>
+<span>
+Lleva 7 días hábiles sin responder. Llámalo para avanzar y anota que ya hablaste con él.
+</span>
+</div>
+<a class="button" href="#seguimiento">
+Ver seguimiento
+</a>
+</div>
 <div class="layout">
 <section class="section stepper">
 <div class="process">
@@ -147,6 +160,39 @@ Lo que se han escrito
 <p class="meta">
 Todavía no hay correos leídos de este hilo; aparecen en un par de minutos.
 </p>
+</section>
+<section class="section followup" id="seguimiento">
+<div class="section-head">
+<h2>
+Seguimiento del cliente
+</h2>
+<span class="badge warn">
+Llamar al cliente
+</span>
+</div>
+<p>
+Esperando respuesta desde el 2026-09-02 10:00 ·
+<strong>
+21
+</strong>
+día(s) hábil(es).
+</p>
+<p class="meta">
+Seguimiento automático:
+<strong>
+apagado
+</strong>
+. Si lo activas, se envían hasta 2 recordatorios cortos al contacto registrado (a 1 y 3 días hábiles, de lunes a viernes de 8:00 a 17:00) y a los 7 días hábiles te avisa para llamar. Se detiene apenas el cliente responda.
+</p>
+<form method="post" action="/followup" class="toolbar">
+<input type="hidden" name="thread_id" value="t-sent">
+<button type="submit" name="action" value="auto_on" data-confirm="Se enviarán recordatorios automáticos a este cliente (máximo 2). ¿Activas el seguimiento automático?">
+Activar seguimiento automático
+</button>
+<button type="submit" class="secondary" name="action" value="contacted" data-confirm="Se detienen los avisos y recordatorios de este caso. ¿Ya hablaste con el cliente?">
+Ya hablé con el cliente
+</button>
+</form>
 </section>
 <section class="section">
 <h2>
@@ -715,7 +761,7 @@ Aún no hay hechos registrados para este caso.
 </div>
 </main>
 <script>
-document.addEventListener('click', event => { if (event.target.closest('[data-print]')) window.print(); const button = event.target.closest('[data-confirm]'); if (button && !confirm(button.dataset.confirm)) event.preventDefault(); }); (function () { let base = null, dirty = false; const chip = document.getElementById('bridge-chip'); document.addEventListener('input', () => { dirty = true; }); document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); }); async function poll() { try { const r = await fetch('/state', {cache: 'no-store'}); if (!r.ok) return; const s = await r.json(); if (s.bridge) { chip.hidden = false; chip.dataset.state = s.bridge; chip.title = s.text; chip.textContent = {ok: 'Puente activo', error: 'Puente con avisos', stopped: 'Puente detenido', never: 'Puente sin iniciar'}[s.bridge]; } else { chip.hidden = true; } if (base === null) base = s.v; else if (s.v !== base) { if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { document.getElementById('fresh-banner').hidden = false; } else location.reload(); } } catch (e) { /* servidor local cerrado: se reintenta */ } } poll(); setInterval(poll, 20000); })();
+// Evita el doble envío: tras el primer clic en «Enviar ahora» el botón queda bloqueado. document.addEventListener('submit', event => { const sender = event.submitter; if (sender && sender.getAttribute('formaction') === '/send') { setTimeout(() => { sender.disabled = true; sender.textContent = 'Enviando…'; }, 0); } }); window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); }); document.addEventListener('click', event => { if (event.target.closest('[data-print]')) window.print(); const button = event.target.closest('[data-confirm]'); if (button && !confirm(button.dataset.confirm)) event.preventDefault(); }); (function () { let base = null, dirty = false; const chip = document.getElementById('bridge-chip'); document.addEventListener('input', () => { dirty = true; }); document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); }); async function poll() { try { const r = await fetch('/state', {cache: 'no-store'}); if (!r.ok) return; const s = await r.json(); if (s.bridge) { chip.hidden = false; chip.dataset.state = s.bridge; chip.title = s.text; chip.textContent = {ok: 'Puente activo', error: 'Puente con avisos', stopped: 'Puente detenido', never: 'Puente sin iniciar'}[s.bridge]; } else { chip.hidden = true; } if (base === null) base = s.v; else if (s.v !== base) { if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { document.getElementById('fresh-banner').hidden = false; } else location.reload(); } } catch (e) { /* servidor local cerrado: se reintenta */ } } poll(); setInterval(poll, 20000); })();
 </script>
 </body>
 </html>

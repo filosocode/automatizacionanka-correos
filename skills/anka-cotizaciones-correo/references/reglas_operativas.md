@@ -10,7 +10,7 @@ Estas reglas valen **igual en los tres modos** de operación:
 
 Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actualizan el código y la skill. Las pruebas `test_paridad_modos.py` fallan si alguno de los tres se separa. El procedimiento completo está en `ESTANDAR_CAMBIOS.md`.
 
-**Versión de las reglas: 6**
+**Versión de las reglas: 7**
 
 ## Reglas
 
@@ -28,6 +28,7 @@ Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actua
 | R10 | Al crear la carpeta del proyecto se llena con el contenido de la plantilla de Drive: toda la documentación que envió el cliente (PDF, Word, Excel, KMZ, KML, DWG, shapefile, imágenes y demás adjuntos; solo se omiten los logos incrustados en firmas) y una hoja de Google con la tabla de actividades. No se pisa ningún archivo existente y un fallo al copiar no deshace la carpeta. Lo hace el código Python (dashboard y piloto); ChatGPT Work no crea ni llena carpetas. El PDF de alcance generado con el resumen queda pendiente. |
 | R11 | Antes de la T el cliente puede escribir sin código. Cuando una persona acepta el proyecto en el dashboard se asigna la **T** (`T` + año de 2 cifras + consecutivo de 3, p. ej. `T26145`; al aprobarse pasa a `T&E26145`, mismo número); ni Work ni Python generan ni inventan el código. Desde la T, la tabla de actividades **solo se actualiza con un mensaje posterior a la T** que venga del **contacto registrado** (quien escribió primero) **y** cite el código del caso. Un mensaje de otra persona, de otro dominio o sin el código **no modifica la tabla**: lo que propone queda como propuesta pendiente y el dashboard avisa. Quien analiza informa `requested_by_email`, `requested_by_name` y `cited_codes`; el dashboard valida. Una edición del comercial en el dashboard no pide validación ni envía correos: solo deja historial. Los correos a quien no es el contacto registrado nunca incluyen el código. |
 | R12 | El estado de cada actividad es exactamente `confirmado`, `pendiente` o `contradictorio`, sin texto añadido. Solo es `confirmado` si todos los datos esenciales de esa fila (ubicación, magnitud y unidad, entregable, plazo o restricción y, cuando aplique, método y precisión) están explícitos en el correo o los adjuntos; si falta alguno es `pendiente` y en `notes` se anota qué falta. `contradictorio` cuando las fuentes discrepan. El dashboard normaliza cualquier otro texto a uno de los tres valores. |
+| R13 | Un caso que espera la respuesta del cliente muestra cuánto lleva esperando (en días hábiles). A los 3 días hábiles sin respuesta se marca para recordar y a los 7 para **llamar al cliente**. Una persona puede activar, caso por caso (apagado por defecto), hasta **2 recordatorios automáticos** (a 1 y 3 días hábiles del correo con las preguntas), solo de lunes a viernes de 8:00 a 17:00, con texto fijo y neutro (sin cifras ni el código de la oferta) y solo al contacto registrado. Se detienen en cuanto el cliente responde por cualquier vía, o si una persona pausa el seguimiento o anota que ya habló con el cliente. Los envía el dashboard, no Work. Es la única excepción a R8. |
 
 ## Bloque legible por máquina
 
@@ -35,7 +36,7 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
 
 ```json reglas
 {
-  "version": 6,
+  "version": 7,
   "descarte": {
     "senales": ["remitente_no_reply", "list_unsubscribe", "auto_submitted", "precedence_masivo", "spam_gmail"],
     "requiere_todos_los_mensajes": true,
@@ -50,6 +51,15 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
   },
   "correo_al_cliente": {"envio_automatico": false},
   "actividades": {"estados": ["confirmado", "pendiente", "contradictorio"]},
+  "recordatorios": {
+    "maximo": 2,
+    "dias_habiles": [1, 3],
+    "llamar_dias_habiles": 7,
+    "alerta_sin_automaticos_dias_habiles": 3,
+    "horario": [8, 17],
+    "requiere_activacion_por_caso": true,
+    "solo_contacto_registrado": true
+  },
   "cambios": {
     "codigo": "T + año de 2 cifras + consecutivo de 3",
     "se_exige_desde": "asignacion_de_la_t",
@@ -68,7 +78,8 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
     "R9": "al enviar la respuesta desde el dashboard",
     "R10": "se llena con el contenido de la plantilla de Drive",
     "R11": "solo se actualiza con un mensaje posterior a la T",
-    "R12": "solo es confirmado si todos los datos esenciales"
+    "R12": "solo es confirmado si todos los datos esenciales",
+    "R13": "los recordatorios por falta de respuesta los envía el dashboard"
   }
 }
 ```

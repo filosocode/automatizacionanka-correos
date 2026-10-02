@@ -34,7 +34,7 @@ Considera candidato cuando el correo pida cotizar, presupuestar, proponer, valor
 
 Descarta o deja en revision los casos que sean publicidad, mensajes administrativos, notificaciones automaticas, duplicados evidentes, o solicitudes sin relacion con servicios de Anka.
 
-## Reglas operativas (versión 6)
+## Reglas operativas (versión 7)
 
 Estas reglas son idénticas en los tres modos (Ollama, API y ChatGPT Work) y viven en [reglas_operativas.md](references/reglas_operativas.md), que es la fuente única. Si algo aquí difiere de ese archivo, prevalece ese archivo; avisa para corregir esta skill. Detalle y ejemplos: [casos_prueba.md](references/casos_prueba.md).
 
@@ -50,6 +50,7 @@ Estas reglas son idénticas en los tres modos (Ollama, API y ChatGPT Work) y viv
 - **R10 · Contenido de la carpeta.** Al crear la carpeta del proyecto se llena con el contenido de la plantilla de Drive: toda la documentación que envió el cliente (cualquier tipo de adjunto) y una hoja con la tabla de actividades. Lo hace el dashboard, no esta skill; tú solo registra bien los adjuntos y las actividades para que ese contenido sea correcto.
 - **R11 · Código y cambios.** Antes de la T el cliente puede escribir sin código. La T (`T` + año + consecutivo, p. ej. `T26145`, que al aprobarse pasa a `T&E26145`) la asigna una persona en el dashboard: tú nunca la generas ni la inventas. Desde la T, la tabla de actividades solo se actualiza con un mensaje posterior a la T que venga del contacto registrado (quien escribió primero) y cite el código del caso. Si el mensaje es de otra persona, de otro dominio o no cita el código, no cambies la tabla: describe lo que pide como cambio pendiente. En cada análisis informa quién escribió el mensaje analizado (`requested_by_email`, `requested_by_name`) y los códigos que cita (`cited_codes`, tal como aparecen); el dashboard decide. Nunca escribas el código en un borrador dirigido a quien no sea el contacto registrado.
 - **R12 · Estado de las actividades.** El estado de cada fila es exactamente `confirmado`, `pendiente` o `contradictorio`, sin texto añadido. Solo es confirmado si todos los datos esenciales de esa fila (ubicación, magnitud y unidad, entregable, plazo o restricción y, cuando aplique, método y precisión) están explícitos en el correo o los adjuntos; si falta alguno es `pendiente` y en `notes` anotas qué falta. Usa `contradictorio` cuando las fuentes discrepan.
+- **R13 · Recordatorios.** Cuando el cliente tarda en responder, los recordatorios por falta de respuesta los envía el dashboard (máximo 2, solo si una persona lo activó) y a los 7 días hábiles avisa para llamar. Tú no prepares borradores de recordatorio ni escribas al cliente por su silencio; sigue analizando cuando llegue una respuesta.
 
 ## Datos faltantes frecuentes
 

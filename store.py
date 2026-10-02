@@ -212,6 +212,17 @@ def add_message(db: sqlite3.Connection, thread_id: str, message_id: str, directi
         (thread_id, message_id, direction, sender, subject[:200], body[:8000], occurred_at))
 
 
+def _migration_9_case_followup(db: sqlite3.Connection) -> None:
+    """Seguimiento cuando el cliente tarda: recordatorios automáticos (opt-in), pausa y «ya hablé»."""
+    db.execute("""CREATE TABLE IF NOT EXISTS case_followup (
+        thread_id TEXT PRIMARY KEY,
+        auto_enabled INTEGER NOT NULL DEFAULT 0,
+        paused INTEGER NOT NULL DEFAULT 0,
+        contacted_at TEXT,
+        updated_at TEXT NOT NULL
+    )""")
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -223,6 +234,7 @@ MIGRATIONS = (
     _migration_6_codes_and_evidence,
     _migration_7_table_versions,
     _migration_8_case_messages,
+    _migration_9_case_followup,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

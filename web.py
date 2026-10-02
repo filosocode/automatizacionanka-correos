@@ -42,6 +42,7 @@ from templating import render
 from case_actions import approve_review, delete_cases, resolve_case_recipient, save_dashboard_draft, send_dashboard_reply
 from pipeline import checked_run, describe_check, sync_status_text
 from work_heartbeat import bridge_state
+import followup_reminders as fup
 from change_control import (
     STAGE_LABELS, assign_code, code_label, promote_to_te, required_messages, resolve_change,
     suggest_number,
@@ -342,6 +343,17 @@ def _next_step_banner(review: dict, work_mode: bool) -> Markup:
             title=f"El modelo sugiere {len(review['proposal'])} cambio(s) en tu tabla",
             text="Llegó información nueva y tu tabla editada no se tocó.",
             action_href="#proposal", action_label="Revisar")
+    label, urgent = _case_stage(review)
+    if label == "Llamar al cliente":
+        return render(
+            "next_step.html", tone="warn", title="Llamar al cliente",
+            text="Lleva 7 días hábiles sin responder. Llámalo para avanzar y anota que ya hablaste con él.",
+            action_href="#seguimiento", action_label="Ver seguimiento")
+    if label == "Sin respuesta · recordar":
+        return render(
+            "next_step.html", tone="warn", title="El cliente no ha respondido",
+            text="Lleva 3 días hábiles esperando. Envía un recordatorio o activa el seguimiento automático.",
+            action_href="#seguimiento", action_label="Ver seguimiento")
     if review["status"] == QuoteStatus.REVIEW:
         return render(
             "next_step.html", tone="warn", title="Falta tu decisión de revisión técnica",
@@ -454,10 +466,17 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
     )
     email_body = ""
     blank_reply = False
-    if email_allowed:
+    waiting_for_client = (
+        email_allowed and review["status"] == QuoteStatus.WAITING and not template and review["sent_at"])
+    if waiting_for_client:
+        email = "waiting"   # ya se escribió: no se ofrece enviar lo mismo otra vez
+    elif email_allowed:
         email = "form"
         change = next((c for c in review.get("changes", []) if c["id"] == change_id), None)
-        if template in ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse"):
+        if template == "libre":
+            email_body = ""
+            blank_reply = True
+        elif template in ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse"):
             email_body = _reply_template(template, review, change)
         elif reopened:
             email_body = ""          # caso ya avanzado: respuesta libre, en blanco
@@ -525,6 +544,7 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
              "fresh": split_quoted(m["body"])[0], "quoted": split_quoted(m["body"])[1]}
             for m in case_conversation(thread_id)]),
         stepper=_stepper(review),
+        followup=_followup_panel(review),
         compose_to=compose_to, compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),
@@ -619,6 +639,22 @@ def split_quoted(body: str) -> tuple[str, str]:
     return text[:cut].strip(), text[cut:].strip()
 
 
+def _followup_panel(review: dict) -> Markup:
+    """Seguimiento del cliente: cuánto lleva esperando, recordatorios y qué hacer."""
+    since = review.get("waiting_since", "")
+    if not since:
+        return Markup("")
+    follow = review.get("followup", {})
+    label, urgent = _case_stage(review)
+    contacted = bool(follow.get("contacted_at")) and follow["contacted_at"] >= since
+    return render(
+        "followup.html", thread_id=review["thread_id"], headline=label, urgent=urgent,
+        since=since[:16].replace("T", " "), days=fup.waiting_days(since),
+        auto=bool(follow.get("auto_enabled")), paused=bool(follow.get("paused")), contacted=contacted,
+        reminders=[ref.split("|")[-1] for ref in review.get("reminders", [])],
+        max_reminders=fup.MAX_REMINDERS, call_days=fup.CALL_BUSINESS_DAYS)
+
+
 def _outgoing_pending(changes: list[dict]) -> bool:
     """¿Hay un cambio confirmado al que aún le faltan correos por enviar?"""
     for change in changes:
@@ -642,6 +678,16 @@ def _case_stage(quote: dict) -> tuple[str, bool]:
         return "Posible actualización", True
     if quote.get("reply_pending"):
         return REPLY_LABEL, True
+    if quote.get("waiting_since"):
+        days = fup.waiting_days(quote["waiting_since"])
+        follow = quote.get("followup", {})
+        if fup.call_due(quote["waiting_since"], follow.get("contacted_at", "")):
+            return "Llamar al cliente", True
+        quiet = follow.get("contacted_at", "") and follow["contacted_at"] >= quote["waiting_since"]
+        automatic = follow.get("auto_enabled") and not follow.get("paused")
+        if days >= fup.ALERT_BUSINESS_DAYS and not automatic and not quiet:
+            return "Sin respuesta · recordar", True
+        return ("Esperando al cliente" + (f" · hace {days} d" if days >= 1 else "")), False
     if status == QuoteStatus.REVIEW:
         return "Falta tu decisión técnica", True
     if quote.get("proposal"):
@@ -849,7 +895,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/draft":
                 thread_id = form.get("thread_id", [""])[0]
                 body = form.get("body", [""])[0]
-                message = save_dashboard_draft(thread_id, body, form.get("to", [""])[0])
+                try:
+                    message = save_dashboard_draft(thread_id, body, form.get("to", [""])[0])
+                except ValueError as exc:
+                    message = str(exc)
                 self._redirect(
                     "/case?thread_id=" + urllib.parse.quote(thread_id)
                     + "&message=" + urllib.parse.quote(message)
@@ -857,9 +906,12 @@ class ReviewHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/send":
                 thread_id = form.get("thread_id", [""])[0]
                 body = form.get("body", [""])[0]
-                message = send_dashboard_reply(
-                    thread_id, body, form.get("to", [""])[0],
-                    int(form.get("change_id", ["0"])[0] or 0), form.get("purpose", [""])[0])
+                try:
+                    message = send_dashboard_reply(
+                        thread_id, body, form.get("to", [""])[0],
+                        int(form.get("change_id", ["0"])[0] or 0), form.get("purpose", [""])[0])
+                except ValueError as exc:  # p. ej. el mismo correo ya salió: se explica, no es un fallo
+                    message = str(exc)
                 self._redirect(
                     "/case?thread_id=" + urllib.parse.quote(thread_id)
                     + "&message=" + urllib.parse.quote(message)
@@ -888,6 +940,16 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 self._redirect(
                     "/case?thread_id=" + urllib.parse.quote(thread_id)
                     + "&message=" + urllib.parse.quote(message)
+                )
+            elif parsed.path == "/followup":
+                thread_id = form.get("thread_id", [""])[0]
+                try:
+                    message = fup.set_followup(thread_id, form.get("action", [""])[0])
+                except ValueError as exc:
+                    message = str(exc)
+                self._redirect(
+                    "/case?thread_id=" + urllib.parse.quote(thread_id)
+                    + "&message=" + urllib.parse.quote(message) + "#seguimiento"
                 )
             elif parsed.path in ("/code", "/code-approve", "/change"):
                 thread_id = form.get("thread_id", [""])[0]

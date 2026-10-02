@@ -723,5 +723,249 @@ class UxFixesTests(Base):
         self.assertIn("Actualizar correo", local)
 
 
+class DoubleSendTests(Base):
+    """Un clic = un correo: tras enviar, la pantalla cambia y el mismo texto no sale dos veces."""
+
+    class Gmail:
+        def __init__(self):
+            self.sent = []
+
+        def users(self):
+            return self
+
+        def messages(self):
+            return self
+
+        def send(self, **kw):
+            self.sent.append(kw)
+            return _Exec({"id": f"sent-{len(self.sent)}"})
+
+    def send(self, gmail, body="Hola, ¿datum?"):
+        context = (quotes.get_quote("T1"), gmail, {"id": "T1", "messages": []}, set())
+        with patch.object(case_actions, "_case_email_context", return_value=context), \
+                patch.object(case_actions, "reply_email", return_value=type("E", (), {"as_bytes": lambda self: b"x"})()):
+            return case_actions.send_dashboard_reply("T1", body)
+
+    def test_the_same_text_is_not_sent_twice_in_a_row(self):
+        gmail = self.Gmail()
+        self.send(gmail)
+        with self.assertRaises(ValueError) as caught:
+            self.send(gmail)                                   # segundo clic con el mismo texto
+        self.assertIn("ya se envió", str(caught.exception))
+        self.assertEqual(len(gmail.sent), 1)                   # solo salió un correo
+        self.send(gmail, "Otro texto distinto")                # un texto nuevo sí se puede enviar
+        self.assertEqual(len(gmail.sent), 2)
+
+    def test_after_sending_questions_the_case_waits_and_hides_the_send_form(self):
+        db = init_db()
+        db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.REVIEW_PENDING,))
+        db.commit()
+        db.close()
+        self.send(self.Gmail())
+        self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.WAITING)
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_case("T1")
+            free = web._render_case("T1", template="libre")
+        self.assertIn("Correo enviado.", page)
+        self.assertNotIn('formaction="/send"', page)            # ya no se ofrece enviar lo mismo
+        self.assertIn("Escribir otro correo", page)
+        self.assertIn('formaction="/send"', free)               # pero se puede escribir otro, en blanco
+        box = free.split('name="body"')[1].split("</textarea>")[0]
+        self.assertEqual(box.split(">", 1)[1].strip(), "")
+
+    def test_the_send_button_blocks_itself_after_the_first_click(self):
+        from dashboard_views import render_page
+        page = render_page("t", "x", "", 0, "chatgpt_work")
+        self.assertIn("Enviando", page)
+        self.assertIn("formaction') === '/send'", page)
+
+
+class ClientDelayFollowupTests(Base):
+    """El cliente tarda: tiempo de espera, alertas, recordatorios automáticos con condiciones y llamada."""
+
+    SENT = "2026-10-01T10:00:00-05:00"       # jueves
+
+    def at(self, text):
+        from datetime import datetime as dt
+        return dt.fromisoformat(text)
+
+    def wait_for_client(self, auto=True):
+        import followup_reminders as fup
+        db = init_db()
+        db.execute("UPDATE quotes SET status=?, sent_at=?, recipient='ana@acme.com' WHERE thread_id='T1'",
+                   (QuoteStatus.WAITING, self.SENT))
+        db.commit()
+        db.close()
+        if auto:
+            fup.set_followup("T1", "auto_on")
+
+    def due(self, when):
+        import followup_reminders as fup
+        return fup.due_reminders(self.at(when))
+
+    # ---- calendario hábil
+    def test_business_days_and_hours(self):
+        import followup_reminders as fup
+        a = self.at
+        self.assertEqual(fup.business_days(a("2026-10-02T09:00:00-05:00"), a("2026-10-05T09:00:00-05:00")), 1)  # vie -> lun
+        self.assertEqual(fup.business_days(a("2026-10-05T09:00:00-05:00"), a("2026-10-09T09:00:00-05:00")), 4)
+        self.assertEqual(fup.business_days(a("2026-10-03T09:00:00-05:00"), a("2026-10-04T09:00:00-05:00")), 0)  # fin de semana
+        self.assertTrue(fup.in_business_hours(a("2026-10-02T08:00:00-05:00")))
+        self.assertFalse(fup.in_business_hours(a("2026-10-02T17:00:00-05:00")))
+        self.assertFalse(fup.in_business_hours(a("2026-10-03T10:00:00-05:00")))   # sábado
+        self.assertTrue(fup.in_business_hours(a("2026-10-02T14:00:00-07:00")))    # 16:00 en Colombia, aunque el PC esté en otra zona
+
+    # ---- recordatorios automáticos
+    def test_reminders_follow_the_schedule_and_stop_after_two(self):
+        self.wait_for_client()
+        self.assertEqual(self.due("2026-10-01T16:00:00-05:00"), [])                  # el mismo día: nada
+        self.assertEqual(self.due("2026-10-02T10:00:00-05:00"), [("T1", 1)])         # 1 día hábil
+        db = init_db()
+        record_event(db, "T1", "reminder_sent", "dashboard", f"{self.SENT}|1", "r1", "2026-10-02T10:30:00-05:00")
+        db.commit()
+        db.close()
+        self.assertEqual(self.due("2026-10-05T10:00:00-05:00"), [])                  # a 2 días hábiles aún no
+        self.assertEqual(self.due("2026-10-06T10:00:00-05:00"), [("T1", 2)])         # a 3 días hábiles
+        db = init_db()
+        record_event(db, "T1", "reminder_sent", "dashboard", f"{self.SENT}|2", "r2", "2026-10-06T10:30:00-05:00")
+        db.commit()
+        db.close()
+        self.assertEqual(self.due("2026-10-13T10:00:00-05:00"), [])                  # máximo dos
+
+    def test_nothing_is_sent_outside_business_hours(self):
+        self.wait_for_client()
+        self.assertEqual(self.due("2026-10-02T07:59:00-05:00"), [])
+        self.assertEqual(self.due("2026-10-02T17:30:00-05:00"), [])
+        self.assertEqual(self.due("2026-10-03T10:00:00-05:00"), [])                  # sábado
+
+    def test_automatic_follow_up_is_off_by_default(self):
+        self.wait_for_client(auto=False)
+        self.assertEqual(self.due("2026-10-02T10:00:00-05:00"), [])
+
+    def test_every_stop_condition_cancels_the_reminder(self):
+        import followup_reminders as fup
+        when = "2026-10-02T10:00:00-05:00"
+        self.wait_for_client()
+        fup.set_followup("T1", "pause")
+        self.assertEqual(self.due(when), [])                                          # pausado
+        fup.set_followup("T1", "resume")
+        self.assertEqual(self.due(when), [("T1", 1)])
+        fup.set_followup("T1", "contacted")
+        self.assertEqual(self.due(when), [])                                          # ya habló con el cliente
+        db = init_db()
+        db.execute("UPDATE case_followup SET contacted_at=NULL WHERE thread_id='T1'")
+        record_event(db, "T1", "received", "gmail", "r-cliente", "respondió", "2026-10-01T18:00:00-05:00", "ana@acme.com")
+        db.commit()
+        db.close()
+        self.assertEqual(self.due(when), [])                                          # el cliente respondió
+        db = init_db()
+        db.execute("DELETE FROM case_events WHERE ref='r-cliente'")
+        db.execute("UPDATE quotes SET recipient='otra@acme.com' WHERE thread_id='T1'")
+        db.commit()
+        db.close()
+        self.assertEqual(self.due(when), [])                                          # no es el contacto registrado
+
+    def test_something_from_the_client_to_review_cancels_it_too(self):
+        self.wait_for_client()
+        self.sync({"n1": mail("NUEVO", False, self.t0 + 3600, "Luis <ana@acme.com>")})   # aviso de otro hilo
+        self.assertTrue(quotes.get_quote("T1")["links"])
+        self.assertEqual(self.due("2026-10-02T10:00:00-05:00"), [])
+
+    def test_sending_a_reminder_does_not_touch_the_case(self):
+        import followup_reminders as fup
+        self.wait_for_client()
+        sent = []
+
+        class G:
+            def users(self):
+                return self
+
+            def messages(self):
+                return self
+
+            def send(self, **kw):
+                sent.append(kw)
+                return _Exec({"id": "msg-1"})
+
+        quote = quotes.get_quote("T1")
+        context = (quote, G(), {"id": "T1", "messages": []}, set())
+        from unittest.mock import patch as p2
+
+        import mail
+        with p2.object(case_actions, "_case_email_context", return_value=context), \
+                p2.object(mail, "reply_email", return_value=type("E", (), {"as_bytes": lambda self: b"x"})()):
+            fup.send_reminder("T1", 1)
+        after = quotes.get_quote("T1")
+        self.assertEqual((after["status"], after["sent_at"]), (QuoteStatus.WAITING, self.SENT))   # el reloj no se reinicia
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(after["reminders"], [f"{self.SENT}|1"])
+        self.assertFalse(any(ch.isdigit() for ch in fup.reminder_text(1) + fup.reminder_text(2)))   # texto neutro, sin cifras
+
+    def test_a_failure_in_one_case_does_not_stop_the_rest(self):
+        import followup_reminders as fup
+        with patch.object(fup, "due_reminders", return_value=[("A", 1), ("B", 1)]), \
+                patch.object(fup, "send_reminder", side_effect=[RuntimeError("falla"), None]) as send:
+            self.assertEqual(fup.run_due_reminders(), 1)
+        self.assertEqual(send.call_count, 2)
+
+    # ---- alertas y pantalla
+    def stage(self, now_text):
+        import followup_reminders as fup
+        quote = quotes.get_quote("T1")
+        with patch.object(fup, "waiting_days", side_effect=lambda since, now=None: fup.business_days(
+                self.at(since), self.at(now_text))), \
+                patch.object(fup, "call_due", side_effect=lambda since, contacted, now=None: (
+                    fup.business_days(self.at(since), self.at(now_text)) >= fup.CALL_BUSINESS_DAYS
+                    and not (contacted and contacted >= since))):
+            return web._case_stage(quote)
+
+    def test_waiting_time_alerts_and_the_call(self):
+        self.wait_for_client(auto=False)
+        self.assertEqual(self.stage("2026-10-01T16:00:00-05:00"), ("Esperando al cliente", False))
+        self.assertEqual(self.stage("2026-10-05T10:00:00-05:00"), ("Esperando al cliente · hace 2 d", False))
+        self.assertEqual(self.stage("2026-10-06T10:00:00-05:00"), ("Sin respuesta · recordar", True))   # 3 días hábiles
+        self.assertEqual(self.stage("2026-10-12T10:00:00-05:00"), ("Llamar al cliente", True))         # 7 días hábiles
+
+    def test_with_automatic_follow_up_the_alert_waits_until_the_call(self):
+        self.wait_for_client(auto=True)
+        self.assertEqual(self.stage("2026-10-06T10:00:00-05:00")[1], False)                           # lo hacen los recordatorios
+        self.assertEqual(self.stage("2026-10-12T10:00:00-05:00"), ("Llamar al cliente", True))
+
+    def test_saying_you_already_spoke_silences_the_alerts(self):
+        import followup_reminders as fup
+        self.wait_for_client(auto=False)
+        fup.set_followup("T1", "contacted")
+        self.assertEqual(self.stage("2026-10-12T10:00:00-05:00")[1], False)
+
+    def test_the_case_page_shows_the_follow_up_panel_and_its_controls(self):
+        self.wait_for_client(auto=False)
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_case("T1")
+        self.assertIn("Seguimiento del cliente", page)
+        self.assertIn("Activar seguimiento automático", page)
+        self.assertIn("Ya hablé con el cliente", page)
+        import followup_reminders as fup
+        fup.set_followup("T1", "auto_on")
+        with patch("web.load_config", return_value=CONFIG):
+            page = web._render_case("T1")
+        self.assertIn("Pausar seguimiento", page)
+        kinds = {e["kind"] for e in quotes.thread_events("T1")}
+        self.assertIn("followup_auto_on", kinds)
+        with self.assertRaises(ValueError):
+            fup.set_followup("T1", "borrar")
+
+    def test_python_constants_match_the_rules_file(self):
+        import followup_reminders as fup
+        text = Path("skills/anka-cotizaciones-correo/references/reglas_operativas.md").read_text(encoding="utf-8")
+        rules = json.loads(text.split("```json reglas\n")[1].split("\n```")[0])["recordatorios"]
+        self.assertEqual(rules["maximo"], fup.MAX_REMINDERS)
+        self.assertEqual(tuple(rules["dias_habiles"]), fup.REMINDER_BUSINESS_DAYS)
+        self.assertEqual(rules["llamar_dias_habiles"], fup.CALL_BUSINESS_DAYS)
+        self.assertEqual(rules["alerta_sin_automaticos_dias_habiles"], fup.ALERT_BUSINESS_DAYS)
+        self.assertEqual(tuple(rules["horario"]), fup.BUSINESS_HOURS)
+        self.assertIs(rules["requiere_activacion_por_caso"], fup.AUTO_REQUIRES_ACTIVATION)
+        self.assertIs(rules["solo_contacto_registrado"], fup.ONLY_TO_REGISTERED_CONTACT)
+
+
 if __name__ == "__main__":
     unittest.main()

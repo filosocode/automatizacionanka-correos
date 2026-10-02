@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from status import (
@@ -127,6 +127,24 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     return f"Borrador guardado en Gmail para {recipient}."
 
 
+DUPLICATE_WINDOW = timedelta(minutes=15)
+
+
+def _already_sent(quote: dict, body: str, recipient: str) -> str:
+    """Aviso si este mismo texto ya salió hace poco a la misma persona (doble clic, página que no cambió)."""
+    sent_at = quote.get("sent_at") or ""
+    if not sent_at or (quote.get("draft_body") or "").strip() != body:
+        return ""
+    try:
+        age = datetime.now().astimezone() - datetime.fromisoformat(sent_at)
+    except ValueError:
+        return ""
+    if age <= DUPLICATE_WINDOW and recipient.casefold() == str(quote["recipient"]).casefold():
+        return (f"Este mismo correo ya se envió a {recipient} hace {max(1, int(age.total_seconds() // 60))} min. "
+                "No se envió de nuevo; si quieres mandar otro, cambia el texto.")
+    return ""
+
+
 def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int = 0,
                          purpose: str = "") -> str:
     body = body.strip()
@@ -134,6 +152,9 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
         raise ValueError("El correo no puede estar vacío.")
     quote, gmail, thread, account_addresses = _case_email_context(thread_id)
     recipient = _recipient(thread_id, quote, to)
+    duplicate = _already_sent(quote, body, recipient)
+    if duplicate:
+        raise ValueError(duplicate)
     email = reply_email(thread, recipient, body, account_addresses)
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
     # Se envía el borrador existente (el del dashboard o el que dejó Work) para no dejar uno huérfano

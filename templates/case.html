@@ -3,6 +3,7 @@
 <div class="layout">
   {{ stepper }}
   {{ conversation }}
+  {{ followup }}
   <section class="section">
     <h2>Actividades detectadas</h2>
     {{ proposal_panel }}
@@ -46,6 +47,10 @@
       data-confirm="Se enviará este correo a {{ compose_to or review.recipient }} en el mismo hilo. ¿Confirmas el envío?">Enviar ahora</button>
   </div>
 </form>
+    {% elif email == 'waiting' %}
+<div class='notice'><strong>Correo enviado.</strong> Se envió a {{ review.recipient }} el {{ review.sent_at[:16] | replace('T', ' ') }}. Ahora esperamos la respuesta del cliente.</div>
+<details class="more"><summary class="meta">Ver lo que enviaste</summary><pre>{{ review.draft_body }}</pre></details>
+<p><a class="button secondary" href="/case?thread_id={{ thread_id | urlquote }}&template=libre#respuesta">Escribir otro correo</a></p>
     {% elif email == 'sent' %}
 <div class='notice'>Respuesta enviada el {{ review.sent_at or 'sin fecha registrada' }}.</div><pre>{{ review.draft_body }}</pre>
     {% elif email == 'recipient_error' %}

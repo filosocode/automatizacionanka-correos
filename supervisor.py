@@ -15,12 +15,14 @@ from pathlib import Path
 
 import settings
 from backup import backup_due, run_backup
+from followup_reminders import run_due_reminders
 from logging_setup import configure_logging, get_logger
 
 log = get_logger(__name__)
 
 ROOT = Path(__file__).resolve().parent
 EXIT_STOP = 2                       # el puente pide no reiniciarlo (modo o cuenta incorrectos)
+REMINDER_EVERY = 300                # segundos entre revisiones de recordatorios
 WATCH_EVERY = 3                     # segundos entre revisiones de cambios y de procesos
 CHILD_PYTHON = sys.executable.replace("pythonw.exe", "python.exe")
 MARKERS = ("app.py review-ui", "work_dashboard_sync.py", "supervisor.py")
@@ -128,6 +130,7 @@ def main() -> None:
     bridge = Child("Puente Work", ["work_dashboard_sync.py", "--seconds", "60"])
     children = [dashboard, bridge]
     snapshot = code_snapshot()
+    last_reminders = 0.0
     log.info("Anka iniciado: dashboard en http://127.0.0.1:8765/")
     try:
         while True:
@@ -146,6 +149,12 @@ def main() -> None:
             dashboard.check()
             if backup_due():
                 run_backup()
+            if time.time() - last_reminders >= REMINDER_EVERY:
+                last_reminders = time.time()
+                try:
+                    run_due_reminders()
+                except Exception:
+                    log.exception("Error al revisar los recordatorios")
             time.sleep(WATCH_EVERY)
     except KeyboardInterrupt:
         log.info("Anka detenido")

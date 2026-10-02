@@ -39,6 +39,8 @@ Si el caso ya tiene T, la tabla solo se actualiza con un mensaje del contacto re
 cambies la tabla y describe el cambio pedido. Nunca generes ni escribas el código en un borrador para otra persona.
 activities: lista de objetos con activity, servicio_tecnica, ubicacion, quantity, unit,
 entregable, plazo_restriccion, fuente, estado, notes.
+R13: los recordatorios por falta de respuesta del cliente los envia el dashboard (maximo 2, solo si una persona lo activo);
+no prepares borradores de recordatorio ni escribas al cliente por su silencio.
 estado (R12): exactamente confirmado, pendiente o contradictorio, sin texto añadido. Solo confirmado si todos los datos
 esenciales de esa fila (ubicacion, magnitud y unidad, entregable, plazo o restriccion y, cuando aplique, metodo y
 precision) estan explicitos en el correo o los adjuntos; si falta alguno, pendiente, y en notes escribe que falta.

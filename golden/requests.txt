@@ -178,6 +178,37 @@ Eliminar seleccionadas
 </button>
 </form>
 <div id="requests" class="grid">
+<article class="case case-row" data-search="proyecto enviado cliente enviado topografía convencional, batimetría" data-status="response_sent" data-type="Empresa privada" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-sent" form="bulk-delete" aria-label="Seleccionar Proyecto Enviado">
+<div>
+<h3>
+Proyecto Enviado
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+Cliente Enviado
+</div>
+</div>
+<div>
+<strong>
+Topografía convencional, Batimetría
+</strong>
+<div class="meta">
+Minería
+</div>
+</div>
+<span class="badge warn">
+Llamar al cliente
+</span>
+<div class="meta">
+2026-09-02
+</div>
+<a class="button secondary" href="/case?thread_id=t-sent">
+Abrir
+</a>
+</article>
 <article class="case case-row" data-search="proyecto técnico cliente@example.com servicio por clasificar" data-status="review" data-type="No clasificado" data-selectable="">
 <input class="row-check" type="checkbox" name="thread_id" value="t-review-tech" form="bulk-delete" aria-label="Seleccionar Proyecto Técnico">
 <div>
@@ -457,37 +488,6 @@ Borrador por revisar
 Abrir
 </a>
 </article>
-<article class="case case-row" data-search="proyecto enviado cliente enviado topografía convencional, batimetría" data-status="response_sent" data-type="Empresa privada" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-sent" form="bulk-delete" aria-label="Seleccionar Proyecto Enviado">
-<div>
-<h3>
-Proyecto Enviado
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-Cliente Enviado
-</div>
-</div>
-<div>
-<strong>
-Topografía convencional, Batimetría
-</strong>
-<div class="meta">
-Minería
-</div>
-</div>
-<span class="badge info">
-Esperando al cliente
-</span>
-<div class="meta">
-2026-09-02
-</div>
-<a class="button secondary" href="/case?thread_id=t-sent">
-Abrir
-</a>
-</article>
 </div>
 <div id="no-results" class="empty" hidden="">
 No hay solicitudes con esos filtros.
@@ -497,7 +497,7 @@ const search = document.querySelector('#search'); const statusFilter = document.
 </script>
 </main>
 <script>
-document.addEventListener('click', event => { if (event.target.closest('[data-print]')) window.print(); const button = event.target.closest('[data-confirm]'); if (button && !confirm(button.dataset.confirm)) event.preventDefault(); }); (function () { let base = null, dirty = false; const chip = document.getElementById('bridge-chip'); document.addEventListener('input', () => { dirty = true; }); document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); }); async function poll() { try { const r = await fetch('/state', {cache: 'no-store'}); if (!r.ok) return; const s = await r.json(); if (s.bridge) { chip.hidden = false; chip.dataset.state = s.bridge; chip.title = s.text; chip.textContent = {ok: 'Puente activo', error: 'Puente con avisos', stopped: 'Puente detenido', never: 'Puente sin iniciar'}[s.bridge]; } else { chip.hidden = true; } if (base === null) base = s.v; else if (s.v !== base) { if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { document.getElementById('fresh-banner').hidden = false; } else location.reload(); } } catch (e) { /* servidor local cerrado: se reintenta */ } } poll(); setInterval(poll, 20000); })();
+// Evita el doble envío: tras el primer clic en «Enviar ahora» el botón queda bloqueado. document.addEventListener('submit', event => { const sender = event.submitter; if (sender && sender.getAttribute('formaction') === '/send') { setTimeout(() => { sender.disabled = true; sender.textContent = 'Enviando…'; }, 0); } }); window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); }); document.addEventListener('click', event => { if (event.target.closest('[data-print]')) window.print(); const button = event.target.closest('[data-confirm]'); if (button && !confirm(button.dataset.confirm)) event.preventDefault(); }); (function () { let base = null, dirty = false; const chip = document.getElementById('bridge-chip'); document.addEventListener('input', () => { dirty = true; }); document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); }); async function poll() { try { const r = await fetch('/state', {cache: 'no-store'}); if (!r.ok) return; const s = await r.json(); if (s.bridge) { chip.hidden = false; chip.dataset.state = s.bridge; chip.title = s.text; chip.textContent = {ok: 'Puente activo', error: 'Puente con avisos', stopped: 'Puente detenido', never: 'Puente sin iniciar'}[s.bridge]; } else { chip.hidden = true; } if (base === null) base = s.v; else if (s.v !== base) { if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { document.getElementById('fresh-banner').hidden = false; } else location.reload(); } } catch (e) { /* servidor local cerrado: se reintenta */ } } poll(); setInterval(poll, 20000); })();
 </script>
 </body>
 </html>
