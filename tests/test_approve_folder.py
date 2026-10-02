@@ -15,6 +15,7 @@ from anka.servicios import quotes
 from anka.infra import settings
 from anka.infra import store
 from anka.web import server as web
+from anka.web import seguridad
 from tests.fake_drive import FakeDriveTree
 from anka.dominio.status import QuoteStatus
 from tests.test_app import FakeGmail, complete_analysis, test_config
@@ -129,12 +130,12 @@ class ApproveRouteTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         for p in (patch.object(settings, "DATA_DIR", Path(self._tmp.name)),
-                  patch("anka.web.server.load_config", return_value=test_config())):
+                  patch("anka.web.paginas.load_config", return_value=test_config())):
             p.start()
             self.addCleanup(p.stop)
 
     def post(self, fields, approve_result="ok", side_effect=None):
-        body = "&".join(f"{k}={v}" for k, v in {"csrf_token": web.CSRF_TOKEN, **fields}.items()).encode()
+        body = "&".join(f"{k}={v}" for k, v in {"csrf_token": seguridad.CSRF_TOKEN, **fields}.items()).encode()
         handler = web.ReviewHandler.__new__(web.ReviewHandler)
         sent = {}
         handler.headers = {"Host": "127.0.0.1:1", "Content-Length": str(len(body))}

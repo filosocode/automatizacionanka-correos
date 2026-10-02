@@ -13,6 +13,8 @@ from anka.servicios import quotes
 from anka.infra import settings
 from anka.infra import store
 from anka.web import server as web
+from anka.web import seguridad
+from anka.web import paginas
 from anka.dominio.status import QuoteStatus
 from tests.test_app import complete_analysis, test_config
 
@@ -43,7 +45,7 @@ class DiscardedTests(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.patches = [
             patch.object(settings, "DATA_DIR", Path(self._tmp.name)),
-            patch("anka.web.server.load_config", return_value=test_config()),
+            patch("anka.web.paginas.load_config", return_value=test_config()),
         ]
         for p in self.patches:
             p.start()
@@ -93,7 +95,7 @@ class DiscardedTests(unittest.TestCase):
             quotes.rescue_discarded("no-existe")
 
     def test_page_shows_the_reason_and_a_rescue_form_per_thread(self):
-        page = web._render_discarded()
+        page = paginas.render_discarded()
         self.assertIn("Ofertas de oficina", page)
         self.assertIn("remitente automático (no-reply)", page)
         self.assertEqual(page.count('action="/rescue"'), 3)
@@ -101,13 +103,13 @@ class DiscardedTests(unittest.TestCase):
 
     def test_page_marks_rescued_threads_instead_of_offering_the_button_again(self):
         quotes.rescue_discarded("t-news")
-        page = web._render_discarded()
+        page = paginas.render_discarded()
         self.assertEqual(page.count('action="/rescue"'), 2)
         self.assertIn("Se reanalizará", page)
 
     def test_empty_state(self):
         with tempfile.TemporaryDirectory() as other, patch.object(settings, "DATA_DIR", Path(other)):
-            self.assertIn("No hay correos descartados", web._render_discarded())
+            self.assertIn("No hay correos descartados", paginas.render_discarded())
 
     def request(self, method, path, body=b""):
         handler = web.ReviewHandler.__new__(web.ReviewHandler)
@@ -130,13 +132,13 @@ class DiscardedTests(unittest.TestCase):
             denied = self.request("POST", "/rescue", b"thread_id=t-news&csrf_token=malo")
         self.assertEqual(denied["status"], 403)
         self.assertFalse(self.rows()["t-news"]["rescued"])
-        ok = self.request("POST", "/rescue", f"thread_id=t-news&csrf_token={web.CSRF_TOKEN}".encode())
+        ok = self.request("POST", "/rescue", f"thread_id=t-news&csrf_token={seguridad.CSRF_TOKEN}".encode())
         self.assertEqual(ok["status"], 303)
         self.assertTrue(ok["location"].startswith("/discarded?message="))
         self.assertTrue(self.rows()["t-news"]["rescued"])
 
     def test_rescue_of_a_non_discarded_thread_returns_an_error_page(self):
-        body = f"thread_id=t-real&csrf_token={web.CSRF_TOKEN}".encode()
+        body = f"thread_id=t-real&csrf_token={seguridad.CSRF_TOKEN}".encode()
         with self.assertLogs("anka.web.server", "ERROR"):
             sent = self.request("POST", "/rescue", body)
         self.assertEqual(sent["status"], 500)

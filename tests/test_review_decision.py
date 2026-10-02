@@ -13,6 +13,8 @@ from anka.dominio import reception
 from anka.infra import settings
 from anka.infra import store
 from anka.web import server as web
+from anka.web import seguridad
+from anka.web import paginas
 from anka.dominio.status import QuoteStatus
 from tests.test_app import complete_analysis, test_config
 
@@ -29,7 +31,7 @@ class ReviewDecisionTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         for p in (patch.object(settings, "DATA_DIR", Path(self._tmp.name)),
-                  patch("anka.web.server.load_config", return_value=test_config())):
+                  patch("anka.web.paginas.load_config", return_value=test_config())):
             p.start()
             self.addCleanup(p.stop)
         db = store.open_db(Path(self._tmp.name))
@@ -42,7 +44,7 @@ class ReviewDecisionTests(unittest.TestCase):
 
     def test_starts_as_technical_review(self):
         self.assertEqual(self.quote()["reception_assessment"]["status"], "technical_review")
-        self.assertIn('action="/review-decision"', web._render_case("t-tech"))
+        self.assertIn('action="/review-decision"', paginas.render_case("t-tech"))
 
     def test_sufficient_moves_to_ready_review_and_unlocks_the_drive_step(self):
         message = quotes.resolve_technical_review("t-tech", "sufficient")
@@ -51,7 +53,7 @@ class ReviewDecisionTests(unittest.TestCase):
         self.assertEqual(quote["status"], QuoteStatus.READY_REVIEW)
         self.assertEqual(quote["analysis"]["manual_review"]["decision"], "sufficient")
         self.assertNotEqual(quote["reception_assessment"]["status"], "technical_review")
-        page = web._render_case("t-tech")
+        page = paginas.render_case("t-tech")
         self.assertIn("Carpeta del proyecto en Drive", page)
         self.assertIn('action="/approve"', page)
         self.assertIn("Una persona revisó este caso", page)
@@ -68,7 +70,7 @@ class ReviewDecisionTests(unittest.TestCase):
         reply = reception.suggested_reply(quote["analysis"])
         self.assertIn("1. ¿Qué validación altimétrica esperan?", reply)
         self.assertIn("2. ¿Hay KMZ del corredor?", reply)
-        page = web._render_case("t-tech")
+        page = paginas.render_case("t-tech")
         self.assertIn('formaction="/send"', page)
         self.assertNotIn("Respuesta en pausa", page)
 
@@ -102,7 +104,7 @@ class ReviewDecisionTests(unittest.TestCase):
         quote = self.quote()
         self.assertEqual(quote["status"], QuoteStatus.READY_REVIEW)
         self.assertTrue(quote["sent_at"])
-        page = web._render_case("t-tech")
+        page = paginas.render_case("t-tech")
         self.assertIn('action="/approve"', page)
         self.assertIn("Ya se envió una respuesta", page)
 
@@ -123,14 +125,14 @@ class ReviewDecisionTests(unittest.TestCase):
         self.assertEqual(denied["status"], 403)
         self.assertEqual(self.quote()["status"], QuoteStatus.REVIEW)
         ok = self.request(
-            "/review-decision", f"thread_id=t-tech&decision=sufficient&csrf_token={web.CSRF_TOKEN}".encode())
+            "/review-decision", f"thread_id=t-tech&decision=sufficient&csrf_token={seguridad.CSRF_TOKEN}".encode())
         self.assertEqual(ok["status"], 303)
         self.assertTrue(ok["location"].startswith("/case?thread_id=t-tech&message="))
         self.assertEqual(self.quote()["status"], QuoteStatus.READY_REVIEW)
 
     def test_post_with_missing_questions_shows_the_guidance_not_an_error_page(self):
         sent = self.request(
-            "/review-decision", f"thread_id=t-tech&decision=ask_client&csrf_token={web.CSRF_TOKEN}".encode())
+            "/review-decision", f"thread_id=t-tech&decision=ask_client&csrf_token={seguridad.CSRF_TOKEN}".encode())
         self.assertEqual(sent["status"], 303)
         self.assertIn("pregunta", sent["location"])
 

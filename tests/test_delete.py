@@ -12,6 +12,8 @@ from anka.servicios import quotes
 from anka.infra import settings
 from anka.infra import store
 from anka.web import server as web
+from anka.web import seguridad
+from anka.web import paginas
 from anka.dominio.status import QuoteStatus
 from tests.test_app import complete_analysis, test_config
 
@@ -36,7 +38,7 @@ class DeleteTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         for p in (patch.object(settings, "DATA_DIR", Path(self._tmp.name)),
-                  patch("anka.web.server.load_config", return_value=test_config())):
+                  patch("anka.web.paginas.load_config", return_value=test_config())):
             p.start()
             self.addCleanup(p.stop)
         seed(Path(self._tmp.name))
@@ -83,7 +85,7 @@ class DeleteTests(unittest.TestCase):
         self.assertIn("1 solicitud", quotes.delete_quotes(["t-c", "t-c"]))
 
     def test_requests_page_has_a_checkbox_per_row_and_the_bulk_form(self):
-        page = web._render_requests()
+        page = paginas.render_requests()
         self.assertEqual(page.count('class="row-check"'), 3)
         self.assertIn('action="/delete"', page)
         self.assertIn('name="thread_id" value="t-a"', page)
@@ -104,7 +106,7 @@ class DeleteTests(unittest.TestCase):
             denied = self.request("/delete", b"thread_id=t-a&csrf_token=malo")
         self.assertEqual(denied["status"], 403)
         self.assertEqual(self.ids(), {"t-a", "t-b", "t-c"})
-        ok = self.request("/delete", f"thread_id=t-a&thread_id=t-b&csrf_token={web.CSRF_TOKEN}".encode())
+        ok = self.request("/delete", f"thread_id=t-a&thread_id=t-b&csrf_token={seguridad.CSRF_TOKEN}".encode())
         self.assertEqual(ok["status"], 303)
         self.assertTrue(ok["location"].startswith("/requests?message="))
         self.assertEqual(self.ids(), {"t-c"})

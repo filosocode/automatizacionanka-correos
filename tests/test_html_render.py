@@ -24,6 +24,8 @@ from anka.infra import settings
 from anka.infra import store
 from anka.servicios import followup_reminders as fup
 from anka.web import server as web
+from anka.web import seguridad
+from anka.web import paginas
 from anka.dominio.status import QuoteStatus
 from tests.test_app import test_config
 
@@ -218,18 +220,18 @@ class Pages(unittest.TestCase):
         # Los días de espera dependen de hoy: se fija el reloj para que la instantánea no cambie con la fecha.
         fixed_now = datetime.fromisoformat("2026-10-01T12:00:00-05:00")
         with patch.object(settings, "DATA_DIR", cls.data_dir),                 patch.object(fup, "waiting_days", lambda since, now=None: real_waiting_days(since, fixed_now)), \
-                patch("anka.web.server.load_config", return_value=test_config()), \
-                patch("anka.web.server.sync_status_text", return_value="Sincronización de prueba."), \
+                patch("anka.web.paginas.load_config", return_value=test_config()), \
+                patch("anka.web.paginas.sync_status_text", return_value="Sincronización de prueba."), \
                 patch("anka.servicios.internal_context.load_internal_commercial_index", return_value=CONTEXT_INDEX):
-            pages["index"] = web._render_index()
-            pages["index_mensaje"] = web._render_index("Mensaje de prueba")
-            pages["requests"] = web._render_requests()
-            pages["discarded"] = web._render_discarded()
-            pages["discarded_mensaje"] = web._render_discarded("Se reanalizará <pronto>")
+            pages["index"] = paginas.render_index()
+            pages["index_mensaje"] = paginas.render_index("Mensaje de prueba")
+            pages["requests"] = paginas.render_requests()
+            pages["discarded"] = paginas.render_discarded()
+            pages["discarded_mensaje"] = paginas.render_discarded("Se reanalizará <pronto>")
             for case in CASES:
-                pages[f"case_{case[0]}"] = web._render_case(case[0])
-            pages["case_no_existe"] = web._render_case("no-existe")
-            pages["case_mensaje"] = web._render_case("t-review", "Guardado <ok>")
+                pages[f"case_{case[0]}"] = paginas.render_case(case[0])
+            pages["case_no_existe"] = paginas.render_case("no-existe")
+            pages["case_mensaje"] = paginas.render_case("t-review", "Guardado <ok>")
         return pages
 
 
@@ -312,7 +314,7 @@ class ErrorPageTests(unittest.TestCase):
         handler.path = path
         handler.rfile = io.BytesIO(body)
         handler._send_html = lambda content, status=200: sent.update(status=status, page=content)
-        with tempfile.TemporaryDirectory() as temp_dir,                 patch.object(settings, "DATA_DIR", Path(temp_dir)),                 patch("anka.web.server.load_config", return_value=test_config()):
+        with tempfile.TemporaryDirectory() as temp_dir,                 patch.object(settings, "DATA_DIR", Path(temp_dir)),                 patch("anka.web.paginas.load_config", return_value=test_config()), patch("anka.web.server.load_config", return_value=test_config()):
             getattr(handler, f"do_{method}")()
         return sent
 
@@ -322,7 +324,7 @@ class ErrorPageTests(unittest.TestCase):
         self.assertIn("<div class='empty'>Página no encontrada.</div>", sent["page"])
 
     def test_forbidden_page_escapes_the_reason(self):
-        body = ("csrf_token=" + web.CSRF_TOKEN).encode()
+        body = ("csrf_token=" + seguridad.CSRF_TOKEN).encode()
         with self.assertLogs("anka.web.server", "WARNING") as logs:
             sent = self.request("POST", "/refresh", body, origin="http://evil.example")
         self.assertEqual(sent["status"], 403)
@@ -331,7 +333,7 @@ class ErrorPageTests(unittest.TestCase):
         self.assertIn("Origen no permitido", logs.output[0])  # los rechazos quedan registrados
 
     def test_error_text_from_an_exception_is_escaped(self):
-        body = ("csrf_token=" + web.CSRF_TOKEN).encode()
+        body = ("csrf_token=" + seguridad.CSRF_TOKEN).encode()
         boom = RuntimeError(f"<img src=x onerror={MARK}(1)>")
         with patch("anka.web.server.checked_run", side_effect=boom):
             with self.assertLogs("anka.web.server", "ERROR") as logs:
@@ -345,7 +347,7 @@ class ErrorPageTests(unittest.TestCase):
 
     def test_get_that_raises_returns_a_500_page_and_logs_the_traceback(self):
         failure = RuntimeError("falla al armar el resumen")
-        with patch("anka.web.server._render_index", side_effect=failure):
+        with patch("anka.web.paginas.render_index", side_effect=failure):
             with self.assertLogs("anka.web.server", "ERROR") as logs:
                 sent = self.request("GET", "/?message=hola")
         self.assertEqual(sent["status"], 500)

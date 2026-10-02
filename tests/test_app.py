@@ -19,6 +19,8 @@ from anka.servicios import pipeline
 from anka.servicios import quotes
 from anka.servicios import ediciones, work_import
 from anka.web import server as web
+from anka.web import seguridad
+from anka.web import paginas
 from anka.servicios import internal_context
 from anka.infra import llm
 from anka.infra import modes
@@ -304,10 +306,10 @@ class QuoteFlowTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(
             settings, "DATA_DIR", Path(temp_dir)
-        ), patch("anka.web.server.get_quote", return_value=review), patch(
-            "anka.web.server.load_config", return_value=test_config()
+        ), patch("anka.web.paginas.get_quote", return_value=review), patch(
+            "anka.web.paginas.load_config", return_value=test_config()
         ), patch("anka.servicios.internal_context.load_internal_commercial_index", return_value={}):
-            page = web._render_case("thread-1")
+            page = paginas.render_case("thread-1")
         self.assertIn("Evaluación de recepción", page)
         self.assertIn("Etapa actual:", page)
 
@@ -543,7 +545,7 @@ class QuoteFlowTests(unittest.TestCase):
             work_import.dashboard_upsert(encoded)
             stored = quotes.all_quotes()
             notifications = quotes.unread_notifications()
-            dashboard = web._render_index()
+            dashboard = paginas.render_index()
         self.assertEqual(len(stored), 1)
         self.assertEqual(stored[0]["client_type"], "Empresa privada")
         self.assertEqual(stored[0]["sector"], "Infraestructura")
@@ -733,20 +735,20 @@ class QuoteFlowIntegrationTests(unittest.TestCase):
 class DashboardSecurityTests(unittest.TestCase):
     def test_add_csrf_tokens_to_every_post_form(self):
         html_in = '<form method="post" action="/send"><button></button></form><form method="get"></form>'
-        out = web.add_csrf_tokens(html_in)
+        out = seguridad.add_csrf_tokens(html_in)
         self.assertEqual(out.count('name="csrf_token"'), 1)
-        self.assertIn(web.CSRF_TOKEN, out)
+        self.assertIn(seguridad.CSRF_TOKEN, out)
 
     def test_host_header_only_local(self):
         for ok in ("127.0.0.1:8765", "localhost:8765", "localhost", "[::1]:8765"):
-            self.assertTrue(web.is_local_host_header(ok), ok)
+            self.assertTrue(seguridad.is_local_host_header(ok), ok)
         for bad in ("evil.example:8765", "127.0.0.1.evil.com", "", "192.168.1.5:8765"):
-            self.assertFalse(web.is_local_host_header(bad), bad)
+            self.assertFalse(seguridad.is_local_host_header(bad), bad)
 
     def test_origin_must_match_host(self):
-        self.assertTrue(web.is_same_origin("http://127.0.0.1:8765", "127.0.0.1:8765"))
-        self.assertTrue(web.is_same_origin("", "127.0.0.1:8765"))
-        self.assertFalse(web.is_same_origin("https://evil.example", "127.0.0.1:8765"))
+        self.assertTrue(seguridad.is_same_origin("http://127.0.0.1:8765", "127.0.0.1:8765"))
+        self.assertTrue(seguridad.is_same_origin("", "127.0.0.1:8765"))
+        self.assertFalse(seguridad.is_same_origin("https://evil.example", "127.0.0.1:8765"))
 
 
 # Cubre: T-07
@@ -755,13 +757,13 @@ class HandlerErrorTests(unittest.TestCase):
         handler = web.ReviewHandler.__new__(web.ReviewHandler)
         sent = {}
         handler.headers = {"Host": "127.0.0.1:1", "Content-Length": "%d"}
-        body = ("csrf_token=" + web.CSRF_TOKEN).encode()
+        body = ("csrf_token=" + seguridad.CSRF_TOKEN).encode()
         handler.headers["Content-Length"] = str(len(body))
         handler.path = "/refresh"
         handler.rfile = io.BytesIO(body)
         handler._send_html = lambda content, status=200: sent.update(status=status)
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("anka.web.server.load_config", side_effect=ErrorDeAnka("falta config")):
+        ), patch("anka.web.paginas.load_config", side_effect=ErrorDeAnka("falta config")):
             with self.assertLogs("anka.web.server", "ERROR"):
                 handler.do_POST()
         self.assertEqual(sent["status"], 500)
