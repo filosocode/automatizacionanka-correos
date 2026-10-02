@@ -85,6 +85,10 @@ def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
         code_stage=row["code_stage"] or "",
         code_assigned_at=row["code_assigned_at"] or "",
         contact_email=row["contact_email"] or "",
+        sheet_id=row["sheet_id"] or "",
+        sheet_modified=row["sheet_modified"] or "",
+        sheet_synced_at=row["sheet_synced_at"] or "",
+        sheet_error=row["sheet_error"] or "",
     )
 
 
@@ -191,6 +195,22 @@ class RepositorioDeCasos:
                 "ORDER BY occurred_at DESC, id DESC LIMIT ?", (thread_id, limite)).fetchall()
         return [dict(row) for row in rows]
 
+    def versiones_de_tabla(self, thread_id: str) -> list[dict]:
+        """Versiones guardadas de la tabla de actividades (la del modelo, cada edición, cada propuesta), de la primera
+        a la última."""
+        with self._conexion() as db:
+            rows = db.execute("SELECT * FROM table_versions WHERE thread_id=? ORDER BY version",
+                              (thread_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def primer_mensaje(self, thread_id: str) -> dict | None:
+        """El primer correo que escribió el cliente en el hilo: la solicitud inicial, tal como llegó."""
+        with self._conexion() as db:
+            row = db.execute(
+                "SELECT sender, subject, body, occurred_at FROM case_messages WHERE thread_id=? "
+                "AND direction='received' ORDER BY occurred_at, id LIMIT 1", (thread_id,)).fetchone()
+        return dict(row) if row else None
+
     def cambios(self, thread_id: str) -> list[Cambio]:
         """Todas las solicitudes de cambio del caso (cualquier estado), de la más antigua a la más nueva."""
         with self._conexion() as db:
@@ -260,6 +280,20 @@ class RepositorioDeCasos:
                           ON CONFLICT(thread_id) DO UPDATE SET
                           client_name=excluded.client_name, updated_at=excluded.updated_at""",
                        (thread_id, cliente.strip(), now))
+            db.commit()
+
+    def guardar_hoja(self, thread_id: str, sheet_id: str, modificada: str) -> None:
+        """Recuerda la hoja del caso y cuándo la dejamos: así se nota si alguien la editó directamente en Drive."""
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        with self._conexion() as db:
+            db.execute("UPDATE quotes SET sheet_id=?, sheet_modified=?, sheet_synced_at=?, sheet_error='' "
+                       "WHERE thread_id=?", (sheet_id, modificada, now, thread_id))
+            db.commit()
+
+    def registrar_error_de_hoja(self, thread_id: str, texto: str) -> None:
+        """Deja constancia de por qué no se pudo actualizar la hoja (se ve en el caso)."""
+        with self._conexion() as db:
+            db.execute("UPDATE quotes SET sheet_error=? WHERE thread_id=?", (texto[:300], thread_id))
             db.commit()
 
     def eliminar(self, thread_ids: list[str]) -> list[str]:

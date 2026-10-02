@@ -231,6 +231,15 @@ def _migration_9_case_followup(db: sqlite3.Connection) -> None:
     )""")
 
 
+def _migration_10_sheet(db: sqlite3.Connection) -> None:
+    """La hoja de Google Sheets de cada caso: su id, su última modificación en Drive (para notar ediciones hechas allí),
+    cuándo se sincronizó y el último error."""
+    existing = {row["name"] for row in db.execute("PRAGMA table_info(quotes)").fetchall()}
+    for column in ("sheet_id", "sheet_modified", "sheet_synced_at", "sheet_error"):
+        if column not in existing:
+            db.execute(f"ALTER TABLE quotes ADD COLUMN {column} TEXT")
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -243,6 +252,7 @@ MIGRATIONS = (
     _migration_7_table_versions,
     _migration_8_case_messages,
     _migration_9_case_followup,
+    _migration_10_sheet,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

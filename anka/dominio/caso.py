@@ -52,9 +52,18 @@ class Caso(MapaDeSoloLectura):
     code_stage: str = ""
     code_assigned_at: str = ""
     contact_email: str = ""
+    sheet_id: str = ""            # hoja de Google Sheets del caso ("" si aún no existe)
+    sheet_modified: str = ""      # su última modificación en Drive que conocemos (para notar ediciones hechas allí)
+    sheet_synced_at: str = ""
+    sheet_error: str = ""         # por qué falló la última actualización ("" si salió bien)
 
     def __hash__(self) -> int:
         return hash(self.thread_id)
+
+    @property
+    def sheet_url(self) -> str:
+        """Enlace para abrir la hoja de Google Sheets del caso ("" si no existe)."""
+        return f"https://docs.google.com/spreadsheets/d/{self.sheet_id}" if self.sheet_id else ""
 
     # --- reglas del caso que dependen solo de sus propios campos
     @property

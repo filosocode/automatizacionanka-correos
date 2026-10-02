@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from anka.dominio.analisis import Actividad
 from anka.infra.logging_setup import get_logger
+from anka.servicios.repositorio import RepositorioDeCasos
 from anka.infra.store import add_table_version, connect, latest_table_version, record_event
 from anka.dominio.caso import load_analysis
 
@@ -89,13 +90,7 @@ def describe_edit(diff: dict, old_totals: dict, new_totals: dict) -> str:
 
 def table_versions(thread_id: str) -> list[dict]:
     """Versiones guardadas de la tabla de actividades del caso, de la primera a la última."""
-    db = connect()
-    try:
-        rows = db.execute("SELECT * FROM table_versions WHERE thread_id=? ORDER BY version",
-                          (thread_id,)).fetchall()
-    finally:
-        db.close()
-    return [dict(row) for row in rows]
+    return RepositorioDeCasos().versiones_de_tabla(thread_id)
 
 
 def last_manual_version(thread_id: str) -> dict | None:
