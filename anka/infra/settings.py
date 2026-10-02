@@ -66,6 +66,13 @@ def validate_config(config: dict) -> list[str]:
     if not isinstance(engine, dict):
         problems.append("llm debe ser un objeto con al menos provider.")
         return problems
+    problems.extend(_engine_problems(engine, mode))
+    return problems
+
+
+def _engine_problems(engine: dict, mode: str) -> list[str]:
+    """Problemas del bloque `llm` de config.json."""
+    problems: list[str] = []
     provider = engine.get("provider")
     if provider not in PROVIDERS:
         problems.append("llm.provider debe ser 'ollama' o 'openai'.")

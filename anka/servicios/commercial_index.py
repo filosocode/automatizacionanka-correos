@@ -145,6 +145,34 @@ def inferred_company_type(client_name: str) -> tuple[str, str]:
     return "No clasificado", "baja"
 
 
+def _scan_client_files(client_dir: Path, source: Path, profile: dict, global_projects: Counter[str],
+                       global_sectors: Counter[str], extension_counts: Counter[str]) -> list[Path]:
+    """Recorre los archivos de un cliente, llena su perfil y los contadores globales; devuelve los documentos de solicitud."""
+    request_docs: list[Path] = []
+    for path in (item for item in client_dir.rglob("*") if item.is_file()):
+        if is_sensitive(path):
+            continue
+        profile["file_count"] += 1
+        extension_counts[path.suffix.casefold() or "sin extension"] += 1
+        relative = path.relative_to(source)
+        context = str(relative.parent) + " " + path.stem
+        for label in matched_labels(context, PROJECT_RULES):
+            profile["project_types"][label] += 1
+            global_projects[label] += 1
+        for label in matched_labels(context, SECTOR_RULES):
+            profile["sectors"][label] += 1
+            global_sectors[label] += 1
+        if is_commercial_source(path):
+            profile["commercial_document_count"] += 1
+            if len(profile["source_references"]) < MAX_SOURCE_REFERENCES:
+                profile["source_references"].append(str(relative))
+        if is_request_document(path):
+            profile["request_document_count"] += 1
+            if len(request_docs) < MAX_DOCUMENTS_PER_CLIENT:
+                request_docs.append(path)
+    return request_docs
+
+
 def build_index(source: Path) -> dict:
     if not source.exists():
         raise FileNotFoundError(f"No existe la fuente: {source}")
@@ -168,30 +196,9 @@ def build_index(source: Path) -> dict:
             "usual_requests": Counter(),
             "source_references": [],
         }
-        request_docs: list[Path] = []
         try:
-            files = (item for item in client_dir.rglob("*") if item.is_file())
-            for path in files:
-                if is_sensitive(path):
-                    continue
-                profile["file_count"] += 1
-                extension_counts[path.suffix.casefold() or "sin extension"] += 1
-                relative = path.relative_to(source)
-                context = str(relative.parent) + " " + path.stem
-                for label in matched_labels(context, PROJECT_RULES):
-                    profile["project_types"][label] += 1
-                    global_projects[label] += 1
-                for label in matched_labels(context, SECTOR_RULES):
-                    profile["sectors"][label] += 1
-                    global_sectors[label] += 1
-                if is_commercial_source(path):
-                    profile["commercial_document_count"] += 1
-                    if len(profile["source_references"]) < MAX_SOURCE_REFERENCES:
-                        profile["source_references"].append(str(relative))
-                if is_request_document(path):
-                    profile["request_document_count"] += 1
-                    if len(request_docs) < MAX_DOCUMENTS_PER_CLIENT:
-                        request_docs.append(path)
+            request_docs = _scan_client_files(
+                client_dir, source, profile, global_projects, global_sectors, extension_counts)
         except (OSError, PermissionError):
             continue
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -426,6 +426,74 @@ def _internal_context_panel(client_name: str) -> Markup:
     )
 
 
+def _routing_summary(analysis: dict) -> str:
+    """Cómo llegó el correo: directo o reenviado por alguien interno."""
+    routing = analysis.get("routing", {})
+    if not routing.get("is_forwarded"):
+        return "Correo directo"
+    return (
+        f"Reenvío interno: {routing.get('internal_forwarder') or 'no indicado'}\n"
+        f"Cliente original: {routing.get('original_sender') or 'no identificado'}\n"
+        f"Destinatario seleccionado: {routing.get('selected_recipient') or 'no indicado'}"
+    )
+
+
+_FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse")
+
+
+def _compose_state(review: Mapping[str, Any], analysis: dict, config: dict, template: str, change_id: int, *,
+                   email_allowed: bool, reopened: bool, technical: bool, recipient_error: str,
+                   ) -> tuple[str, str, bool]:
+    """Qué muestra el cuadro de respuesta: (modo, texto inicial, ¿en blanco?)."""
+    if email_allowed and review["status"] == QuoteStatus.WAITING and not template and review["sent_at"]:
+        return "waiting", "", False   # ya se escribió: no se ofrece enviar lo mismo otra vez
+    if not email_allowed:
+        if review["status"] == QuoteStatus.RESPONSE_SENT:
+            return "sent", "", False
+        if recipient_error:
+            return "recipient_error", "", False
+        return ("technical" if technical else "unavailable"), "", False
+    if template == "libre" or (template not in _FREE_FORM_TEMPLATES and reopened):
+        return "form", "", True       # respuesta libre en blanco (o caso ya avanzado)
+    if template in _FREE_FORM_TEMPLATES:
+        change = next((c for c in review.get("changes", []) if c["id"] == change_id), None)
+        return "form", _reply_template(template, review, change), False
+    # Con preguntas por hacer se propone el texto; si no hay nada que preguntar, el cuadro
+    # queda en blanco para que la persona escriba lo que quiera (o pida el acuse sugerido).
+    manual = analysis.get("manual_review") or {}
+    has_questions = bool(reception_questions(analysis, config["required_fields"]) or manual.get("questions"))
+    accepted = (review["status"] in (QuoteStatus.READY_REVIEW, QuoteStatus.READY)
+                or bool(review.get("quote_code")) or manual.get("decision") == "sufficient")
+    work_reply = analysis.get("work_reply") or {}
+    blank = (not review["draft_body"] and not work_reply.get("text")
+             and (accepted or not has_questions) and template != "acuse")
+    if blank:
+        return "form", "", True
+    own_draft = review["draft_body"] if review["draft_id"] and review["draft_id"] != work_reply.get("draft_id") else ""
+    return "form", (own_draft or work_reply.get("text") or review["draft_body"]
+                    or suggested_reply(analysis, config["required_fields"])), False
+
+
+def _conversation_panel(thread_id: str) -> Markup:
+    return render("conversation.html", messages=[
+        {**m, "when": (m["occurred_at"] or "")[:16].replace("T", " "),
+         "fresh": split_quoted(m["body"])[0], "quoted": split_quoted(m["body"])[1]}
+        for m in case_conversation(thread_id)])
+
+
+def _timeline_panel(thread_id: str, review: Mapping[str, Any], analysis: dict, events: list[dict],
+                    integrity_ok: bool, event_count: int) -> Markup:
+    return render("timeline.html", thread_id=thread_id, integrity_ok=integrity_ok,
+                  event_count=event_count, events=[
+        {**event, "when": event["occurred_at"][:16].replace("T", " "),
+         "origin": SOURCE_LABELS.get(event["source"], event["source"]),
+         "who": event["actor_name"] or event["actor_email"],
+         "gmail_url": ("https://mail.google.com/mail/u/0/#all/" + event["ref"]
+                       if event["kind"] in ("sent", "received", "related") else "")}
+        for event in events],
+        people=case_people(thread_id, case_contacts(review["recipient"], analysis)))
+
+
 def _render_case(thread_id: str, message: str = "", template: str = "", change_id: int = 0,
                  to_kind: str = "") -> str:
     review = get_quote(thread_id)
@@ -446,14 +514,7 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
     analysis = review["analysis"]
     assessment = review.get("reception_assessment") or reception_assessment(analysis)
     config = load_config()
-    routing = analysis.get("routing", {})
-    routing_summary = "Correo directo"
-    if routing.get("is_forwarded"):
-        routing_summary = (
-            f"Reenvío interno: {routing.get('internal_forwarder') or 'no indicado'}\n"
-            f"Cliente original: {routing.get('original_sender') or 'no identificado'}\n"
-            f"Destinatario seleccionado: {routing.get('selected_recipient') or 'no indicado'}"
-        )
+    routing_summary = _routing_summary(analysis)
     scope_issues = unresolved_scope_issues(analysis)
     issues_summary = "\n".join(f"- {issue}" for issue in scope_issues) or "Sin asuntos pendientes."
     technical = assessment.get("status") == "technical_review"
@@ -463,47 +524,9 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
         and (review["status"] not in CLOSED_STATUSES or reopened)
         and not technical
     )
-    email_body = ""
-    blank_reply = False
-    waiting_for_client = (
-        email_allowed and review["status"] == QuoteStatus.WAITING and not template and review["sent_at"])
-    if waiting_for_client:
-        email = "waiting"   # ya se escribió: no se ofrece enviar lo mismo otra vez
-    elif email_allowed:
-        email = "form"
-        change = next((c for c in review.get("changes", []) if c["id"] == change_id), None)
-        if template == "libre":
-            email_body = ""
-            blank_reply = True
-        elif template in ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse"):
-            email_body = _reply_template(template, review, change)
-        elif reopened:
-            email_body = ""          # caso ya avanzado: respuesta libre, en blanco
-            blank_reply = True
-        else:
-            # Con preguntas por hacer se propone el texto; si no hay nada que preguntar, el cuadro
-            # queda en blanco para que la persona escriba lo que quiera (o pida el acuse sugerido).
-            has_questions = bool(
-                reception_questions(analysis, config["required_fields"])
-                or (analysis.get("manual_review") or {}).get("questions"))
-            accepted = (review["status"] in (QuoteStatus.READY_REVIEW, QuoteStatus.READY)
-                        or bool(review.get("quote_code"))
-                        or (analysis.get("manual_review") or {}).get("decision") == "sufficient")
-            blank_reply = (not review["draft_body"] and not (analysis.get("work_reply") or {}).get("text")
-                           and (accepted or not has_questions) and template != "acuse")
-            work_reply = analysis.get("work_reply") or {}
-            own_draft = review["draft_body"] if review["draft_id"] and review["draft_id"] != work_reply.get("draft_id") else ""
-            email_body = "" if blank_reply else (
-                own_draft or work_reply.get("text") or review["draft_body"]
-                or suggested_reply(analysis, config["required_fields"]))
-    elif review["status"] == QuoteStatus.RESPONSE_SENT:
-        email = "sent"
-    elif recipient_error:
-        email = "recipient_error"
-    elif technical:
-        email = "technical"
-    else:
-        email = "unavailable"
+    email, email_body, blank_reply = _compose_state(
+        review, analysis, config, template, change_id,
+        email_allowed=email_allowed, reopened=reopened, technical=technical, recipient_error=recipient_error)
     change = next((c for c in review.get("changes", []) if c["id"] == change_id), None)
     compose_to = ""
     if change and to_kind == "sender":
@@ -538,10 +561,7 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
         manual_review=_manual_review_note(analysis.get("manual_review")),
         prefill_questions=_suggested_questions(analysis, assessment) if technical else "",
         blank_reply=blank_reply,
-        conversation=render("conversation.html", messages=[
-            {**m, "when": (m["occurred_at"] or "")[:16].replace("T", " "),
-             "fresh": split_quoted(m["body"])[0], "quoted": split_quoted(m["body"])[1]}
-            for m in case_conversation(thread_id)]),
+        conversation=_conversation_panel(thread_id),
         stepper=_stepper(review),
         followup=_followup_panel(review),
         compose_to=compose_to, compose_change_id=change_id if change else 0,
@@ -555,15 +575,7 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
         next_step=_next_step_banner(review, config.get("active_mode") == "chatgpt_work"),
         proposal_panel=(render("proposal.html", changes=review.get("proposal", []), thread_id=thread_id)
                         if review.get("proposal", []) else Markup("")),
-        timeline=render("timeline.html", thread_id=thread_id, integrity_ok=integrity_ok,
-                        event_count=event_count, events=[
-            {**event, "when": event["occurred_at"][:16].replace("T", " "),
-             "origin": SOURCE_LABELS.get(event["source"], event["source"]),
-             "who": event["actor_name"] or event["actor_email"],
-             "gmail_url": ("https://mail.google.com/mail/u/0/#all/" + event["ref"]
-                           if event["kind"] in ("sent", "received", "related") else "")}
-            for event in events],
-            people=case_people(thread_id, case_contacts(review["recipient"], analysis))),
+        timeline=_timeline_panel(thread_id, review, analysis, events, integrity_ok, event_count),
     )
     return _page("Revisar caso", body, message)
 
@@ -761,6 +773,167 @@ def is_same_origin(origin: str, host: str) -> bool:
     return urllib.parse.urlparse(origin).netloc.lower() == (host or "").lower()
 
 
+# --- Acciones de los formularios (POST). Cada una recibe el formulario y devuelve a dónde redirigir.
+# Un ValueError (o el SystemExit de una acción de línea de comandos) es orientación para la persona: se muestra
+# como mensaje, no como fallo del servidor.
+
+Form = dict[str, list[str]]
+
+
+def _field(form: Form, name: str, default: str = "") -> str:
+    return form.get(name, [default])[0]
+
+
+def _int_field(form: Form, name: str) -> int:
+    return int(_field(form, name, "0") or 0)
+
+
+def _to_case(thread_id: str, message: str, suffix: str = "") -> str:
+    return ("/case?thread_id=" + urllib.parse.quote(thread_id)
+            + "&message=" + urllib.parse.quote(message) + suffix)
+
+
+def _to(page: str, message: str) -> str:
+    return page + "?message=" + urllib.parse.quote(message)
+
+
+def _guidance(action: Callable[[], str], *errors: type[BaseException]) -> str:
+    """Ejecuta la acción; si falla por algo que se le explica a la persona, devuelve ese texto como mensaje."""
+    try:
+        return action()
+    except errors as exc:
+        return str(exc)
+
+
+def _post_refresh(form: Form) -> str:
+    if load_config().get("active_mode") == "chatgpt_work":
+        return _to("/", "Este botón no lee Gmail en modo ChatGPT Work. " + sync_status_text())
+    return _to("/", describe_check(checked_run(True, True, False, "dashboard")))
+
+
+def _post_approve(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    message = _guidance(lambda: approve_review(
+        thread_id, body_text=form.get("body", [None])[0],
+        client_name=form.get("client_name", [None])[0],
+        new_client=_field(form, "new_client") == "1",
+        allow_similar_project=_field(form, "allow_similar") == "1",
+    ), SystemExit)
+    return _to_case(thread_id, message)
+
+
+def _post_metadata(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    save_quote_metadata(
+        thread_id, _field(form, "client_name"), _field(form, "client_type", "No clasificado"),
+        _field(form, "sector", "No clasificado"), _field(form, "notes"))
+    return _to_case(thread_id, "Información comercial guardada.")
+
+
+def _post_draft(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    message = _guidance(lambda: save_dashboard_draft(
+        thread_id, _field(form, "body"), _field(form, "to")), ValueError)
+    return _to_case(thread_id, message)
+
+
+def _post_send(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    # Un ValueError aquí suele ser «el mismo correo ya salió»: se explica, no es un fallo.
+    message = _guidance(lambda: send_dashboard_reply(
+        thread_id, _field(form, "body"), _field(form, "to"),
+        _int_field(form, "change_id"), _field(form, "purpose")), ValueError)
+    return _to_case(thread_id, message)
+
+
+def _post_activities(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    return _to_case(thread_id, save_activities(thread_id, parse_activities_form(form), _field(form, "reason")))
+
+
+def _post_mode(form: Form) -> str:
+    return _to("/", set_mode(_field(form, "mode")))
+
+
+def _post_rescue(form: Form) -> str:
+    return _to("/discarded", rescue_discarded(_field(form, "thread_id")))
+
+
+def _post_review_decision(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    message = _guidance(lambda: resolve_technical_review(
+        thread_id, _field(form, "decision"), _field(form, "questions")), ValueError)
+    return _to_case(thread_id, message)
+
+
+def _post_followup(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    message = _guidance(lambda: fup.set_followup(thread_id, _field(form, "action")), ValueError)
+    return _to_case(thread_id, message, "#seguimiento")
+
+
+def _post_code(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    message = _guidance(lambda: assign_code(thread_id, _field(form, "number")), ValueError)
+    return _to_case(thread_id, message, "&template=received#respuesta")
+
+
+def _post_code_approve(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    return _to_case(thread_id, _guidance(lambda: promote_to_te(thread_id), ValueError))
+
+
+def _post_change(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    message = _guidance(lambda: resolve_change(
+        thread_id, _int_field(form, "change_id"), _field(form, "decision") == "yes"), ValueError)
+    return _to_case(thread_id, message)
+
+
+def _post_link(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    message = _guidance(lambda: resolve_link(
+        thread_id, int(_field(form, "link_id", "0")), _field(form, "decision") == "yes"), ValueError)
+    return _to_case(thread_id, message)
+
+
+def _post_proposal(form: Form) -> str:
+    thread_id = _field(form, "thread_id")
+    message = _guidance(lambda: resolve_model_proposal(
+        thread_id, _field(form, "decision") == "use"), ValueError)
+    return _to_case(thread_id, message)
+
+
+def _post_delete(form: Form) -> str:
+    return _to("/requests", delete_cases(form.get("thread_id", [])))
+
+
+def _post_notifications_read(form: Form) -> str:
+    mark_notifications_read()
+    return _to("/", "Novedades marcadas como revisadas.")
+
+
+POST_ROUTES: dict[str, Callable[[Form], str]] = {
+    "/refresh": _post_refresh,
+    "/approve": _post_approve,
+    "/metadata": _post_metadata,
+    "/draft": _post_draft,
+    "/send": _post_send,
+    "/activities": _post_activities,
+    "/mode": _post_mode,
+    "/rescue": _post_rescue,
+    "/review-decision": _post_review_decision,
+    "/followup": _post_followup,
+    "/code": _post_code,
+    "/code-approve": _post_code_approve,
+    "/change": _post_change,
+    "/link": _post_link,
+    "/proposal": _post_proposal,
+    "/delete": _post_delete,
+    "/notifications/read": _post_notifications_read,
+}
+
+
 class ReviewHandler(BaseHTTPRequestHandler):
     def _send_html(self, content: str, status: int = 200) -> None:
         data = add_csrf_tokens(content).encode("utf-8")
@@ -847,159 +1020,17 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return self._reject("Host no permitido.")
         if not is_same_origin(self.headers.get("Origin", ""), host):
             return self._reject("Origen no permitido.")
-        parsed = urllib.parse.urlparse(self.path)
+        path = urllib.parse.urlparse(self.path).path
         form = self._read_form()
-        token = form.get("csrf_token", [""])[0]
-        if not secrets.compare_digest(token, CSRF_TOKEN):
+        if not secrets.compare_digest(_field(form, "csrf_token"), CSRF_TOKEN):
             return self._reject("Token de seguridad inválido. Recarga la página e inténtalo de nuevo.")
+        action = POST_ROUTES.get(path)
+        if action is None:
+            return self._send_html(_page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
         try:
-            if parsed.path == "/refresh":
-                if load_config().get("active_mode") == "chatgpt_work":
-                    message = (
-                        "Este botón no lee Gmail en modo ChatGPT Work. " + sync_status_text()
-                    )
-                else:
-                    message = describe_check(checked_run(True, True, False, "dashboard"))
-                self._redirect("/?message=" + urllib.parse.quote(message))
-            elif parsed.path == "/approve":
-                thread_id = form.get("thread_id", [""])[0]
-                body = form.get("body", [None])[0]
-                try:
-                    message = approve_review(
-                        thread_id, body_text=body,
-                        client_name=form.get("client_name", [None])[0],
-                        new_client=form.get("new_client", [""])[0] == "1",
-                        allow_similar_project=form.get("allow_similar", [""])[0] == "1",
-                    )
-                except SystemExit as exc:  # orientación para la persona, no un fallo del servidor
-                    message = str(exc)
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message)
-                )
-            elif parsed.path == "/metadata":
-                thread_id = form.get("thread_id", [""])[0]
-                save_quote_metadata(
-                    thread_id,
-                    form.get("client_name", [""])[0],
-                    form.get("client_type", ["No clasificado"])[0],
-                    form.get("sector", ["No clasificado"])[0],
-                    form.get("notes", [""])[0],
-                )
-                message = "Información comercial guardada."
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message)
-                )
-            elif parsed.path == "/draft":
-                thread_id = form.get("thread_id", [""])[0]
-                body = form.get("body", [""])[0]
-                try:
-                    message = save_dashboard_draft(thread_id, body, form.get("to", [""])[0])
-                except ValueError as exc:
-                    message = str(exc)
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message)
-                )
-            elif parsed.path == "/send":
-                thread_id = form.get("thread_id", [""])[0]
-                body = form.get("body", [""])[0]
-                try:
-                    message = send_dashboard_reply(
-                        thread_id, body, form.get("to", [""])[0],
-                        int(form.get("change_id", ["0"])[0] or 0), form.get("purpose", [""])[0])
-                except ValueError as exc:  # p. ej. el mismo correo ya salió: se explica, no es un fallo
-                    message = str(exc)
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message)
-                )
-            elif parsed.path == "/activities":
-                thread_id = form.get("thread_id", [""])[0]
-                message = save_activities(thread_id, parse_activities_form(form),
-                                          form.get("reason", [""])[0])
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message)
-                )
-            elif parsed.path == "/mode":
-                message = set_mode(form.get("mode", [""])[0])
-                self._redirect("/?message=" + urllib.parse.quote(message))
-            elif parsed.path == "/rescue":
-                message = rescue_discarded(form.get("thread_id", [""])[0])
-                self._redirect("/discarded?message=" + urllib.parse.quote(message))
-            elif parsed.path == "/review-decision":
-                thread_id = form.get("thread_id", [""])[0]
-                try:
-                    message = resolve_technical_review(
-                        thread_id, form.get("decision", [""])[0], form.get("questions", [""])[0])
-                except ValueError as exc:  # orientación para la persona, no un fallo del servidor
-                    message = str(exc)
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message)
-                )
-            elif parsed.path == "/followup":
-                thread_id = form.get("thread_id", [""])[0]
-                try:
-                    message = fup.set_followup(thread_id, form.get("action", [""])[0])
-                except ValueError as exc:
-                    message = str(exc)
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message) + "#seguimiento"
-                )
-            elif parsed.path in ("/code", "/code-approve", "/change"):
-                thread_id = form.get("thread_id", [""])[0]
-                suffix = ""
-                try:
-                    if parsed.path == "/code":
-                        message = assign_code(thread_id, form.get("number", [""])[0])
-                        suffix = "&template=received#respuesta"
-                    elif parsed.path == "/code-approve":
-                        message = promote_to_te(thread_id)
-                    else:
-                        message = resolve_change(thread_id, int(form.get("change_id", ["0"])[0] or 0),
-                                                 form.get("decision", [""])[0] == "yes")
-                except ValueError as exc:
-                    message = str(exc)
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message) + suffix
-                )
-            elif parsed.path == "/link":
-                thread_id = form.get("thread_id", [""])[0]
-                try:
-                    message = resolve_link(thread_id, int(form.get("link_id", ["0"])[0]),
-                                           form.get("decision", [""])[0] == "yes")
-                except ValueError as exc:
-                    message = str(exc)
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message)
-                )
-            elif parsed.path == "/proposal":
-                thread_id = form.get("thread_id", [""])[0]
-                try:
-                    message = resolve_model_proposal(
-                        thread_id, form.get("decision", [""])[0] == "use")
-                except ValueError as exc:
-                    message = str(exc)
-                self._redirect(
-                    "/case?thread_id=" + urllib.parse.quote(thread_id)
-                    + "&message=" + urllib.parse.quote(message)
-                )
-            elif parsed.path == "/delete":
-                message = delete_cases(form.get("thread_id", []))
-                self._redirect("/requests?message=" + urllib.parse.quote(message))
-            elif parsed.path == "/notifications/read":
-                mark_notifications_read()
-                self._redirect("/?message=" + urllib.parse.quote("Novedades marcadas como revisadas."))
-            else:
-                self._send_html(_page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
+            self._redirect(action(form))
         except (Exception, SystemExit) as exc:
-            log.exception("Error atendiendo POST %s", parsed.path)
+            log.exception("Error atendiendo POST %s", path)
             self._send_html(_page("Error", render("empty.html", text=str(exc))), 500)
 
     def _redirect(self, location: str) -> None:

@@ -271,7 +271,8 @@ def warn_unknown_config_keys() -> None:
         )
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Los comandos y opciones de la línea de comandos."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
@@ -328,62 +329,99 @@ def main() -> None:
         choices=sorted(ACTIVE_MODES),
         help="Modo a activar con set-mode.",
     )
+    return parser
+
+
+def _cmd_dashboard_upsert(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.payload_base64:
+        parser.error("dashboard-upsert requiere --payload-base64.")
+    dashboard_upsert(args.payload_base64)
+    print("Registro del dashboard actualizado.")
+
+
+def _cmd_analyze_text(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.text and not args.file:
+        parser.error("analyze-text requiere --text o --file.")
+    config = load_config()
+    text = args.text if args.text is not None else Path(args.file).read_text(encoding="utf-8")
+    required = args.required_field or config["required_fields"]
+    result = analyze_text(text, required, config["llm"])
+    print(json.dumps({
+        "provider": config["llm"]["provider"],
+        "model": config["llm"].get("model"),
+        "analysis": result,
+        "questions": reception_questions(result, required),
+    }, ensure_ascii=False, indent=2))
+
+
+def _cmd_auth(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    credentials(args.force_auth)
+    print("Autorización lista.")
+
+
+def _cmd_drive_tree(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    _, drive = services()
+    for folder in list_folders(drive):
+        print(f"{folder['name']} [{folder['id']}]")
+        for child in list_folders(drive, folder["id"]):
+            print(f"  {child['name']} [{child['id']}]")
+
+
+def _cmd_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    print_mode()
+
+
+def _cmd_set_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.active_mode:
+        parser.error("set-mode requiere --active-mode.")
+    print(set_mode(args.active_mode))
+
+
+def _cmd_reviews(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    list_reviews()
+
+
+def _cmd_approve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.thread_id:
+        parser.error("approve requiere --thread-id.")
+    approve_review(
+        args.thread_id, args.body_file,
+        client_name=args.client_name, new_client=args.new_client,
+    )
+
+
+def _cmd_review_ui(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    review_ui(args.host, args.port, not args.no_browser)
+
+
+def _cmd_run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if args.watch_seconds:
+        watch(args.apply, args.review_only, args.watch_seconds, args.gmail_drafts)
+    else:
+        run(args.apply, args.review_only, args.gmail_drafts)
+
+
+COMMANDS = {
+    "auth": _cmd_auth,
+    "drive-tree": _cmd_drive_tree,
+    "mode": _cmd_mode,
+    "run": _cmd_run,
+    "reviews": _cmd_reviews,
+    "approve": _cmd_approve,
+    "review-ui": _cmd_review_ui,
+    "set-mode": _cmd_set_mode,
+    "analyze-text": _cmd_analyze_text,
+    "dashboard-upsert": _cmd_dashboard_upsert,
+}
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
     configure_logging()
     if args.command != "auth":
         warn_unknown_config_keys()
-    if args.command == "dashboard-upsert":
-        if not args.payload_base64:
-            parser.error("dashboard-upsert requiere --payload-base64.")
-        dashboard_upsert(args.payload_base64)
-        print("Registro del dashboard actualizado.")
-    elif args.command == "analyze-text":
-        if not args.text and not args.file:
-            parser.error("analyze-text requiere --text o --file.")
-        config = load_config()
-        text = args.text if args.text is not None else Path(args.file).read_text(encoding="utf-8")
-        result = analyze_text(
-            text, args.required_field or config["required_fields"], config["llm"]
-        )
-        print(json.dumps({
-            "provider": config["llm"]["provider"],
-            "model": config["llm"].get("model"),
-            "analysis": result,
-            "questions": reception_questions(
-                result, args.required_field or config["required_fields"]
-            ),
-        }, ensure_ascii=False, indent=2))
-    elif args.command == "auth":
-        credentials(args.force_auth)
-        print("Autorización lista.")
-    elif args.command == "drive-tree":
-        _, drive = services()
-        for folder in list_folders(drive):
-            print(f"{folder['name']} [{folder['id']}]")
-            for child in list_folders(drive, folder["id"]):
-                print(f"  {child['name']} [{child['id']}]")
-    elif args.command == "mode":
-        print_mode()
-    elif args.command == "set-mode":
-        if not args.active_mode:
-            parser.error("set-mode requiere --active-mode.")
-        print(set_mode(args.active_mode))
-    elif args.command == "reviews":
-        list_reviews()
-    elif args.command == "approve":
-        if not args.thread_id:
-            parser.error("approve requiere --thread-id.")
-        approve_review(
-            args.thread_id, args.body_file,
-            client_name=args.client_name, new_client=args.new_client,
-        )
-    elif args.command == "review-ui":
-        review_ui(args.host, args.port, not args.no_browser)
-    else:
-        if args.watch_seconds:
-            watch(args.apply, args.review_only, args.watch_seconds, args.gmail_drafts)
-        else:
-            run(args.apply, args.review_only, args.gmail_drafts)
+    COMMANDS[args.command](args, parser)
 
 
 if __name__ == "__main__":

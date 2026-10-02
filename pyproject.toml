@@ -3,9 +3,13 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "B", "UP"]
+select = ["E", "F", "W", "B", "UP", "C90"]
 # Deuda conocida: líneas largas heredadas; se corrigen al dividir app.py.
 ignore = ["E501"]
+
+[tool.ruff.lint.mccabe]
+# Ninguna función pasa de 15 caminos: si crece, se divide en pasos con nombre.
+max-complexity = 15
 
 [tool.coverage.run]
 source = ["anka", "app.py", "supervisor.py", "work_dashboard_sync.py", "check_spec.py"]
