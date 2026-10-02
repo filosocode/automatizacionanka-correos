@@ -18,6 +18,84 @@ Una capa solo importa de las que tiene **debajo**. `web` y `cli` no se importan 
 | `web/` | El servidor HTTP local (`server`: valida y enruta), las acciones de los formularios (`acciones`), las páginas (`paginas`: resumen y listas; `pantalla_caso`: un caso y su acta), el token CSRF y la comprobación de Host/Origen (`seguridad`), los fragmentos (`views`), la documentación OpenAPI/Swagger y el JSON de lectura (`openapi`, `api`) y las plantillas. | Importar de `cli`. |
 | `cli/` | Los puntos de entrada: comandos (`app`), lanzador (`supervisor`) y puente con Work (`work_sync`). | — |
 
+## Mapa de módulos
+
+Una fila por módulo (lo comprueba `tests/test_arquitectura.py`: si agregas un módulo y no lo nombras aquí, falla).
+La descripción es la primera frase de su docstring.
+
+### `anka/dominio/`
+
+| Módulo | Para qué sirve |
+|---|---|
+| `activities` | Edicion y exportacion de la tabla de actividades (sin acceso a Gmail ni Drive). |
+| `analisis` | La forma del análisis de una solicitud: lo que el modelo (o Work) devuelve y el dashboard guarda como JSON. |
+| `attachments` | Extraccion local de texto desde adjuntos (sin llamar al modelo). |
+| `caso` | `Caso`: la vista de una solicitud de cotización tal como la ven el dashboard y las acciones. |
+| `configuracion` | La forma de `config.json` (vive fuera del repositorio, en la carpeta de datos): sus claves y sus tipos. |
+| `correo` | El correo como dato: leer cabeceras, texto y adjuntos de un mensaje de Gmail y armar una respuesta. |
+| `decision` | Qué hacer con un hilo ya leído: la decisión (estado, acción, avisos) sin ejecutar nada. |
+| `errores` | Errores propios de Anka. |
+| `reception` | Reglas de recepción: qué falta, qué preguntar y cómo redactar la respuesta. |
+| `registros` | Los hechos que se guardan de un caso, como objetos con campos nombrados: `Evento`, `Cambio` y `Vinculo`. |
+| `status` | Estados del ciclo de vida de una solicitud, definidos en un solo lugar. |
+| `work_contract` | Contrato entre ChatGPT Work y el puente: valida el JSON del borrador contra `spec/contrato_work.schema.json`. |
+
+### `anka/infra/`
+
+| Módulo | Para qué sirve |
+|---|---|
+| `backup` | Copias de seguridad de la base del dashboard: local y en Drive (sin credenciales ni token). |
+| `google_services` | Cliente de Gmail y Drive: credenciales, servicios y carpetas. |
+| `llm` | Análisis del correo con el motor elegido (Ollama u OpenAI). |
+| `logging_setup` | Registro de la aplicación: consola con todo el detalle, archivo sin datos de clientes. |
+| `mail` | Correo en Gmail: lo que habla con la API (descargar adjuntos, enviar, crear borradores, listar hilos). |
+| `modes` | Modo de operación (local, api, chatgpt_work) y su automatización asociada. |
+| `settings` | Ajustes y carpeta de datos local (fuera del repositorio). |
+| `store` | Persistencia SQLite del estado de solicitudes y novedades del dashboard. |
+| `work_heartbeat` | Latido del puente Gmail → dashboard (modo chatgpt_work): permite saber si está vivo. |
+
+### `anka/servicios/`
+
+| Módulo | Para qué sirve |
+|---|---|
+| `case_actions` | Acciones sobre un caso desde el dashboard: destinatario, borrador, envío, aprobación. |
+| `change_control` | Código de la oferta (T / T&E) y control de cambios: quién pide qué, con qué código y a quién se avisa. |
+| `commercial_index` | Construye un indice comercial agregado y local desde el archivo historico T&E. |
+| `drive_contents` | Contenido de la carpeta de una solicitud en Drive. |
+| `drive_layout` | Estructura de carpetas de Drive: Año / Cliente / Solicitud. |
+| `ediciones` | Edición de la tabla de actividades por una persona: motivos, diferencias entre versiones y guardado. |
+| `estado_de_revision` | Estado de la revisión de Gmail: cuándo fue la última, cuánto tardó, qué cambió y cómo se cuenta a la persona. |
+| `followup_reminders` | Seguimiento cuando el cliente tarda en responder (R13). |
+| `gmail_followup` | Seguimiento del hilo en Gmail (solo lectura): registra lo enviado y lo recibido, venga de donde venga. |
+| `internal_context` | Contexto comercial interno: solo lectura, nunca sale en correos. |
+| `pipeline` | Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica. |
+| `quotes` | Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard. |
+| `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
+| `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
+| `work_import` | Importación del borrador de ChatGPT Work al dashboard (`dashboard_upsert`). |
+
+### `anka/web/`
+
+| Módulo | Para qué sirve |
+|---|---|
+| `acciones` | Las acciones de los formularios del dashboard (POST): una función por ruta. |
+| `api` | Representación JSON de los casos para las rutas de lectura `/api/...` (ver spec/07-api.md). |
+| `openapi` | La documentación OpenAPI 3 del dashboard y la página de Swagger UI (spec/07-api.md, requisito T-13). |
+| `paginas` | Las páginas comunes del dashboard: la página completa, el resumen, las solicitudes y las descartadas. |
+| `pantalla_caso` | La pantalla de un caso y su acta: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento. |
+| `seguridad` | Seguridad del dashboard local: token CSRF persistente y comprobación de Host y Origen. |
+| `server` | Servidor HTTP local del dashboard: enruta las páginas (GET) y las acciones de los formularios (POST). |
+| `templating` | Motor de plantillas del dashboard. |
+| `views` | Fragmentos HTML del dashboard sin acceso a datos ni a Gmail/Drive. |
+
+### `anka/cli/`
+
+| Módulo | Para qué sirve |
+|---|---|
+| `app` | Línea de comandos de Anka: `python app.py <comando>`. |
+| `supervisor` | Lanzador único: arranca dashboard y puente, los reinicia si se caen o si cambia el código, y hace la copia de seguridad diaria. |
+| `work_sync` | Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. |
+
 ## Clases y funciones: cuándo cada una
 Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funciones donde no:
 - `RepositorioDeCasos` (`servicios/repositorio.py`): sabe cómo se guardan y leen los casos; recibe cómo abrir la base.

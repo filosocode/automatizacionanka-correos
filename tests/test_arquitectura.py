@@ -171,6 +171,13 @@ class Organization(unittest.TestCase):
             init = PACKAGE / layer / "__init__.py"
             self.assertTrue(ast.get_docstring(ast.parse(init.read_text(encoding="utf-8"))), layer)
 
+    def test_every_module_is_named_in_the_architecture_spec(self):
+        """spec/06-arquitectura.md tiene un «Mapa de módulos»: un módulo nuevo debe aparecer ahí."""
+        spec = (ROOT / "spec" / "06-arquitectura.md").read_text(encoding="utf-8")
+        mapa = spec[spec.index("## Mapa de módulos"):]
+        missing = [dotted for dotted, path in modules() if f"| `{path.stem}` |" not in mapa]
+        self.assertEqual(missing, [], "Agrega estos módulos al «Mapa de módulos» de spec/06-arquitectura.md")
+
     def test_the_root_only_holds_thin_entry_points(self):
         for path in ROOT.glob("*.py"):
             self.assertIn(path.name, ENTRY_POINTS, f"{path.name} no debería estar en la raíz")

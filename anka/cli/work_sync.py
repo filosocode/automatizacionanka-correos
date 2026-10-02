@@ -1,4 +1,4 @@
-"""Importa JSON de revisión de borradores Gmail. Nunca envía ni modifica Gmail."""
+"""Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. Nunca envía ni modifica Gmail."""
 from __future__ import annotations
 import argparse
 import base64
