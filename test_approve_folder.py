@@ -23,6 +23,7 @@ def ready_analysis(**extra):
     return complete_analysis() | {"received_at": "2026-09-01T09:00:00-05:00"} | extra
 
 
+# Cubre: F1-07, R4, R6, R7
 class ApproveFolderTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -121,6 +122,7 @@ class ApproveFolderTests(unittest.TestCase):
         self.assertNotIn("Secreta", text)
 
 
+# Cubre: F1-07
 class ApproveRouteTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -162,6 +164,7 @@ class ApproveRouteTests(unittest.TestCase):
         self.assertIn("/case?thread_id=t-1", sent["location"])
 
 
+# Cubre: F1-07
 class CliTests(unittest.TestCase):
     def test_approve_command_accepts_client_name_and_new_client(self):
         import sys
@@ -174,6 +177,7 @@ class CliTests(unittest.TestCase):
         mock.assert_called_once_with("t-1", None, client_name="Minera Sur", new_client=True)
 
 
+# Cubre: F1-07
 class MetadataTests(unittest.TestCase):
     def test_set_client_name_keeps_the_other_commercial_data(self):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):

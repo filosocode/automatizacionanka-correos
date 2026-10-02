@@ -9,6 +9,7 @@ from unittest.mock import patch
 import app
 
 
+# Cubre: T-06
 class CliTests(unittest.TestCase):
     def run_cli(self, *argv):
         out = io.StringIO()

@@ -72,6 +72,7 @@ class Base(unittest.TestCase):
         return quotes.case_change_log("T1")
 
 
+# Cubre: T-03, R11
 class CodeTests(unittest.TestCase):
     def test_codes_are_found_in_any_common_spelling(self):
         for text in ("T26145", "T&E26145", "TE26145", "Ref: T-26145", "T&E 26145", "re: t26145 ok"):
@@ -89,6 +90,7 @@ class CodeTests(unittest.TestCase):
         self.assertEqual(rm(False, False), [("ask_code", "sender"), ("notify_contact", "contact")])
 
 
+# Cubre: T-03
 class LifecycleTests(Base):
     def test_assign_validates_and_records(self):
         with self.assertRaises(ValueError):
@@ -113,6 +115,7 @@ class LifecycleTests(Base):
         self.assertIn("ya figuraba", change_control.promote_to_te("T1"))
 
 
+# Cubre: T-03, R11, F1-06
 class ChangeDetectionTests(Base):
     def test_contact_citing_the_code_is_a_change_with_code(self):
         self.assign()
@@ -167,6 +170,7 @@ class ChangeDetectionTests(Base):
         self.assertTrue({"change_candidate", "change_confirmed", "change_reply"} <= kinds)
 
 
+# Cubre: T-03
 class EmailTests(Base):
     def test_templates_never_reveal_the_code_to_other_people(self):
         self.assign()
@@ -202,6 +206,7 @@ class EmailTests(Base):
         self.assertIn("Hemos generado el código T26145", page)
 
 
+# Cubre: T-04
 class EvidenceTests(Base):
     def test_chain_detects_tampering_and_removal(self):
         db = init_db()
@@ -242,6 +247,7 @@ class EvidenceTests(Base):
             self.assertIn(expected, acta)
 
 
+# Cubre: F1-03, T-04
 class VersionTests(Base):
     """El comercial edita la tabla: queda historial con diferencias, sin correos ni validaciones."""
 
@@ -333,6 +339,7 @@ class VersionTests(Base):
         self.assertEqual(acta.count("Edición interna posterior a la T"), 1)
 
 
+# Cubre: T-01, F1-04, F1-05
 class TechnicalReviewFlowTests(Base):
     """Un caso de Work con dependencias pendientes no puede quedar bloqueado sin salida."""
 
@@ -392,6 +399,7 @@ class TechnicalReviewFlowTests(Base):
         self.assertEqual(quotes.get_quote("T9")["status"], QuoteStatus.READY_REVIEW)
 
 
+# Cubre: F1-05, T-02
 class WorkDraftTests(Base):
     """El borrador que deja Work aparece en el dashboard y se consume al enviar."""
 
@@ -475,6 +483,7 @@ class WorkDraftTests(Base):
             self.assertIn("Correo enviado", case_actions.send_dashboard_reply("W1", "Hola"))
 
 
+# Cubre: T-07
 class CsrfTokenTests(Base):
     def test_token_survives_dashboard_restarts(self):
         first = web._persistent_csrf_token()
@@ -484,6 +493,7 @@ class CsrfTokenTests(Base):
         self.assertNotEqual(web._persistent_csrf_token(), first)        # sin archivo se genera uno nuevo
 
 
+# Cubre: R12, T-01, U-06
 class RowStateAndStatusFlowTests(Base):
     """R12 (estado de las filas) y el avance de un caso tras la respuesta del cliente."""
 
@@ -535,6 +545,7 @@ class RowStateAndStatusFlowTests(Base):
         self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.READY)
 
 
+# Cubre: U-01, U-02, U-03
 class GuidedFlowTests(Base):
     """La pantalla del caso sigue un hilo: leer, revisar, responder y, solo con la información validada, emitir la T."""
 
@@ -599,6 +610,7 @@ class GuidedFlowTests(Base):
         self.assertIn("Cliente respondió · por analizar", web._quote_row(quotes.get_quote("T1")))
 
 
+# Cubre: T-02
 class WorkStatusSpellingTests(unittest.TestCase):
     def test_status_without_accents_is_accepted_as_the_official_label(self):
         from status import canonical_work_status as canonical
@@ -617,6 +629,7 @@ class WorkStatusSpellingTests(unittest.TestCase):
         self.assertIn("Hola", found[0]["draft_reply"])
 
 
+# Cubre: U-01, U-02, U-04, U-07
 class UxFixesTests(Base):
     """Los cinco arreglos de la evaluación UX: etapa en la lista, textos al día, historial plegado,
     «qué hacer hoy» y un encabezado sin controles peligrosos."""
@@ -723,6 +736,7 @@ class UxFixesTests(Base):
         self.assertIn("Actualizar correo", local)
 
 
+# Cubre: U-05, F1-05
 class DoubleSendTests(Base):
     """Un clic = un correo: tras enviar, la pantalla cambia y el mismo texto no sale dos veces."""
 
@@ -780,6 +794,7 @@ class DoubleSendTests(Base):
         self.assertIn("formaction') === '/send'", page)
 
 
+# Cubre: T-05, R13, F1-06
 class ClientDelayFollowupTests(Base):
     """El cliente tarda: tiempo de espera, alertas, recordatorios automáticos con condiciones y llamada."""
 

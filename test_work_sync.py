@@ -74,6 +74,7 @@ class _Exec:
         return self.value
 
 
+# Cubre: F1-01, T-02
 class BridgeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -158,6 +159,7 @@ def mail(thread, sent, when, who):
             "payload": {"headers": [{"name": "To" if sent else "From", "value": who}]}}
 
 
+# Cubre: F1-06, T-04
 class FollowupTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -215,6 +217,7 @@ class FollowupTests(unittest.TestCase):
         self.assertEqual(gmail.gets, 0)
 
 
+# Cubre: F1-06, U-01
 class NextStepTests(unittest.TestCase):
     """Respuesta del cliente sin analizar y propuestas del modelo sobre una tabla editada a mano."""
 
@@ -282,6 +285,7 @@ class NextStepTests(unittest.TestCase):
         self.assertEqual(kinds.count("proposal"), 2)
 
 
+# Cubre: F1-06, T-03
 class RelatedThreadTests(unittest.TestCase):
     """Correos de la misma persona o empresa en otro hilo: se proponen, no se unen solos."""
 
@@ -382,6 +386,7 @@ class RelatedThreadTests(unittest.TestCase):
             case_actions._case_email_context("T1")
 
 
+# Cubre: T-06, U-06
 class HeartbeatTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

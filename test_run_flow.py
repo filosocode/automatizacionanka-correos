@@ -42,6 +42,7 @@ class UnreadableThreadGmail(FakeGmail):
         return Users(gmail)
 
 
+# Cubre: F1-01, F1-02, F1-04, F1-05
 class RunFlowTests(unittest.TestCase):
     def run_flow(self, gmail, analysis=None, *, seed=None, drive=None, metadata=None, **flags):
         """Ejecuta run() aislado; devuelve (filas, analyze_mock, paquetes, drive).
@@ -228,6 +229,7 @@ class RunFlowTests(unittest.TestCase):
         self.assertIn("received_at", saved)
 
 
+# Cubre: F1-07, R4, R7
 class DriveStructureFlowTests(unittest.TestCase):
     """Carpeta del proyecto: se crea sola solo cuando el cliente es seguro; si no, espera a una persona."""
 
@@ -312,6 +314,7 @@ class DriveStructureFlowTests(unittest.TestCase):
         self.assertEqual(drive.created, [])
 
 
+# Cubre: T-08
 class LogPrivacyTests(unittest.TestCase):
     """El archivo de registro guarda resultados por hilo, nunca contenido de clientes."""
 
@@ -370,6 +373,7 @@ class LogPrivacyTests(unittest.TestCase):
         self.assertTrue(any("requiere revisión manual" in line for line in logs.output))
 
 
+# Cubre: F1-04, T-01, R2
 class DecideAnalysisTests(unittest.TestCase):
     """Reglas de decisión puras: sin Gmail, SQLite ni Drive."""
 

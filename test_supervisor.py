@@ -16,6 +16,7 @@ import settings
 import supervisor
 
 
+# Cubre: T-06
 class BackupTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -87,6 +88,7 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(deleted, ["id0", "id1"])
 
 
+# Cubre: T-06
 class SupervisorTests(unittest.TestCase):
     def test_backoff_grows_and_caps(self):
         self.assertEqual([supervisor.backoff(n) for n in (1, 2, 3, 10)], [2, 4, 8, 60])

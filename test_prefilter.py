@@ -23,6 +23,7 @@ def mail(sender="Cliente <cliente@empresa.co>", subject="Consulta", body="Hola",
     }
 
 
+# Cubre: F1-02, R1
 class RealRequestsAreNeverNoise(unittest.TestCase):
     """Casos que el filtro anterior descartaba por no contener las palabras exactas."""
 
@@ -44,6 +45,7 @@ class RealRequestsAreNeverNoise(unittest.TestCase):
         self.assertIsNone(automated_noise_reason([message]))
 
 
+# Cubre: F1-02, R1
 class AutomatedSignals(unittest.TestCase):
     def reason(self, **kwargs):
         return automated_noise_reason([mail(**kwargs)])
@@ -94,6 +96,7 @@ class AutomatedSignals(unittest.TestCase):
         self.assertIsNone(automated_noise_reason([]))
 
 
+# Cubre: F1-02, R1
 class CommercialTermsRescue(unittest.TestCase):
     def test_automated_message_mentioning_a_quote_is_rescued(self):
         message = mail(sender="noreply@portal.co", subject="Solicitud de cotización #88",

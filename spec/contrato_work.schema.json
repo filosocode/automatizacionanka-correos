@@ -1,0 +1,86 @@
+{
+  "$comment": "Contrato entre la tarea de ChatGPT Work y el puente (work_dashboard_sync.py): el JSON que va entre [ANKA_DASHBOARD_JSON_V1] y [/ANKA_DASHBOARD_JSON_V1] dentro del borrador de Gmail. Es la fuente de verdad: el puente lo valida y las pruebas lo usan. Subconjunto de JSON Schema: type, required, enum, properties, items, minLength.",
+  "type": "object",
+  "required": ["thread_id", "message_id", "client_email", "project_name", "status", "engine"],
+  "properties": {
+    "thread_id": {"type": "string", "minLength": 1, "$comment": "Hilo real del borrador."},
+    "message_id": {"type": "string", "minLength": 1, "$comment": "ID del mensaje del cliente analizado (no del borrador)."},
+    "status": {
+      "type": "string",
+      "enum": [
+        "Nueva solicitud", "En análisis", "Faltan datos", "Requiere aclaraciones del cliente",
+        "Revisión técnica", "Requiere revisión técnica interna", "Borrador preparado",
+        "Alcance completo", "Información suficiente para revisión interna", "Descartada"
+      ],
+      "$comment": "Se acepta sin tildes ni mayúsculas: el puente lo normaliza a esta etiqueta antes de validar."
+    },
+    "engine": {"type": "string", "enum": ["chatgpt_work"]},
+    "client_email": {"type": "string", "minLength": 1},
+    "client_name": {"type": "string"},
+    "project_name": {"type": "string", "minLength": 1},
+    "summary": {"type": "string"},
+    "received_at": {"type": "string", "$comment": "ISO 8601."},
+    "gmail_url": {"type": "string"},
+    "requested_by_email": {"type": "string", "$comment": "R11: quien escribió el mensaje analizado."},
+    "requested_by_name": {"type": "string"},
+    "cited_codes": {"type": "array", "items": {"type": "string"}, "$comment": "R11: códigos de oferta citados, tal como aparecen."},
+    "notes": {"type": "string"},
+    "activities": {
+      "type": "array",
+      "$comment": "Cada fila es un objeto; el dashboard tolera filas escritas como texto (se convierten en una fila pendiente).",
+      "items": {
+        "type": ["object", "string"],
+        "properties": {
+          "activity": {"type": "string"},
+          "servicio_tecnica": {"type": "string"},
+          "ubicacion": {"type": "string"},
+          "quantity": {"type": "string"},
+          "unit": {"type": "string"},
+          "entregable": {"type": "string"},
+          "plazo_restriccion": {"type": "string"},
+          "fuente": {"type": "string"},
+          "estado": {"type": "string", "$comment": "R12: confirmado, pendiente o contradictorio. Cualquier otro texto se normaliza en el dashboard."},
+          "notes": {"type": "string"}
+        }
+      }
+    },
+    "missing_data": {"type": "array", "items": {"type": "string"}},
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "filename": {"type": "string"},
+          "status": {"type": "string"},
+          "reason": {"type": "string"},
+          "blocked_fields": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "contradictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "topic": {"type": "string"},
+          "details": {"type": "string"},
+          "sources": {"type": "array", "items": {"type": "string"}},
+          "status": {"type": "string"}
+        }
+      }
+    },
+    "scope_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {"type": "string"},
+          "source": {"type": "string"},
+          "status": {"type": "string"}
+        }
+      }
+    },
+    "draft_reply": {"type": "string", "$comment": "Lo agrega el puente: el correo limpio que sigue al bloque JSON."},
+    "draft_id": {"type": "string", "$comment": "Lo agrega el puente: el borrador de Gmail que contiene el bloque."}
+  }
+}

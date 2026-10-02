@@ -19,6 +19,7 @@ from test_app import FakeGmail, complete_analysis, encoded_message, test_config
 REQUEST = "Cotizacion - Parque Solar Llanos 8 - abc12345"
 
 
+# Cubre: F1-07, R9
 class DriveLayoutAutoTests(unittest.TestCase):
     def test_new_client_without_similar_folders_is_created_automatically(self):
         drive = FakeDriveTree({"Minera Sur": {}})
@@ -88,6 +89,7 @@ class DriveLayoutAutoTests(unittest.TestCase):
         self.assertEqual(len(drive.created), 1)
 
 
+# Cubre: F1-07, R9
 class SendCreatesTheFolderTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

@@ -228,6 +228,7 @@ class Pages(unittest.TestCase):
         return pages
 
 
+# Cubre: U-01
 class GoldenTests(Pages):
     def test_every_page_matches_its_snapshot(self):
         update = os.getenv("UPDATE_GOLDEN") == "1"
@@ -243,6 +244,7 @@ class GoldenTests(Pages):
                 self.assertEqual(current, path.read_text(encoding="utf-8"))
 
 
+# Cubre: T-07
 class InjectionTests(Pages):
     def test_hostile_data_never_creates_tags_attributes_or_scripts(self):
         # Referencia: qué etiquetas/atributos usa la misma página con datos normales.
@@ -292,6 +294,7 @@ class InjectionTests(Pages):
             self.fail("No se encontró el botón de envío en la página del caso hostil")
 
 
+# Cubre: T-07
 class ErrorPageTests(unittest.TestCase):
     """403/404/500 pasan por el mismo layout: el mensaje se escapa, el contenedor no."""
 

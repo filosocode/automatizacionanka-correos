@@ -35,6 +35,7 @@ class LoggingTestCase(unittest.TestCase):
         return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
+# Cubre: T-08
 class PrivacyTests(LoggingTestCase):
     def test_sensitive_records_reach_the_console_but_never_the_file(self):
         path, console = self.configure()
@@ -75,6 +76,7 @@ class PrivacyTests(LoggingTestCase):
         self.assertRegex(line, r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} WARNING anka\.pipeline: t-2: algo raro$")
 
 
+# Cubre: T-08
 class ConfigurationTests(LoggingTestCase):
     def test_console_message_has_no_decoration_so_the_pilot_window_looks_the_same(self):
         _, console = self.configure()

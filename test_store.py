@@ -26,6 +26,7 @@ def make_legacy_db(path: Path) -> None:
     db.close()
 
 
+# Cubre: T-10
 class MigrationTests(unittest.TestCase):
     def test_new_database_is_created_at_latest_version_without_backup(self):
         with tempfile.TemporaryDirectory() as d:

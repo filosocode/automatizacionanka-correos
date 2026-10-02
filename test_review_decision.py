@@ -23,6 +23,7 @@ def technical_analysis() -> dict:
     return analysis
 
 
+# Cubre: T-01, F1-05
 class ReviewDecisionTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

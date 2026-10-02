@@ -36,6 +36,7 @@ def with_changes(**changes):
 settings_MISSING = object()
 
 
+# Cubre: T-09
 class ValidateConfigTests(unittest.TestCase):
     def test_valid_config_has_no_problems(self):
         self.assertEqual(settings.validate_config(VALID), [])
@@ -116,6 +117,7 @@ class ValidateConfigTests(unittest.TestCase):
         self.assertEqual(settings.unknown_config_keys(VALID), [])
 
 
+# Cubre: T-09
 class LoadConfigTests(unittest.TestCase):
     def load(self, text):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
@@ -153,6 +155,7 @@ class LoadConfigTests(unittest.TestCase):
                 settings.load_config()
 
 
+# Cubre: T-09
 class WriteConfigTests(unittest.TestCase):
     def test_refuses_to_save_an_invalid_config_and_leaves_the_file_untouched(self):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
@@ -168,6 +171,7 @@ class WriteConfigTests(unittest.TestCase):
             self.assertEqual(settings.load_config(), VALID)
 
 
+# Cubre: T-09
 class CliWarningTests(unittest.TestCase):
     def test_cli_warns_about_unknown_config_keys_on_stderr(self):
         import io

@@ -55,6 +55,7 @@ def quote():
             "analysis": complete_analysis()}
 
 
+# Cubre: R10, F1-07
 class PopulateTests(unittest.TestCase):
     def setUp(self):
         self.drive = FakeDriveTree({"Minera Sur": {"Solicitud": {}}})
@@ -119,6 +120,7 @@ class PopulateTests(unittest.TestCase):
         self.assertEqual(report.table, "creada")
 
 
+# Cubre: R10, F1-07
 class FolderCreationFillsItTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

@@ -5,6 +5,7 @@ import quotes
 from status import ACTION_STATUSES, CLOSED_STATUSES, QuoteStatus, sql_in
 
 
+# Cubre: T-01
 class QuoteStatusTests(unittest.TestCase):
     def test_values_match_persisted_strings(self):
         # Las filas ya guardadas en SQLite usan estos textos; no pueden cambiar.

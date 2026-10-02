@@ -29,6 +29,7 @@ from mail import attachment_names, extract_message_attachments, forwarded_routin
 from reception import draft_body_with_review_note, missing_questions, safe_folder_name, unresolved_scope_issues
 
 
+# Cubre: F1-05
 class InternalCommercialContextTests(unittest.TestCase):
     def test_requires_internal_only_flag(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -198,6 +199,7 @@ def test_config():
     }
 
 
+# Cubre: F1-03, F1-04, F1-05, F1-06
 class QuoteFlowTests(unittest.TestCase):
     def test_dashboard_reads_real_automation_interval(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
@@ -595,6 +597,7 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertIn("response_sent", notification_kinds)
 
 
+# Cubre: F1-01, F1-05, F1-06
 class QuoteFlowIntegrationTests(unittest.TestCase):
     def run_with_workspace(self, gmail, analysis, *, review_only=False, gmail_drafts=False):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
@@ -717,6 +720,7 @@ class QuoteFlowIntegrationTests(unittest.TestCase):
 
 
 
+# Cubre: T-07
 class DashboardSecurityTests(unittest.TestCase):
     def test_add_csrf_tokens_to_every_post_form(self):
         html_in = '<form method="post" action="/send"><button></button></form><form method="get"></form>'
@@ -736,6 +740,7 @@ class DashboardSecurityTests(unittest.TestCase):
         self.assertFalse(web.is_same_origin("https://evil.example", "127.0.0.1:8765"))
 
 
+# Cubre: T-07
 class HandlerErrorTests(unittest.TestCase):
     def test_system_exit_from_config_returns_500_page(self):
         handler = web.ReviewHandler.__new__(web.ReviewHandler)
@@ -753,6 +758,7 @@ class HandlerErrorTests(unittest.TestCase):
         self.assertEqual(sent["status"], 500)
 
 
+# Cubre: T-11
 class ModeSwitchTests(unittest.TestCase):
     def switch(self, mode, env=None):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
@@ -864,6 +870,7 @@ class ModeSwitchTests(unittest.TestCase):
         self.assertNotIn("value='local' selected", out)
 
 
+# Cubre: F1-03
 class ActivitiesTests(unittest.TestCase):
     def test_parse_form_edits_deletes_and_adds(self):
         from activities import parse_activities_form
@@ -921,6 +928,7 @@ class ActivitiesTests(unittest.TestCase):
         self.assertIn("name='a1_activity'", out)  # fila nueva
 
 
+# Cubre: U-06
 class CheckStatusTests(unittest.TestCase):
     def test_checked_run_records_new_and_updated_cases(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)

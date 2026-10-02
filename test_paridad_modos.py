@@ -64,6 +64,7 @@ def build_mail(case: dict) -> dict:
     }
 
 
+# Cubre: T-11, R1, R4, R6, R7, R8
 class RulesMatchTheCode(unittest.TestCase):
     """Modos local y api: el código implementa exactamente lo que dicen las reglas."""
 
@@ -119,6 +120,7 @@ class RulesMatchTheCode(unittest.TestCase):
         self.assertEqual(len(gmail.created_drafts), 1)
 
 
+# Cubre: T-11
 class SkillMirrorsTheRules(unittest.TestCase):
     """Modo Work: la skill copia las reglas y apunta a la fuente única."""
 
@@ -154,6 +156,7 @@ class SkillMirrorsTheRules(unittest.TestCase):
         self.assertNotRegex(self.skill.casefold(), r"envía(r)? automáticamente")
 
 
+# Cubre: T-11, R1, R5
 class SharedCaseCatalogue(unittest.TestCase):
     """El mismo catálogo que se usa a mano para probar la skill se ejecuta contra el código."""
 
@@ -194,6 +197,7 @@ class SharedCaseCatalogue(unittest.TestCase):
         self.assertIn("casos_paridad.json", doc)
 
 
+# Cubre: R11, T-03
 class ChangeRuleR11(unittest.TestCase):
     """R11: con T asignada, la tabla solo cambia por el contacto registrado citando el código.
 
@@ -327,6 +331,7 @@ class ChangeRuleR11(unittest.TestCase):
         self.assertTrue(quotes.get_quote("t-1")["changes"])
 
 
+# Cubre: T-11
 class OllamaAndApiBehaveTheSame(unittest.TestCase):
     """Los modos local y api comparten el flujo: solo cambia quién analiza el correo."""
 
@@ -390,6 +395,7 @@ class OllamaAndApiBehaveTheSame(unittest.TestCase):
         self.assertEqual(sent["ollama"], llm.ANALYSIS_SCHEMA)
 
 
+# Cubre: T-11
 class WorkModeIsTheOtherOrchestrator(unittest.TestCase):
     def test_the_three_modes_are_the_ones_the_standard_documents(self):
         self.assertEqual(settings.ACTIVE_MODES, {"local", "api", "chatgpt_work"})

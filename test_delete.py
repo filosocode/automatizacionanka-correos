@@ -30,6 +30,7 @@ def seed(data_dir: Path) -> None:
     (packet / "t-b.txt").write_text("paquete", encoding="utf-8")
 
 
+# Cubre: T-04
 class DeleteTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -110,6 +111,7 @@ class DeleteTests(unittest.TestCase):
 
 
 
+# Cubre: F1-07, T-04
 class DeleteWithDriveTests(unittest.TestCase):
     def setUp(self):
         import case_actions

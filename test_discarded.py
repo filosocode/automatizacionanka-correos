@@ -36,6 +36,7 @@ def seed(data_dir: Path) -> None:
     db.close()
 
 
+# Cubre: F1-02, R3
 class DiscardedTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

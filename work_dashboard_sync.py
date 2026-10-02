@@ -13,6 +13,7 @@ from typing import Any, NoReturn
 
 from gmail_followup import sync_thread_activity
 from status import canonical_work_status
+from work_contract import validate
 from work_heartbeat import other_bridge_running, write_heartbeat
 
 START = "[ANKA_DASHBOARD_JSON_V1]"
@@ -46,23 +47,14 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
         payload = json.loads(raw)
         if not isinstance(payload, dict):
             raise ValueError("El JSON debe ser un objeto.")
-        for key in ("thread_id", "message_id", "client_email", "project_name", "status"):
-            if not isinstance(payload.get(key), str) or not payload[key].strip():
-                raise ValueError("Falta campo textual: " + key)
+        status = canonical_work_status(payload.get("status"))
+        if status is not None:
+            payload["status"] = status  # la etiqueta oficial, aunque Work la escriba sin tildes
+        errors = validate(payload)      # spec/contrato_work.schema.json es la fuente de verdad
+        if errors:
+            raise ValueError("Contrato de Work no cumplido: " + " ".join(errors[:5]))
         if payload["thread_id"] != message.get("threadId"):
             raise ValueError("thread_id no coincide con el hilo del borrador.")
-        status = canonical_work_status(payload["status"])
-        if status is None or payload.get("engine") != "chatgpt_work":
-            raise ValueError(f"Estado o motor no permitido: {payload['status']!r}.")
-        payload["status"] = status  # la etiqueta oficial, aunque Work la escriba sin tildes
-        for key in ("requested_by_email", "requested_by_name"):
-            if not isinstance(payload.get(key, ""), str):
-                raise ValueError(key + " debe ser texto.")
-        if not isinstance(payload.get("cited_codes", []), list):
-            raise ValueError("cited_codes debe ser una lista.")
-        for key in ("activities", "missing_data", "attachments", "contradictions", "scope_dependencies"):
-            if not isinstance(payload.get(key, []), list):
-                raise ValueError(key + " debe ser una lista.")
         # El correo limpio para el cliente (lo que sigue al bloque JSON) y el borrador de Gmail que
         # lo contiene: el dashboard los muestra en «Respuesta al cliente» y consume el borrador al enviar.
         payload["draft_reply"] = text.split(END, 1)[1].strip()

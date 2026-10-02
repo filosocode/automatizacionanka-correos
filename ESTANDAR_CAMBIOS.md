@@ -22,11 +22,12 @@ Solo uno de los tres puede estar activo sobre la misma cuenta de Gmail (ver `MOD
 
 ## Procedimiento para un cambio de comportamiento
 
+0. **Especificación.** Todo empieza en `spec/` (ver `spec/README.md`): el requisito en `spec/requisitos.md`, la tabla `spec/transiciones.json` si cambian los estados, el esquema `spec/contrato_work.schema.json` si cambia lo que Work entrega, y una línea en `spec/05-decisiones.md` si se decide algo con consecuencias. Las pruebas nuevas se etiquetan con `# Cubre: ID`; `python check_spec.py` falla si un requisito queda sin prueba.
 1. **Regla.** Edita `reglas_operativas.md`: la regla (tabla), el bloque `json reglas` y, si cambia el contenido, sube la versión (`Versión de las reglas: N`).
 2. **Casos.** Añade o ajusta casos en `casos_paridad.json` (correo + resultado esperado) y, si hace falta, en `casos_prueba.md`.
 3. **Python (`local` y `api`).** Implementa el cambio. Si es un dato que también debe leer la skill (señales, sufijos, ruta), exponlo como constante y compárala en `test_paridad_modos.py`.
 4. **Skill (`chatgpt_work`).** Actualiza `SKILL.md`: copia la regla, sube «Reglas operativas (versión N)» y añade la frase de la regla al bloque `frases_en_skill`.
-5. **Verifica.** `check.bat` debe pasar. Si falla `test_paridad_modos.py`, un modo se separó de las reglas: corrígelo, no desactives la prueba.
+5. **Verifica.** `check.bat` debe pasar (incluye `check_spec.py` y las pruebas de transiciones y del contrato de Work). Si falla `test_paridad_modos.py`, un modo se separó de las reglas: corrígelo, no desactives la prueba.
 6. **Prueba manual en Work.** Antes de activar el modo `chatgpt_work` con reglas nuevas, pega en Work cada caso de `casos_paridad.json` y comprueba la decisión. Anota fecha, versión de las reglas y resultado en el pull request.
 7. **Pull request.** Usa la plantilla (`.github/pull_request_template.md`), que repite esta lista.
 

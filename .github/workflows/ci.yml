@@ -22,6 +22,8 @@ jobs:
         run: python -m ruff check .
       - name: Tipos
         run: python -m mypy
+      - name: Especificación trazada
+        run: python check_spec.py
       - name: Tests con cobertura
         run: |
           python -m coverage run -m unittest discover

@@ -42,6 +42,7 @@ def ollama_reply(result):
     return FakeHttpResponse(json.dumps({"response": json.dumps(result)}).encode("utf-8"))
 
 
+# Cubre: T-11
 class OllamaTests(unittest.TestCase):
     def test_sends_schema_and_zero_temperature_to_the_configured_server(self):
         captured = {}
@@ -74,6 +75,7 @@ class OllamaTests(unittest.TestCase):
                 llm.analyze_ollama("prompt", LLM_OLLAMA)
 
 
+# Cubre: T-11
 class OpenAiTests(unittest.TestCase):
     def test_requires_api_key(self):
         with patch.dict("os.environ", {}, clear=True):
@@ -94,6 +96,7 @@ class OpenAiTests(unittest.TestCase):
         self.assertEqual(kwargs["text"]["format"]["schema"], llm.ANALYSIS_SCHEMA)
 
 
+# Cubre: F1-03, T-11
 class AnalyzeTests(unittest.TestCase):
     messages = [encoded_message("c-1", "cliente@example.com", "Hola, necesito información.", 1)]
 
@@ -142,6 +145,7 @@ class AnalyzeTests(unittest.TestCase):
         self.assertIn("Mensaje de prueba", prompt)
 
 
+# Cubre: T-11, R12
 class PromptTests(unittest.TestCase):
     def test_prompt_treats_email_as_untrusted_and_includes_readable_attachments_only(self):
         messages = [encoded_message("c-1", "cliente@example.com", "Texto del cliente.", 1)]
@@ -184,6 +188,7 @@ class FakeDrive:
         return MagicMock(execute=lambda: {"id": "new-1", "name": body["name"]})
 
 
+# Cubre: F1-07
 class DriveTests(unittest.TestCase):
     def test_list_folders_follows_pages_and_sorts_case_insensitively(self):
         drive = FakeDrive([
@@ -214,6 +219,7 @@ class DriveTests(unittest.TestCase):
         self.assertEqual(drive.created[0]["mimeType"], google_services.FOLDER_MIME)
 
 
+# Cubre: T-06
 class CredentialsTests(unittest.TestCase):
     def test_missing_client_secret_stops_with_a_clear_message(self):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
@@ -268,6 +274,7 @@ def make_docx(path: Path, text: str) -> None:
         archive.writestr("word/document.xml", xml)
 
 
+# Cubre: F1-05
 class CommercialIndexTests(unittest.TestCase):
     def build(self):
         tmp = tempfile.TemporaryDirectory()

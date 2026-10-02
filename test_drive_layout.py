@@ -12,6 +12,7 @@ from drive_layout import (
 from fake_drive import FakeDriveTree
 
 
+# Cubre: R5
 class NormalizeTests(unittest.TestCase):
     def test_same_company_written_differently_gives_the_same_key(self):
         variants = ["Energía Norte S.A.S.", "ENERGIA NORTE SAS", "energia norte", "Energia  Norte Ltda.",
@@ -36,6 +37,7 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(drive_layout.PATH_TEMPLATE, "{año}/{cliente}/{solicitud}")
 
 
+# Cubre: R5, R6
 class FindAndResolveTests(unittest.TestCase):
     def setUp(self):
         self.drive = FakeDriveTree({"Energía Norte S.A.S.": {}, "Minera Sur": {}, "cliente 1": {"x": {}}})
@@ -80,6 +82,7 @@ class FindAndResolveTests(unittest.TestCase):
         self.assertEqual(drive.created, [])
 
 
+# Cubre: R4, R7, F1-07
 class ProjectFolderTests(unittest.TestCase):
     def test_builds_year_client_request_and_is_idempotent(self):
         drive = FakeDriveTree({"Minera Sur": {}})
@@ -101,6 +104,7 @@ class ProjectFolderTests(unittest.TestCase):
         self.assertEqual(drive.created, ["2026/Otra Empresa", "2026/Otra Empresa/Solicitud A"])
 
 
+# Cubre: R4
 class YearMismatchTests(unittest.TestCase):
     def test_parent_named_after_a_different_year_is_flagged(self):
         drive = FakeDriveTree(root_name="2026")
