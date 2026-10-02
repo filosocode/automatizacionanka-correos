@@ -18,6 +18,16 @@ Una capa solo importa de las que tiene **debajo**. `web` y `cli` no se importan 
 | `web/` | El servidor HTTP local y las acciones de los formularios (`server`), las páginas (`paginas`: resumen y listas; `pantalla_caso`: un caso y su acta), el token CSRF y la comprobación de Host/Origen (`seguridad`), los fragmentos (`views`) y las plantillas. | Importar de `cli`. |
 | `cli/` | Los puntos de entrada: comandos (`app`), lanzador (`supervisor`) y puente con Work (`work_sync`). | — |
 
+## Clases y funciones: cuándo cada una
+Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funciones donde no:
+- `RepositorioDeCasos` (`servicios/repositorio.py`): sabe cómo se guardan y leen los casos; recibe cómo abrir la base.
+  Las funciones de `quotes.py` (`get_quote`, `all_quotes`…) son una fachada sobre una instancia por defecto.
+- `Caso` y los demás objetos del dominio llevan las reglas que dependen solo de sus campos (`cerrado`, `reabierto`,
+  `admite_correo`, `informacion_validada`, `espera_al_cliente`), para que no se repitan en cada pantalla.
+- `RevisorDeHilos` (`servicios/pipeline.py`): una pasada de revisión de Gmail; guarda el contexto (configuración,
+  Gmail, Drive, base, modo) que antes viajaba como argumento por cada función.
+- Las reglas puras (recepción, estados, correo) siguen siendo funciones: no tienen estado y así se prueban sin montar nada.
+
 ## Dónde poner código nuevo
 1. ¿Es una regla o un cálculo que no necesita nada externo? → `dominio/`.
 2. ¿Habla con Gmail, Drive, la base, el disco o la red? → `infra/`.

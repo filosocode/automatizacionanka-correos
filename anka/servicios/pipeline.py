@@ -307,62 +307,206 @@ def decide_analysis(
 
 
 @dataclass
-class RunContext:
-    """Lo que comparte el procesamiento de un hilo: configuración, Gmail, Drive, base y direcciones propias."""
-    config: dict
-    gmail: object
-    drive: object
-    db: sqlite3.Connection | None
-    account_addresses: set[str]
-    review_only: bool
-    gmail_drafts: bool
+class RevisorDeHilos:
+    """Revisa los hilos de Gmail de una pasada: decide qué hacer con cada uno y lo aplica.
 
+    Es una clase porque todo el procesamiento comparte el mismo contexto (configuración, Gmail, Drive, base de
+    datos, direcciones propias y modo) que antes viajaba como un argumento por cada función. Sin base de datos
+    (`db=None`) es una simulación: decide e informa, pero no guarda ni envía nada.
+    """
 
-def apply_decision(
-    ctx: RunContext, thread: dict, thread_id: str, last: dict, recipient: str, d: Decision,
-) -> None:
-    """Ejecuta los efectos de una decisión. Sin base de datos (simulación) solo informa."""
-    for note in d.logs:
-        log.log(note.level, "%s", note.text, extra=SENSITIVE if note.sensitive else None)
-    db = ctx.db
-    if not db:
-        return
-    packet_body = d.body
-    draft_id = None
-    if d.action is Action.GMAIL_DRAFT:
-        packet_body = draft_body_with_review_note(d.analysis, d.questions, d.body, last)
-        draft_id = create_reply_draft(
-            ctx.gmail, thread, recipient, packet_body, ctx.account_addresses
-        )
-    packet = None
-    if d.packet:
-        packet = save_review_packet(
-            thread_id, recipient, d.analysis, d.questions, packet_body or None,
-            d.folder_name or None,
-        )
-    if d.action is Action.SEND:
-        save(db, thread_id, last["id"], QuoteStatus.SENDING, recipient, d.analysis)
-        sent_id = send_reply(ctx.gmail, thread, recipient, d.body, ctx.account_addresses)
-        save(db, thread_id, last["id"], d.status, recipient, d.analysis,
-             sent_message_id=sent_id)
-    elif d.action is Action.FOLDER:
-        _create_project_folder_or_hold(ctx, thread_id, last, recipient, d, thread)
-    elif d.action is Action.GMAIL_DRAFT:
-        save(db, thread_id, last["id"], d.status, recipient, d.analysis,
-             sent_message_id=draft_id)
-        log.info("%s: borrador creado en Gmail: %s", thread_id, draft_id)
-        log.info("%s: destinatario del borrador: %s", thread_id, recipient, extra=SENSITIVE)
-        log.info("%s: ficha de apoyo guardada: %s", thread_id, packet.name if packet else "")
-    else:
-        save(db, thread_id, last["id"], d.status, recipient, d.analysis)
-        if packet:
-            verb = (
-                "guardado para revisión humana" if d.action is Action.QUEUE
-                else "ficha de revisión guardada"
+    def __init__(self, config: dict, gmail: Any, drive: Any, db: sqlite3.Connection | None,
+                 account_addresses: set[str], review_only: bool, gmail_drafts: bool) -> None:
+        self.config = config
+        self.gmail = gmail
+        self.drive = drive
+        self.db = db
+        self.account_addresses = account_addresses
+        self.review_only = review_only
+        self.gmail_drafts = gmail_drafts
+
+    def pending_thread_ids(self) -> set[str]:
+        """Hilos a revisar: los que coinciden con la búsqueda de Gmail y los que quedaron pendientes en la base."""
+        thread_ids = set(candidate_thread_ids(
+            self.gmail, self.config.get("gmail_query", "in:inbox newer_than:7d")
+        ))
+        if self.db:
+            thread_ids.update(row[0] for row in self.db.execute(
+                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.WAITING}'"
+            ))
+            thread_ids.update(row[0] for row in self.db.execute(
+                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.IGNORED}' "
+                "AND json_extract(analysis_json, '$.force_analysis') = 1"
+            ))
+            if self.gmail_drafts:
+                thread_ids.update(row[0] for row in self.db.execute(
+                    f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.REVIEW_PENDING}'"
+                ))
+        return thread_ids
+
+    def run(self) -> None:
+        """Procesa cada hilo pendiente; uno que ya no se puede leer en Gmail queda marcado como no disponible."""
+        for thread_id in sorted(self.pending_thread_ids()):
+            try:
+                thread = self.gmail.users().threads().get(
+                    userId="me", id=thread_id, format="full"
+                ).execute()
+            except Exception as exc:
+                log.warning("%s: no se pudo leer el hilo en Gmail: %s", thread_id, exc)
+                if self.db:
+                    self.db.execute(
+                        f"UPDATE quotes SET status='{QuoteStatus.MISSING}' WHERE thread_id=?",
+                        (thread_id,),
+                    )
+                    self.db.commit()
+                continue
+            self.process_thread(thread_id, thread)
+
+    def process_thread(self, thread_id: str, thread: dict) -> None:
+        """Decide y aplica qué hacer con un hilo: descartar, pedir datos, dejar para revisión o crear la carpeta."""
+        config = self.config
+        inbound = inbound_messages(thread, self.account_addresses)
+        if not inbound:
+            log.info("%s: solo contiene mensajes propios; se omite", thread_id)
+            return
+        last = inbound[-1]
+        routing = forwarded_routing(last, config)
+        recipient = routing["selected_recipient"]
+        if not recipient:
+            log.warning("%s: sin remitente; requiere revisión", thread_id)
+            return
+        row = self.db.execute(
+            "SELECT last_inbound_id, status, analysis_json FROM quotes WHERE thread_id=?",
+            (thread_id,),
+        ).fetchone() if self.db else None
+        skip = _skip_reason(row, last["id"], self.gmail_drafts)
+        if skip is not None:
+            if skip:
+                log.warning("%s: %s", thread_id, skip)
+            return
+        email = {"subject": header(last, "Subject"), "from": header(last, "From")}
+        noise = None if _rescued(row) else automated_noise_reason(inbound)
+        if noise and mentions_commercial_terms(inbound, config.get("commercial_filter_terms", [])):
+            noise = None  # un aviso automático que habla de cotizaciones sí se analiza
+        decision = decide_prefilter(thread_id, noise, email)
+        if decision is None:
+            attachments = []
+            for message in inbound:
+                attachments.extend(extract_message_attachments(self.gmail, message))
+            blocked = [item for item in attachments if item.get("status") == "bloqueado"]
+            required = config["required_fields"]
+            analysis = analyze(inbound, required, config["llm"], attachments)
+            analysis["received_at"] = message_datetime(last)
+            analysis["routing"] = routing
+            analysis["email"] = email
+            analysis["attachments"] = attachment_report(attachments, analysis, required)
+            for row in analysis.get("activities", []):
+                if isinstance(row, dict) and "estado" in row:
+                    row["estado"] = normalize_estado(row["estado"])  # R12
+            if self.db:
+                # R11: con T asignada, la tabla solo cambia por el contacto registrado y citando el código
+                sender_name, sender_email = parseaddr(header(last, "From"))
+                body_text = message_text(last.get("payload", {}))
+                apply_guard(
+                    self.db, thread_id, analysis, routing.get("original_sender_email") or sender_email,
+                    sender_name, sorted(find_codes(email["subject"] + "\n" + body_text)), last["id"],
+                    email["subject"], " ".join(body_text.split())[:160], "python")
+            decision = decide_analysis(
+                thread_id, analysis, blocked, recipient, routing["is_forwarded"], config,
+                review_only=self.review_only, gmail_drafts=self.gmail_drafts,
             )
-            log.info("%s: %s: %s", thread_id, verb, packet.name)
-    if d.action is Action.SEND:
-        log.info("%s: preguntas enviadas al cliente; se espera respuesta", thread_id)
+        self.apply_decision(thread, thread_id, last, recipient, decision)
+
+    def apply_decision(
+        self, thread: dict, thread_id: str, last: dict, recipient: str, d: Decision,
+    ) -> None:
+        """Ejecuta los efectos de una decisión. Sin base de datos (simulación) solo informa."""
+        for note in d.logs:
+            log.log(note.level, "%s", note.text, extra=SENSITIVE if note.sensitive else None)
+        db = self.db
+        if not db:
+            return
+        packet_body = d.body
+        draft_id = None
+        if d.action is Action.GMAIL_DRAFT:
+            packet_body = draft_body_with_review_note(d.analysis, d.questions, d.body, last)
+            draft_id = create_reply_draft(
+                self.gmail, thread, recipient, packet_body, self.account_addresses
+            )
+        packet = None
+        if d.packet:
+            packet = save_review_packet(
+                thread_id, recipient, d.analysis, d.questions, packet_body or None,
+                d.folder_name or None,
+            )
+        if d.action is Action.SEND:
+            save(db, thread_id, last["id"], QuoteStatus.SENDING, recipient, d.analysis)
+            sent_id = send_reply(self.gmail, thread, recipient, d.body, self.account_addresses)
+            save(db, thread_id, last["id"], d.status, recipient, d.analysis,
+                 sent_message_id=sent_id)
+        elif d.action is Action.FOLDER:
+            self._create_project_folder_or_hold(thread_id, last, recipient, d, thread)
+        elif d.action is Action.GMAIL_DRAFT:
+            save(db, thread_id, last["id"], d.status, recipient, d.analysis,
+                 sent_message_id=draft_id)
+            log.info("%s: borrador creado en Gmail: %s", thread_id, draft_id)
+            log.info("%s: destinatario del borrador: %s", thread_id, recipient, extra=SENSITIVE)
+            log.info("%s: ficha de apoyo guardada: %s", thread_id, packet.name if packet else "")
+        else:
+            save(db, thread_id, last["id"], d.status, recipient, d.analysis)
+            if packet:
+                verb = (
+                    "guardado para revisión humana" if d.action is Action.QUEUE
+                    else "ficha de revisión guardada"
+                )
+                log.info("%s: %s: %s", thread_id, verb, packet.name)
+        if d.action is Action.SEND:
+            log.info("%s: preguntas enviadas al cliente; se espera respuesta", thread_id)
+
+    def _create_project_folder_or_hold(
+        self, thread_id: str, last: dict, recipient: str, d: Decision, thread: dict,
+    ) -> None:
+        """Crea `Año/Cliente/Solicitud` solo si el cliente es seguro; si no, lo deja para una persona.
+
+        Nunca crea una carpeta de cliente por cuenta propia (ver drive_layout).
+        """
+        db = self.db
+        assert db is not None
+        parent = self.config["drive_parent_id"]
+        hold: tuple[str, str] | None = None  # (código genérico, mensaje completo)
+        folder: dict | None = None
+        mismatch = year_mismatch(self.drive, parent, d.analysis.get("received_at", ""))
+        client = confirmed_client(db, thread_id, d.analysis, recipient)
+        if mismatch:
+            hold = ("año de la carpeta padre", mismatch)
+        elif not client:
+            hold = ("cliente sin confirmar",
+                    "No hay un cliente confirmado para este remitente. Indica la carpeta del cliente.")
+        else:
+            try:
+                folder = create_project_folder(self.drive, parent, client, d.folder_name).folder
+            except ClientNotFound as exc:
+                hold = ("cliente sin carpeta", str(exc))
+            except AmbiguousClient as exc:
+                hold = ("carpetas de cliente ambiguas", str(exc))
+        if hold or folder is None:
+            code, message = hold or ("sin carpeta", "No se pudo crear la carpeta.")
+            analysis = d.analysis | {"drive": {"pending": message}}
+            save_review_packet(thread_id, recipient, analysis, [], None, d.folder_name)
+            save(db, thread_id, last["id"], QuoteStatus.READY_REVIEW, recipient, analysis)
+            log.warning("%s: carpeta del proyecto pendiente de confirmación (%s)", thread_id, code)
+            log.info("%s: %s", thread_id, message, extra=SENSITIVE)
+            return
+        d.analysis.pop("drive", None)
+        save(db, thread_id, last["id"], d.status, recipient, d.analysis, folder_id=folder["id"])
+        log.info("%s: carpeta creada/encontrada: %s", thread_id, folder["id"])
+        try:
+            quote = {"thread_id": thread_id, "analysis": d.analysis, "status": d.status}
+            report = populate_project_folder(
+                self.gmail, self.drive, thread, folder["id"], quote, self.account_addresses)
+            log.info("%s: %s", thread_id, report.summary())
+        except Exception:
+            log.exception("%s: no se pudo llenar la carpeta de Drive", thread_id)
 
 
 def confirmed_client(db: sqlite3.Connection, thread_id: str, analysis: Analisis, recipient: str) -> str:
@@ -390,52 +534,6 @@ def confirmed_client(db: sqlite3.Connection, thread_id: str, analysis: Analisis,
     return str(row[0]) if row else ""
 
 
-def _create_project_folder_or_hold(
-    ctx: RunContext, thread_id: str, last: dict, recipient: str, d: Decision, thread: dict,
-) -> None:
-    """Crea `Año/Cliente/Solicitud` solo si el cliente es seguro; si no, lo deja para una persona.
-
-    Nunca crea una carpeta de cliente por cuenta propia (ver drive_layout).
-    """
-    db = ctx.db
-    assert db is not None
-    parent = ctx.config["drive_parent_id"]
-    hold: tuple[str, str] | None = None  # (código genérico, mensaje completo)
-    folder: dict | None = None
-    mismatch = year_mismatch(ctx.drive, parent, d.analysis.get("received_at", ""))
-    client = confirmed_client(db, thread_id, d.analysis, recipient)
-    if mismatch:
-        hold = ("año de la carpeta padre", mismatch)
-    elif not client:
-        hold = ("cliente sin confirmar",
-                "No hay un cliente confirmado para este remitente. Indica la carpeta del cliente.")
-    else:
-        try:
-            folder = create_project_folder(ctx.drive, parent, client, d.folder_name).folder
-        except ClientNotFound as exc:
-            hold = ("cliente sin carpeta", str(exc))
-        except AmbiguousClient as exc:
-            hold = ("carpetas de cliente ambiguas", str(exc))
-    if hold or folder is None:
-        code, message = hold or ("sin carpeta", "No se pudo crear la carpeta.")
-        analysis = d.analysis | {"drive": {"pending": message}}
-        save_review_packet(thread_id, recipient, analysis, [], None, d.folder_name)
-        save(db, thread_id, last["id"], QuoteStatus.READY_REVIEW, recipient, analysis)
-        log.warning("%s: carpeta del proyecto pendiente de confirmación (%s)", thread_id, code)
-        log.info("%s: %s", thread_id, message, extra=SENSITIVE)
-        return
-    d.analysis.pop("drive", None)
-    save(db, thread_id, last["id"], d.status, recipient, d.analysis, folder_id=folder["id"])
-    log.info("%s: carpeta creada/encontrada: %s", thread_id, folder["id"])
-    try:
-        quote = {"thread_id": thread_id, "analysis": d.analysis, "status": d.status}
-        report = populate_project_folder(
-            ctx.gmail, ctx.drive, thread, folder["id"], quote, ctx.account_addresses)
-        log.info("%s: %s", thread_id, report.summary())
-    except Exception:
-        log.exception("%s: no se pudo llenar la carpeta de Drive", thread_id)
-
-
 def _skip_reason(row: Sequence[Any] | None, last_id: str, gmail_drafts: bool) -> str | None:
     """None si el hilo debe procesarse; si no, el motivo ("" = omitir sin avisar)."""
     if not row or row[0] != last_id:
@@ -457,62 +555,6 @@ def _rescued(row: Sequence[Any] | None) -> bool:
         return False
 
 
-def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
-    """Decide y aplica qué hacer con un hilo: descartar, pedir datos, dejar para revisión o crear la carpeta."""
-    config = ctx.config
-    inbound = inbound_messages(thread, ctx.account_addresses)
-    if not inbound:
-        log.info("%s: solo contiene mensajes propios; se omite", thread_id)
-        return
-    last = inbound[-1]
-    routing = forwarded_routing(last, config)
-    recipient = routing["selected_recipient"]
-    if not recipient:
-        log.warning("%s: sin remitente; requiere revisión", thread_id)
-        return
-    row = ctx.db.execute(
-        "SELECT last_inbound_id, status, analysis_json FROM quotes WHERE thread_id=?",
-        (thread_id,),
-    ).fetchone() if ctx.db else None
-    skip = _skip_reason(row, last["id"], ctx.gmail_drafts)
-    if skip is not None:
-        if skip:
-            log.warning("%s: %s", thread_id, skip)
-        return
-    email = {"subject": header(last, "Subject"), "from": header(last, "From")}
-    noise = None if _rescued(row) else automated_noise_reason(inbound)
-    if noise and mentions_commercial_terms(inbound, config.get("commercial_filter_terms", [])):
-        noise = None  # un aviso automático que habla de cotizaciones sí se analiza
-    decision = decide_prefilter(thread_id, noise, email)
-    if decision is None:
-        attachments = []
-        for message in inbound:
-            attachments.extend(extract_message_attachments(ctx.gmail, message))
-        blocked = [item for item in attachments if item.get("status") == "bloqueado"]
-        required = config["required_fields"]
-        analysis = analyze(inbound, required, config["llm"], attachments)
-        analysis["received_at"] = message_datetime(last)
-        analysis["routing"] = routing
-        analysis["email"] = email
-        analysis["attachments"] = attachment_report(attachments, analysis, required)
-        for row in analysis.get("activities", []):
-            if isinstance(row, dict) and "estado" in row:
-                row["estado"] = normalize_estado(row["estado"])  # R12
-        if ctx.db:
-            # R11: con T asignada, la tabla solo cambia por el contacto registrado y citando el código
-            sender_name, sender_email = parseaddr(header(last, "From"))
-            body_text = message_text(last.get("payload", {}))
-            apply_guard(
-                ctx.db, thread_id, analysis, routing.get("original_sender_email") or sender_email,
-                sender_name, sorted(find_codes(email["subject"] + "\n" + body_text)), last["id"],
-                email["subject"], " ".join(body_text.split())[:160], "python")
-        decision = decide_analysis(
-            thread_id, analysis, blocked, recipient, routing["is_forwarded"], config,
-            review_only=ctx.review_only, gmail_drafts=ctx.gmail_drafts,
-        )
-    apply_decision(ctx, thread, thread_id, last, recipient, decision)
-
-
 def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> None:
     """Revisa Gmail una vez: simula o, con `apply`, guarda para revisión (y envía o crea carpetas sin `review_only`)."""
     config = load_config()
@@ -527,40 +569,10 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
         raise ErrorDeAnka("Para --apply define drive_parent_id en config.json.")
     gmail, drive = services()
     db = connect() if apply else None
-    ctx = RunContext(
-        config, gmail, drive, db, own_addresses(config, gmail), review_only, gmail_drafts,
-    )
     try:
-        thread_ids = set(candidate_thread_ids(
-            gmail, config.get("gmail_query", "in:inbox newer_than:7d")
-        ))
-        if db:
-            thread_ids.update(row[0] for row in db.execute(
-                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.WAITING}'"
-            ))
-            thread_ids.update(row[0] for row in db.execute(
-                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.IGNORED}' "
-                "AND json_extract(analysis_json, '$.force_analysis') = 1"
-            ))
-            if gmail_drafts:
-                thread_ids.update(row[0] for row in db.execute(
-                    f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.REVIEW_PENDING}'"
-                ))
-        for thread_id in sorted(thread_ids):
-            try:
-                thread = gmail.users().threads().get(
-                    userId="me", id=thread_id, format="full"
-                ).execute()
-            except Exception as exc:
-                log.warning("%s: no se pudo leer el hilo en Gmail: %s", thread_id, exc)
-                if db:
-                    db.execute(
-                        f"UPDATE quotes SET status='{QuoteStatus.MISSING}' WHERE thread_id=?",
-                        (thread_id,),
-                    )
-                    db.commit()
-                continue
-            process_thread(ctx, thread_id, thread)
+        RevisorDeHilos(
+            config, gmail, drive, db, own_addresses(config, gmail), review_only, gmail_drafts,
+        ).run()
     finally:
         if db:
             db.close()
