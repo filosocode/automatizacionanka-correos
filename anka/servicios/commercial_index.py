@@ -17,10 +17,10 @@ from anka.infra import settings
 
 DEFAULT_SOURCE = Path(r"I:\T&E")
 DEFAULT_OUTPUT = settings.DATA_DIR / "internal_context" / "commercial_index.json"
-MAX_SOURCE_REFERENCES = 12
-MAX_DOCUMENTS_PER_CLIENT = 12
-MAX_PDF_BYTES = 12 * 1024 * 1024
-MAX_PDF_PAGES = 4
+MAX_SOURCE_REFERENCES = 12   # topes por cliente: indexar el archivo histórico debe terminar en minutos,
+MAX_DOCUMENTS_PER_CLIENT = 12   # no en horas, aunque un cliente tenga miles de archivos
+MAX_PDF_BYTES = 12 * 1024 * 1024   # un PDF más grande se omite: tarda y pesa en memoria
+MAX_PDF_PAGES = 4   # solo se leen las primeras páginas: el índice no necesita el documento entero
 
 SENSITIVE_PARTS = (
     "afiliacion", "cedula", "documentos personal", "hoja de vida", "personal campo",

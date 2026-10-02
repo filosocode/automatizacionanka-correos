@@ -29,8 +29,8 @@ from anka.infra import settings
 
 ROOT_NAME = "anka"
 LOG_FILE_NAME = "anka.log"
-MAX_BYTES = 1_000_000
-BACKUP_COUNT = 5
+MAX_BYTES = 1_000_000   # el registro rota al llegar a ~1 MB...
+BACKUP_COUNT = 5         # ...y se conservan 5 anteriores: el registro nunca pasa de ~6 MB
 SENSITIVE = {"sensitive": True}
 
 _EMAIL = re.compile(r"[\w.+'-]+@[\w-]+(?:\.[\w-]+)+")

@@ -9,8 +9,8 @@ from io import BytesIO
 from pathlib import Path
 from xml.etree import ElementTree
 
-MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-MAX_ATTACHMENT_TEXT = 30000
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024   # un adjunto mayor no se lee: protege la memoria y el tiempo del análisis
+MAX_ATTACHMENT_TEXT = 30000   # texto que se entrega al modelo por adjunto; más no cabe útilmente en su contexto
 TEXT_ATTACHMENT_EXTENSIONS = {
     ".csv", ".geojson", ".json", ".kml", ".md", ".tab", ".tsv", ".txt", ".xml",
 }

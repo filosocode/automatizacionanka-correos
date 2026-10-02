@@ -35,8 +35,8 @@ def normalize_estado(value: object) -> str:
     if any(mark in text for mark in ("pendiente", "revisi", "requiere", "aclar", "falta", "no indicad")):
         return "pendiente"
     return "confirmado" if text.startswith("confirmado") else "pendiente"
-MAX_ROWS = 200
-MAX_CELL = 2000
+MAX_ROWS = 200      # tope de filas que se acepta de un formulario: una tabla desmesurada no se guarda
+MAX_CELL = 2000      # tope de caracteres por celda, por la misma razón
 
 
 def parse_activities_form(form: dict[str, list[str]]) -> list[Actividad]:

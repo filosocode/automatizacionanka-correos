@@ -28,7 +28,7 @@ log = get_logger(__name__)
 
 FOLLOWUP_QUERY = "newer_than:30d -in:drafts"
 RELATED_CHUNK = 15              # remitentes y dominios por consulta a Gmail
-SNIPPET_CHARS = 160
+SNIPPET_CHARS = 160   # extracto que se guarda de cada correo en las listas; el cuerpo completo va aparte
 
 # Estado al que pasa un caso cuando se detecta un correo enviado desde Gmail. Los demás
 # estados (carpeta creada, información suficiente, revisión técnica...) solo anotan el hecho.
