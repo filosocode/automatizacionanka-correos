@@ -12,7 +12,7 @@ Una capa solo importa de las que tiene **debajo**. `web` y `cli` no se importan 
 
 | Capa (`anka/…`) | Qué contiene | Qué NO puede hacer |
 |---|---|---|
-| `dominio/` | Reglas del negocio y funciones puras: estados, tabla de actividades, recepción (qué falta y qué preguntar), contrato con Work, lectura de un mensaje de Gmail (`correo`), extracción de texto de adjuntos. | Hablar con Gmail, Drive, la base de datos ni el disco. |
+| `dominio/` | Reglas del negocio y funciones puras: estados, tabla de actividades, recepción (qué falta y qué preguntar), contrato con Work, lectura de un mensaje de Gmail (`correo`), los objetos del caso (`Caso`, `Evento`, `Cambio`, `Vinculo`: dataclasses inmutables que también se leen como mapa), extracción de texto de adjuntos. | Hablar con Gmail, Drive, la base de datos ni el disco. |
 | `infra/` | Todo lo que toca el mundo exterior: configuración (`settings`), base SQLite (`store`), clientes de Google (`google_services`, `mail`), modelos de lenguaje (`llm`), registro (`logging_setup`), copias de seguridad, modo de operación. | Conocer casos de uso ni pantallas. |
 | `servicios/` | Los casos de uso: importar un borrador de Work (`work_import`), ver y decidir casos (`quotes`), editar la tabla (`ediciones`), enviar y borrar casos (`case_actions`), el ciclo de revisión (`pipeline`), control de cambios y código de la oferta, seguimiento de hilos y recordatorios, carpetas de Drive. | Conocer el servidor web ni los comandos. |
 | `web/` | El servidor HTTP local, las vistas que arman cada pantalla y las plantillas. | Importar de `cli`. |

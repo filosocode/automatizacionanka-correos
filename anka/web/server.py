@@ -47,6 +47,7 @@ from anka.servicios.change_control import (
     suggest_number,
 )
 from anka.servicios.gmail_followup import case_contacts
+from anka.dominio.registros import Cambio, Evento
 from anka.servicios.quotes import case_conversation, archived_threads, case_change_log, chain_status, case_has_links, case_people, reason_label, resolve_link, ago_text, change_marker, minutes_since, REPLY_OVERDUE_MINUTES, resolve_model_proposal, CLIENT_TYPES, resolve_technical_review, discarded_quotes, rescue_discarded, SECTORS, STATUS_LABELS, all_quotes, get_quote, thread_events, mark_notifications_read, save_quote_metadata, unread_notifications
 from anka.servicios.ediciones import EDIT_REASONS, last_manual_version, table_versions, save_activities
 
@@ -171,7 +172,7 @@ def _link_banner(review: Mapping[str, Any]) -> Markup:
         show_verify=link["reason"].startswith("domain") or link["sender_email"] not in contacts)
 
 
-def _reply_template(kind: str, review: Mapping[str, Any], change: dict | None = None) -> str:
+def _reply_template(kind: str, review: Mapping[str, Any], change: Cambio | None = None) -> str:
     """Texto base de cada correo del flujo (siempre se revisa antes de enviar).
 
     Los correos a quien no es el contacto registrado nunca incluyen el código del proyecto.
@@ -482,7 +483,7 @@ def _conversation_panel(thread_id: str) -> Markup:
         for m in case_conversation(thread_id)])
 
 
-def _timeline_panel(thread_id: str, review: Mapping[str, Any], analysis: dict, events: list[dict],
+def _timeline_panel(thread_id: str, review: Mapping[str, Any], analysis: dict, events: Sequence[Evento],
                     integrity_ok: bool, event_count: int) -> Markup:
     return render("timeline.html", thread_id=thread_id, integrity_ok=integrity_ok,
                   event_count=event_count, events=[
@@ -667,7 +668,7 @@ def _followup_panel(review: Mapping[str, Any]) -> Markup:
         max_reminders=fup.MAX_REMINDERS, call_days=fup.CALL_BUSINESS_DAYS)
 
 
-def _outgoing_pending(changes: list[dict]) -> bool:
+def _outgoing_pending(changes: Sequence[Cambio]) -> bool:
     """¿Hay un cambio confirmado al que aún le faltan correos por enviar?"""
     for change in changes:
         if change["state"] != "change":

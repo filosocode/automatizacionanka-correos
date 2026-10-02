@@ -39,3 +39,24 @@ class CasoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Cubre: T-12
+class RegistrosTests(unittest.TestCase):
+    ROW = {"id": 1, "thread_id": "t", "message_id": "m", "sender_email": "a@b.co", "sender_name": "", "subject": "s",
+           "snippet": "x", "occurred_at": "2026-10-01T10:00:00-05:00", "has_code": 1, "is_contact": 0,
+           "same_company": 1, "state": "pending", "reply_sent_at": None, "contact_notified_at": None,
+           "decided_at": None, "otra_columna": "se ignora"}
+
+    def test_a_change_turns_the_stored_flags_into_booleans_and_ignores_extra_columns(self):
+        from anka.dominio.registros import Cambio
+        cambio = Cambio.from_row(self.ROW)
+        self.assertIs(cambio.has_code, True)
+        self.assertIs(cambio["is_contact"], False)
+        self.assertNotIn("otra_columna", cambio)
+        self.assertEqual({**cambio}["state"], "pending")
+
+    def test_a_missing_column_fails_loudly_instead_of_silently(self):
+        from anka.dominio.registros import Vinculo
+        with self.assertRaises(KeyError):
+            Vinculo.from_row({"id": 1})

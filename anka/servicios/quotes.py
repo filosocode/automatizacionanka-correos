@@ -16,6 +16,7 @@ from anka.dominio.status import (
     REVIEW_QUEUE_STATUSES, QuoteStatus, sql_in,
 )
 from anka.dominio.caso import Caso
+from anka.dominio.registros import Cambio, Evento, Vinculo
 from anka.infra import settings
 from anka.dominio.reception import (
     reception_assessment,
@@ -310,11 +311,11 @@ def case_conversation(thread_id: str, limit: int = 12) -> list[dict]:
     return [dict(row) for row in rows]
 
 
-def case_change_log(thread_id: str) -> list[dict]:
+def case_change_log(thread_id: str) -> list[Cambio]:
     """Todas las solicitudes de cambio del caso (cualquier estado), de la más antigua a la más nueva."""
     db = connect()
     try:
-        return [dict(row) for row in db.execute(
+        return [Cambio.from_row(row) for row in db.execute(
             "SELECT * FROM case_changes WHERE thread_id=? ORDER BY occurred_at", (thread_id,))]
     finally:
         db.close()
@@ -445,15 +446,15 @@ def all_quotes(include_ignored: bool = False, thread_id: str | None = None) -> l
         for r in db.execute(
                 f"SELECT thread_id, ref FROM case_events WHERE kind='reminder_sent'{only} ORDER BY id", scope):
             reminders.setdefault(r["thread_id"], []).append(r["ref"])
-        changes: dict[str, list[dict]] = {}
+        changes: dict[str, list[Cambio]] = {}
         for change in db.execute(
                 f"SELECT * FROM case_changes WHERE state IN ('pending', 'change'){only} ORDER BY occurred_at",
                 scope):
-            changes.setdefault(change["thread_id"], []).append(dict(change))
-        pending_links: dict[str, list[dict]] = {}
+            changes.setdefault(change["thread_id"], []).append(Cambio.from_row(change))
+        pending_links: dict[str, list[Vinculo]] = {}
         for link in db.execute(
                 f"SELECT * FROM case_links WHERE state='pending'{only} ORDER BY occurred_at", scope):
-            pending_links.setdefault(link["thread_id"], []).append(dict(link))
+            pending_links.setdefault(link["thread_id"], []).append(Vinculo.from_row(link))
     finally:
         db.close()
     quotes: list[Caso] = []
@@ -677,14 +678,14 @@ def set_client_name(thread_id: str, client_name: str) -> None:
         db.close()
 
 
-def thread_events(thread_id: str) -> list[dict]:
+def thread_events(thread_id: str) -> list[Evento]:
     """Seguimiento del caso, del más reciente al más antiguo."""
     db = connect()
     try:
         rows = case_events(db, thread_id)
     finally:
         db.close()
-    return [dict(row) for row in reversed(rows)]
+    return [Evento.from_row(row) for row in reversed(rows)]
 
 
 def change_marker() -> str:

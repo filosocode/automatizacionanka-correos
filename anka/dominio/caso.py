@@ -7,13 +7,13 @@ plantillas y el código que ya existía siguen funcionando mientras se migra a a
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field, fields
-from typing import Any
+from dataclasses import dataclass, field
+
+from anka.dominio.registros import Cambio, MapaDeSoloLectura, Vinculo
 
 
 @dataclass(frozen=True)
-class Caso(Mapping[str, Any]):
+class Caso(MapaDeSoloLectura):
     """Un hilo de Gmail convertido en solicitud, con lo que se necesita para mostrarlo y decidir."""
 
     thread_id: str
@@ -37,8 +37,8 @@ class Caso(Mapping[str, Any]):
     sent_at: str
     reply_pending: str
     proposal: list[dict]
-    links: list[dict] = field(default_factory=list)
-    changes: list[dict] = field(default_factory=list)
+    links: list[Vinculo] = field(default_factory=list)
+    changes: list[Cambio] = field(default_factory=list)
     waiting_since: str = ""
     followup: dict = field(default_factory=dict)
     reminders: list[str] = field(default_factory=list)
@@ -47,20 +47,5 @@ class Caso(Mapping[str, Any]):
     code_assigned_at: str = ""
     contact_email: str = ""
 
-    # --- interfaz de mapa de solo lectura (compatibilidad con el código y las plantillas existentes)
-    def __getitem__(self, key: str) -> Any:
-        if key not in _FIELD_NAMES:
-            raise KeyError(key)
-        return getattr(self, key)
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(_FIELD_NAMES)
-
-    def __len__(self) -> int:
-        return len(_FIELD_NAMES)
-
     def __hash__(self) -> int:
         return hash(self.thread_id)
-
-
-_FIELD_NAMES = tuple(f.name for f in fields(Caso))
