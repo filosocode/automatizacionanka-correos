@@ -206,7 +206,7 @@ def run_due_reminders(now: datetime | None = None) -> int:
         try:
             send_reminder(thread_id, number)
             sent += 1
-        except (Exception, SystemExit):
+        except Exception:
             log.exception("%s: no se pudo enviar el recordatorio %d", thread_id, number)
     return sent
 

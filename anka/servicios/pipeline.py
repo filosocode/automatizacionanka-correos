@@ -11,6 +11,7 @@ from datetime import datetime
 from collections.abc import Sequence
 from enum import StrEnum
 from typing import Any, NamedTuple
+from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.status import (
     QuoteStatus,
 )
@@ -84,7 +85,7 @@ def checked_run(apply: bool, review_only: bool, gmail_drafts: bool, source: str)
     error = ""
     try:
         run(apply, review_only, gmail_drafts)
-    except (Exception, SystemExit) as exc:
+    except Exception as exc:
         error = str(exc) or exc.__class__.__name__
         log.exception("Error en la revisión de Gmail (%s)", source)
     after = _quote_snapshot()
@@ -142,7 +143,7 @@ def sync_status_text() -> str:
     """Texto del estado de la sincronización según el modo activo."""
     try:
         mode = load_config().get("active_mode", "local")
-    except SystemExit:
+    except ErrorDeAnka:
         return "Sin configuración de motor."
     if mode == "chatgpt_work":
         last = latest_case_activity()
@@ -498,13 +499,13 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
     config = load_config()
     ensure_local_or_api_mode(config)
     if review_only and not apply:
-        raise SystemExit("--review-only se usa junto con --apply.")
+        raise ErrorDeAnka("--review-only se usa junto con --apply.")
     if gmail_drafts and not apply:
-        raise SystemExit("--gmail-drafts se usa junto con --apply.")
+        raise ErrorDeAnka("--gmail-drafts se usa junto con --apply.")
     if apply and not config["required_fields"]:
-        raise SystemExit("Para --apply define required_fields en config.json.")
+        raise ErrorDeAnka("Para --apply define required_fields en config.json.")
     if apply and not review_only and not gmail_drafts and not config.get("drive_parent_id"):
-        raise SystemExit("Para --apply define drive_parent_id en config.json.")
+        raise ErrorDeAnka("Para --apply define drive_parent_id en config.json.")
     gmail, drive = services()
     db = connect() if apply else None
     ctx = RunContext(
@@ -549,7 +550,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
 def watch(apply: bool, review_only: bool, seconds: int, gmail_drafts: bool = False) -> None:
     """Repite `run` cada N segundos hasta Ctrl+C."""
     if seconds < 30:
-        raise SystemExit("--watch-seconds debe ser de al menos 30 segundos.")
+        raise ErrorDeAnka("--watch-seconds debe ser de al menos 30 segundos.")
     log.info("Vigilando Gmail cada %s segundos. Presiona Ctrl+C para detener.", seconds)
     try:
         while True:

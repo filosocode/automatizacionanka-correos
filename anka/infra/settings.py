@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from anka.dominio.errores import ErrorDeAnka
+
 import json
 import os
 from pathlib import Path
@@ -105,18 +107,18 @@ def load_config() -> dict:
     """Lee y valida `config.json` de la carpeta de datos; termina con un mensaje claro si falta o es inválido."""
     path = DATA_DIR / "config.json"
     if not path.exists():
-        raise SystemExit(f"Crea {path} a partir de config.example.json.")
+        raise ErrorDeAnka(f"Crea {path} a partir de config.example.json.")
     try:
         config = json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
-        raise SystemExit(
+        raise ErrorDeAnka(
             f"{path} no es JSON válido (línea {exc.lineno}, columna {exc.colno}): {exc.msg}."
         ) from exc
     if not isinstance(config, dict):
-        raise SystemExit(f"{path} debe contener un objeto JSON, no {type(config).__name__}.")
+        raise ErrorDeAnka(f"{path} debe contener un objeto JSON, no {type(config).__name__}.")
     problems = validate_config(config)
     if problems:
-        raise SystemExit(
+        raise ErrorDeAnka(
             f"{path.name} tiene {len(problems)} problema(s):\n"
             + "\n".join(f" - {problem}" for problem in problems)
         )
@@ -127,7 +129,7 @@ def write_config(config: dict) -> None:
     """Guarda `config.json` solo si la configuración resultante es válida."""
     problems = validate_config(config)
     if problems:
-        raise SystemExit(
+        raise ErrorDeAnka(
             "No se guardó config.json; la configuración resultante es inválida:\n"
             + "\n".join(f" - {problem}" for problem in problems)
         )

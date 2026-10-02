@@ -15,6 +15,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.servicios import commercial_index
 from anka.infra import google_services
 from anka.infra import llm
@@ -79,7 +80,7 @@ class OllamaTests(unittest.TestCase):
 class OpenAiTests(unittest.TestCase):
     def test_requires_api_key(self):
         with patch.dict("os.environ", {}, clear=True):
-            with self.assertRaisesRegex(SystemExit, "OPENAI_API_KEY"):
+            with self.assertRaisesRegex(ErrorDeAnka, "OPENAI_API_KEY"):
                 llm.analyze_openai("prompt", {"provider": "openai"})
 
     def test_uses_strict_schema_without_storing(self):
@@ -223,7 +224,7 @@ class DriveTests(unittest.TestCase):
 class CredentialsTests(unittest.TestCase):
     def test_missing_client_secret_stops_with_a_clear_message(self):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
-            with self.assertRaisesRegex(SystemExit, "credentials.json"):
+            with self.assertRaisesRegex(ErrorDeAnka, "credentials.json"):
                 google_services.credentials()
 
     def test_valid_saved_token_is_reused_and_rewritten(self):
@@ -243,7 +244,7 @@ class CredentialsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
             token = Path(d) / "token.json"
             token.write_text("{}", encoding="utf-8")
-            with self.assertRaises(SystemExit):  # sin credentials.json tras borrar el token
+            with self.assertRaises(ErrorDeAnka):  # sin credentials.json tras borrar el token
                 google_services.credentials(force_auth=True)
             self.assertFalse(token.exists())
 
@@ -254,7 +255,7 @@ class CredentialsTests(unittest.TestCase):
                 patch("google.oauth2.credentials.Credentials.from_authorized_user_file",
                       return_value=creds):
             (Path(d) / "token.json").write_text("{}", encoding="utf-8")
-            with self.assertRaisesRegex(SystemExit, "credentials.json"):
+            with self.assertRaisesRegex(ErrorDeAnka, "credentials.json"):
                 google_services.credentials()
 
     def test_services_builds_gmail_and_drive_with_the_same_credentials(self):

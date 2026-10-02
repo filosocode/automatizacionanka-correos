@@ -17,6 +17,7 @@ import urllib.request
 import webbrowser
 from datetime import datetime
 from markupsafe import Markup
+from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.activities import build_workbook, parse_activities_form
 from anka.web.views import (
     attachments_table, metric_rows,
@@ -57,7 +58,7 @@ log = get_logger(__name__)
 def _page(title: str, body: Markup, message: str = "") -> str:
     try:
         mode = load_config().get("active_mode")
-    except (SystemExit, OSError, ValueError):
+    except (ErrorDeAnka, OSError, ValueError):
         mode = None
     return render_page(title, body, message, len(unread_notifications(100)), mode,
                        bool(os.getenv("OPENAI_API_KEY")))
@@ -778,7 +779,7 @@ def is_same_origin(origin: str, host: str) -> bool:
 
 
 # --- Acciones de los formularios (POST). Cada una recibe el formulario y devuelve a dónde redirigir.
-# Un ValueError (o el SystemExit de una acción de línea de comandos) es orientación para la persona: se muestra
+# Un ValueError (o un ErrorDeAnka) es orientación para la persona: se muestra
 # como mensaje, no como fallo del servidor.
 
 Form = dict[str, list[str]]
@@ -822,7 +823,7 @@ def _post_approve(form: Form) -> str:
         client_name=form.get("client_name", [None])[0],
         new_client=_field(form, "new_client") == "1",
         allow_similar_project=_field(form, "allow_similar") == "1",
-    ), SystemExit)
+    ), ErrorDeAnka)
     return _to_case(thread_id, message)
 
 
@@ -964,7 +965,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         """Atiende las páginas del dashboard; un error se registra y se muestra sin romper el servidor."""
         try:
             self._get()
-        except (Exception, SystemExit) as exc:
+        except Exception as exc:
             log.exception("Error atendiendo GET %s", self.path.split("?")[0])
             self._send_html(_page("Error", render("empty.html", text=str(exc))), 500)
 
@@ -978,7 +979,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         elif parsed.path == "/state":
             try:
                 work = load_config().get("active_mode") == "chatgpt_work"
-            except (SystemExit, OSError, ValueError):
+            except (ErrorDeAnka, OSError, ValueError):
                 work = False
             state, text = bridge_state() if work else ("", "")
             data = json.dumps({"v": change_marker(), "bridge": state, "text": text}).encode("utf-8")
@@ -1036,7 +1037,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return self._send_html(_page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
         try:
             self._redirect(action(form))
-        except (Exception, SystemExit) as exc:
+        except Exception as exc:
             log.exception("Error atendiendo POST %s", path)
             self._send_html(_page("Error", render("empty.html", text=str(exc))), 500)
 

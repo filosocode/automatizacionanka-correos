@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.servicios import case_actions
 from anka.servicios import quotes
 from anka.infra import settings
@@ -63,7 +64,7 @@ class ApproveFolderTests(unittest.TestCase):
         self.assertNotIn("nuevo", message.lower())
 
     def test_unknown_client_is_not_created_without_explicit_confirmation(self):
-        with self.assertRaisesRegex(SystemExit, "cliente nuevo"):
+        with self.assertRaisesRegex(ErrorDeAnka, "cliente nuevo"):
             self.approve(client_name="Empresa Nueva")
         self.assertEqual(self.drive.created, [])
         self.assertEqual(self.state()[0], QuoteStatus.READY_REVIEW)
@@ -83,7 +84,7 @@ class ApproveFolderTests(unittest.TestCase):
         self.assertEqual(len(self.drive.created), 1)
 
     def test_client_name_is_required_unless_a_person_already_set_it(self):
-        with self.assertRaisesRegex(SystemExit, "carpeta del cliente"):
+        with self.assertRaisesRegex(ErrorDeAnka, "carpeta del cliente"):
             self.approve()
         db = store.open_db(Path(self._tmp.name))
         db.execute("INSERT INTO quote_metadata (thread_id, client_name, updated_at) VALUES ('t-1', 'Minera Sur', 'x')")
@@ -94,13 +95,13 @@ class ApproveFolderTests(unittest.TestCase):
 
     def test_ambiguous_client_folders_are_reported(self):
         self.drive = FakeDriveTree({"Acme": {}, "ACME SAS": {}})
-        with self.assertRaisesRegex(SystemExit, "varias"):
+        with self.assertRaisesRegex(ErrorDeAnka, "varias"):
             self.approve(client_name="acme corp")
         self.assertEqual(self.drive.created, [])
 
     def test_parent_folder_from_another_year_blocks_the_creation(self):
         self.drive = FakeDriveTree({"Minera Sur": {}}, root_name="2025")
-        with self.assertRaisesRegex(SystemExit, "2025.*2026"):
+        with self.assertRaisesRegex(ErrorDeAnka, "2025.*2026"):
             self.approve(client_name="Minera Sur")
         self.assertEqual(self.drive.created, [])
 
@@ -111,7 +112,7 @@ class ApproveFolderTests(unittest.TestCase):
 
     def test_only_cases_waiting_for_approval_can_be_approved(self):
         self.seed(status=QuoteStatus.IGNORED)
-        with self.assertRaisesRegex(SystemExit, "no pendiente"):
+        with self.assertRaisesRegex(ErrorDeAnka, "no pendiente"):
             self.approve(client_name="Minera Sur")
 
     def test_the_audit_line_never_contains_the_client_name(self):
@@ -158,7 +159,7 @@ class ApproveRouteTests(unittest.TestCase):
 
     def test_guidance_errors_are_shown_on_the_case_page_not_as_a_500(self):
         sent, _ = self.post({"thread_id": "t-1", "client_name": "X"},
-                            side_effect=SystemExit("Confirma que es un cliente nuevo"))
+                            side_effect=ErrorDeAnka("Confirma que es un cliente nuevo"))
         self.assertEqual(sent["status"], 303)
         self.assertIn("cliente%20nuevo", sent["location"])
         self.assertIn("/case?thread_id=t-1", sent["location"])

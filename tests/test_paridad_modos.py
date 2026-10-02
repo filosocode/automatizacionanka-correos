@@ -17,6 +17,7 @@ from pathlib import Path
 import io
 from unittest.mock import MagicMock, patch
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.servicios import drive_layout
 from anka.infra import llm
 from anka.servicios import pipeline
@@ -407,7 +408,7 @@ class WorkModeIsTheOtherOrchestrator(unittest.TestCase):
     def test_python_orchestrator_refuses_to_run_in_work_mode(self):
         config = test_config() | {"active_mode": "chatgpt_work"}
         with patch("anka.servicios.pipeline.load_config", return_value=config), \
-                patch("anka.servicios.pipeline.services") as services, self.assertRaises(SystemExit):
+                patch("anka.servicios.pipeline.services") as services, self.assertRaises(ErrorDeAnka):
             pipeline.run(True, gmail_drafts=True)
         services.assert_not_called()  # ni siquiera toca Gmail
 

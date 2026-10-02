@@ -13,6 +13,7 @@ import sys
 import time
 from pathlib import Path
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra.backup import backup_due, run_backup
 from anka.servicios.followup_reminders import run_due_reminders
@@ -78,7 +79,7 @@ def work_mode() -> bool:
     """¿Está activo el modo ChatGPT Work? (solo en ese modo hace falta el puente de borradores)."""
     try:
         return settings.load_config().get("active_mode") == "chatgpt_work"
-    except (SystemExit, OSError, ValueError):
+    except (ErrorDeAnka, OSError, ValueError):
         return False
 
 

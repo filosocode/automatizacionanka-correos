@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 
 VALID = {
@@ -131,19 +132,19 @@ class LoadConfigTests(unittest.TestCase):
         self.assertEqual(self.load("﻿" + json.dumps(VALID))["active_mode"], "local")
 
     def test_invalid_json_points_to_line_and_column(self):
-        with self.assertRaises(SystemExit) as raised:
+        with self.assertRaises(ErrorDeAnka) as raised:
             self.load('{\n  "active_mode": "local",\n  "llm": }')
         message = str(raised.exception)
         self.assertIn("no es JSON válido", message)
         self.assertIn("línea 3", message)
 
     def test_root_must_be_an_object(self):
-        with self.assertRaisesRegex(SystemExit, "objeto JSON"):
+        with self.assertRaisesRegex(ErrorDeAnka, "objeto JSON"):
             self.load("[]")
 
     def test_problems_are_listed_one_per_line(self):
         bad = json.dumps(with_changes(active_mode="x", gmail_query=1))
-        with self.assertRaises(SystemExit) as raised:
+        with self.assertRaises(ErrorDeAnka) as raised:
             self.load(bad)
         lines = str(raised.exception).splitlines()
         self.assertIn("2 problema", lines[0])
@@ -151,7 +152,7 @@ class LoadConfigTests(unittest.TestCase):
 
     def test_missing_file_explains_how_to_create_it(self):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
-            with self.assertRaisesRegex(SystemExit, "config.example.json"):
+            with self.assertRaisesRegex(ErrorDeAnka, "config.example.json"):
                 settings.load_config()
 
 
@@ -161,7 +162,7 @@ class WriteConfigTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
             settings.write_config(VALID)
             before = (Path(d) / "config.json").read_text(encoding="utf-8")
-            with self.assertRaisesRegex(SystemExit, "active_mode"):
+            with self.assertRaisesRegex(ErrorDeAnka, "active_mode"):
                 settings.write_config(with_changes(active_mode="cloud"))
             self.assertEqual((Path(d) / "config.json").read_text(encoding="utf-8"), before)
 

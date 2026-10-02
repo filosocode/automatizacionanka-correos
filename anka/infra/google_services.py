@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra.logging_setup import get_logger
 
@@ -45,7 +46,7 @@ def credentials(force_auth: bool = False) -> Credentials:
         creds.refresh(Request())
     if not creds or not creds.valid:
         if not secrets_path.exists():
-            raise SystemExit(f"Falta {secrets_path} del cliente OAuth de escritorio.")
+            raise ErrorDeAnka(f"Falta {secrets_path} del cliente OAuth de escritorio.")
         creds = InstalledAppFlow.from_client_secrets_file(
             str(secrets_path), SCOPES
         ).run_local_server(port=0, open_browser=os.getenv("ANKA_NO_BROWSER") != "1")

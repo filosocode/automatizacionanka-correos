@@ -12,6 +12,7 @@ import sys
 import json
 from pathlib import Path
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.infra.google_services import credentials, services, list_folders
 from anka.dominio.reception import (
     reception_questions,
@@ -268,7 +269,7 @@ def warn_unknown_config_keys() -> None:
     """Avisa de claves de config.json que el programa no usa (suelen ser errores de tipeo)."""
     try:
         unknown = unknown_config_keys(load_config())
-    except SystemExit:
+    except ErrorDeAnka:
         return  # el comando informará del problema de configuración por su cuenta
     if unknown:
         print(
@@ -428,7 +429,10 @@ def main() -> None:
     configure_logging()
     if args.command != "auth":
         warn_unknown_config_keys()
-    COMMANDS[args.command](args, parser)
+    try:
+        COMMANDS[args.command](args, parser)
+    except ErrorDeAnka as exc:
+        raise SystemExit(str(exc)) from exc   # a la terminal: el mensaje y código de salida 1
 
 
 if __name__ == "__main__":

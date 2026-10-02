@@ -13,6 +13,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.servicios import case_actions
 from anka.servicios import pipeline
 from anka.servicios import quotes
@@ -482,7 +483,7 @@ class QuoteFlowTests(unittest.TestCase):
         ), patch("anka.servicios.pipeline.load_config", return_value={"active_mode": "chatgpt_work"}), patch(
             "anka.servicios.pipeline.run"
         ) as run_mock, redirect_stdout(io.StringIO()):
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(ErrorDeAnka):
                 pipeline.watch(True, False, 30, True)
         run_mock.assert_not_called()
 
@@ -760,7 +761,7 @@ class HandlerErrorTests(unittest.TestCase):
         handler.rfile = io.BytesIO(body)
         handler._send_html = lambda content, status=200: sent.update(status=status)
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("anka.web.server.load_config", side_effect=SystemExit("falta config")):
+        ), patch("anka.web.server.load_config", side_effect=ErrorDeAnka("falta config")):
             with self.assertLogs("anka.web.server", "ERROR"):
                 handler.do_POST()
         self.assertEqual(sent["status"], 500)
@@ -786,7 +787,7 @@ class ModeSwitchTests(unittest.TestCase):
             }), encoding="utf-8")
             try:
                 message = modes.set_mode(mode)
-            except SystemExit as exc:
+            except ErrorDeAnka as exc:
                 self.automation_status = self.automation_file.read_text(encoding="utf-8")
                 return None, str(exc), json.loads(
                     (Path(temp_dir) / "config.json").read_text(encoding="utf-8"))
@@ -960,7 +961,7 @@ class CheckStatusTests(unittest.TestCase):
 
     def test_checked_run_records_error_instead_of_raising(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("anka.servicios.pipeline.run", side_effect=SystemExit("falta token")):
+        ), patch("anka.servicios.pipeline.run", side_effect=ErrorDeAnka("falta token")):
             with self.assertLogs("anka.servicios.pipeline", "ERROR") as logs:
                 result = pipeline.checked_run(True, True, False, "dashboard")
         self.assertEqual(result["error"], "falta token")

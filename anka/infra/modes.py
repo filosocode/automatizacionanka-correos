@@ -6,6 +6,7 @@ import os
 import re
 from pathlib import Path
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.infra.llm import check_ollama
 from anka.infra.settings import ACTIVE_MODES, load_config, write_config
 
@@ -47,7 +48,7 @@ def codex_automation_status() -> str | None:
 def ensure_local_or_api_mode(config: dict) -> None:
     """Detiene el comando si el modo es ChatGPT Work: en ese modo Python no lee Gmail."""
     if config.get("active_mode", "local") == "chatgpt_work":
-        raise SystemExit(
+        raise ErrorDeAnka(
             "active_mode está en 'chatgpt_work'. No ejecutes el bot local sobre Gmail. "
             "Pausa/cambia esa modalidad en config.json antes de usar run/watch."
         )
@@ -97,10 +98,10 @@ def set_codex_automation(active: bool) -> str:
 def set_mode(mode: str) -> str:
     """Cambia el motor activo en config.json y devuelve un mensaje para el usuario."""
     if mode not in ACTIVE_MODES:
-        raise SystemExit("Usa local, api o chatgpt_work.")
+        raise ErrorDeAnka("Usa local, api o chatgpt_work.")
     config = load_config()
     if mode == "api" and not os.getenv("OPENAI_API_KEY"):
-        raise SystemExit(
+        raise ErrorDeAnka(
             "No se cambió a API: aún no hay clave de OpenAI. Cuando la tengas, ejecuta en "
             "PowerShell: setx OPENAI_API_KEY \"tu_clave\"; cierra y vuelve a abrir el "
             "dashboard, y elige API de nuevo."

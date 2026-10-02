@@ -120,7 +120,7 @@ def run_backup(use_drive: bool = True, drive: Any = None) -> dict:
                 upload_to_drive(drive, path)
                 result["drive"] = True
                 log.info("Copia subida a Drive (%s)", DRIVE_FOLDER)
-            except (Exception, SystemExit) as exc:
+            except Exception as exc:
                 result["error"] = f"Drive: {type(exc).__name__}: {exc}"[:200]
                 log.warning("La copia local quedó, pero no se subió a Drive: %s", result["error"])
     try:

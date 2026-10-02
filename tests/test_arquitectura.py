@@ -120,6 +120,19 @@ class LayerRules(unittest.TestCase):
                     offenders.append(f"{dotted} importa {private} de {target}")
         self.assertEqual(offenders, [], "Lo privado de un módulo no se usa desde fuera: hazlo público o muévelo")
 
+    def test_only_the_command_line_ends_the_program(self):
+        """Un servicio explica el problema con `ErrorDeAnka`; terminar el programa es cosa de `anka/cli` y de los `main`."""
+        offenders = []
+        for dotted, path in modules():
+            if layer_of(dotted) == "cli":
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for function in [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name != "main"]:
+                for node in ast.walk(function):
+                    if isinstance(node, ast.Raise) and "SystemExit" in ast.dump(node):
+                        offenders.append(f"{dotted}.{function.name}")
+        self.assertEqual(offenders, [], "Lanza ErrorDeAnka (anka.dominio.errores) en vez de SystemExit")
+
     def test_the_package_never_depends_on_the_tests(self):
         for dotted, path in modules():
             for target, _ in imports_of(path):

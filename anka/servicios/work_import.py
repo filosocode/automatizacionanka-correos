@@ -12,6 +12,7 @@ import sqlite3
 from collections.abc import Callable
 from typing import Any
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.activities import normalize_estado
 from anka.dominio.correo import decode_websafe
 from anka.dominio.reception import unresolved_scope_issues
@@ -50,11 +51,11 @@ def _decode_work_payload(payload_base64: str) -> tuple[str, dict]:
         raw = decode_websafe(payload_base64).decode("utf-8")
         payload = json.loads(raw)
     except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"Registro de dashboard no válido: {exc}") from exc
+        raise ErrorDeAnka(f"Registro de dashboard no válido: {exc}") from exc
     required = {"thread_id", "status", "client_email", "project_name"}
     missing = sorted(field for field in required if not str(payload.get(field, "")).strip())
     if missing:
-        raise SystemExit("Faltan campos del dashboard: " + ", ".join(missing))
+        raise ErrorDeAnka("Faltan campos del dashboard: " + ", ".join(missing))
     payload["status"] = canonical_work_status(payload["status"]) or payload["status"]
     return raw, payload
 

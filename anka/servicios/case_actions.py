@@ -7,6 +7,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.status import (
     CLOSED_STATUSES, QuoteStatus,
 )
@@ -306,7 +307,7 @@ def auto_create_project_folder(thread_id: str) -> str:
     """
     try:
         return "Carpeta en Drive: " + approve_review(thread_id, auto=True)
-    except SystemExit as exc:
+    except ErrorDeAnka as exc:
         message = str(exc)
     except Exception as exc:  # Drive o red: el correo ya salió y no se debe perder
         log.exception("%s: no se pudo crear la carpeta automáticamente", thread_id)
@@ -347,7 +348,7 @@ def approve_review(
             (thread_id,),
         ).fetchone()
         if not row:
-            raise SystemExit(f"No existe revisión registrada para el hilo {thread_id}.")
+            raise ErrorDeAnka(f"No existe revisión registrada para el hilo {thread_id}.")
         last_id, status, recipient, analysis_json = row
         analysis = json.loads(analysis_json)
         if status == QuoteStatus.REVIEW_PENDING:
@@ -377,17 +378,17 @@ def approve_review(
         elif status == QuoteStatus.READY_REVIEW:
             parent = config.get("drive_parent_id")
             if not parent:
-                raise SystemExit("Para aprobar alcance completo define drive_parent_id en config.json.")
+                raise ErrorDeAnka("Para aprobar alcance completo define drive_parent_id en config.json.")
             client = (client_name or "").strip() or _saved_client_name(db, thread_id)
             if not client and auto:
                 client = confirmed_client(db, thread_id, analysis, recipient)
             if auto and "@" in client:
                 client = ""  # un correo no es el nombre de una empresa: no crear una carpeta con él
             if not client:
-                raise SystemExit("Indica la carpeta del cliente.")
+                raise ErrorDeAnka("Indica la carpeta del cliente.")
             mismatch = year_mismatch(drive, parent, analysis.get("received_at", ""))
             if mismatch:
-                raise SystemExit(mismatch)
+                raise ErrorDeAnka(mismatch)
             request_name = safe_folder_name(
                 analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion"),
             )
@@ -402,7 +403,7 @@ def approve_review(
                     allow_similar_project=allow_similar_project,
                 )
             except DriveLayoutError as exc:
-                raise SystemExit(str(exc)) from exc
+                raise ErrorDeAnka(str(exc)) from exc
             analysis.pop("drive", None)
             save(db, thread_id, last_id, QuoteStatus.READY, recipient, analysis,
                  folder_id=result.folder["id"])
@@ -415,7 +416,7 @@ def approve_review(
                 message += " Se creó también la carpeta del cliente nuevo."
             return message + " " + contents
         else:
-            raise SystemExit(
+            raise ErrorDeAnka(
                 f"El hilo {thread_id} está en estado '{status}', no pendiente de aprobación."
             )
     finally:

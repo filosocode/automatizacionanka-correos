@@ -33,6 +33,12 @@ class CliTests(unittest.TestCase):
                 self.assertRaisesRegex(SystemExit, "--review-only se usa junto con --apply"):
             self.run_cli("run", "--review-only")
 
+    def test_a_service_error_reaches_the_terminal_as_a_message_with_exit_code_1(self):
+        from anka.dominio.errores import ErrorDeAnka
+        with patch("anka.servicios.pipeline.load_config", side_effect=ErrorDeAnka("falta config.json")),                 self.assertRaises(SystemExit) as raised:
+            self.run_cli("run")
+        self.assertEqual(raised.exception.code, "falta config.json")   # SystemExit(texto): se imprime y sale con 1
+
 
 def redirect_stderr_quiet():
     from contextlib import redirect_stderr

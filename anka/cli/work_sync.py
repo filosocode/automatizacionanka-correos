@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from anka.servicios.gmail_followup import sync_thread_activity
+from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.status import canonical_work_status
 from anka.dominio.work_contract import validate
 from anka.infra.work_heartbeat import other_bridge_running, write_heartbeat
@@ -192,6 +193,8 @@ def cli() -> None:
     except KeyboardInterrupt:
         print("Sincronización detenida.")
         raise SystemExit(EXIT_STOP) from None
+    except ErrorDeAnka as exc:
+        raise SystemExit(str(exc)) from exc   # el lanzador lo reinicia (código 1); el mensaje queda en el registro
 
 
 if __name__ == "__main__":
