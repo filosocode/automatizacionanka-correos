@@ -16,6 +16,7 @@ from unittest.mock import patch
 from anka.servicios import case_actions
 from anka.servicios import pipeline
 from anka.servicios import quotes
+from anka.servicios import ediciones, work_import
 from anka.web import server as web
 from anka.servicios import internal_context
 from anka.infra import llm
@@ -538,7 +539,7 @@ class QuoteFlowTests(unittest.TestCase):
         ).decode("ascii")
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ):
-            quotes.dashboard_upsert(encoded)
+            work_import.dashboard_upsert(encoded)
             stored = quotes.all_quotes()
             notifications = quotes.unread_notifications()
             dashboard = web._render_index()
@@ -918,7 +919,7 @@ class ActivitiesTests(unittest.TestCase):
             store.save(db, "t1", "m1", "missing", "a@b.co",
                      {"activities": [{"activity": "modelo v1"}], "received_at": "x"})
             db.close()
-            quotes.save_activities("t1", [{"activity": "editada", "estado": "confirmado"}])
+            ediciones.save_activities("t1", [{"activity": "editada", "estado": "confirmado"}])
             db = store.connect()
             store.save(db, "t1", "m2", "missing", "a@b.co",
                      {"activities": [{"activity": "modelo v2"}], "received_at": "x"})

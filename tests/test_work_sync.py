@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from anka.servicios import quotes
+from anka.servicios import ediciones, work_import
 from anka.infra import settings
 from anka.cli import work_sync as sync
 from anka.infra import work_heartbeat
@@ -85,7 +86,7 @@ class BridgeTests(unittest.TestCase):
         self.checkpoint = Path(self.temp.name) / "state.json"
 
     def run_sync(self, gmail, cache=None):
-        return sync.sync_once(gmail, quotes.dashboard_upsert, self.checkpoint, cache)
+        return sync.sync_once(gmail, work_import.dashboard_upsert, self.checkpoint, cache)
 
     def test_imports_draft_then_skips_unchanged_content(self):
         gmail = FakeGmail({"d1": draft_message(payload())})
@@ -110,14 +111,14 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(quotes.all_quotes(), [])
 
     def test_upsert_does_not_move_closed_case_back_or_erase_human_data(self):
-        quotes.dashboard_upsert(b64(json.dumps(payload())))
+        work_import.dashboard_upsert(b64(json.dumps(payload())))
         quotes.save_quote_metadata("T1", "Cliente Confirmado", "Empresa privada",
                                    "Infraestructura", "nota")
         db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.READY,))
         db.commit()
         db.close()
-        quotes.dashboard_upsert(b64(json.dumps(payload(message="m2", summary="otro"))))
+        work_import.dashboard_upsert(b64(json.dumps(payload(message="m2", summary="otro"))))
         stored = quotes.get_quote("T1")
         self.assertEqual(stored["status"], QuoteStatus.READY)
         self.assertEqual(stored["client_type"], "Empresa privada")
@@ -167,7 +168,7 @@ class FollowupTests(unittest.TestCase):
         patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
         patcher.start()
         self.addCleanup(patcher.stop)
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             status="Faltan datos", received_at="2026-10-01T10:00:00-05:00"))))
         self.t0 = int(datetime.fromisoformat("2026-10-01T10:00:00-05:00").timestamp())
 
@@ -227,7 +228,7 @@ class NextStepTests(unittest.TestCase):
         patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
         patcher.start()
         self.addCleanup(patcher.stop)
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             message="m1", received_at="2026-10-01T10:00:00-05:00"))))
 
     def reply(self, ref, minutes_after, ago_minutes=0):
@@ -243,7 +244,7 @@ class NextStepTests(unittest.TestCase):
         self.assertEqual(quotes.get_quote("T1")["reply_pending"], "")
         self.reply("m2", 15)                      # respuesta posterior
         self.assertTrue(quotes.get_quote("T1")["reply_pending"])
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             message="m2", received_at="2026-10-01T10:15:00-05:00", summary="con respuesta"))))
         self.assertEqual(quotes.get_quote("T1")["reply_pending"], "")
 
@@ -262,8 +263,8 @@ class NextStepTests(unittest.TestCase):
         self.assertIn("Respondió", row)
 
     def test_model_proposal_can_be_adopted_or_dismissed(self):
-        quotes.save_activities("T1", [{"activity": "a", "quantity": "1"}])
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        ediciones.save_activities("T1", [{"activity": "a", "quantity": "1"}])
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             message="m2", activities=[{"activity": "a", "quantity": "2"}, {"activity": "b"}]))))
         proposal = quotes.get_quote("T1")["proposal"]
         self.assertEqual({item["kind"] for item in proposal}, {"nueva", "distinta"})
@@ -273,8 +274,8 @@ class NextStepTests(unittest.TestCase):
         self.assertNotIn("manual_edit", stored["analysis"])
         self.assertEqual(stored["proposal"], [])
         # descartar: la tabla propia se queda y la propuesta desaparece
-        quotes.save_activities("T1", [{"activity": "solo mía"}])
-        quotes.dashboard_upsert(b64(json.dumps(payload(message="m3", activities=[{"activity": "z"}]))))
+        ediciones.save_activities("T1", [{"activity": "solo mía"}])
+        work_import.dashboard_upsert(b64(json.dumps(payload(message="m3", activities=[{"activity": "z"}]))))
         quotes.resolve_model_proposal("T1", use_proposal=False)
         stored = quotes.get_quote("T1")
         self.assertEqual(stored["analysis"]["activities"], [{"activity": "solo mía"}])
@@ -295,7 +296,7 @@ class RelatedThreadTests(unittest.TestCase):
         patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
         patcher.start()
         self.addCleanup(patcher.stop)
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             client_email="ana@acme.com", client_name="Ana", project_name="Llanos 8",
             received_at="2026-10-01T10:00:00-05:00"))))
         self.t0 = int(datetime.fromisoformat("2026-10-01T10:00:00-05:00").timestamp())
@@ -327,7 +328,7 @@ class RelatedThreadTests(unittest.TestCase):
         self.assertEqual(self.links()[0]["reason"], "domain+subject")
 
     def test_personal_email_domains_do_not_match_by_company(self):
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             thread="T2", client_email="x@gmail.com", received_at="2026-10-01T10:00:00-05:00"))))
         self.run_sync({"n1": mail("NUEVO", False, self.t0 + 3600, "otro@gmail.com")})
         self.assertEqual(quotes.get_quote("T2")["links"], [])

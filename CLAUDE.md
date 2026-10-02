@@ -18,7 +18,7 @@ Código en el paquete `anka/` (detalle en `spec/06-arquitectura.md`), en cinco c
 (`cli`/`web` → `servicios` → `infra` → `dominio`); `tests/test_arquitectura.py` lo comprueba:
 - `anka/dominio/`: reglas puras (`status`, `activities`, `reception`, `correo`, `work_contract`, `attachments`).
 - `anka/infra/`: lo externo (`settings`, `store` SQLite, `google_services`, `mail`, `llm`, `logging_setup`, `backup`).
-- `anka/servicios/`: casos de uso (`quotes`, `pipeline`, `case_actions`, `change_control`, `followup_reminders`,
+- `anka/servicios/`: casos de uso (`quotes`, `ediciones`, `work_import`, `pipeline`, `case_actions`, `change_control`, `followup_reminders`,
   `gmail_followup`, `drive_layout`, `drive_contents`).
 - `anka/web/`: servidor local (`server.py`), vistas y `templates/`. `anka/cli/`: `app`, `supervisor`, `work_sync`.
 - **Tres modos** (`active_mode` en `config.json`, fuera del repo): `local` (Ollama) y `api` comparten el código de

@@ -15,6 +15,7 @@ from unittest.mock import patch
 from anka.servicios import case_actions
 from anka.servicios import gmail_followup
 from anka.servicios import quotes
+from anka.servicios import work_import
 from anka.infra import settings
 from anka.servicios.quotes import connect
 from anka.dominio.status import QuoteStatus
@@ -51,7 +52,7 @@ class Transitions(unittest.TestCase):
     def seed(self, status, coded=False):
         self.counter += 1
         thread = f"S{self.counter}"
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             thread=thread, message="m1", received_at="2026-10-01T10:00:00-05:00"))))
         db = connect()
         db.execute("UPDATE quotes SET status=?, recipient='c@example.com', "
@@ -83,7 +84,7 @@ class Transitions(unittest.TestCase):
                         if row["dependencias_pendientes"]:
                             extra["scope_dependencies"] = [
                                 {"description": "KML", "source": "a.kml", "status": "pendiente"}]
-                        quotes.dashboard_upsert(b64(json.dumps(payload(
+                        work_import.dashboard_upsert(b64(json.dumps(payload(
                             thread=thread, status=label, message="m1" if row["mismo_mensaje"] else "m2",
                             **extra))))
                         expected = origin if row["hacia"] == "igual" else row["hacia"]

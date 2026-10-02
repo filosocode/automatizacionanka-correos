@@ -21,6 +21,7 @@ from anka.servicios import drive_layout
 from anka.infra import llm
 from anka.servicios import pipeline
 from anka.servicios import quotes
+from anka.servicios import work_import
 from anka.dominio import reception
 from anka.infra import settings, store
 from tests.fake_drive import FakeDriveTree
@@ -228,7 +229,7 @@ class ChangeRuleR11(unittest.TestCase):
     def seed(self, thread, code):
         """Caso con tabla de 40 días, contacto Ana y (opcional) T asignada a las 10:00."""
         from anka.servicios import change_control
-        quotes.dashboard_upsert(self.b64({
+        work_import.dashboard_upsert(self.b64({
             "thread_id": thread, "message_id": "m0", "status": "Faltan datos", "engine": "chatgpt_work",
             "client_email": "ana@empresa.co", "client_name": "Ana", "project_name": "P",
             "activities": self.OLD, "received_at": "2026-10-01T09:00:00-05:00"}))
@@ -264,7 +265,7 @@ class ChangeRuleR11(unittest.TestCase):
                 self.seed(case["id"], case["codigo_del_caso"])
                 sender = case["de"].split("<")[-1].strip(" >")
                 moment = "2026-10-01T09:30:00-05:00" if case["anterior_a_la_t"] else "2026-10-01T11:00:00-05:00"
-                quotes.dashboard_upsert(self.b64({
+                work_import.dashboard_upsert(self.b64({
                     "thread_id": case["id"], "message_id": "m1", "status": "Faltan datos",
                     "engine": "chatgpt_work", "client_email": "ana@empresa.co", "client_name": "Ana",
                     "project_name": "P", "activities": self.NEW, "received_at": moment,
@@ -291,7 +292,7 @@ class ChangeRuleR11(unittest.TestCase):
 
     def test_work_must_report_who_wrote_otherwise_the_table_is_kept(self):
         self.seed("sin-autor", "26145")
-        quotes.dashboard_upsert(self.b64({
+        work_import.dashboard_upsert(self.b64({
             "thread_id": "sin-autor", "message_id": "m1", "status": "Faltan datos", "engine": "chatgpt_work",
             "client_email": "ana@empresa.co", "project_name": "P", "activities": self.NEW,
             "received_at": "2026-10-01T11:00:00-05:00"}))
@@ -301,7 +302,7 @@ class ChangeRuleR11(unittest.TestCase):
 
     def test_a_blocked_message_becomes_a_pending_change_for_the_dashboard(self):
         self.seed("c1", "26145")
-        quotes.dashboard_upsert(self.b64({
+        work_import.dashboard_upsert(self.b64({
             "thread_id": "c1", "message_id": "m1", "status": "Faltan datos", "engine": "chatgpt_work",
             "client_email": "ana@empresa.co", "project_name": "P", "activities": self.NEW,
             "received_at": "2026-10-01T11:00:00-05:00", "requested_by_email": "luis@empresa.co",

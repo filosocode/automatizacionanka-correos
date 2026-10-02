@@ -144,7 +144,7 @@ def main() -> None:
         parser.error("--seconds debe ser al menos 30")
     from anka.infra.settings import DATA_DIR, load_config
     from anka.infra.google_services import services
-    from anka.servicios.quotes import dashboard_upsert
+    from anka.servicios.work_import import dashboard_upsert
     if load_config().get("active_mode") != "chatgpt_work":
         fatal("Sincronización detenida: active_mode no es chatgpt_work.")
     if not args.once and other_bridge_running():

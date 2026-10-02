@@ -1,22 +1,15 @@
 """Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard.
 
-Reúne cuatro cosas que comparten la misma tabla y aún no se han separado en módulos propios:
   1. lectura: `all_quotes` / `get_quote` arman cada `Caso` con su espera, cambios y vínculos;
-  2. edición por una persona: datos comerciales, tabla de actividades con sus versiones, vínculos y propuestas;
-  3. decisiones de revisión: descartar/rescatar, eliminar, resolver la revisión técnica;
-  4. importación del borrador de Work (`dashboard_upsert`) y cola de revisión del piloto local.
-Pendiente de dividir: las ediciones (2) y la importación de Work (4) en módulos propios.
+  2. decisiones de una persona sobre el caso: datos comerciales, vínculos, propuestas del modelo, descartar/rescatar,
+     eliminar y resolver la revisión técnica; más la cola de revisión del piloto local.
+La edición de la tabla de actividades vive en `ediciones.py` y la importación de borradores de Work en `work_import.py`.
 """
 
 from __future__ import annotations
 
-import hashlib
-import sqlite3
-from collections.abc import Callable
-from typing import Any
 from uuid import uuid4
 import json
-import re
 from datetime import datetime
 from pathlib import Path
 from anka.dominio.status import (
@@ -24,15 +17,11 @@ from anka.dominio.status import (
 )
 from anka.dominio.caso import Caso
 from anka.infra import settings
-from anka.dominio.correo import decode_websafe
-from anka.dominio.activities import normalize_estado
 from anka.dominio.reception import (
-    reception_assessment, unresolved_scope_issues,
+    reception_assessment,
 )
 from anka.infra.logging_setup import get_logger
-from anka.servicios.change_control import apply_guard
-from anka.dominio.status import canonical_work_status
-from anka.infra.store import add_table_version, latest_table_version, case_events, connect, record_event, register_change, save, verify_chain
+from anka.infra.store import add_table_version, case_events, connect, record_event, register_change, verify_chain
 
 log = get_logger(__name__)
 
@@ -112,7 +101,7 @@ def unread_notifications(limit: int = 20) -> list[dict]:
         db.close()
     result = []
     for row in rows:
-        analysis = _load_analysis(row["analysis_json"])
+        analysis = load_analysis(row["analysis_json"])
         result.append({
             "id": row["id"], "thread_id": row["thread_id"],
             "kind": row["kind"], "title": row["title"],
@@ -181,7 +170,8 @@ SECTORS = [
 ]
 
 
-def _load_analysis(value: str) -> dict:
+def load_analysis(value: str) -> dict:
+    """El análisis guardado de un caso como diccionario ({} si falta o está dañado)."""
     try:
         return json.loads(value) if value else {}
     except (json.JSONDecodeError, TypeError):
@@ -395,7 +385,7 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
             raise ValueError("La solicitud ya no existe.")
-        analysis = _load_analysis(row["analysis_json"])
+        analysis = load_analysis(row["analysis_json"])
         proposed = analysis.pop("pending_model_activities", None)
         if not isinstance(proposed, list):
             return "No había una propuesta pendiente."
@@ -468,7 +458,7 @@ def all_quotes(include_ignored: bool = False, thread_id: str | None = None) -> l
         db.close()
     quotes: list[Caso] = []
     for row in rows:
-        analysis = _load_analysis(row["analysis_json"])
+        analysis = load_analysis(row["analysis_json"])
         routing = analysis.get("routing", {})
         client_email = routing.get("original_sender_email") or row["recipient"]
         assessment = reception_assessment(analysis) if analysis else {}
@@ -557,7 +547,7 @@ def rescue_discarded(thread_id: str) -> str:
             raise ValueError("La solicitud no existe.")
         if row["status"] != QuoteStatus.IGNORED:
             raise ValueError("Solo se pueden rescatar los correos descartados.")
-        analysis = _load_analysis(row["analysis_json"])
+        analysis = load_analysis(row["analysis_json"])
         analysis["force_analysis"] = True
         db.execute(
             "UPDATE quotes SET last_inbound_id='', analysis_json=?, updated_at=? WHERE thread_id=?",
@@ -625,7 +615,7 @@ def resolve_technical_review(thread_id: str, decision: str, questions_text: str 
         if row["status"] != QuoteStatus.REVIEW:
             raise ValueError("Solo se puede decidir sobre casos en revisión técnica interna.")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
-        analysis = _load_analysis(row["analysis_json"])
+        analysis = load_analysis(row["analysis_json"])
         analysis["manual_review"] = {
             "decision": decision, "at": now, "questions": questions if decision == "ask_client" else [],
         }
@@ -685,318 +675,6 @@ def set_client_name(thread_id: str, client_name: str) -> None:
         db.commit()
     finally:
         db.close()
-
-
-EDIT_REASONS = {
-    "": "Sin motivo",
-    "redundante": "Redundante o unir filas",
-    "modelo": "El modelo se lo inventó",
-    "correccion": "Corrección mía",
-    "cliente": "El cliente lo pidió",
-    "otro": "Otro",
-}
-
-_QUANTITY = re.compile(r"(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)\s*(ha|km|m2|m²|m|puntos?|und|unidades)\b",
-                       re.IGNORECASE)
-
-
-def activity_totals(rows: list[dict]) -> dict[str, float]:
-    """Suma de cantidades por unidad (ha, km...) de una tabla, para ver si una edición cambia el alcance."""
-    totals: dict[str, float] = {}
-    for row in rows:
-        text = f"{row.get('quantity') or ''} {row.get('unit') or ''}"
-        for number, unit in _QUANTITY.findall(text):
-            clean = number.replace(".", "") if re.fullmatch(r"\d{1,3}(?:\.\d{3})+(?:,\d+)?", number) else number
-            value = float(clean.replace(",", "."))
-            key = unit.lower().replace("²", "2")
-            totals[key] = round(totals.get(key, 0.0) + value, 3)
-    return totals
-
-
-def diff_activities(old: list[dict], new: list[dict]) -> dict:
-    """Filas agregadas, quitadas y modificadas entre dos versiones de la tabla (por nombre de actividad)."""
-    def key(row: dict) -> str:
-        return str(row.get("activity", "")).strip().casefold()
-
-    before = {key(row): row for row in old if isinstance(row, dict)}
-    after = {key(row): row for row in new if isinstance(row, dict)}
-    changed = []
-    for name, row in after.items():
-        if name in before:
-            fields = [f for f in ("quantity", "unit", "ubicacion", "entregable", "plazo_restriccion",
-                                  "servicio_tecnica", "estado")
-                      if str(before[name].get(f) or "") != str(row.get(f) or "")]
-            if fields:
-                changed.append({"activity": row.get("activity", ""), "fields": fields})
-    return {
-        "added": [after[n].get("activity", "") for n in after if n not in before],
-        "removed": [before[n].get("activity", "") for n in before if n not in after],
-        "changed": changed,
-    }
-
-
-def describe_edit(diff: dict, old_totals: dict, new_totals: dict) -> str:
-    """Frase que resume qué cambió en una edición de la tabla (filas añadidas, quitadas y cambiadas)."""
-    parts = []
-    if diff["added"]:
-        parts.append(f"+{len(diff['added'])} fila(s): " + ", ".join(str(a) for a in diff["added"][:2]))
-    if diff["removed"]:
-        parts.append(f"−{len(diff['removed'])} fila(s): " + ", ".join(str(a) for a in diff["removed"][:2]))
-    if diff["changed"]:
-        parts.append(f"{len(diff['changed'])} modificada(s): " + ", ".join(
-            f"{c['activity']} ({', '.join(c['fields'])})" for c in diff["changed"][:2]))
-    if not parts:
-        parts.append("sin cambios de contenido")
-    if old_totals != new_totals:
-        moved = ", ".join(f"{unit} {old_totals.get(unit, 0)} → {new_totals.get(unit, 0)}"
-                          for unit in sorted(set(old_totals) | set(new_totals))
-                          if old_totals.get(unit, 0) != new_totals.get(unit, 0))
-        parts.append("totales: " + moved)
-    return "; ".join(parts)
-
-
-def table_versions(thread_id: str) -> list[dict]:
-    """Versiones guardadas de la tabla de actividades del caso, de la primera a la última."""
-    db = connect()
-    try:
-        rows = db.execute("SELECT * FROM table_versions WHERE thread_id=? ORDER BY version",
-                          (thread_id,)).fetchall()
-    finally:
-        db.close()
-    return [dict(row) for row in rows]
-
-
-def last_manual_version(thread_id: str) -> dict | None:
-    """Última edición de una persona y si ya se avisó al cliente de ella."""
-    db = connect()
-    try:
-        row = db.execute(
-            "SELECT * FROM table_versions WHERE thread_id=? AND source='dashboard' "
-            "ORDER BY version DESC LIMIT 1", (thread_id,)).fetchone()
-        if not row:
-            return None
-        notified = db.execute(
-            "SELECT 1 FROM case_events WHERE thread_id=? AND kind='scope_update_sent' "
-            "AND recorded_at >= ?", (thread_id, row["created_at"])).fetchone()
-    finally:
-        db.close()
-    return {**dict(row), "notified": notified is not None}
-
-
-def save_activities(thread_id: str, activities: list[dict], reason: str = "") -> str:
-    """Guarda la tabla editada a mano y la marca para que un reproceso no la pise."""
-    db = connect()
-    try:
-        row = db.execute(
-            "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
-        ).fetchone()
-        if not row:
-            raise ValueError("La solicitud ya no existe.")
-        analysis = _load_analysis(row["analysis_json"])
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
-        before = analysis.get("activities") or []
-        if latest_table_version(db, thread_id) is None:
-            # la tabla que había antes de la primera edición (la del modelo si nadie la tocó)
-            add_table_version(db, thread_id, before, "previa", "Tabla anterior a la primera edición")
-        diff = diff_activities(before, activities)
-        summary = describe_edit(diff, activity_totals(before), activity_totals(activities))
-        reason = reason if reason in EDIT_REASONS else ""
-        version = add_table_version(db, thread_id, activities, "dashboard", summary, reason)
-        analysis["activities"] = activities
-        analysis["manual_edit"] = {"edited_at": now, "rows": len(activities)}
-        record_event(db, thread_id, "table_edit", "dashboard", f"v{version}-{uuid4().hex[:6]}",
-                     f"Editaste la tabla (versión {version}): {summary}."
-                     + (f" Motivo: {EDIT_REASONS[reason]}." if reason else ""), now)
-        db.execute(
-            "UPDATE quotes SET analysis_json=?, updated_at=? WHERE thread_id=?",
-            (json.dumps(analysis, ensure_ascii=False), now, thread_id),
-        )
-        db.commit()
-    finally:
-        db.close()
-    return f"Tabla guardada (versión {version}): {summary}."
-
-
-_DASHBOARD_PROTECTED = frozenset({
-    QuoteStatus.READY, QuoteStatus.RESPONSE_SENT, QuoteStatus.SENDING,
-})
-
-
-# Estado que Work escribe en el borrador -> estado interno del caso.
-_WORK_STATUS_MAP = {
-    "Nueva solicitud": QuoteStatus.REVIEW_PENDING,
-    "En análisis": QuoteStatus.REVIEW,
-    "Faltan datos": QuoteStatus.REVIEW_PENDING,
-    "Requiere aclaraciones del cliente": QuoteStatus.REVIEW_PENDING,
-    "Revisión técnica": QuoteStatus.REVIEW,
-    "Requiere revisión técnica interna": QuoteStatus.REVIEW,
-    "Borrador preparado": QuoteStatus.DRAFT_CREATED,
-    "Alcance completo": QuoteStatus.READY_REVIEW,
-    "Información suficiente para revisión interna": QuoteStatus.READY_REVIEW,
-    "Descartada": QuoteStatus.IGNORED,
-}
-
-
-def _decode_work_payload(payload_base64: str) -> tuple[str, dict]:
-    """Decodifica y valida el JSON que Work dejó en el borrador; devuelve el texto crudo y el diccionario."""
-    try:
-        raw = decode_websafe(payload_base64).decode("utf-8")
-        payload = json.loads(raw)
-    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"Registro de dashboard no válido: {exc}") from exc
-    required = {"thread_id", "status", "client_email", "project_name"}
-    missing = sorted(field for field in required if not str(payload.get(field, "")).strip())
-    if missing:
-        raise SystemExit("Faltan campos del dashboard: " + ", ".join(missing))
-    payload["status"] = canonical_work_status(payload["status"]) or payload["status"]
-    return raw, payload
-
-
-def _work_activities(payload: dict) -> list:
-    """Tabla de actividades del borrador, aceptando también un texto suelto o filas que son solo texto."""
-    activities = payload.get("activities", [])
-    if isinstance(activities, list):
-        activities = [{**item, "estado": normalize_estado(item["estado"])}
-                      if isinstance(item, dict) and "estado" in item else item for item in activities]
-    if isinstance(activities, str):
-        return [{
-            "activity": activities,
-            "servicio_tecnica": payload.get("service", ""),
-            "ubicacion": payload.get("location", ""),
-            "quantity": payload.get("magnitude", ""),
-            "unit": "",
-            "entregable": payload.get("deliverables", ""),
-            "plazo_restriccion": payload.get("deadline", ""),
-            "fuente": payload.get("source", ""),
-            "estado": "confirmado",
-            "notes": "",
-        }]
-    return [
-        item if isinstance(item, dict) else {
-            "activity": str(item), "servicio_tecnica": payload.get("service", ""),
-            "ubicacion": payload.get("location", ""), "quantity": "", "unit": "",
-            "entregable": "", "plazo_restriccion": "", "fuente": "",
-            "estado": "pendiente", "notes": "",
-        }
-        for item in activities
-    ]
-
-
-def _list_or_wrapped(value: Any, wrap: Callable[[str], Any]) -> Any:
-    """Work a veces manda un texto donde se espera una lista: un texto no vacío se envuelve en un elemento."""
-    if isinstance(value, str):
-        return [wrap(value)] if value.strip() else []
-    return value
-
-
-def _work_analysis(payload: dict) -> dict:
-    """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
-    source = payload.get("source", "")
-    reply_text = str(payload.get("draft_reply") or "").strip()
-    return {
-        "is_quote_request": payload["status"] != "Descartada",
-        "project_name": payload["project_name"],
-        "summary": payload.get("summary", ""),
-        "activities": _work_activities(payload),
-        "fields": payload.get("fields", []),
-        "other_questions": _list_or_wrapped(payload.get("missing_data", []), lambda text: text),
-        "scope_dependencies": _list_or_wrapped(payload.get("scope_dependencies", []), lambda text: {
-            "description": text, "source": source, "status": "pendiente"}),
-        "contradictions": _list_or_wrapped(payload.get("contradictions", []), lambda text: {
-            "topic": "dato técnico", "details": text, "sources": [], "status": "pendiente"}),
-        "attachments": _list_or_wrapped(payload.get("attachments", []), lambda text: {
-            "filename": text, "status": "registrado", "reason": "", "blocked_fields": []}),
-        "work_reply": ({"text": reply_text, "draft_id": str(payload.get("draft_id") or "")}
-                       if reply_text else {}),
-        "received_at": payload.get("received_at", ""),
-        "gmail_url": payload.get("gmail_url", ""),
-        "engine": payload.get("engine", ""),
-        "routing": {
-            "original_sender": payload.get("client_name", ""),
-            "original_sender_email": payload["client_email"],
-            "internal_forwarder": payload.get("internal_sender", ""),
-            "selected_recipient": payload.get("internal_sender") or payload["client_email"],
-            "is_forwarded": bool(payload.get("internal_sender")),
-        },
-    }
-
-
-def _internal_status(payload: dict, analysis: dict) -> str:
-    """Estado interno que corresponde al borrador de Work."""
-    status = _WORK_STATUS_MAP.get(payload["status"], payload["status"])
-    if status in (QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED
-                  ) and unresolved_scope_issues(analysis):
-        # Igual que el piloto de Python (decide_analysis): con dependencias o contradicciones
-        # pendientes el caso pasa a revisión técnica interna, donde una persona decide.
-        return QuoteStatus.REVIEW
-    return status
-
-
-def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analysis: dict) -> None:
-    """Guarda el análisis de Work respetando el control de cambios y sin hacer retroceder un caso avanzado."""
-    thread_id = payload["thread_id"]
-    message_id = payload.get("message_id") or thread_id
-    status = _internal_status(payload, analysis)
-    apply_guard(
-        db, thread_id, analysis, str(payload.get("requested_by_email") or ""),
-        str(payload.get("requested_by_name") or ""),
-        [str(code) for code in payload.get("cited_codes") or []], message_id,
-        str(payload.get("subject") or payload.get("project_name") or ""),
-        str(payload.get("summary") or "")[:160], "work")
-    row = db.execute(
-        "SELECT status, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)
-    ).fetchone()
-    reanalysis_of_same_message = bool(row) and row["last_inbound_id"] == message_id
-    protected = _DASHBOARD_PROTECTED if reanalysis_of_same_message else _DASHBOARD_PROTECTED - {
-        QuoteStatus.RESPONSE_SENT}
-    if row and row["status"] in protected:
-        # un caso ya avanzado en el dashboard no retrocede por un borrador posterior; solo una
-        # respuesta nueva del cliente puede mover un caso que estaba esperando su respuesta
-        status = row["status"]
-    save(db, thread_id, message_id, status,
-         payload.get("internal_sender") or payload["client_email"], analysis)
-    version = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
-    record_event(db, thread_id, "analysis", "work", version,
-                 f"Work analizó el caso: {payload['status']}.", payload.get("received_at", ""))
-    db.commit()
-
-
-def _commercial_metadata(payload: dict, saved: sqlite3.Row | None) -> tuple[str, str, str, str]:
-    """Datos comerciales del caso: lo que una persona ya fijó en el dashboard manda sobre el borrador de Work."""
-    client_type = payload.get("client_type", "No clasificado")
-    sector = payload.get("sector", "No clasificado")
-    if client_type not in CLIENT_TYPES:
-        client_type = "No clasificado"
-    if sector not in SECTORS:
-        sector = "No clasificado"
-    client_name = str(payload.get("client_name", "")).strip()
-    notes = str(payload.get("notes", "")).strip()
-    if saved:
-        if saved["client_type"] != "No clasificado":
-            client_type = saved["client_type"]
-        if saved["sector"] != "No clasificado":
-            sector = saved["sector"]
-        client_name = saved["client_name"] or client_name
-        notes = saved["notes"] or notes
-    return client_name, client_type, sector, notes
-
-
-def dashboard_upsert(payload_base64: str) -> None:
-    """Importa al dashboard el borrador de Work (JSON en base64): crea o actualiza el caso y sus datos comerciales."""
-    raw, payload = _decode_work_payload(payload_base64)
-    analysis = _work_analysis(payload)
-    thread_id = payload["thread_id"]
-    db = connect()
-    try:
-        _store_work_analysis(db, raw, payload, analysis)
-        saved = db.execute(
-            "SELECT client_type, sector, client_name, notes FROM quote_metadata WHERE thread_id=?",
-            (thread_id,),
-        ).fetchone()
-    finally:
-        db.close()
-    client_name, client_type, sector, notes = _commercial_metadata(payload, saved)
-    save_quote_metadata(thread_id, client_name, client_type, sector, notes)
 
 
 def thread_events(thread_id: str) -> list[dict]:

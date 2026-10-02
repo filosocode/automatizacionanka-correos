@@ -22,7 +22,8 @@ from anka.infra.modes import (
 )
 from anka.infra.logging_setup import configure_logging
 from anka.infra.settings import ACTIVE_MODES, load_config, unknown_config_keys
-from anka.servicios.quotes import dashboard_upsert, list_reviews
+from anka.servicios.quotes import list_reviews
+from anka.servicios.work_import import dashboard_upsert
 from anka.servicios.case_actions import approve_review
 from anka.servicios.pipeline import run, watch
 from anka.web.server import review_ui

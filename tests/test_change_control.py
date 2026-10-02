@@ -14,6 +14,7 @@ from anka.servicios import case_actions
 from anka.servicios import change_control
 from anka.servicios import gmail_followup
 from anka.servicios import quotes
+from anka.servicios import ediciones, work_import
 from anka.infra import settings
 from anka.web import server as web
 from anka.servicios.quotes import connect
@@ -52,7 +53,7 @@ class Base(unittest.TestCase):
         patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
         patcher.start()
         self.addCleanup(patcher.stop)
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             client_email="ana@acme.com", client_name="Ana", project_name="Llanos 8",
             received_at="2026-10-01T10:00:00-05:00"))))
         self.t0 = int(datetime.fromisoformat("2026-10-01T10:00:00-05:00").timestamp())
@@ -107,7 +108,7 @@ class LifecycleTests(Base):
 
     def test_code_cannot_be_reused_and_can_be_promoted(self):
         self.assign()
-        quotes.dashboard_upsert(b64(json.dumps(payload(thread="T2"))))
+        work_import.dashboard_upsert(b64(json.dumps(payload(thread="T2"))))
         with self.assertRaises(ValueError):
             change_control.assign_code("T2", "T&E26145")
         change_control.promote_to_te("T1")
@@ -235,7 +236,7 @@ class EvidenceTests(Base):
         self.assertIn("deleted", {e["kind"] for e in quotes.thread_events("T1")})
 
     def test_person_actions_are_recorded(self):
-        quotes.save_activities("T1", [{"activity": "a"}])
+        ediciones.save_activities("T1", [{"activity": "a"}])
         kinds = {e["kind"] for e in quotes.thread_events("T1")}
         self.assertIn("table_edit", kinds)
 
@@ -252,18 +253,18 @@ class VersionTests(Base):
     """El comercial edita la tabla: queda historial con diferencias, sin correos ni validaciones."""
 
     def edit(self, rows, reason=""):
-        return quotes.save_activities("T1", rows, reason)
+        return ediciones.save_activities("T1", rows, reason)
 
     def test_totals_parser_handles_spanish_numbers_and_compound_units(self):
         rows = [{"quantity": "544,5", "unit": "ha"}, {"quantity": "61 ha / 12,209 km", "unit": "ha / km"},
                 {"quantity": "1.250", "unit": "m"}]
-        self.assertEqual(quotes.activity_totals(rows), {"ha": 605.5, "km": 12.209, "m": 1250.0})
+        self.assertEqual(ediciones.activity_totals(rows), {"ha": 605.5, "km": 12.209, "m": 1250.0})
 
     def test_first_edit_keeps_the_model_table_and_describes_what_changed(self):
-        quotes.save_activities("T1", [{"activity": "a", "quantity": "10", "unit": "ha"},
+        ediciones.save_activities("T1", [{"activity": "a", "quantity": "10", "unit": "ha"},
                                       {"activity": "b", "quantity": "5", "unit": "km"}])
         message = self.edit([{"activity": "a", "quantity": "8", "unit": "ha"}, {"activity": "c"}], "redundante")
-        versions = quotes.table_versions("T1")
+        versions = ediciones.table_versions("T1")
         self.assertEqual([v["source"] for v in versions], ["model", "dashboard", "dashboard"])
         self.assertIn("+1 fila(s): c", message)
         self.assertIn("−1 fila(s): b", message)
@@ -275,7 +276,7 @@ class VersionTests(Base):
 
     def test_unknown_reason_is_ignored_and_reason_is_optional(self):
         self.edit([{"activity": "a"}], "cualquier cosa")
-        self.assertEqual(quotes.table_versions("T1")[-1]["reason"], "")
+        self.assertEqual(ediciones.table_versions("T1")[-1]["reason"], "")
 
     def test_internal_edits_send_nothing_and_ask_for_nothing(self):
         self.assign()
@@ -288,17 +289,17 @@ class VersionTests(Base):
         self.assertIn("table_edit", kinds)
 
     def test_model_updates_are_versioned_but_never_override_a_manual_table(self):
-        quotes.dashboard_upsert(b64(json.dumps(payload(message="m2", activities=[{"activity": "z"}]))))
-        self.assertEqual([v["source"] for v in quotes.table_versions("T1")], ["model", "model"])
+        work_import.dashboard_upsert(b64(json.dumps(payload(message="m2", activities=[{"activity": "z"}]))))
+        self.assertEqual([v["source"] for v in ediciones.table_versions("T1")], ["model", "model"])
         self.edit([{"activity": "mía"}])
-        quotes.dashboard_upsert(b64(json.dumps(payload(message="m3", activities=[{"activity": "otra"}]))))
-        self.assertEqual(quotes.table_versions("T1")[-1]["source"], "dashboard")  # la propuesta no versiona
+        work_import.dashboard_upsert(b64(json.dumps(payload(message="m3", activities=[{"activity": "otra"}]))))
+        self.assertEqual(ediciones.table_versions("T1")[-1]["source"], "dashboard")  # la propuesta no versiona
 
     def test_adopting_the_proposal_is_a_version(self):
         self.edit([{"activity": "mía"}])
-        quotes.dashboard_upsert(b64(json.dumps(payload(message="m3", activities=[{"activity": "otra"}]))))
+        work_import.dashboard_upsert(b64(json.dumps(payload(message="m3", activities=[{"activity": "otra"}]))))
         quotes.resolve_model_proposal("T1", use_proposal=True)
-        self.assertIn("propuesta", quotes.table_versions("T1")[-1]["summary"])
+        self.assertIn("propuesta", ediciones.table_versions("T1")[-1]["summary"])
 
     def test_optional_notice_to_client_is_offered_and_remembered(self):
         self.edit([{"activity": "a"}])
@@ -344,7 +345,7 @@ class TechnicalReviewFlowTests(Base):
     """Un caso de Work con dependencias pendientes no puede quedar bloqueado sin salida."""
 
     def upsert_with_dependency(self, thread="T9", status="Faltan datos"):
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             thread=thread, status=status, scope_dependencies=[
                 {"description": "Validar la geometría del KML", "source": "a.kml", "status": "pendiente"}]))))
 
@@ -386,7 +387,7 @@ class TechnicalReviewFlowTests(Base):
         self.assertIn("Confirmamos que la hemos recibido", acuse)     # el acuse sigue disponible
 
     def test_a_case_with_questions_still_gets_the_suggested_text(self):
-        quotes.dashboard_upsert(b64(json.dumps(payload(thread="T8", missing_data=["Crítico: plano del predio"]))))
+        work_import.dashboard_upsert(b64(json.dumps(payload(thread="T8", missing_data=["Crítico: plano del predio"]))))
         with patch("anka.web.server.load_config", return_value={"active_mode": "chatgpt_work",
                                                     "required_fields": ["ubicación"]}):
             page = web._render_case("T8")
@@ -404,7 +405,7 @@ class WorkDraftTests(Base):
     """El borrador que deja Work aparece en el dashboard y se consume al enviar."""
 
     def work_case(self, thread="W1", **extra):
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             thread=thread, status="Faltan datos", draft_reply="Hola Ana,\n\n¿Podría confirmar el datum?\n\nSaludos",
             draft_id="D-work", missing_data=["Crítico: confirmar el datum.", "Crítico interno: revisar el KML.",
                                               "Recomendable: confirmar fecha de inicio."], **extra))))
@@ -511,7 +512,7 @@ class RowStateAndStatusFlowTests(Base):
         self.assertEqual(set(cases.values()), set(ESTADOS))
 
     def test_work_rows_with_free_text_states_arrive_normalized(self):
-        quotes.dashboard_upsert(b64(json.dumps(payload(thread="E1", activities=[
+        work_import.dashboard_upsert(b64(json.dumps(payload(thread="E1", activities=[
             {"activity": "a", "estado": "confirmado en fuentes; revisión pendiente"},
             {"activity": "b", "estado": "confirmado"}]))))
         states = [r["estado"] for r in quotes.get_quote("E1")["analysis"]["activities"]]
@@ -531,17 +532,17 @@ class RowStateAndStatusFlowTests(Base):
 
     def test_a_new_client_message_moves_a_case_that_was_waiting_after_our_reply(self):
         self.set_status(QuoteStatus.RESPONSE_SENT)
-        quotes.dashboard_upsert(b64(json.dumps(payload(message="m2", status="Alcance completo"))))
+        work_import.dashboard_upsert(b64(json.dumps(payload(message="m2", status="Alcance completo"))))
         self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.READY_REVIEW)
 
     def test_re_analysing_the_same_message_does_not_move_a_sent_case(self):
         self.set_status(QuoteStatus.RESPONSE_SENT)
-        quotes.dashboard_upsert(b64(json.dumps(payload(message="m1", status="Alcance completo"))))
+        work_import.dashboard_upsert(b64(json.dumps(payload(message="m1", status="Alcance completo"))))
         self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.RESPONSE_SENT)
 
     def test_closed_cases_are_still_protected_from_new_drafts(self):
         self.set_status(QuoteStatus.READY)
-        quotes.dashboard_upsert(b64(json.dumps(payload(message="m2", status="Faltan datos"))))
+        work_import.dashboard_upsert(b64(json.dumps(payload(message="m2", status="Faltan datos"))))
         self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.READY)
 
 
@@ -568,7 +569,7 @@ class GuidedFlowTests(Base):
         self.assertIn("Información validada: puedes emitir la T", page)    # el aviso de arriba lo guía
 
     def test_a_manual_sufficient_decision_also_validates(self):
-        quotes.dashboard_upsert(b64(json.dumps(payload(
+        work_import.dashboard_upsert(b64(json.dumps(payload(
             thread="T5", scope_dependencies=[{"description": "KML", "source": "a", "status": "pendiente"}]))))
         self.assertNotIn("Emitir la T", self.page("T5"))
         quotes.resolve_technical_review("T5", "sufficient")
@@ -667,7 +668,7 @@ class UxFixesTests(Base):
         self.assertEqual(self.stage(), ("Cambio por revisar", True))      # lo urgente gana a la etapa
 
     def test_the_list_shows_the_stage_and_puts_cases_that_need_action_first(self):
-        quotes.dashboard_upsert(b64(json.dumps(payload(thread="T2", message="mx"))))
+        work_import.dashboard_upsert(b64(json.dumps(payload(thread="T2", message="mx"))))
         self.set_status(QuoteStatus.WAITING)                              # T1 espera al cliente
         db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T2'", (QuoteStatus.REVIEW_PENDING,))

@@ -47,7 +47,8 @@ from anka.servicios.change_control import (
     suggest_number,
 )
 from anka.servicios.gmail_followup import case_contacts
-from anka.servicios.quotes import EDIT_REASONS, case_conversation, archived_threads, last_manual_version, table_versions, case_change_log, chain_status, case_has_links, case_people, reason_label, resolve_link, ago_text, change_marker, minutes_since, REPLY_OVERDUE_MINUTES, resolve_model_proposal, CLIENT_TYPES, resolve_technical_review, discarded_quotes, rescue_discarded, SECTORS, STATUS_LABELS, all_quotes, get_quote, thread_events, mark_notifications_read, save_activities, save_quote_metadata, unread_notifications
+from anka.servicios.quotes import case_conversation, archived_threads, case_change_log, chain_status, case_has_links, case_people, reason_label, resolve_link, ago_text, change_marker, minutes_since, REPLY_OVERDUE_MINUTES, resolve_model_proposal, CLIENT_TYPES, resolve_technical_review, discarded_quotes, rescue_discarded, SECTORS, STATUS_LABELS, all_quotes, get_quote, thread_events, mark_notifications_read, save_quote_metadata, unread_notifications
+from anka.servicios.ediciones import EDIT_REASONS, last_manual_version, table_versions, save_activities
 
 log = get_logger(__name__)
 
