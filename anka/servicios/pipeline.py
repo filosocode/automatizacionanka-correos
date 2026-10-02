@@ -70,6 +70,7 @@ def _quote_snapshot() -> dict[str, tuple]:
 
 
 def read_last_check() -> dict | None:
+    """Resultado de la última revisión de Gmail, o `None`."""
     try:
         return json.loads((settings.DATA_DIR / LAST_CHECK_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -116,6 +117,7 @@ def _ago(iso: str) -> str:
 
 
 def latest_case_activity() -> str:
+    """Marca de tiempo de la actividad más reciente de cualquier caso."""
     db = connect()
     try:
         row = db.execute(
@@ -126,6 +128,7 @@ def latest_case_activity() -> str:
 
 
 def describe_check(result: dict) -> str:
+    """Frase que cuenta cómo salió la última revisión de Gmail."""
     when = result["at"][11:19]
     if result.get("error"):
         return f"La revisión de las {when} falló: {result['error']}"
@@ -136,6 +139,7 @@ def describe_check(result: dict) -> str:
 
 
 def sync_status_text() -> str:
+    """Texto del estado de la sincronización según el modo activo."""
     try:
         mode = load_config().get("active_mode", "local")
     except SystemExit:
@@ -284,6 +288,7 @@ def decide_analysis(
 
 @dataclass
 class RunContext:
+    """Lo que comparte el procesamiento de un hilo: configuración, Gmail, Drive, base y direcciones propias."""
     config: dict
     gmail: object
     drive: object
@@ -433,6 +438,7 @@ def _rescued(row: Sequence[Any] | None) -> bool:
 
 
 def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
+    """Decide y aplica qué hacer con un hilo: descartar, pedir datos, dejar para revisión o crear la carpeta."""
     config = ctx.config
     inbound = inbound_messages(thread, ctx.account_addresses)
     if not inbound:
@@ -488,6 +494,7 @@ def process_thread(ctx: RunContext, thread_id: str, thread: dict) -> None:
 
 
 def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> None:
+    """Revisa Gmail una vez: simula, o con `apply` guarda para revisión (y envía o crea carpetas si no es `review_only`)."""
     config = load_config()
     ensure_local_or_api_mode(config)
     if review_only and not apply:
@@ -540,6 +547,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
 
 
 def watch(apply: bool, review_only: bool, seconds: int, gmail_drafts: bool = False) -> None:
+    """Repite `run` cada N segundos hasta Ctrl+C."""
     if seconds < 30:
         raise SystemExit("--watch-seconds debe ser de al menos 30 segundos.")
     log.info("Vigilando Gmail cada %s segundos. Presiona Ctrl+C para detener.", seconds)

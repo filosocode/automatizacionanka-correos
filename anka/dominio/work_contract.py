@@ -22,6 +22,7 @@ _TYPES: dict[str, type | tuple[type, ...]] = {
 
 @lru_cache(maxsize=1)
 def load_schema() -> dict:
+    """Carga el esquema JSON del contrato con Work (`spec/contrato_work.schema.json`)."""
     return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 

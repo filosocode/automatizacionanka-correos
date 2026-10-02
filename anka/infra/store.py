@@ -185,6 +185,7 @@ def add_table_version(db: sqlite3.Connection, thread_id: str, activities: list, 
 
 
 def latest_table_version(db: sqlite3.Connection, thread_id: str) -> sqlite3.Row | None:
+    """Última versión guardada de la tabla de actividades del caso, o `None`."""
     return db.execute("SELECT * FROM table_versions WHERE thread_id=? ORDER BY version DESC LIMIT 1",
                       (thread_id,)).fetchone()
 
@@ -206,6 +207,7 @@ def _migration_8_case_messages(db: sqlite3.Connection) -> None:
 
 def add_message(db: sqlite3.Connection, thread_id: str, message_id: str, direction: str, sender: str,
                 subject: str, body: str, occurred_at: str) -> None:
+    """Guarda un mensaje del hilo (entrante o saliente); no duplica uno ya guardado."""
     db.execute(
         """INSERT OR IGNORE INTO case_messages
            (thread_id, message_id, direction, sender, subject, body, occurred_at)
@@ -308,6 +310,7 @@ def connect() -> sqlite3.Connection:
 
 
 def open_db(data_dir: Path) -> sqlite3.Connection:
+    """Abre (y migra si hace falta) la base SQLite de una carpeta de datos."""
     data_dir.mkdir(parents=True, exist_ok=True)
     db_path = data_dir / "quotes.sqlite3"
     db = sqlite3.connect(db_path)
@@ -324,6 +327,7 @@ def open_db(data_dir: Path) -> sqlite3.Connection:
 
 def add_dashboard_notification(db: sqlite3.Connection, thread_id: str, kind: str,
                                source_key: str, title: str, message: str) -> None:
+    """Crea una novedad para el dashboard; la misma `source_key` no se repite."""
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     db.execute("""INSERT OR IGNORE INTO dashboard_notifications
                   (thread_id, kind, source_key, title, message, created_at)
@@ -392,6 +396,7 @@ def register_change(db: sqlite3.Connection, thread_id: str, message_id: str, sen
 
 
 def case_events(db: sqlite3.Connection, thread_id: str) -> list[sqlite3.Row]:
+    """Seguimiento del caso en orden cronológico."""
     return db.execute(
         "SELECT kind, source, ref, summary, occurred_at, actor_email, actor_name, hash FROM case_events "
         "WHERE thread_id=? ORDER BY occurred_at, id", (thread_id,)).fetchall()
@@ -400,6 +405,7 @@ def case_events(db: sqlite3.Connection, thread_id: str) -> list[sqlite3.Row]:
 def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, recipient: str,
          analysis: dict, folder_id: str | None = None,
          sent_message_id: str | None = None) -> None:
+    """Crea o actualiza el caso (estado, destinatario y análisis) conservando lo que ya tenía, como la fecha de primera vista."""
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     received_at = analysis.get("received_at") or now
     previous = db.execute(

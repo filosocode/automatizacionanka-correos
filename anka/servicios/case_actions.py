@@ -35,6 +35,7 @@ log = get_logger(__name__)
 
 
 def resolve_case_recipient(thread_id: str) -> dict:
+    """Confirma en Gmail el destinatario real de un caso cuyo correo no se pudo leer y lo guarda."""
     quote = get_quote(thread_id)
     if not quote:
         raise ValueError("La solicitud ya no existe.")
@@ -68,6 +69,7 @@ def resolve_case_recipient(thread_id: str) -> dict:
 
 
 def case_email_context(thread_id: str) -> tuple[dict, Any, dict, set[str]]:
+    """Reúne lo necesario para escribir al cliente: caso, Gmail, hilo y direcciones propias; falla si el caso ya no admite correo."""
     quote = get_quote(thread_id)
     if not quote:
         raise ValueError("La solicitud ya no existe.")
@@ -93,6 +95,7 @@ def _recipient(thread_id: str, quote: dict, to: str) -> str:
 
 
 def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
+    """Guarda como borrador de Gmail el texto escrito en el dashboard, sin enviarlo."""
     body = body.strip()
     if not body:
         raise ValueError("El borrador no puede estar vacío.")
@@ -150,6 +153,7 @@ def _already_sent(quote: dict, body: str, recipient: str) -> str:
 
 def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int = 0,
                          purpose: str = "") -> str:
+    """Envía al cliente el correo escrito en el dashboard (una persona ya lo revisó) y deja constancia; rechaza un reenvío idéntico reciente."""
     body = body.strip()
     if not body:
         raise ValueError("El correo no puede estar vacío.")

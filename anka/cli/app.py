@@ -1,4 +1,9 @@
-"""Procesa solicitudes de cotización de Gmail y crea carpetas en Drive."""
+"""Línea de comandos de Anka: `python app.py <comando>`.
+
+Comandos: auth, drive-tree, mode / set-mode, run (revisar Gmail), reviews / approve, review-ui (dashboard),
+analyze-text (probar el modelo) y dashboard-upsert (importar un borrador de Work). Cada comando es una función
+`_cmd_*` registrada en `COMMANDS`; el trabajo real vive en `anka.servicios` y `anka.infra`.
+"""
 
 from __future__ import annotations
 
@@ -416,6 +421,7 @@ COMMANDS = {
 
 
 def main() -> None:
+    """Punto de entrada de la línea de comandos: lee el comando y ejecuta su función de `COMMANDS`."""
     parser = build_parser()
     args = parser.parse_args()
     configure_logging()

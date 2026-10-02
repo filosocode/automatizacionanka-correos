@@ -21,6 +21,7 @@ ACTIVITY_TABLE_KEYS = (
 
 
 def mode_selector(current: str | None, api_key_set: bool = True) -> Markup:
+    """Selector de modo de operación; avisa si falta la clave de la API."""
     labels = dict(MODE_LABELS)
     if not api_key_set:
         labels["api"] += " (sin clave)"
@@ -29,6 +30,7 @@ def mode_selector(current: str | None, api_key_set: bool = True) -> Markup:
 
 def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
                 mode: str | None = None, api_key_set: bool = True) -> str:
+    """Página completa: encabezado, avisos, selector de modo y el contenido recibido."""
     return str(render(
         "layout.html", title=title, body=body, message=message, unread_count=unread_count,
         mode_selector=mode_selector(mode, api_key_set), is_work=(mode == "chatgpt_work"),
@@ -36,6 +38,7 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
 
 
 def metric_rows(counter: Counter, color: str = "") -> Markup:
+    """Filas de barras con las seis etiquetas más frecuentes de un contador."""
     rows = []
     if counter:
         maximum = max(counter.values()) or 1
@@ -50,6 +53,7 @@ def _activities_table(activities: list[dict]) -> Markup:
 
 
 def attachments_table(attachments: list[dict]) -> Markup:
+    """Tabla de adjuntos con su estado, el motivo si no se leyó y los datos que no se pudieron confirmar."""
     rows = [
         (
             str(item.get("filename") or ""),
@@ -63,6 +67,7 @@ def attachments_table(attachments: list[dict]) -> Markup:
 
 
 def reception_assessment_panel(assessment: dict) -> Markup:
+    """Panel con la evaluación de recepción: etiqueta, familia de servicio y motivo."""
     status_class = {
         "needs_client_information": "warn",
         "technical_review": "info",

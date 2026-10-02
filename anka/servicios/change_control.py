@@ -41,6 +41,7 @@ CONSUMER_DOMAINS = frozenset({
 
 
 def domain_of(address: str) -> str:
+    """Dominio de una dirección de correo (después de la @), en minúsculas."""
     return address.rsplit("@", 1)[-1].strip().casefold() if "@" in address else ""
 
 
@@ -88,6 +89,7 @@ def find_codes(text: str) -> set[str]:
 
 
 def code_label(number: str, stage: str) -> str:
+    """Código tal como se muestra: «T26145» o, si ya fue aprobada, «T&E26145»."""
     return f"T&E{number}" if stage == "TE" else f"T{number}"
 
 

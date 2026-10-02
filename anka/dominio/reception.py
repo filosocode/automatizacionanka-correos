@@ -10,6 +10,7 @@ from anka.dominio.correo import attachment_names, header, message_datetime, mess
 
 
 def normalized_text(value: str) -> str:
+    """Texto en minúsculas y sin tildes, para comparar sin que las mayúsculas o los acentos importen."""
     value = "".join(c for c in unicodedata.normalize("NFD", value.casefold())
                     if unicodedata.category(c) != "Mn")
     return value
@@ -86,6 +87,7 @@ def mentions_commercial_terms(
 
 
 def missing_questions(analysis: dict, required_fields: list[str]) -> list[str]:
+    """Preguntas para los datos obligatorios que faltan, más las otras dudas que detectó el análisis."""
     values = {item["name"].casefold(): item["value"].strip()
               for item in analysis["fields"]}
     missing = [name for name in required_fields if not values.get(name.casefold())]
@@ -206,6 +208,7 @@ def reception_assessment(analysis: dict) -> dict:
 
 
 def reception_questions(analysis: dict, required_fields: list[str] | None = None) -> list[str]:
+    """Preguntas que se le hacen al cliente según la evaluación de recepción (ninguna si va a revisión técnica)."""
     assessment = reception_assessment(analysis)
     if assessment["status"] == "technical_review":
         return []
@@ -215,6 +218,7 @@ def reception_questions(analysis: dict, required_fields: list[str] | None = None
 def attachment_report(
     attachments: list[dict], analysis: dict, required_fields: list[str]
 ) -> list[dict]:
+    """Estado de cada adjunto y qué datos obligatorios no se pudieron confirmar por no poder leerlo."""
     values = {
         item.get("name", "").casefold(): item.get("value", "").strip()
         for item in analysis.get("fields", [])
@@ -231,6 +235,7 @@ def attachment_report(
 
 
 def blank_analysis(summary: str = "") -> dict:
+    """Análisis vacío de una solicitud que no lo es (o que no se pudo analizar)."""
     return {
         "is_quote_request": False,
         "project_name": "",
@@ -244,6 +249,7 @@ def blank_analysis(summary: str = "") -> dict:
 
 
 def unresolved_scope_issues(analysis: dict) -> list[str]:
+    """Dependencias de alcance y contradicciones que siguen pendientes (lo que manda un caso a revisión técnica)."""
     issues = []
     for dependency in analysis.get("scope_dependencies", []):
         if dependency.get("status") == "pendiente":
@@ -269,6 +275,7 @@ def _question_repeats_field(question: str, field: str) -> bool:
 
 
 def question_email(questions: list[str], forwarded: bool = False) -> str:
+    """Correo al cliente con las preguntas numeradas, en el tono de un reenvío o de un mensaje directo."""
     items = "\n".join(f"{i}. {question}" for i, question in enumerate(questions, 1))
     opening = (
         "Gracias por compartir la solicitud. Para completar la información inicial, "
@@ -282,6 +289,7 @@ def question_email(questions: list[str], forwarded: bool = False) -> str:
 
 
 def review_note(analysis: dict, questions: list[str], source_message: dict | None = None) -> str:
+    """Nota interna para quien revisa el borrador: resumen de actividades, preguntas y origen del correo."""
     activities = analysis.get("activities", [])
     activity_lines = [
         f"- {item.get('activity') or 'Actividad'}: "
@@ -335,10 +343,12 @@ def review_note(analysis: dict, questions: list[str], source_message: dict | Non
 def draft_body_with_review_note(
     analysis: dict, questions: list[str], body: str, source_message: dict | None = None
 ) -> str:
+    """Cuerpo del borrador de Gmail: la nota de revisión (a borrar antes de enviar) seguida del correo al cliente."""
     return review_note(analysis, questions, source_message) + body
 
 
 def suggested_supporting_documents(analysis: dict) -> list[str]:
+    """Documentos de soporte que conviene pedir según lo que el cliente ya adjuntó."""
     attachments = [
         item for item in analysis.get("attachments", [])
         if isinstance(item, dict) and item.get("status") != "ignorado"
@@ -379,6 +389,7 @@ def suggested_supporting_documents(analysis: dict) -> list[str]:
 
 
 def suggested_reply(analysis: dict, required_fields: list[str] | None = None) -> str:
+    """Texto sugerido para responder al cliente: las preguntas pendientes o, si no hay, un acuse de recibo."""
     questions = reception_questions(analysis, required_fields or [])
     questions += (analysis.get("manual_review") or {}).get("questions", [])
     documents = suggested_supporting_documents(analysis)
@@ -425,6 +436,7 @@ def suggested_reply(analysis: dict, required_fields: list[str] | None = None) ->
 
 
 def safe_folder_name(project: str, thread_id: str, prefix: str) -> str:
+    """Nombre de carpeta de la solicitud: prefijo, proyecto sin caracteres no válidos y final del id del hilo."""
     clean = re.sub(r'[\\/:*?"<>|\x00-\x1f]', " ", project).strip(" .")
     clean = re.sub(r"\s+", " ", clean)[:90] or "Sin nombre"
     return f"{prefix} - {clean} - {thread_id[-8:]}"

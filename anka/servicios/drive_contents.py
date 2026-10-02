@@ -38,12 +38,14 @@ XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 @dataclass
 class ContentReport:
+    """Qué hizo el llenado de la carpeta del proyecto: archivos copiados, ya existentes, fallidos y estado de la tabla."""
     copied: list[str] = field(default_factory=list)
     existing: list[str] = field(default_factory=list)
     failed: list[str] = field(default_factory=list)
     table: str = ""  # "creada", "ya existía" o "error"
 
     def summary(self) -> str:
+        """Resumen en una frase de lo que se copió y creó."""
         parts = []
         if self.copied:
             parts.append(f"copié {len(self.copied)} archivo(s) del cliente")

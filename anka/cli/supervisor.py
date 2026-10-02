@@ -63,6 +63,7 @@ def old_instances(own_pid: int) -> list[int]:
 
 
 def stop_old_instances() -> int:
+    """Cierra los lanzadores, dashboards y puentes que quedaron de una ejecución anterior; devuelve cuántos cerró."""
     pids = [pid for pid in old_instances(os.getpid()) if pid != os.getppid()]
     for pid in pids:
         subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
@@ -73,6 +74,7 @@ def stop_old_instances() -> int:
 
 
 def work_mode() -> bool:
+    """¿Está activo el modo ChatGPT Work? (solo en ese modo hace falta el puente de borradores)."""
     try:
         return settings.load_config().get("active_mode") == "chatgpt_work"
     except (SystemExit, OSError, ValueError):
@@ -80,6 +82,7 @@ def work_mode() -> bool:
 
 
 class Child:
+    """Un proceso hijo vigilado: se inicia, se detiene y se reinicia con espera creciente si falla."""
     def __init__(self, name: str, args: list[str]):
         self.name, self.args = name, args
         self.process: subprocess.Popen | None = None
@@ -89,6 +92,7 @@ class Child:
         self.stopped = False   # salió pidiendo no reiniciar
 
     def start(self) -> None:
+        """Lanza el proceso hijo (sin ventana si el lanzador arrancó con Windows)."""
         self.process = subprocess.Popen(
             [CHILD_PYTHON, *self.args], cwd=ROOT,
             creationflags=0x08000000 if sys.stdout is None else 0)  # sin ventana si arranca con Windows
@@ -96,6 +100,7 @@ class Child:
         log.info("%s iniciado (PID %s)", self.name, self.process.pid)
 
     def stop(self) -> None:
+        """Termina el proceso hijo y sus procesos descendientes."""
         if self.process and self.process.poll() is None:
             subprocess.run(["taskkill", "/PID", str(self.process.pid), "/T", "/F"], capture_output=True)
         self.process = None
@@ -125,6 +130,7 @@ class Child:
 
 
 def main() -> None:
+    """Arranca el dashboard y, en modo Work, el puente; los reinicia si se caen o si cambia el código, y hace la copia diaria."""
     configure_logging(console=sys.stdout is not None)
     stop_old_instances()
     dashboard = Child("Dashboard", ["app.py", "review-ui", "--no-browser"])

@@ -115,6 +115,7 @@ def check_ollama(llm: dict, timeout: float = 3.0) -> None:
 def analysis_prompt(
     messages: list[dict], required_fields: list[str], attachments: list[dict] | None = None
 ) -> str:
+    """Instrucciones y conversación que se le entregan al modelo para analizar la solicitud."""
     conversation = []
     for message in messages:
         conversation.append(
@@ -193,6 +194,7 @@ def analyze(
 
 
 def explicit_quote_request(messages: list[dict]) -> bool:
+    """¿Algún mensaje pide una cotización con palabras inequívocas («solicito… cotización»)?"""
     pattern = re.compile(
         r"\b(?:solicito|solicitamos|necesito|necesitamos|queremos|requerimos)\b"
         r".{0,90}\b(?:cotizaci[oó]n|cotizar|presupuesto)\b",
@@ -202,6 +204,7 @@ def explicit_quote_request(messages: list[dict]) -> bool:
 
 
 def analyze_openai(prompt: str, llm: dict) -> dict:
+    """Analiza el correo con la API de OpenAI (requiere OPENAI_API_KEY) y devuelve el JSON del análisis."""
     from openai import OpenAI
 
     if not os.getenv("OPENAI_API_KEY"):
@@ -219,6 +222,7 @@ def analyze_openai(prompt: str, llm: dict) -> dict:
 
 
 def analyze_ollama(prompt: str, llm: dict) -> dict:
+    """Analiza el correo con el modelo local de Ollama y devuelve el JSON del análisis."""
     payload = json.dumps({
         "model": llm.get("model", "qwen2.5:7b"),
         "prompt": prompt,

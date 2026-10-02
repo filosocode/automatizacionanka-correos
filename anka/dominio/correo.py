@@ -59,6 +59,7 @@ def message_text(payload: dict) -> str:
 
 
 def has_attachments(payload: dict) -> bool:
+    """¿El mensaje (o alguna de sus partes) trae archivos adjuntos?"""
     if payload.get("filename") or payload.get("body", {}).get("attachmentId"):
         return True
     return any(has_attachments(part) for part in payload.get("parts", []))
@@ -118,10 +119,12 @@ def message_datetime(message: dict) -> str:
 
 
 def normalized_address(value: str) -> str:
+    """Dirección de correo en minúsculas y sin el nombre, para compararla."""
     return parseaddr(value)[1].strip().casefold()
 
 
 def valid_email_address(value: str) -> bool:
+    """¿Parece una dirección de correo completa (usuario@dominio.ext)?"""
     address = parseaddr(value or "")[1]
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", address))
 

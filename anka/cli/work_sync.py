@@ -22,6 +22,7 @@ EXIT_STOP = 2  # el .bat no reinicia con este código
 DEFAULT_ACCOUNT = "ankacomercialia@gmail.com"
 
 def body_text(part: dict) -> list[str]:
+    """Textos (plano o HTML) de un mensaje de Gmail y de sus partes anidadas."""
     values: list[str] = []
     data = part.get("body", {}).get("data")
     if data and part.get("mimeType") in ("text/plain", "text/html"):
@@ -35,6 +36,7 @@ def body_text(part: dict) -> list[str]:
     return values
 
 def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
+    """Saca el bloque JSON de Anka del borrador de Work y el borrador que lo contiene; `None` si no hay uno válido al inicio."""
     for text in body_text(message.get("payload", {})):
         if START not in text:
             continue
@@ -133,6 +135,7 @@ def fatal(message: str) -> NoReturn:
 
 
 def main() -> None:
+    """Importa los borradores de Work al dashboard una vez (`--once`) o cada N segundos, solo leyendo Gmail."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--seconds", type=int, default=60)

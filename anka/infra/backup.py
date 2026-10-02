@@ -31,6 +31,7 @@ EXTRA_FILES = ("config.json", "work_dashboard_sync_state.json")
 
 
 def backups_dir() -> Path:
+    """Carpeta local donde se guardan las copias de seguridad."""
     return settings.DATA_DIR / "backups"
 
 
@@ -59,6 +60,7 @@ def create_backup() -> Path:
 
 
 def prune_local(keep: int = KEEP) -> list[Path]:
+    """Borra las copias locales más antiguas y deja las `keep` más recientes; devuelve las borradas."""
     files = sorted(backups_dir().glob(f"{PREFIX}*.zip"))
     old = files[:-keep] if keep else files
     for path in old:
@@ -152,6 +154,7 @@ def restore(archive_path: Path) -> Path:
 
 
 def main() -> None:
+    """Comando de copias: crea una copia (local y en Drive) o restaura una con `--restore`."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--no-drive", action="store_true")
     parser.add_argument("--restore", metavar="ZIP")

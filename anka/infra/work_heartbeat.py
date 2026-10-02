@@ -35,6 +35,7 @@ def write_heartbeat(interval: int, drafts: int = 0, updated: int = 0, failures: 
 
 
 def read_heartbeat() -> dict | None:
+    """Última señal de vida del puente, o `None` si no hay o está dañada."""
     try:
         data = json.loads((settings.DATA_DIR / HEARTBEAT_FILE).read_text(encoding="utf-8"))
         datetime.fromisoformat(data["at"])
@@ -44,6 +45,7 @@ def read_heartbeat() -> dict | None:
 
 
 def pid_alive(pid: int) -> bool:
+    """¿Sigue vivo el proceso con ese PID?"""
     if pid <= 0:
         return False
     if sys.platform == "win32":

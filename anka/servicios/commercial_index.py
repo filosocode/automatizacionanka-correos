@@ -80,26 +80,31 @@ REQUIREMENT_RULES = {
 
 
 def normalize(value: str) -> str:
+    """Texto en minúsculas, sin tildes y con espacios simples, para comparar."""
     value = unicodedata.normalize("NFKD", value or "")
     return " ".join("".join(ch for ch in value if not unicodedata.combining(ch)).casefold().split())
 
 
 def is_sensitive(path: Path) -> bool:
+    """¿La ruta pertenece a documentos sensibles (personal, nómina…) que nunca se leen?"""
     text = normalize(" / ".join(path.parts))
     return any(marker in text for marker in SENSITIVE_PARTS)
 
 
 def matched_labels(text: str, rules: dict[str, tuple[str, ...]]) -> list[str]:
+    """Etiquetas cuyas palabras clave aparecen en el texto."""
     normalized = normalize(text)
     return [label for label, terms in rules.items() if any(normalize(term) in normalized for term in terms)]
 
 
 def is_request_document(path: Path) -> bool:
+    """¿Es un PDF o Word cuyo nombre indica una solicitud de cliente?"""
     name = normalize(path.name)
     return path.suffix.casefold() in {".pdf", ".docx"} and any(marker in name for marker in REQUEST_MARKERS)
 
 
 def is_commercial_source(path: Path) -> bool:
+    """¿Es un documento comercial (oferta, cotización…) por su nombre y extensión?"""
     name = normalize(path.name)
     return path.suffix.casefold() in {".pdf", ".docx", ".xlsx", ".xls"} and any(
         marker in name for marker in COMMERCIAL_MARKERS
@@ -107,6 +112,7 @@ def is_commercial_source(path: Path) -> bool:
 
 
 def extract_docx_text(path: Path) -> str:
+    """Texto de un Word, o vacío si no se puede leer."""
     try:
         with zipfile.ZipFile(path) as archive:
             data = archive.read("word/document.xml")
@@ -117,6 +123,7 @@ def extract_docx_text(path: Path) -> str:
 
 
 def extract_pdf_text(path: Path) -> str:
+    """Texto de un PDF, o vacío si es muy grande o no se puede leer."""
     if path.stat().st_size > MAX_PDF_BYTES:
         return ""
     try:
@@ -128,6 +135,7 @@ def extract_pdf_text(path: Path) -> str:
 
 
 def extract_request_text(path: Path) -> str:
+    """Texto de un documento de solicitud (Word o PDF)."""
     if path.suffix.casefold() == ".docx":
         return extract_docx_text(path)
     if path.suffix.casefold() == ".pdf":
@@ -136,6 +144,7 @@ def extract_request_text(path: Path) -> str:
 
 
 def inferred_company_type(client_name: str) -> tuple[str, str]:
+    """Tipo de empresa deducido del nombre del cliente y qué tan seguro es."""
     labels = matched_labels(client_name, COMPANY_RULES)
     if labels:
         return labels[0], "media"
@@ -174,6 +183,7 @@ def _scan_client_files(client_dir: Path, source: Path, profile: dict, global_pro
 
 
 def build_index(source: Path) -> dict:
+    """Recorre el archivo histórico (solo lectura) y arma el índice comercial por cliente, sin guardar texto ni precios."""
     if not source.exists():
         raise FileNotFoundError(f"No existe la fuente: {source}")
 
@@ -236,6 +246,7 @@ def build_index(source: Path) -> dict:
 
 
 def main() -> None:
+    """Comando que genera el índice comercial interno y lo guarda en la carpeta de datos."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)

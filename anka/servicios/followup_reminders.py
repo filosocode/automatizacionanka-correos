@@ -50,6 +50,7 @@ def business_days(start: datetime, end: datetime) -> int:
 
 
 def in_business_hours(now: datetime) -> bool:
+    """¿Es lunes a viernes dentro del horario hábil de Colombia?"""
     moment = _local(now)
     return moment.weekday() < 5 and BUSINESS_HOURS[0] <= moment.hour < BUSINESS_HOURS[1]
 
@@ -69,6 +70,7 @@ _db = connect
 
 
 def followup_state(db: Any, thread_id: str) -> dict:
+    """Opciones de seguimiento del caso: recordatorios automáticos, pausa y última llamada."""
     row = db.execute("SELECT auto_enabled, paused, contacted_at FROM case_followup WHERE thread_id=?",
                      (thread_id,)).fetchone()
     return {"auto_enabled": bool(row["auto_enabled"]) if row else False,
@@ -210,11 +212,13 @@ def run_due_reminders(now: datetime | None = None) -> int:
 
 
 def waiting_days(waiting_since: str, now: datetime | None = None) -> int:
+    """Días hábiles que lleva el caso esperando al cliente (0 si no hay fecha)."""
     start = _parse(waiting_since)
     return business_days(start, now or datetime.now().astimezone()) if start else 0
 
 
 def call_due(waiting_since: str, contacted_at: str, now: datetime | None = None) -> bool:
+    """¿Ya toca llamar al cliente: espera suficiente y sin llamada posterior?"""
     start = _parse(waiting_since)
     contacted = _parse(contacted_at)
     if not start or (contacted and contacted >= start):
@@ -223,4 +227,5 @@ def call_due(waiting_since: str, contacted_at: str, now: datetime | None = None)
 
 
 def today() -> date:
+    """Fecha de hoy en Colombia."""
     return _local(datetime.now().astimezone()).date()

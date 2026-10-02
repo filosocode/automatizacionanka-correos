@@ -1,4 +1,12 @@
-"""Solicitudes en SQLite: consultas, notificaciones, cola de revisión y edición."""
+"""Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard.
+
+Reúne cuatro cosas que comparten la misma tabla y aún no se han separado en módulos propios:
+  1. lectura: `all_quotes` / `get_quote` arman cada `Caso` con su espera, cambios y vínculos;
+  2. edición por una persona: datos comerciales, tabla de actividades con sus versiones, vínculos y propuestas;
+  3. decisiones de revisión: descartar/rescatar, eliminar, resolver la revisión técnica;
+  4. importación del borrador de Work (`dashboard_upsert`) y cola de revisión del piloto local.
+Pendiente de dividir: las ediciones (2) y la importación de Work (4) en módulos propios.
+"""
 
 from __future__ import annotations
 
@@ -33,6 +41,7 @@ log = get_logger(__name__)
 def save_review_packet(thread_id: str, recipient: str, analysis: dict,
                        questions: list[str], body: str | None,
                        folder_name: str | None = None) -> Path:
+    """Guarda en `review_queue` el paquete de texto para revisar un caso y devuelve su ruta."""
     queue = settings.DATA_DIR / "review_queue"
     queue.mkdir(parents=True, exist_ok=True)
     path = queue / f"{thread_id}.txt"
@@ -90,6 +99,7 @@ def save_review_packet(thread_id: str, recipient: str, analysis: dict,
 
 
 def unread_notifications(limit: int = 20) -> list[dict]:
+    """Novedades del dashboard sin leer, las más recientes primero."""
     db = connect()
     try:
         rows = db.execute("""SELECT n.*, q.analysis_json
@@ -113,6 +123,7 @@ def unread_notifications(limit: int = 20) -> list[dict]:
 
 
 def mark_notifications_read(thread_id: str | None = None) -> None:
+    """Marca como leídas las novedades de un caso o todas."""
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     db = connect()
     try:
@@ -129,10 +140,12 @@ def mark_notifications_read(thread_id: str | None = None) -> None:
 
 
 def review_packet_path(thread_id: str) -> Path:
+    """Ruta del paquete de revisión de un caso."""
     return settings.DATA_DIR / "review_queue" / f"{thread_id}.txt"
 
 
 def review_action(status: str) -> tuple[str, str]:
+    """Etiqueta de estado y acción sugerida para la cola de revisión según el estado."""
     if status == QuoteStatus.REVIEW_PENDING:
         return "Requiere aclaraciones", "Enviar preguntas al cliente"
     if status == QuoteStatus.READY_REVIEW:
@@ -208,10 +221,12 @@ def _unanalyzed_reply(latest: tuple[str, str] | None, last_inbound_id: str, anal
 
 
 def minutes_since(value: str) -> int:
+    """Minutos transcurridos desde una fecha."""
     return max(0, int((datetime.now().astimezone().timestamp() - _timestamp(value)) // 60))
 
 
 def ago_text(minutes: int) -> str:
+    """«hace un momento», «hace 5 min», «hace 3 h»… según los minutos."""
     if minutes < 2:
         return "hace un momento"
     if minutes < 90:
@@ -250,6 +265,7 @@ REASON_LABELS = {
 
 
 def reason_label(reason: str) -> str:
+    """Frase legible del motivo por el que un correo parece relacionado con un caso."""
     base, _, hint = reason.partition("+")
     text = REASON_LABELS.get(base, "posible relación")
     return text + (" · el asunto menciona el proyecto" if hint else "")
@@ -315,6 +331,7 @@ def case_change_log(thread_id: str) -> list[dict]:
 
 
 def chain_status(thread_id: str) -> tuple[bool, int]:
+    """¿La cadena de huellas del historial del caso está íntegra? Devuelve (íntegra, cantidad de eventos)."""
     db = connect()
     try:
         return verify_chain(db, thread_id)
@@ -336,6 +353,7 @@ def archived_threads() -> list[dict]:
 
 
 def case_has_links(thread_id: str) -> bool:
+    """¿El caso ya avanzó más allá del primer análisis: correos vinculados de otros hilos, código de oferta o tabla editada en el dashboard?"""
     db = connect()
     try:
         return db.execute(
@@ -409,6 +427,7 @@ def _waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None) ->
 
 
 def all_quotes(include_ignored: bool = False) -> list[Caso]:
+    """Todos los casos con sus cambios, vínculos, seguimiento y espera, el más reciente primero."""
     db = connect()
     try:
         where = "" if include_ignored else f"WHERE q.status <> '{QuoteStatus.IGNORED}'"
@@ -489,6 +508,7 @@ def all_quotes(include_ignored: bool = False) -> list[Caso]:
 
 
 def get_quote(thread_id: str) -> Caso | None:
+    """Un caso por su hilo, o `None` si no existe."""
     return next((item for item in all_quotes(True) if item["thread_id"] == thread_id), None)
 
 
@@ -617,6 +637,7 @@ def resolve_technical_review(thread_id: str, decision: str, questions_text: str 
 
 def save_quote_metadata(thread_id: str, client_name: str, client_type: str,
                         sector: str, notes: str) -> None:
+    """Guarda cliente, tipo, sector y notas de un caso; rechaza valores fuera de las listas."""
     if client_type not in CLIENT_TYPES:
         raise ValueError("Tipo de cliente no válido.")
     if sector not in SECTORS:
@@ -704,6 +725,7 @@ def diff_activities(old: list[dict], new: list[dict]) -> dict:
 
 
 def describe_edit(diff: dict, old_totals: dict, new_totals: dict) -> str:
+    """Frase que resume qué cambió en una edición de la tabla (filas añadidas, quitadas y cambiadas)."""
     parts = []
     if diff["added"]:
         parts.append(f"+{len(diff['added'])} fila(s): " + ", ".join(str(a) for a in diff["added"][:2]))
@@ -723,6 +745,7 @@ def describe_edit(diff: dict, old_totals: dict, new_totals: dict) -> str:
 
 
 def table_versions(thread_id: str) -> list[dict]:
+    """Versiones guardadas de la tabla de actividades del caso, de la primera a la última."""
     db = connect()
     try:
         rows = db.execute("SELECT * FROM table_versions WHERE thread_id=? ORDER BY version",
@@ -990,6 +1013,7 @@ def change_marker() -> str:
 
 
 def pending_reviews() -> list[dict]:
+    """Casos que esperan revisión humana, con su paquete de texto."""
     db = connect()
     try:
         rows = db.execute(
@@ -1020,6 +1044,7 @@ def pending_reviews() -> list[dict]:
 
 
 def get_review(thread_id: str) -> dict | None:
+    """Una revisión pendiente por hilo, o `None`."""
     for review in pending_reviews():
         if review["thread_id"] == thread_id:
             return review
@@ -1027,6 +1052,7 @@ def get_review(thread_id: str) -> dict | None:
 
 
 def list_reviews() -> None:
+    """Imprime las revisiones pendientes (comando `reviews`)."""
     reviews = pending_reviews()
     if not reviews:
         print("No hay revisiones humanas pendientes.")

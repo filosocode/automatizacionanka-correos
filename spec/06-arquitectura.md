@@ -29,6 +29,8 @@ Una capa solo importa de las que tiene **debajo**. `web` y `cli` no se importan 
 - **Sin ciclos** de importación entre módulos.
 - **Lo privado no se importa**: un nombre con `_` es de su módulo; si otro lo necesita, se hace público o se mueve.
 - **Cada módulo empieza con un docstring** que dice para qué sirve; cada capa lo tiene en su `__init__.py`.
+- **Toda función, clase y método público del paquete tiene docstring** (una frase que dice qué hace, no cómo) y
+  **ninguna función pasa de complejidad 15**: ruff lo comprueba en `check.bat` y en el CI (`pyproject.toml`).
 - **La raíz está ordenada**: solo los puntos de entrada (`app.py`, `supervisor.py`, `work_dashboard_sync.py`, cada uno de
   pocas líneas) y `check_spec.py`; el resto vive en `anka/`, `tests/`, `docs/`, `spec/`, `tools/` y `skills/`.
 

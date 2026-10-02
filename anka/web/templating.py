@@ -25,4 +25,5 @@ _env.filters["urlquote"] = urllib.parse.quote
 
 
 def render(template: str, **context: Any) -> Markup:
+    """Renderiza una plantilla Jinja2 con escape automático y devuelve HTML seguro (`Markup`)."""
     return Markup(_env.get_template(template).render(**context))

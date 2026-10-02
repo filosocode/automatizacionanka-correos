@@ -26,6 +26,7 @@ FOLDER_MIME = "application/vnd.google-apps.folder"
 
 
 def credentials(force_auth: bool = False) -> Credentials:
+    """Credenciales de Google: reutiliza o renueva el token y, si hace falta, abre el consentimiento."""
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
@@ -54,6 +55,7 @@ def credentials(force_auth: bool = False) -> Credentials:
 
 
 def services() -> tuple[Any, Any]:
+    """Clientes de Gmail y de Drive ya autenticados: `(gmail, drive)`."""
     from googleapiclient.discovery import build
 
     creds = credentials()
@@ -64,6 +66,7 @@ def services() -> tuple[Any, Any]:
 
 
 def list_folders(drive: Any, parent_id: str = "root") -> list[dict]:
+    """Carpetas (no borradas) que hay directamente dentro de una carpeta de Drive."""
     escaped = parent_id.replace("\\", "\\\\").replace("'", "\\'")
     query = f"'{escaped}' in parents and mimeType = '{FOLDER_MIME}' and trashed = false"
     folders = []
@@ -88,6 +91,7 @@ def list_file_names(drive: Any, parent_id: str) -> list[str]:
 
 
 def ensure_folder(drive: Any, parent_id: str, name: str) -> dict:
+    """Devuelve la subcarpeta con ese nombre exacto; la crea si no existe."""
     for folder in list_folders(drive, parent_id):
         if folder["name"] == name:
             return folder

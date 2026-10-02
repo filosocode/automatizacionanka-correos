@@ -3,9 +3,17 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "B", "UP", "C90"]
-# Deuda conocida: líneas largas heredadas; se corrigen al dividir app.py.
+select = ["E", "F", "W", "B", "UP", "C90", "D100", "D101", "D102", "D103"]
+# Deuda conocida: líneas largas heredadas; se acortan al tocar cada función.
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# La documentación obligatoria es del paquete; las pruebas y los envoltorios de la raíz se explican solos.
+"tests/*" = ["D"]
+"app.py" = ["D"]
+"supervisor.py" = ["D"]
+"work_dashboard_sync.py" = ["D"]
+"check_spec.py" = ["D"]
 
 [tool.ruff.lint.mccabe]
 # Ninguna función pasa de 15 caminos: si crece, se divide en pasos con nombre.

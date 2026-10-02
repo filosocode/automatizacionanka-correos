@@ -38,6 +38,7 @@ _HANDLER_TAG = "_anka_handler"
 
 
 def get_logger(name: str) -> logging.Logger:
+    """Logger del paquete: acepta `__name__` y lo cuelga de la raíz `anka`."""
     return logging.getLogger(name if name.startswith(f"{ROOT_NAME}.") else f"{ROOT_NAME}.{name}")
 
 

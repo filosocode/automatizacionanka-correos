@@ -47,6 +47,7 @@ def _commercial_profile_match(index: dict, client_name: str) -> dict | None:
 
 
 def internal_commercial_context(client_name: str) -> dict:
+    """Resumen comercial interno del cliente (historial agregado) para quien revisa; vacío si no hay índice."""
     index = load_internal_commercial_index()
     if not index:
         return {}

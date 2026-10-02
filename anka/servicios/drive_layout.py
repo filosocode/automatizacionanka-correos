@@ -38,6 +38,7 @@ class DriveLayoutError(Exception):
 
 
 class ClientNotFound(DriveLayoutError):
+    """No existe la carpeta del cliente y nadie confirmó que es nuevo."""
     def __init__(self, client_name: str):
         super().__init__(
             f"No existe una carpeta del cliente '{client_name}'. Confirma que es un cliente "
@@ -47,6 +48,7 @@ class ClientNotFound(DriveLayoutError):
 
 
 class AmbiguousClient(DriveLayoutError):
+    """Hay varias carpetas de cliente que coinciden y una persona debe elegir."""
     def __init__(self, client_name: str, folders: list[dict]):
         names = ", ".join(f"'{f['name']}'" for f in folders)
         super().__init__(
@@ -58,6 +60,7 @@ class AmbiguousClient(DriveLayoutError):
 
 
 class SimilarClient(DriveLayoutError):
+    """Ya hay una carpeta de cliente parecida: no se crea otra sin confirmación."""
     def __init__(self, client_name: str, folders: list[dict]):
         names = ", ".join(f"'{f['name']}'" for f in folders)
         super().__init__(
@@ -70,6 +73,7 @@ class SimilarClient(DriveLayoutError):
 
 
 class SimilarProject(DriveLayoutError):
+    """El cliente ya tiene una solicitud parecida: no se crea otra sin confirmación."""
     def __init__(self, client_name: str, matches: list[dict]):
         detail = "; ".join(f"'{m['name']}' ({m['reason']})" for m in matches)
         super().__init__(
@@ -83,6 +87,7 @@ class SimilarProject(DriveLayoutError):
 
 @dataclass
 class ProjectFolder:
+    """Resultado de preparar la carpeta: la del cliente, si se creó y la de la solicitud."""
     client: dict
     client_created: bool
     folder: dict
@@ -155,6 +160,7 @@ def similar_project_folders(
 
 
 def clean_folder_name(name: str) -> str:
+    """Nombre de carpeta sin caracteres no válidos ni espacios sobrantes; falla si queda vacío."""
     clean = re.sub(r"\s+", " ", _INVALID_CHARS.sub(" ", name)).strip(" .")
     if not clean:
         raise ValueError("El nombre de la carpeta no puede estar vacío.")

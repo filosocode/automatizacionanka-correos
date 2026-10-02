@@ -11,6 +11,7 @@ from enum import StrEnum
 
 
 class QuoteStatus(StrEnum):
+    """Estados internos de un caso (la etiqueta que ve la persona sale de `STATUS_LABELS`)."""
     REVIEW_PENDING = "review_pending"  # faltan datos; hay borrador de preguntas por revisar
     READY_REVIEW = "ready_review"      # alcance completo; pendiente de revisión interna
     REVIEW = "review"                  # requiere revisión técnica manual

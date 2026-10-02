@@ -756,6 +756,7 @@ LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 
 
 def add_csrf_tokens(content: str) -> str:
+    """Agrega el token de seguridad a cada formulario POST de la página."""
     field = f'<input type="hidden" name="csrf_token" value="{CSRF_TOKEN}">'
     return POST_FORM_PATTERN.sub(lambda m: m.group(1) + field, content)
 
@@ -768,6 +769,7 @@ def is_local_host_header(value: str) -> bool:
 
 
 def is_same_origin(origin: str, host: str) -> bool:
+    """¿La petición viene de esta misma página (o no declara origen)?"""
     if not origin:
         return True  # navegadores omiten Origin en algunas navegaciones; el token cubre ese caso
     return urllib.parse.urlparse(origin).netloc.lower() == (host or "").lower()
@@ -935,6 +937,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
 
 
 class ReviewHandler(BaseHTTPRequestHandler):
+    """Servidor HTTP local del dashboard: páginas por GET y acciones por POST con token."""
     def _send_html(self, content: str, status: int = 200) -> None:
         data = add_csrf_tokens(content).encode("utf-8")
         self.send_response(status)
@@ -956,6 +959,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self._send_html(_page("Solicitud rechazada", render("empty.html", text=reason)), 403)
 
     def do_GET(self) -> None:
+        """Atiende las páginas del dashboard; un error se registra y se muestra sin romper el servidor."""
         try:
             self._get()
         except (Exception, SystemExit) as exc:
@@ -1015,6 +1019,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self._send_html(_page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
 
     def do_POST(self) -> None:
+        """Valida host, origen y token y ejecuta la acción de `POST_ROUTES`; redirige al resultado."""
         host = self.headers.get("Host", "")
         if not is_local_host_header(host):
             return self._reject("Host no permitido.")
@@ -1039,10 +1044,12 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format: str, *args: Any) -> None:
+        """Silencia el registro por defecto de http.server (usamos el de la aplicación)."""
         return
 
 
 def review_ui(host: str, port: int, open_browser: bool = True) -> None:
+    """Arranca el servidor del dashboard en el host y puerto dados, hasta Ctrl+C."""
     url = f"http://{host}:{port}"
     print(f"Bandeja de revisión comercial: {url}")
     print("Deja esta ventana abierta. Presiona Ctrl+C para cerrar.")

@@ -14,6 +14,7 @@ AUTOMATION_ID = "cotizaciones-gmail-anka"
 
 
 def automation_interval_label() -> str:
+    """Texto con cada cuánto corre la automatización de Codex («cada 5 minutos»), o vacío si no se sabe."""
     codex_root = Path(os.getenv("CODEX_HOME", Path.home() / ".codex"))
     path = codex_root / "automations" / AUTOMATION_ID / "automation.toml"
     try:
@@ -34,6 +35,7 @@ def automation_interval_label() -> str:
 
 
 def codex_automation_status() -> str | None:
+    """Estado (ACTIVE/PAUSED…) de la automatización de Codex, o `None` si no existe."""
     try:
         content = codex_automation_path().read_text(encoding="utf-8")
     except OSError:
@@ -43,6 +45,7 @@ def codex_automation_status() -> str | None:
 
 
 def ensure_local_or_api_mode(config: dict) -> None:
+    """Detiene el comando si el modo es ChatGPT Work: en ese modo Python no lee Gmail."""
     if config.get("active_mode", "local") == "chatgpt_work":
         raise SystemExit(
             "active_mode está en 'chatgpt_work'. No ejecutes el bot local sobre Gmail. "
@@ -51,6 +54,7 @@ def ensure_local_or_api_mode(config: dict) -> None:
 
 
 def print_mode() -> None:
+    """Muestra el modo activo y qué lee el correo en él."""
     config = load_config()
     mode = config.get("active_mode", "local")
     provider = config["llm"]["provider"]
@@ -67,6 +71,7 @@ def print_mode() -> None:
 
 
 def codex_automation_path() -> Path:
+    """Ruta del archivo de la automatización de Codex."""
     codex_root = Path(os.getenv("CODEX_HOME", Path.home() / ".codex"))
     return codex_root / "automations" / AUTOMATION_ID / "automation.toml"
 
