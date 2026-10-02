@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from anka.dominio.analisis import Actividad
+
 from collections.abc import Mapping, Sequence
 from io import BytesIO
-from typing import Any
+from typing import Any, cast
 
 ACTIVITY_COLUMNS = [
     ("activity", "Actividad"),
@@ -37,7 +39,7 @@ MAX_ROWS = 200
 MAX_CELL = 2000
 
 
-def parse_activities_form(form: dict[str, list[str]]) -> list[dict]:
+def parse_activities_form(form: dict[str, list[str]]) -> list[Actividad]:
     """Reconstruye las actividades desde el formulario; ignora filas borradas o vacías."""
     try:
         count = min(int(form.get("row_count", ["0"])[0]), MAX_ROWS)
@@ -47,7 +49,7 @@ def parse_activities_form(form: dict[str, list[str]]) -> list[dict]:
     for index in range(count + 1):  # +1: fila nueva al final
         if form.get(f"a{index}_del", [""])[0]:
             continue
-        item = {
+        item: dict[str, str] = {
             key: (form.get(f"a{index}_{key}", [""])[0] or "").strip()[:MAX_CELL]
             for key, _ in ACTIVITY_COLUMNS
         }
@@ -55,7 +57,7 @@ def parse_activities_form(form: dict[str, list[str]]) -> list[dict]:
             continue
         if item["estado"] not in ESTADOS:
             item["estado"] = "pendiente"
-        activities.append(item)
+        activities.append(cast(Actividad, item))
     return activities
 
 

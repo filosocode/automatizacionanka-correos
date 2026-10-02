@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from typing import Any
 from collections import Counter
 
 from markupsafe import Markup
@@ -52,7 +54,7 @@ def _activities_table(activities: list[dict]) -> Markup:
     return render("activities_table.html", rows=rows)
 
 
-def attachments_table(attachments: list[dict]) -> Markup:
+def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
     """Tabla de adjuntos con su estado, el motivo si no se leyó y los datos que no se pudieron confirmar."""
     rows = [
         (

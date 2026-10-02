@@ -6,6 +6,8 @@ Lo que sí habla con Gmail (enviar, crear borradores, descargar adjuntos) vive e
 
 from __future__ import annotations
 
+from anka.dominio.analisis import Enrutamiento
+
 import base64
 import html
 import re
@@ -147,7 +149,7 @@ def inbound_messages(thread: dict, own_addresses: list[str] | set[str] | None = 
     )
 
 
-def forwarded_routing(message: dict, config: dict) -> dict:
+def forwarded_routing(message: dict, config: dict) -> Enrutamiento:
     """A quién se responde: el remitente directo o, si un comercial reenvió, el cliente original (según la política)."""
     envelope_from = parseaddr(header(message, "Reply-To") or header(message, "From"))[1]
     subject = header(message, "Subject")

@@ -11,6 +11,7 @@ from datetime import datetime
 from collections.abc import Sequence
 from enum import StrEnum
 from typing import Any, NamedTuple
+from anka.dominio.analisis import Adjunto, Analisis
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.status import (
     QuoteStatus,
@@ -180,7 +181,7 @@ class Note(NamedTuple):
 class Decision:
     """Qué hacer con un hilo. Se calcula sin tocar Gmail, SQLite ni Drive."""
     status: QuoteStatus
-    analysis: dict
+    analysis: Analisis
     logs: list[Note] = field(default_factory=list)
     action: Action = Action.NONE
     packet: bool = False               # guardar ficha de revisión
@@ -204,7 +205,7 @@ def decide_prefilter(thread_id: str, noise_reason: str | None, email: dict) -> D
 
 
 def decide_analysis(
-    thread_id: str, analysis: dict, blocked: list[dict], recipient: str, is_forwarded: bool,
+    thread_id: str, analysis: Analisis, blocked: list[Adjunto], recipient: str, is_forwarded: bool,
     config: dict, *, review_only: bool, gmail_drafts: bool,
 ) -> Decision:
     """Decide el destino de un hilo ya analizado."""
@@ -346,7 +347,7 @@ def apply_decision(
         log.info("%s: preguntas enviadas al cliente; se espera respuesta", thread_id)
 
 
-def confirmed_client(db: sqlite3.Connection, thread_id: str, analysis: dict, recipient: str) -> str:
+def confirmed_client(db: sqlite3.Connection, thread_id: str, analysis: Analisis, recipient: str) -> str:
     """Cliente que una persona ya confirmó: el de este hilo o el de otro del mismo remitente."""
     row = db.execute(
         "SELECT client_name FROM quote_metadata WHERE thread_id=? AND client_name <> ''",

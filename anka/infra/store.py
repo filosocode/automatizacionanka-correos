@@ -8,6 +8,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from anka.dominio.analisis import Analisis
 from anka.dominio.status import QuoteStatus, sql_in
 from anka.infra import settings
 
@@ -410,7 +411,7 @@ def case_events(db: sqlite3.Connection, thread_id: str) -> list[sqlite3.Row]:
 
 
 def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, recipient: str,
-         analysis: dict, folder_id: str | None = None,
+         analysis: Analisis, folder_id: str | None = None,
          sent_message_id: str | None = None) -> None:
     """Crea o actualiza el caso (estado, destinatario y análisis) conservando lo que ya tenía, como la fecha de primera vista."""
     now = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -426,7 +427,7 @@ def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, reci
         if old.get("manual_edit"):
             # la edicion manual prevalece; lo nuevo del modelo queda para revisar
             if analysis.get("activities") != old.get("activities"):
-                analysis["pending_model_activities"] = analysis.get("activities")
+                analysis["pending_model_activities"] = analysis.get("activities") or []
             analysis["activities"] = old.get("activities", [])
             analysis["manual_edit"] = old["manual_edit"]
     routing = analysis.get("routing") or {}

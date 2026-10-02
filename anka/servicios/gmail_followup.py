@@ -16,6 +16,7 @@ from email.utils import parseaddr
 from pathlib import Path
 from typing import Any
 
+from anka.dominio.analisis import Analisis
 from anka.infra import settings
 from anka.servicios.change_control import company_domain, mentions_code
 from anka.infra.logging_setup import get_logger
@@ -54,19 +55,19 @@ def _headers(message: dict) -> dict:
     return {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
 
 
-def case_contacts(recipient: str, analysis: dict) -> set[str]:
+def case_contacts(recipient: str, analysis: Analisis) -> set[str]:
     """Correos que ya identifican a este cliente en el caso."""
     routing = analysis.get("routing", {}) if isinstance(analysis, dict) else {}
     values = (recipient, routing.get("original_sender_email", ""), routing.get("selected_recipient", ""))
     return {parseaddr(value)[1].casefold() for value in values if value and parseaddr(value)[1]}
 
 
-def _hint_words(analysis: dict) -> set[str]:
+def _hint_words(analysis: Analisis) -> set[str]:
     name = str(analysis.get("project_name") or "")
     return {word for word in name.casefold().split() if len(word) >= 4 or word.isdigit()}
 
 
-def match_reason(sender: str, subject: str, contacts: set[str], analysis: dict) -> str:
+def match_reason(sender: str, subject: str, contacts: set[str], analysis: Analisis) -> str:
     """'sender', 'domain' o '' según cómo se parezca el remitente a quienes ya escribieron."""
     if sender in contacts:
         reason = "sender"

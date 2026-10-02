@@ -12,6 +12,7 @@ import sqlite3
 from collections.abc import Callable
 from typing import Any
 
+from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.activities import normalize_estado
 from anka.dominio.correo import decode_websafe
@@ -97,7 +98,7 @@ def _list_or_wrapped(value: Any, wrap: Callable[[str], Any]) -> Any:
     return value
 
 
-def _work_analysis(payload: dict) -> dict:
+def _work_analysis(payload: dict) -> Analisis:
     """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
     source = payload.get("source", "")
     reply_text = str(payload.get("draft_reply") or "").strip()
@@ -129,7 +130,7 @@ def _work_analysis(payload: dict) -> dict:
     }
 
 
-def _internal_status(payload: dict, analysis: dict) -> str:
+def _internal_status(payload: dict, analysis: Analisis) -> str:
     """Estado interno que corresponde al borrador de Work."""
     status = _WORK_STATUS_MAP.get(payload["status"], payload["status"])
     if status in (QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED
@@ -140,7 +141,7 @@ def _internal_status(payload: dict, analysis: dict) -> str:
     return status
 
 
-def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analysis: dict) -> None:
+def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analysis: Analisis) -> None:
     """Guarda el análisis de Work respetando el control de cambios y sin hacer retroceder un caso avanzado."""
     thread_id = payload["thread_id"]
     message_id = payload.get("message_id") or thread_id

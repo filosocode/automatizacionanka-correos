@@ -11,6 +11,7 @@ import re
 from datetime import datetime
 from uuid import uuid4
 
+from anka.dominio.analisis import Actividad
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import add_table_version, connect, latest_table_version, record_event
 from anka.servicios.quotes import load_analysis
@@ -31,7 +32,7 @@ _QUANTITY = re.compile(r"(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)\s*(ha|km
                        re.IGNORECASE)
 
 
-def activity_totals(rows: list[dict]) -> dict[str, float]:
+def activity_totals(rows: list[Actividad]) -> dict[str, float]:
     """Suma de cantidades por unidad (ha, km...) de una tabla, para ver si una edición cambia el alcance."""
     totals: dict[str, float] = {}
     for row in rows:
@@ -44,9 +45,9 @@ def activity_totals(rows: list[dict]) -> dict[str, float]:
     return totals
 
 
-def diff_activities(old: list[dict], new: list[dict]) -> dict:
+def diff_activities(old: list[Actividad], new: list[Actividad]) -> dict:
     """Filas agregadas, quitadas y modificadas entre dos versiones de la tabla (por nombre de actividad)."""
-    def key(row: dict) -> str:
+    def key(row: Actividad) -> str:
         return str(row.get("activity", "")).strip().casefold()
 
     before = {key(row): row for row in old if isinstance(row, dict)}
@@ -114,7 +115,7 @@ def last_manual_version(thread_id: str) -> dict | None:
     return {**dict(row), "notified": notified is not None}
 
 
-def save_activities(thread_id: str, activities: list[dict], reason: str = "") -> str:
+def save_activities(thread_id: str, activities: list[Actividad], reason: str = "") -> str:
     """Guarda la tabla editada a mano y la marca para que un reproceso no la pise."""
     db = connect()
     try:

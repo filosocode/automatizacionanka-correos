@@ -14,6 +14,7 @@ import sqlite3
 from datetime import datetime
 from uuid import uuid4
 
+from anka.dominio.analisis import Analisis
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import connect, record_event, register_change
 
@@ -110,7 +111,7 @@ def required_messages(has_code: bool, is_contact: bool) -> list[tuple[str, str]]
     return messages
 
 
-def apply_guard(db: sqlite3.Connection, thread_id: str, analysis: dict, requested_by_email: str,
+def apply_guard(db: sqlite3.Connection, thread_id: str, analysis: Analisis, requested_by_email: str,
                 requested_by_name: str, cited_codes: list[str], message_id: str, subject: str,
                 snippet: str, source: str) -> bool:
     """Aplica R11 a un análisis nuevo (de Work o de Python) antes de guardarlo.

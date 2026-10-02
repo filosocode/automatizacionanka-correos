@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from anka.dominio.analisis import Analisis
 from anka.dominio.registros import Cambio, MapaDeSoloLectura, Vinculo
 
 
@@ -26,7 +27,7 @@ class Caso(MapaDeSoloLectura):
     client_type: str
     sector: str
     notes: str
-    analysis: dict
+    analysis: Analisis
     reception_assessment: dict
     services: list[str]
     first_seen_at: str

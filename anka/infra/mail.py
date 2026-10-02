@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 from typing import Any
 
+from anka.dominio.analisis import Adjunto
 from anka.dominio.attachments import extract_attachment_text
 from anka.dominio.correo import (
     attachment_parts, decode_websafe, is_inline_signature_image, normalized_address, reply_email,
@@ -18,11 +19,11 @@ from anka.infra.logging_setup import get_logger
 log = get_logger(__name__)
 
 
-def extract_message_attachments(gmail: Any, message: dict) -> list[dict]:
+def extract_message_attachments(gmail: Any, message: dict) -> list[Adjunto]:
     """Descarga y lee los adjuntos de un mensaje; nunca falla: un adjunto ilegible queda «bloqueado» con su motivo."""
-    results = []
+    results: list[Adjunto] = []
     for part in attachment_parts(message.get("payload", {})):
-        record = {
+        record: Adjunto = {
             "filename": part["filename"],
             "mime_type": part["mime_type"],
             "source_message_id": message.get("id", "no-indicado"),

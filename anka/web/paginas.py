@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from markupsafe import Markup
+from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
 from anka.web.views import (
     attachments_table, metric_rows,
@@ -144,7 +145,7 @@ def _edit_note(thread_id: str) -> Markup:
                   notified=latest["notified"])
 
 
-def _suggested_questions(analysis: dict, assessment: dict) -> str:
+def _suggested_questions(analysis: Analisis, assessment: dict) -> str:
     """Preguntas para el cliente que dejó el análisis (sin los puntos internos), una por línea."""
     found: list[str] = []
     for item in list(assessment.get("questions", [])) + list(analysis.get("other_questions", [])):
@@ -428,7 +429,7 @@ def _internal_context_panel(client_name: str) -> Markup:
     )
 
 
-def _routing_summary(analysis: dict) -> str:
+def _routing_summary(analysis: Analisis) -> str:
     """Cómo llegó el correo: directo o reenviado por alguien interno."""
     routing = analysis.get("routing", {})
     if not routing.get("is_forwarded"):
@@ -443,7 +444,7 @@ def _routing_summary(analysis: dict) -> str:
 _FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse")
 
 
-def _compose_state(review: Mapping[str, Any], analysis: dict, config: dict, template: str, change_id: int, *,
+def _compose_state(review: Mapping[str, Any], analysis: Analisis, config: dict, template: str, change_id: int, *,
                    email_allowed: bool, reopened: bool, technical: bool, recipient_error: str,
                    ) -> tuple[str, str, bool]:
     """Qué muestra el cuadro de respuesta: (modo, texto inicial, ¿en blanco?)."""
@@ -483,7 +484,7 @@ def _conversation_panel(thread_id: str) -> Markup:
         for m in case_conversation(thread_id)])
 
 
-def _timeline_panel(thread_id: str, review: Mapping[str, Any], analysis: dict, events: Sequence[Evento],
+def _timeline_panel(thread_id: str, review: Mapping[str, Any], analysis: Analisis, events: Sequence[Evento],
                     integrity_ok: bool, event_count: int) -> Markup:
     return render("timeline.html", thread_id=thread_id, integrity_ok=integrity_ok,
                   event_count=event_count, events=[

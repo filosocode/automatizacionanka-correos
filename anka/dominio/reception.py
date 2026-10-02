@@ -6,6 +6,7 @@ import re
 import unicodedata
 from email.utils import parseaddr
 
+from anka.dominio.analisis import Analisis, Adjunto
 from anka.dominio.correo import attachment_names, header, message_datetime, message_text
 
 
@@ -68,7 +69,7 @@ def automated_noise_reason(messages: list[dict]) -> str | None:
 
 
 def mentions_commercial_terms(
-    messages: list[dict], terms: list[str], attachments: list[dict] | None = None
+    messages: list[dict], terms: list[str], attachments: list[Adjunto] | None = None
 ) -> bool:
     """¿Menciona el hilo algún término comercial? Rescata correos automáticos del descarte."""
     if not terms:
@@ -86,7 +87,7 @@ def mentions_commercial_terms(
     return any(normalized_text(term) in text for term in terms)
 
 
-def missing_questions(analysis: dict, required_fields: list[str]) -> list[str]:
+def missing_questions(analysis: Analisis, required_fields: list[str]) -> list[str]:
     """Preguntas para los datos obligatorios que faltan, más las otras dudas que detectó el análisis."""
     values = {item["name"].casefold(): item["value"].strip()
               for item in analysis["fields"]}
@@ -107,7 +108,7 @@ def _known_intake_value(value: object) -> bool:
     return bool(text) and not any(marker in text for marker in unknown)
 
 
-def _detected_service_family(analysis: dict) -> str:
+def _detected_service_family(analysis: Analisis) -> str:
     text = normalized_text(" ".join([
         str(analysis.get("project_name") or ""),
         str(analysis.get("summary") or ""),
@@ -130,7 +131,7 @@ def _detected_service_family(analysis: dict) -> str:
                 "Servicio por clasificar")
 
 
-def reception_assessment(analysis: dict) -> dict:
+def reception_assessment(analysis: Analisis) -> dict:
     """Determina si el correo permite iniciar la revisión interna, no cotizar."""
     fields = {
         normalized_text(str(item.get("name") or "")): item.get("value")
@@ -207,7 +208,7 @@ def reception_assessment(analysis: dict) -> dict:
     }
 
 
-def reception_questions(analysis: dict, required_fields: list[str] | None = None) -> list[str]:
+def reception_questions(analysis: Analisis, required_fields: list[str] | None = None) -> list[str]:
     """Preguntas que se le hacen al cliente según la evaluación de recepción (ninguna si va a revisión técnica)."""
     assessment = reception_assessment(analysis)
     if assessment["status"] == "technical_review":
@@ -216,17 +217,18 @@ def reception_questions(analysis: dict, required_fields: list[str] | None = None
 
 
 def attachment_report(
-    attachments: list[dict], analysis: dict, required_fields: list[str]
-) -> list[dict]:
+    attachments: list[Adjunto], analysis: Analisis, required_fields: list[str]
+) -> list[Adjunto]:
     """Estado de cada adjunto y qué datos obligatorios no se pudieron confirmar por no poder leerlo."""
     values = {
         item.get("name", "").casefold(): item.get("value", "").strip()
         for item in analysis.get("fields", [])
     }
     missing = [name for name in required_fields if not values.get(name.casefold())]
-    report = []
+    report: list[Adjunto] = []
     for attachment in attachments:
-        item = {key: value for key, value in attachment.items() if key != "text"}
+        item: Adjunto = {**attachment}
+        item.pop("text", None)   # el texto extraído viaja al modelo, no se guarda en el análisis
         item["blocked_fields"] = (
             missing or ["validación del alcance técnico"]
         ) if item.get("status") == "bloqueado" else []
@@ -234,7 +236,7 @@ def attachment_report(
     return report
 
 
-def blank_analysis(summary: str = "") -> dict:
+def blank_analysis(summary: str = "") -> Analisis:
     """Análisis vacío de una solicitud que no lo es (o que no se pudo analizar)."""
     return {
         "is_quote_request": False,
@@ -248,7 +250,7 @@ def blank_analysis(summary: str = "") -> dict:
     }
 
 
-def unresolved_scope_issues(analysis: dict) -> list[str]:
+def unresolved_scope_issues(analysis: Analisis) -> list[str]:
     """Dependencias de alcance y contradicciones que siguen pendientes (lo que manda un caso a revisión técnica)."""
     issues = []
     for dependency in analysis.get("scope_dependencies", []):
@@ -288,7 +290,7 @@ def question_email(questions: list[str], forwarded: bool = False) -> str:
     )
 
 
-def review_note(analysis: dict, questions: list[str], source_message: dict | None = None) -> str:
+def review_note(analysis: Analisis, questions: list[str], source_message: dict | None = None) -> str:
     """Nota interna para quien revisa el borrador: resumen de actividades, preguntas y origen del correo."""
     activities = analysis.get("activities", [])
     activity_lines = [
@@ -341,13 +343,13 @@ def review_note(analysis: dict, questions: list[str], source_message: dict | Non
 
 
 def draft_body_with_review_note(
-    analysis: dict, questions: list[str], body: str, source_message: dict | None = None
+    analysis: Analisis, questions: list[str], body: str, source_message: dict | None = None
 ) -> str:
     """Cuerpo del borrador de Gmail: la nota de revisión (a borrar antes de enviar) seguida del correo al cliente."""
     return review_note(analysis, questions, source_message) + body
 
 
-def suggested_supporting_documents(analysis: dict) -> list[str]:
+def suggested_supporting_documents(analysis: Analisis) -> list[str]:
     """Documentos de soporte que conviene pedir según lo que el cliente ya adjuntó."""
     attachments = [
         item for item in analysis.get("attachments", [])
@@ -388,7 +390,7 @@ def suggested_supporting_documents(analysis: dict) -> list[str]:
     return suggestions
 
 
-def suggested_reply(analysis: dict, required_fields: list[str] | None = None) -> str:
+def suggested_reply(analysis: Analisis, required_fields: list[str] | None = None) -> str:
     """Texto sugerido para responder al cliente: las preguntas pendientes o, si no hay, un acuse de recibo."""
     questions = reception_questions(analysis, required_fields or [])
     questions += (analysis.get("manual_review") or {}).get("questions", [])

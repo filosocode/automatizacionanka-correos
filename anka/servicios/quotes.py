@@ -12,6 +12,7 @@ from uuid import uuid4
 import json
 from datetime import datetime
 from pathlib import Path
+from anka.dominio.analisis import Analisis
 from anka.dominio.status import (
     REVIEW_QUEUE_STATUSES, QuoteStatus, sql_in,
 )
@@ -28,7 +29,7 @@ log = get_logger(__name__)
 
 
 
-def save_review_packet(thread_id: str, recipient: str, analysis: dict,
+def save_review_packet(thread_id: str, recipient: str, analysis: Analisis,
                        questions: list[str], body: str | None,
                        folder_name: str | None = None) -> Path:
     """Guarda en `review_queue` el paquete de texto para revisar un caso y devuelve su ruta."""
@@ -171,7 +172,7 @@ SECTORS = [
 ]
 
 
-def load_analysis(value: str) -> dict:
+def load_analysis(value: str) -> Analisis:
     """El análisis guardado de un caso como diccionario ({} si falta o está dañado)."""
     try:
         return json.loads(value) if value else {}
@@ -179,7 +180,7 @@ def load_analysis(value: str) -> dict:
         return {}
 
 
-def _service_names(analysis: dict) -> list[str]:
+def _service_names(analysis: Analisis) -> list[str]:
     services = []
     for activity in analysis.get("activities", []):
         service = (activity.get("servicio_tecnica") or activity.get("activity") or "").strip()
@@ -199,7 +200,7 @@ def _timestamp(value: str) -> float:
         return 0.0
 
 
-def _unanalyzed_reply(latest: tuple[str, str] | None, last_inbound_id: str, analysis: dict,
+def _unanalyzed_reply(latest: tuple[str, str] | None, last_inbound_id: str, analysis: Analisis,
                       first_seen_at: str, status: str) -> str:
     """Hora de la respuesta del cliente que el análisis todavía no recoge ('' si no hay)."""
     if not latest or status in (QuoteStatus.IGNORED, QuoteStatus.MISSING):
@@ -227,7 +228,7 @@ def ago_text(minutes: int) -> str:
     return f"hace {minutes // 1440} días"
 
 
-def model_proposal(analysis: dict) -> list[dict]:
+def model_proposal(analysis: Analisis) -> list[dict]:
     """Filas que el modelo propone y que difieren de la tabla que editó una persona."""
     proposed = analysis.get("pending_model_activities")
     if not isinstance(proposed, list):
