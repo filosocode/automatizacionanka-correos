@@ -29,7 +29,8 @@ from anka.servicios.change_control import (
     code_label, required_messages,
 )
 from anka.dominio.registros import Cambio
-from anka.servicios.quotes import CLIENT_TYPES, discarded_quotes, STATUS_LABELS, all_quotes, unread_notifications
+from anka.servicios.quotes import discarded_quotes, all_quotes, unread_notifications
+from anka.dominio.caso import CLIENT_TYPES, STATUS_LABELS
 
 log = get_logger(__name__)
 

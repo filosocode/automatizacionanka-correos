@@ -41,9 +41,10 @@ from anka.servicios.change_control import (
 from anka.servicios.gmail_followup import case_contacts
 from anka.dominio.registros import Cambio, Evento
 from anka.servicios.quotes import (
-    CLIENT_TYPES, REPLY_OVERDUE_MINUTES, SECTORS, ago_text, case_change_log, case_conversation, case_has_links,
-    case_people, chain_status, get_quote, minutes_since, reason_label, thread_events,
+    ago_text, case_change_log, case_conversation, case_has_links, case_people, chain_status, get_quote,
+    minutes_since, reason_label, thread_events,
 )
+from anka.dominio.caso import CLIENT_TYPES, REPLY_OVERDUE_MINUTES, SECTORS
 from anka.servicios.ediciones import EDIT_REASONS, last_manual_version, table_versions
 
 from anka.web.paginas import REPLY_LABEL, case_stage, page

@@ -21,7 +21,8 @@ from anka.dominio.status import QuoteStatus, canonical_work_status
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import connect, record_event, save
 from anka.servicios.change_control import apply_guard
-from anka.servicios.quotes import CLIENT_TYPES, SECTORS, save_quote_metadata
+from anka.servicios.quotes import save_quote_metadata
+from anka.dominio.caso import CLIENT_TYPES, SECTORS
 
 log = get_logger(__name__)
 

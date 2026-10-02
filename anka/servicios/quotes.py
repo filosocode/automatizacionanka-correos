@@ -12,13 +12,16 @@ from uuid import uuid4
 import json
 from datetime import datetime
 import sqlite3
-from typing import Any, NamedTuple
+from typing import NamedTuple
 from pathlib import Path
 from anka.dominio.analisis import Analisis
 from anka.dominio.status import (
     REVIEW_QUEUE_STATUSES, QuoteStatus, sql_in,
 )
-from anka.dominio.caso import Caso
+from anka.dominio.caso import (
+    Caso, CLIENT_TYPES, SECTORS, load_analysis, service_names, timestamp, unanalyzed_reply, model_proposal,
+    waiting_since, status_label,
+)
 from anka.dominio.registros import Cambio, Evento, Vinculo
 from anka.infra import settings
 from anka.dominio.reception import (
@@ -28,7 +31,6 @@ from anka.infra.logging_setup import get_logger
 from anka.infra.store import add_table_version, case_events, connect, record_event, register_change, verify_chain
 
 log = get_logger(__name__)
-
 
 
 def save_review_packet(thread_id: str, recipient: str, analysis: Analisis,
@@ -89,8 +91,6 @@ def save_review_packet(thread_id: str, recipient: str, analysis: Analisis,
     return path
 
 
-
-
 def unread_notifications(limit: int = 20) -> list[dict]:
     """Novedades del dashboard sin leer, las más recientes primero."""
     db = connect()
@@ -148,75 +148,9 @@ def review_action(status: str) -> tuple[str, str]:
     return "Revision manual", "No disponible"
 
 
-STATUS_LABELS = {
-    QuoteStatus.REVIEW_PENDING: "Requiere aclaraciones",
-    QuoteStatus.READY_REVIEW: "Información suficiente para revisión interna",
-    QuoteStatus.SENDING: "Enviando",
-    QuoteStatus.REVIEW: "Revisión técnica interna",
-    QuoteStatus.WAITING: "Esperando cliente",
-    QuoteStatus.DRAFT_CREATED: "Borrador preparado",
-    QuoteStatus.RESPONSE_SENT: "Respuesta enviada",
-    QuoteStatus.READY: "Proyecto creado",
-    QuoteStatus.MISSING: "Hilo no disponible",
-    QuoteStatus.IGNORED: "Descartada",
-}
-
-
-CLIENT_TYPES = [
-    "No clasificado", "Empresa privada", "Entidad pública",
-    "Consultor o aliado", "Particular",
-]
-
-
-SECTORS = [
-    "No clasificado", "Energía", "Infraestructura", "Hidrocarburos",
-    "Ambiente", "Catastro", "Otro",
-]
-
-
-def load_analysis(value: str) -> Analisis:
-    """El análisis guardado de un caso como diccionario ({} si falta o está dañado)."""
-    try:
-        return json.loads(value) if value else {}
-    except (json.JSONDecodeError, TypeError):
-        return {}
-
-
-def _service_names(analysis: Analisis) -> list[str]:
-    services = []
-    for activity in analysis.get("activities", []):
-        service = (activity.get("servicio_tecnica") or activity.get("activity") or "").strip()
-        if service:
-            services.append(service)
-    return list(dict.fromkeys(services))
-
-
-REPLY_OVERDUE_MINUTES = 30      # una respuesta sin analizar más de este tiempo se resalta
-REPLY_TOLERANCE_SECONDS = 120   # la fecha del correo y la de llegada pueden diferir unos segundos
-
-
-def _timestamp(value: str) -> float:
-    try:
-        return datetime.fromisoformat(value).timestamp()
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _unanalyzed_reply(latest: tuple[str, str] | None, last_inbound_id: str, analysis: Analisis,
-                      first_seen_at: str, status: str) -> str:
-    """Hora de la respuesta del cliente que el análisis todavía no recoge ('' si no hay)."""
-    if not latest or status in (QuoteStatus.IGNORED, QuoteStatus.MISSING):
-        return ""
-    occurred_at, ref = latest
-    if ref == last_inbound_id:
-        return ""
-    analyzed = _timestamp(analysis.get("received_at") or first_seen_at)
-    return occurred_at if _timestamp(occurred_at) > analyzed + REPLY_TOLERANCE_SECONDS else ""
-
-
 def minutes_since(value: str) -> int:
     """Minutos transcurridos desde una fecha."""
-    return max(0, int((datetime.now().astimezone().timestamp() - _timestamp(value)) // 60))
+    return max(0, int((datetime.now().astimezone().timestamp() - timestamp(value)) // 60))
 
 
 def ago_text(minutes: int) -> str:
@@ -228,28 +162,6 @@ def ago_text(minutes: int) -> str:
     if minutes < 2880:
         return f"hace {minutes // 60} h"
     return f"hace {minutes // 1440} días"
-
-
-def model_proposal(analysis: Analisis) -> list[dict]:
-    """Filas que el modelo propone y que difieren de la tabla que editó una persona."""
-    proposed = analysis.get("pending_model_activities")
-    if not isinstance(proposed, list):
-        return []
-    mine = {str(item.get("activity", "")).strip().casefold(): item
-            for item in analysis.get("activities", []) if isinstance(item, dict)}
-    changes = []
-    for item in proposed:
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("activity", "")).strip()
-        current = mine.get(name.casefold())
-        detail = " ".join(str(item.get(key) or "") for key in ("quantity", "unit")).strip()
-        if current is None:
-            changes.append({"kind": "nueva", "activity": name, "detail": detail})
-        elif any(str(current.get(key) or "") != str(item.get(key) or "")
-                 for key in ("quantity", "unit", "ubicacion", "entregable", "plazo_restriccion")):
-            changes.append({"kind": "distinta", "activity": name, "detail": detail})
-    return changes
 
 
 REASON_LABELS = {
@@ -411,15 +323,6 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
     return summary
 
 
-def _waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None) -> str:
-    """Desde cuándo espera el caso la respuesta del cliente ('' si no está esperando)."""
-    if status not in (QuoteStatus.WAITING, QuoteStatus.RESPONSE_SENT) or not sent_at:
-        return ""
-    if latest and _timestamp(latest[0]) >= _timestamp(sent_at):
-        return ""            # el cliente ya respondió después
-    return sent_at
-
-
 class _CaseRelations(NamedTuple):
     """Lo que se guarda aparte de cada caso y que `Caso` necesita (todo indexado por hilo)."""
 
@@ -468,14 +371,6 @@ def _case_relations(db: sqlite3.Connection, thread_id: str | None) -> _CaseRelat
     return _CaseRelations(latest_reply, followups, reminders, changes, pending_links)
 
 
-def _status_label(status: Any, assessment: dict) -> str:
-    """Etiqueta del estado; en revisión la da la evaluación de recepción (qué le falta al caso)."""
-    review_states = {QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.REVIEW}
-    if status in review_states and assessment:
-        return str(assessment["label"])
-    return STATUS_LABELS.get(status) or str(status)
-
-
 def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
     """Arma el `Caso` de una fila con lo que se guardó aparte."""
     thread = row["thread_id"]
@@ -488,7 +383,7 @@ def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
     return Caso(
         thread_id=thread,
         status=row["status"],
-        status_label=_status_label(row["status"], assessment),
+        status_label=status_label(row["status"], assessment),
         recipient=row["recipient"],
         client_email=client_email,
         client_name=row["client_name"] or routing.get("original_sender") or client_email,
@@ -498,19 +393,19 @@ def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
         notes=row["notes"] or "",
         analysis=analysis,
         reception_assessment=assessment,
-        services=_service_names(analysis),
+        services=service_names(analysis),
         first_seen_at=row["first_seen_at"] or analysis.get("received_at") or "",
         updated_at=row["updated_at"] or "",
         folder_id=row["folder_id"],
         draft_id=row["draft_id"],
         draft_body=row["draft_body"] or "",
         sent_at=row["sent_at"] or "",
-        reply_pending=_unanalyzed_reply(
+        reply_pending=unanalyzed_reply(
             latest, row["last_inbound_id"], analysis, row["first_seen_at"] or "", row["status"]),
         proposal=model_proposal(analysis),
         links=rel.pending_links.get(thread, []),
         changes=rel.changes.get(thread, []),
-        waiting_since=_waiting_since(row["status"], row["sent_at"] or "", latest),
+        waiting_since=waiting_since(row["status"], row["sent_at"] or "", latest),
         followup={
             "auto_enabled": bool(followup.get("auto_enabled")),
             "paused": bool(followup.get("paused")),

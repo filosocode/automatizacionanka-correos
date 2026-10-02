@@ -14,7 +14,7 @@ from uuid import uuid4
 from anka.dominio.analisis import Actividad
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import add_table_version, connect, latest_table_version, record_event
-from anka.servicios.quotes import load_analysis
+from anka.dominio.caso import load_analysis
 
 log = get_logger(__name__)
 
