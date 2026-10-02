@@ -28,7 +28,7 @@ acción y cuál es la siguiente.
 ## Cuándo está terminada la Fase 1
 Un caso real recorre los 7 pasos sin salir del dashboard (salvo Gmail para leer y enviar), con evidencia de cada
 hecho, y el comercial puede decir en cualquier momento en qué etapa está cada solicitud. La aceptación se prueba con
-`PILOTO_ACEPTACION.md`; lo que Python no puede garantizar de Work se registra como prueba manual.
+`docs/PILOTO_ACEPTACION.md`; lo que Python no puede garantizar de Work se registra como prueba manual.
 
 ## Fuera de alcance (por ahora)
 Precios y presupuestos; generar la sección técnica T (lo hace Motor Anka, proyecto aparte); varios usuarios con

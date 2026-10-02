@@ -37,6 +37,6 @@ de cada actividad sigue R12.
 
 ## Cambiar el contrato
 1. Edita el esquema (y este documento si cambia el sentido).
-2. Actualiza `INSTRUCCIONES.txt` (lo que se pega en la tarea de ChatGPT): `test_contrato_work.py` falla si un campo del
+2. Actualiza `docs/INSTRUCCIONES.txt` (lo que se pega en la tarea de ChatGPT): `test_contrato_work.py` falla si un campo del
    esquema no está documentado ahí.
-3. Actualiza la skill de Work (`SKILL.md`) y repite la prueba manual (`PILOTO_ACEPTACION.md`).
+3. Actualiza la skill de Work (`SKILL.md`) y repite la prueba manual (`docs/PILOTO_ACEPTACION.md`).

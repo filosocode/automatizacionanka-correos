@@ -148,4 +148,4 @@ Las carpetas siguen la convención `Año / Cliente / Solicitud`. `drive_parent_i
 
 ## Los tres modos de operación
 
-Ollama (`local`), API (`api`) y ChatGPT Work (`chatgpt_work`) deben comportarse igual. Las reglas viven en un solo documento (`skills/anka-cotizaciones-correo/references/reglas_operativas.md`), `local` y `api` comparten el mismo código y Work usa la skill, y `test_paridad_modos.py` falla si alguno se separa. El procedimiento para cambiar cualquier regla está en [ESTANDAR_CAMBIOS.md](ESTANDAR_CAMBIOS.md).
+Ollama (`local`), API (`api`) y ChatGPT Work (`chatgpt_work`) deben comportarse igual. Las reglas viven en un solo documento (`skills/anka-cotizaciones-correo/references/reglas_operativas.md`), `local` y `api` comparten el mismo código y Work usa la skill, y `test_paridad_modos.py` falla si alguno se separa. El procedimiento para cambiar cualquier regla está en [docs/ESTANDAR_CAMBIOS.md](docs/ESTANDAR_CAMBIOS.md).

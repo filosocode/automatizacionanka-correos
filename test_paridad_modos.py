@@ -399,7 +399,7 @@ class OllamaAndApiBehaveTheSame(unittest.TestCase):
 class WorkModeIsTheOtherOrchestrator(unittest.TestCase):
     def test_the_three_modes_are_the_ones_the_standard_documents(self):
         self.assertEqual(settings.ACTIVE_MODES, {"local", "api", "chatgpt_work"})
-        doc = (Path(__file__).parent / "ESTANDAR_CAMBIOS.md").read_text(encoding="utf-8")
+        doc = (Path(__file__).parent / "docs/ESTANDAR_CAMBIOS.md").read_text(encoding="utf-8")
         for mode in settings.ACTIVE_MODES:
             self.assertIn(mode, doc)
 

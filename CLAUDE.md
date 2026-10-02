@@ -24,7 +24,7 @@ ahí y se verifica contra ahí:
   versionan ni se imprimen.
 
 ## Cómo se trabaja
-1. **Especificación primero** (`ESTANDAR_CAMBIOS.md`): requisito/regla → casos → código → skill de Work → pruebas →
+1. **Especificación primero** (`docs/ESTANDAR_CAMBIOS.md`): requisito/regla → casos → código → skill de Work → pruebas →
    prueba manual en Work si cambia lo que Work debe hacer.
 2. **Cada requisito tiene pruebas**: etiqueta las nuevas con `# Cubre: ID` y corre `python check_spec.py`.
 3. **Antes de dar algo por hecho corre `check.bat`** (ruff, mypy, `check_spec`, pruebas con cobertura ≥ 82 %): es lo

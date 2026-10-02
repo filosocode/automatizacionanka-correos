@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 title Puente Work - Dashboard (no cerrar)
 :inicio
 ".venv\Scripts\python.exe" work_dashboard_sync.py --seconds 60

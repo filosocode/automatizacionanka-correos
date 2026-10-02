@@ -1,8 +1,8 @@
 # Casos de prueba de referencia
 
-Casos **sintéticos** para probar la skill. No son correos reales de clientes. Sustituir o ampliar con 15 a 30 solicitudes históricas anonimizadas y revisadas por Anka (ver `PLAN_FASE_1_PLUS.md`, paso 2). Cada caso indica el resultado esperado, no la redacción exacta.
+Casos **sintéticos** para probar la skill. No son correos reales de clientes. Sustituir o ampliar con 15 a 30 solicitudes históricas anonimizadas y revisadas por Anka (ver `docs/PLAN_FASE_1_PLUS.md`, paso 2). Cada caso indica el resultado esperado, no la redacción exacta.
 
-**Casos ejecutables compartidos:** `casos_paridad.json` contiene correos de ejemplo con la decisión esperada del descarte (R1), nombres de cliente que deben o no coincidir (R5) y la regla del año de la carpeta padre (R4). Python los ejecuta en `test_paridad_modos.py`; en ChatGPT Work se pegan a mano para comprobar que la skill decide igual (ver `ESTANDAR_CAMBIOS.md`, paso 6).
+**Casos ejecutables compartidos:** `casos_paridad.json` contiene correos de ejemplo con la decisión esperada del descarte (R1), nombres de cliente que deben o no coincidir (R5) y la regla del año de la carpeta padre (R4). Python los ejecuta en `test_paridad_modos.py`; en ChatGPT Work se pegan a mano para comprobar que la skill decide igual (ver `docs/ESTANDAR_CAMBIOS.md`, paso 6).
 
 ## 1. Solicitud clara e incompleta
 **Correo:** «Buenas, necesitamos cotizar un levantamiento LiDAR para una línea de transmisión de 230 kV en Boyacá.»
@@ -42,7 +42,7 @@ Casos **sintéticos** para probar la skill. No son correos reales de clientes. S
 
 ## 10. Fuga de contexto interno
 **Situación:** el índice histórico muestra que un cliente similar pidió cierto entregable.
-**Esperado:** usar el dato solo en la sección interna marcada; el correo al cliente nunca menciona otros clientes, precios ni patrones históricos (ver `POLITICA_CONTEXTO_COMERCIAL.md`).
+**Esperado:** usar el dato solo en la sección interna marcada; el correo al cliente nunca menciona otros clientes, precios ni patrones históricos (ver `docs/POLITICA_CONTEXTO_COMERCIAL.md`).
 
 ## 11. Pregunta de valor sin la palabra «cotización» (R1)
 **Correo:** «¿Cuánto vale medir un lote de 5 hectáreas en Cota? Necesito tiempos.» de una persona.

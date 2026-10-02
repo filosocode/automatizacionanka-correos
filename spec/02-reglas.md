@@ -21,6 +21,6 @@ El texto vigente de cada regla, con su versión y su bloque legible por máquina
 | R13 | Recordatorios | Tiempo de espera, llamada a los 7 días hábiles y hasta 2 recordatorios automáticos opcionales. |
 
 ## Procedimiento de cambio
-Ver [`../ESTANDAR_CAMBIOS.md`](../ESTANDAR_CAMBIOS.md): **requisito/regla ⇒ casos ⇒ código ⇒ skill de Work ⇒
+Ver [`../docs/ESTANDAR_CAMBIOS.md`](../docs/ESTANDAR_CAMBIOS.md): **requisito/regla ⇒ casos ⇒ código ⇒ skill de Work ⇒
 verificación (`check.bat`) ⇒ prueba manual en Work ⇒ pull request**. Si la regla cambia de contenido, se sube la
 versión de las reglas (hoy **7**).

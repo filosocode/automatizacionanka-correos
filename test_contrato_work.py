@@ -15,7 +15,7 @@ from status import WORK_STATUS_LABELS
 from test_work_sync import draft_message, payload
 
 SCHEMA = work_contract.load_schema()
-INSTRUCTIONS = (Path(__file__).parent / "INSTRUCCIONES.txt").read_text(encoding="utf-8")
+INSTRUCTIONS = (Path(__file__).parent / "docs/INSTRUCCIONES.txt").read_text(encoding="utf-8")
 BRIDGE_ONLY = {"draft_reply", "draft_id"}   # los agrega el puente, Work no los escribe
 
 

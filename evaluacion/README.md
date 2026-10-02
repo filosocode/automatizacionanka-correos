@@ -1,6 +1,6 @@
 # Muestra etiquetada para medir el piloto
 
-Objetivo: medir con correos reales antes de ampliar la automatizacion (`PLAN_FASE_1_PLUS.md`, pasos 2 y 6).
+Objetivo: medir con correos reales antes de ampliar la automatizacion (`docs/PLAN_FASE_1_PLUS.md`, pasos 2 y 6).
 
 ## Como llenarla
 1. Reunir de 15 a 30 solicitudes historicas variadas: completas, incompletas, respuestas parciales, con adjuntos legibles e ilegibles, reenvios y ruido que no es solicitud.

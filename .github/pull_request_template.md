@@ -10,7 +10,7 @@
 - [ ] Decisión importante anotada en `spec/05-decisiones.md`
 - [ ] No aplica: no cambia el comportamiento
 
-## Cambio de comportamiento: los tres modos (ver `ESTANDAR_CAMBIOS.md`)
+## Cambio de comportamiento: los tres modos (ver `docs/ESTANDAR_CAMBIOS.md`)
 
 - [ ] Regla editada en `skills/anka-cotizaciones-correo/references/reglas_operativas.md` (y versión subida si cambió el contenido)
 - [ ] Casos nuevos o ajustados en `casos_paridad.json`

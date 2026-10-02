@@ -1,6 +1,6 @@
 # Flujo y estados
 
-El diagrama del flujo de la Fase 1 y el estándar de cada paso están en [`../FLUJO_FASE1.md`](../FLUJO_FASE1.md).
+El diagrama del flujo de la Fase 1 y el estándar de cada paso están en [`../docs/FLUJO_FASE1.md`](../docs/FLUJO_FASE1.md).
 Aquí se fija el **ciclo de vida de un caso**, que es lo que el código debe respetar. Requisito: **T-01**.
 
 ## Estados (`QuoteStatus`)
