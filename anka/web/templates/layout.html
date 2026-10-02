@@ -18,7 +18,15 @@
       <form method="post" action="/google/reautorizar" id="google-reauth" hidden>
         <button type="submit" class="secondary" data-confirm="Se abrirá la ventana de Google en este equipo para iniciar sesión y aceptar los permisos. ¿Continuar?">Reautorizar Google</button>
       </form>
-      <details class="settings"><summary>Ajustes</summary><div class="settings-box">{{ mode_selector }}</div></details>
+      <details class="settings"><summary>Ajustes</summary><div class="settings-box">{{ mode_selector }}
+        <div class="google-settings">
+          <strong>Cuenta de Google</strong>
+          <span id="google-status" class="meta">Verificando…</span>
+          <form method="post" action="/google/reautorizar">
+            <button type="submit" class="secondary" data-confirm="Se abrirá la ventana de Google en este equipo para iniciar sesión y aceptar los permisos. ¿Continuar?">Reautorizar Google</button>
+          </form>
+        </div>
+      </div></details>
       {% if not is_work %}<form method="post" action="/refresh">
         <button type="submit">Actualizar correo</button>
       </form>{% endif %}
@@ -47,6 +55,7 @@
       const chip = document.getElementById('bridge-chip');
       const googleChip = document.getElementById('google-chip');
       const googleForm = document.getElementById('google-reauth');
+      const googleStatus = document.getElementById('google-status');
       document.addEventListener('input', () => { dirty = true; });
       document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); });
       async function poll() {
@@ -67,6 +76,7 @@
           googleChip.hidden = !(needsGoogle || g.estado === 'en_curso');
           googleChip.dataset.state = needsGoogle ? 'stopped' : 'error';
           googleChip.title = g.texto || '';
+          if (g.texto) googleStatus.textContent = g.texto;
           googleChip.textContent = needsGoogle ? 'Google desconectado' : 'Autorizando Google…';
           if (base === null) base = s.v;
           else if (s.v !== base) {

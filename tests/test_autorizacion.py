@@ -170,6 +170,19 @@ class DashboardIntegration(unittest.TestCase):
         self.assertEqual(estado["google"], {"estado": "vencida", "texto": vencida.texto})
         self.assertEqual(api, {"estado": "vencida", "texto": vencida.texto})
 
+    def test_the_settings_menu_always_offers_the_button_and_the_alert_one_appears_only_when_needed(self):
+        from anka.web import paginas
+        with patch("anka.web.paginas.load_config", return_value={"active_mode": "local"}), \
+                patch("anka.web.paginas.unread_notifications", return_value=[]):
+            html = seguridad.add_csrf_tokens(paginas.page("Prueba", "<p>x</p>"))
+        ajustes = html[html.index('<div class="settings-box">'):html.index("</details>")]
+        self.assertIn('action="/google/reautorizar"', ajustes)      # visible siempre, dentro de Ajustes
+        self.assertIn("Cuenta de Google", ajustes)
+        self.assertIn("csrf_token", ajustes)
+        self.assertIn("data-confirm", ajustes)
+        self.assertEqual(html.count('action="/google/reautorizar"'), 2)   # el de Ajustes y el aviso rojo (oculto)
+        self.assertIn('id="google-reauth" hidden', html)
+
     def test_every_page_carries_the_hidden_button_with_its_token_and_a_confirmation(self):
         from anka.web import paginas
         with patch("anka.web.paginas.load_config", return_value={"active_mode": "local"}), \

@@ -273,4 +273,5 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .settings { position: relative; }
 .settings > summary { cursor: pointer; list-style: none; padding: 8px 12px; border-radius: 6px; color: var(--muted); font-weight: 600; font-size: 14px; }
 .settings > summary:hover { background: #edf1f1; }
+.google-settings { display: grid; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .settings-box { position: absolute; right: 0; top: 40px; z-index: 10; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.12); min-width: 330px; }

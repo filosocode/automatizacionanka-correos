@@ -48,8 +48,8 @@ cada 7 días) o ser revocada. Sin ella el puente de Work no lee Gmail y el dashb
 
 | Qué | Dónde |
 |---|---|
-| Ver el estado | Aviso «Google desconectado» en el encabezado; `GET /api/autorizacion` (`ok`, `vencida`, `en_curso`, `fallida`, `desconocido`); campo `google` de `GET /state`; componente `autorizacion_google` de `GET /api/salud` |
-| Reautorizar | Botón «Reautorizar Google» (aparece solo si hace falta) o `POST /google/reautorizar` |
+| Ver el estado | «Cuenta de Google» en Ajustes y, si hace falta, el aviso «Google desconectado» en el encabezado; `GET /api/autorizacion` (`ok`, `vencida`, `en_curso`, `fallida`, `desconocido`); campo `google` de `GET /state`; componente `autorizacion_google` de `GET /api/salud` |
+| Reautorizar | Botón «Reautorizar Google» **siempre disponible en Ajustes** (junto al estado de la cuenta); además aparece en el encabezado, junto al aviso, cuando hace falta; o `POST /google/reautorizar` |
 | Desde la terminal | `python app.py auth` |
 
 Cómo funciona:
