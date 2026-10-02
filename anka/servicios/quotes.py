@@ -199,6 +199,37 @@ def _close_sibling_links(db: sqlite3.Connection, thread_id: str, link: sqlite3.R
     return len(siblings)
 
 
+SIN_AVANCE = (QuoteStatus.WAITING, QuoteStatus.REVIEW, QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW,
+              QuoteStatus.DRAFT_CREATED, QuoteStatus.MISSING)
+
+
+def _merge_own_case(db: sqlite3.Connection, thread_id: str, link: sqlite3.Row, now: str) -> str:
+    """Si el correo confirmado ya generó su propio caso (hilo nuevo), lo une a este: queda descartado como «unido».
+
+    Solo une un caso que no avanzó (sin código de oferta, sin carpeta, sin respuesta enviada); su contenido y su
+    historial se conservan y se puede rescatar desde Descartadas. Devuelve el nombre del caso unido o "".
+    """
+    other = link["other_thread_id"]
+    row = db.execute("SELECT status, quote_code, folder_id, analysis_json FROM quotes WHERE thread_id=?",
+                     (other,)).fetchone()
+    sin_unir = (not other or other == thread_id or not row or row["quote_code"] or row["folder_id"]
+                or row["status"] not in SIN_AVANCE)
+    if sin_unir:
+        return ""
+    analysis = load_analysis(row["analysis_json"])
+    target = load_analysis(db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?",
+                                      (thread_id,)).fetchone()["analysis_json"]).get("project_name") or "otro caso"
+    name = analysis.get("project_name") or "este caso"
+    analysis["ignored_reason"] = f"Unido al caso «{target}» (confirmaste que el correo es de ese caso)."
+    analysis["merged_into"] = thread_id
+    db.execute("UPDATE quotes SET status=?, analysis_json=?, updated_at=? WHERE thread_id=?",
+               (QuoteStatus.IGNORED, json.dumps(analysis, ensure_ascii=False), now, other))
+    db.execute("UPDATE dashboard_notifications SET read_at=? WHERE thread_id=? AND read_at IS NULL", (now, other))
+    record_event(db, other, "merged", "dashboard", f"merged-{link['id']}",
+                 f"Este caso se unió a «{target}» porque confirmaste que su correo pertenece a ese caso.", now)
+    return name
+
+
 def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
     """Una persona confirma o descarta que un correo de otro hilo pertenece a este caso."""
     db = connect()
@@ -213,6 +244,7 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
         db.execute("UPDATE case_links SET state=?, decided_at=? WHERE id=?",
                    ("linked" if accept else "dismissed", now, link_id))
         closed = _close_sibling_links(db, thread_id, link, now) if accept else 0
+        merged = _merge_own_case(db, thread_id, link, now) if accept else ""
         if accept:
             summary = (f"Confirmaste que el correo «{link['subject'][:80]}» de {who} "
                        f"({reason_label(link['reason'])}) pertenece a este caso: «{link['snippet']}»")
@@ -221,6 +253,9 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
             if closed:
                 message += (f" Este mismo correo también aparecía como posible actualización en {closed} caso(s) más: "
                             "ya no se muestra allí.")
+            if merged:
+                message += (f" Además, el caso «{merged}», que había nacido de ese mismo hilo, se unió a este "
+                            "(quedó en Descartadas, por si quieres rescatarlo).")
         else:
             summary = f"Descartaste que el correo «{link['subject'][:80]}» de {who} sea de este caso."
             message = "Descartado: no se mostrará de nuevo."

@@ -115,6 +115,48 @@ class OneEmailOneCase(unittest.TestCase):
 
 
 # Cubre: T-18
+class MergeOwnCase(OneEmailOneCase):
+    """El correo confirmado ya había creado su propio caso (hilo nuevo): se une al caso elegido."""
+
+    def setUp(self):
+        super().setUp()
+        db = store.open_db(self.folder)
+        store.save(db, "otro-hilo", "m-otro", QuoteStatus.WAITING, "ana@acme.com", {"project_name": "Los Pinos - precisión"})
+        db.commit()
+        db.close()
+
+    def status(self, thread):
+        db = store.open_db(self.folder)
+        try:
+            return db.execute("SELECT status FROM quotes WHERE thread_id=?", (thread,)).fetchone()[0]
+        finally:
+            db.close()
+
+    def test_the_case_born_from_that_thread_is_merged_and_can_be_rescued(self):
+        mensaje = quotes.resolve_link("t-b", self.link_id("t-b"), accept=True)
+        self.assertEqual(self.status("otro-hilo"), QuoteStatus.IGNORED)
+        self.assertIn("se unió a este", mensaje)
+        caso = self.repo.obtener("otro-hilo")
+        self.assertIn("Unido al caso «Volumetría mensual cantera Los Pinos»", caso.analysis["ignored_reason"])
+        self.assertEqual(caso.analysis["merged_into"], "t-b")
+        self.assertIn("otro-hilo", [d["thread_id"] for d in self.repo.descartados()])   # sigue ahí, rescatable
+        self.assertTrue([e for e in self.repo.eventos("otro-hilo") if e["kind"] == "merged"])
+
+    def test_a_case_that_already_advanced_is_never_merged(self):
+        db = store.open_db(self.folder)
+        db.execute("UPDATE quotes SET quote_code='26010' WHERE thread_id='otro-hilo'")
+        db.commit()
+        db.close()
+        mensaje = quotes.resolve_link("t-b", self.link_id("t-b"), accept=True)
+        self.assertEqual(self.status("otro-hilo"), QuoteStatus.WAITING)
+        self.assertNotIn("se unió a este", mensaje)
+
+    def test_dismissing_does_not_merge_anything(self):
+        quotes.resolve_link("t-b", self.link_id("t-b"), accept=False)
+        self.assertEqual(self.status("otro-hilo"), QuoteStatus.WAITING)
+
+
+# Cubre: T-18
 class MigrationCleansWhatWasAlreadyRepeated(unittest.TestCase):
     def test_pending_notices_for_an_email_already_confirmed_elsewhere_are_closed(self):
         with tempfile.TemporaryDirectory() as d:

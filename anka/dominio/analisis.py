@@ -121,3 +121,4 @@ class Analisis(TypedDict, total=False):
     engine: str
     force_analysis: bool
     ignored_reason: str
+    merged_into: str            # hilo del caso al que se unió este (descartado como «unido»)

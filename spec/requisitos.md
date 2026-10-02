@@ -121,8 +121,10 @@ puede reintentar.
 Cuando una persona confirma que un correo de otro hilo pertenece a un caso, ese mismo correo deja de aparecer como
 «posible actualización» en los demás casos del mismo remitente: sus avisos se cierran y sus novedades se marcan leídas.
 Cada caso afectado conserva una anotación de a qué caso se asignó. Lo que una persona ya descartó se respeta, descartar
-en un caso no cierra los otros, y un aviso cerrado no cuenta como avance del caso. Los avisos que ya habían quedado
-repetidos se limpian al actualizar la base.
+en un caso no cierra los otros, y un aviso cerrado no cuenta como avance del caso. Si el correo ya había creado su
+propio caso (un hilo nuevo), ese caso se **une** al elegido: queda en Descartadas como «unido», con su contenido e
+historial, rescatable; solo si no avanzó (sin código de oferta, carpeta ni respuesta enviada). Los avisos que ya
+habían quedado repetidos se limpian al actualizar la base.
 
 ## Experiencia de usuario
 
