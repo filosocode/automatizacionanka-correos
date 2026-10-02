@@ -32,6 +32,7 @@ from anka.servicios.quotes import archived_threads, resolve_link, change_marker,
 from anka.servicios.ediciones import save_activities
 
 from anka.web import paginas
+from anka.web import pantalla_caso
 from anka.web.seguridad import (
     CSRF_TOKEN, add_csrf_tokens, is_local_host_header, is_same_origin,
 )
@@ -270,13 +271,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
         elif parsed.path == "/discarded":
             self._send_html(paginas.render_discarded(query.get("message", [""])[0]))
         elif parsed.path == "/case":
-            self._send_html(paginas.render_case(
+            self._send_html(pantalla_caso.render_case(
                 query.get("thread_id", [""])[0], query.get("message", [""])[0],
                 query.get("template", [""])[0],
                 int(query.get("change_id", ["0"])[0] or 0), query.get("to", [""])[0],
             ))
         elif parsed.path == "/acta":
-            self._send_html(paginas.render_acta(query.get("thread_id", [""])[0]))
+            self._send_html(pantalla_caso.render_acta(query.get("thread_id", [""])[0]))
         elif parsed.path == "/archive":
             self._send_html(paginas.page("Archivo", render("archive.html", items=archived_threads())))
         else:

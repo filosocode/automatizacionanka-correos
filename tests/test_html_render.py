@@ -26,6 +26,7 @@ from anka.servicios import followup_reminders as fup
 from anka.web import server as web
 from anka.web import seguridad
 from anka.web import paginas
+from anka.web import pantalla_caso
 from anka.dominio.status import QuoteStatus
 from tests.test_app import test_config
 
@@ -220,7 +221,7 @@ class Pages(unittest.TestCase):
         # Los días de espera dependen de hoy: se fija el reloj para que la instantánea no cambie con la fecha.
         fixed_now = datetime.fromisoformat("2026-10-01T12:00:00-05:00")
         with patch.object(settings, "DATA_DIR", cls.data_dir),                 patch.object(fup, "waiting_days", lambda since, now=None: real_waiting_days(since, fixed_now)), \
-                patch("anka.web.paginas.load_config", return_value=test_config()), \
+                patch("anka.web.paginas.load_config", return_value=test_config()), patch("anka.web.pantalla_caso.load_config", return_value=test_config()), \
                 patch("anka.web.paginas.sync_status_text", return_value="Sincronización de prueba."), \
                 patch("anka.servicios.internal_context.load_internal_commercial_index", return_value=CONTEXT_INDEX):
             pages["index"] = paginas.render_index()
@@ -229,9 +230,9 @@ class Pages(unittest.TestCase):
             pages["discarded"] = paginas.render_discarded()
             pages["discarded_mensaje"] = paginas.render_discarded("Se reanalizará <pronto>")
             for case in CASES:
-                pages[f"case_{case[0]}"] = paginas.render_case(case[0])
-            pages["case_no_existe"] = paginas.render_case("no-existe")
-            pages["case_mensaje"] = paginas.render_case("t-review", "Guardado <ok>")
+                pages[f"case_{case[0]}"] = pantalla_caso.render_case(case[0])
+            pages["case_no_existe"] = pantalla_caso.render_case("no-existe")
+            pages["case_mensaje"] = pantalla_caso.render_case("t-review", "Guardado <ok>")
         return pages
 
 
@@ -314,7 +315,7 @@ class ErrorPageTests(unittest.TestCase):
         handler.path = path
         handler.rfile = io.BytesIO(body)
         handler._send_html = lambda content, status=200: sent.update(status=status, page=content)
-        with tempfile.TemporaryDirectory() as temp_dir,                 patch.object(settings, "DATA_DIR", Path(temp_dir)),                 patch("anka.web.paginas.load_config", return_value=test_config()), patch("anka.web.server.load_config", return_value=test_config()):
+        with tempfile.TemporaryDirectory() as temp_dir,                 patch.object(settings, "DATA_DIR", Path(temp_dir)),                 patch("anka.web.paginas.load_config", return_value=test_config()), patch("anka.web.pantalla_caso.load_config", return_value=test_config()), patch("anka.web.server.load_config", return_value=test_config()):
             getattr(handler, f"do_{method}")()
         return sent
 

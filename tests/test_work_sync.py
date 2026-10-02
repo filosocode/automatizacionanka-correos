@@ -15,6 +15,7 @@ from anka.servicios import quotes
 from anka.servicios import ediciones, work_import
 from anka.infra import settings
 from anka.web import paginas
+from anka.web import pantalla_caso
 from anka.cli import work_sync as sync
 from anka.infra import work_heartbeat
 from anka.servicios import gmail_followup
@@ -255,8 +256,8 @@ class NextStepTests(unittest.TestCase):
 
     def test_banner_and_chip_show_pending_reply(self):
         self.reply("m2", 15)
-        with patch("anka.web.paginas.load_config", return_value={"active_mode": "chatgpt_work", "required_fields": []}):
-            page = paginas.render_case("T1")
+        with patch("anka.web.paginas.load_config", return_value={"active_mode": "chatgpt_work", "required_fields": []}), patch("anka.web.pantalla_caso.load_config", return_value={"active_mode": "chatgpt_work", "required_fields": []}):
+            page = pantalla_caso.render_case("T1")
             row = paginas.quote_row(quotes.get_quote("T1"))
         self.assertIn("respondió", page)
         self.assertIn("ChatGPT Work", page)       # pasaron más de 30 min desde 2026
@@ -367,9 +368,9 @@ class RelatedThreadTests(unittest.TestCase):
         db.close()
         self.run_sync({"n1": mail("NUEVO", False, self.t0 + 3600, "Luis <luis@acme.com>")})
         config = {"active_mode": "chatgpt_work", "required_fields": []}
-        with patch("anka.web.paginas.load_config", return_value=config):
-            page = paginas.render_case("T1")
-            verify = paginas.render_case("T1", template="verify")
+        with patch("anka.web.paginas.load_config", return_value=config), patch("anka.web.pantalla_caso.load_config", return_value=config):
+            page = pantalla_caso.render_case("T1")
+            verify = pantalla_caso.render_case("T1", template="verify")
         self.assertIn("en otro hilo", page)
         self.assertIn("confirmar recibido", page)
         self.assertIn("validar el cambio de persona", page)

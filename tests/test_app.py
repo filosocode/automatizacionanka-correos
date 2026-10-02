@@ -21,6 +21,7 @@ from anka.servicios import ediciones, work_import
 from anka.web import server as web
 from anka.web import seguridad
 from anka.web import paginas
+from anka.web import pantalla_caso
 from anka.servicios import internal_context
 from anka.infra import llm
 from anka.infra import modes
@@ -306,10 +307,11 @@ class QuoteFlowTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(
             settings, "DATA_DIR", Path(temp_dir)
-        ), patch("anka.web.paginas.get_quote", return_value=review), patch(
-            "anka.web.paginas.load_config", return_value=test_config()
+        ), patch("anka.web.pantalla_caso.get_quote", return_value=review), patch(
+            "anka.web.pantalla_caso.load_config", return_value=test_config()
+        ), patch("anka.web.paginas.load_config", return_value=test_config()
         ), patch("anka.servicios.internal_context.load_internal_commercial_index", return_value={}):
-            page = paginas.render_case("thread-1")
+            page = pantalla_caso.render_case("thread-1")
         self.assertIn("Evaluación de recepción", page)
         self.assertIn("Etapa actual:", page)
 
@@ -763,7 +765,7 @@ class HandlerErrorTests(unittest.TestCase):
         handler.rfile = io.BytesIO(body)
         handler._send_html = lambda content, status=200: sent.update(status=status)
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("anka.web.paginas.load_config", side_effect=ErrorDeAnka("falta config")):
+        ), patch("anka.web.paginas.load_config", side_effect=ErrorDeAnka("falta config")), patch("anka.web.pantalla_caso.load_config", side_effect=ErrorDeAnka("falta config")):
             with self.assertLogs("anka.web.server", "ERROR"):
                 handler.do_POST()
         self.assertEqual(sent["status"], 500)

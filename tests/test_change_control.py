@@ -18,6 +18,7 @@ from anka.servicios import ediciones, work_import
 from anka.infra import settings
 from anka.web import seguridad
 from anka.web import paginas
+from anka.web import pantalla_caso
 from anka.servicios.quotes import connect
 from anka.dominio.status import QuoteStatus
 from anka.infra.store import record_event, verify_chain
@@ -155,19 +156,19 @@ class ChangeDetectionTests(Base):
         self.assign()
         self.sync({"m1": coded_mail("T1", "Luis <luis@acme.com>", self.t0 + 7200, "Cambiar plazo")})
         change = self.changes()[0]
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T1")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T1")
         self.assertIn("escribió después de la T", page)
         self.assertIn("No cita la T", page)
         change_control.resolve_change("T1", change["id"], True)
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            todo = paginas.render_case("T1")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            todo = pantalla_caso.render_case("T1")
         self.assertIn("Pedir el código a", todo)
         self.assertIn("Avisar al contacto registrado", todo)
         change_control.mark_change_sent("T1", change["id"], "ask_code", "luis@acme.com")
         change_control.mark_change_sent("T1", change["id"], "notify_contact", "ana@acme.com")
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            self.assertNotIn("faltan correos por enviar", paginas.render_case("T1"))
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            self.assertNotIn("faltan correos por enviar", pantalla_caso.render_case("T1"))
         kinds = {e["kind"] for e in quotes.thread_events("T1")}
         self.assertTrue({"change_candidate", "change_confirmed", "change_reply"} <= kinds)
 
@@ -179,9 +180,9 @@ class EmailTests(Base):
         self.sync({"m1": coded_mail("T1", "Luis <luis@acme.com>", self.t0 + 7200, "Cambiar plazo")})
         review = quotes.get_quote("T1")
         change = review["changes"][0]
-        received = paginas.reply_template("received", review)
-        ask = paginas.reply_template("ask_code", review, change)
-        notify = paginas.reply_template("notify_contact", review, change)
+        received = pantalla_caso.reply_template("received", review)
+        ask = pantalla_caso.reply_template("ask_code", review, change)
+        notify = pantalla_caso.reply_template("notify_contact", review, change)
         self.assertIn("T26145", received)                  # el contacto sí lo recibe
         self.assertNotIn("26145", ask)                      # quien no es contacto, no
         self.assertIn("luis@acme.com", notify)
@@ -202,8 +203,8 @@ class EmailTests(Base):
         db.commit()
         db.close()
         self.assign()
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T1", template="received")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T1", template="received")
         self.assertIn("Enviar ahora", page)
         self.assertIn("Hemos generado el código T26145", page)
 
@@ -231,7 +232,7 @@ class EvidenceTests(Base):
         self.assertEqual([item["thread_id"] for item in quotes.archived_threads()], ["T1"])
         self.assertEqual(len(self.changes()), 1)             # la solicitud de cambio también se conserva
         self.assertTrue(quotes.chain_status("T1")[0])
-        acta = paginas.render_acta("T1")
+        acta = pantalla_caso.render_acta("T1")
         self.assertIn("Cambiar plazo", acta)
         self.assertIn("Verificada", acta)
         self.assertIn("deleted", {e["kind"] for e in quotes.thread_events("T1")})
@@ -244,7 +245,7 @@ class EvidenceTests(Base):
     def test_acta_for_live_case_lists_people_changes_and_hashes(self):
         self.assign()
         self.sync({"m1": coded_mail("T1", "Luis <luis@acme.com>", self.t0 + 7200, "Cambiar plazo a 30")})
-        acta = paginas.render_acta("T1")
+        acta = pantalla_caso.render_acta("T1")
         for expected in ("Acta de cambios", "luis@acme.com", "No cita la T", "T26145", "Historial completo"):
             self.assertIn(expected, acta)
 
@@ -304,16 +305,16 @@ class VersionTests(Base):
 
     def test_optional_notice_to_client_is_offered_and_remembered(self):
         self.edit([{"activity": "a"}])
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T1")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T1")
         self.assertIn("Solo está en tu historial", page)
         self.assertIn("Preparar un correo de actualización", page)
         db = connect()
         record_event(db, "T1", "scope_update_sent", "dashboard", "x", "Avisaste")
         db.commit()
         db.close()
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            self.assertIn("Ya avisaste al cliente", paginas.render_case("T1"))
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            self.assertIn("Ya avisaste al cliente", pantalla_caso.render_case("T1"))
 
     def test_notice_can_be_prepared_even_for_a_closed_case(self):
         db = connect()
@@ -321,8 +322,8 @@ class VersionTests(Base):
         db.commit()
         db.close()
         self.edit([{"activity": "a"}])
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T1", template="scope_update")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T1", template="scope_update")
         self.assertIn("Actualizamos la tabla de actividades", page)
         self.assertIn("Enviar ahora", page)
 
@@ -334,7 +335,7 @@ class VersionTests(Base):
         db.commit()
         db.close()
         self.edit([{"activity": "después", "quantity": "3", "unit": "ha"}], "correccion")
-        acta = paginas.render_acta("T1")
+        acta = pantalla_caso.render_acta("T1")
         self.assertIn("Versiones de la tabla de actividades", acta)
         self.assertIn("Edición interna posterior a la T", acta)
         self.assertIn("Corrección mía", acta)
@@ -358,20 +359,21 @@ class TechnicalReviewFlowTests(Base):
 
     def test_the_person_can_decide_and_then_send_the_questions(self):
         self.upsert_with_dependency()
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T9")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T9")
         self.assertIn("Decisión de la revisión técnica", page)
         self.assertNotIn('formaction="/send"', page)                 # primero decide una persona
         quotes.resolve_technical_review("T9", "ask_client", "¿Qué precisión requieren?")
         self.assertEqual(quotes.get_quote("T9")["status"], QuoteStatus.REVIEW_PENDING)
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            self.assertIn('formaction="/send"', paginas.render_case("T9"))   # ya puede enviar
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            self.assertIn('formaction="/send"', pantalla_caso.render_case("T9"))   # ya puede enviar
 
     def test_questions_from_the_analysis_are_prefilled_in_the_decision_box(self):
         self.upsert_with_dependency()
         with patch("anka.web.paginas.load_config", return_value={"active_mode": "chatgpt_work",
+                                                    "required_fields": ["ubicación"]}), patch("anka.web.pantalla_caso.load_config", return_value={"active_mode": "chatgpt_work",
                                                     "required_fields": ["ubicación"]}):
-            page = paginas.render_case("T9")
+            page = pantalla_caso.render_case("T9")
         box = page.split('name="questions"')[1].split("</textarea>")[0]
         self.assertIn("ubicaci", box.casefold())                      # la pregunta viene escrita
         self.assertIn("Son las preguntas que dejó el análisis", page)
@@ -379,9 +381,9 @@ class TechnicalReviewFlowTests(Base):
     def test_accepted_case_has_a_blank_reply_box_with_an_optional_acknowledgement(self):
         self.upsert_with_dependency()
         quotes.resolve_technical_review("T9", "sufficient")
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T9")
-            acuse = paginas.render_case("T9", template="acuse")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T9")
+            acuse = pantalla_caso.render_case("T9", template="acuse")
         box = page.split('name="body"')[1].split("</textarea>")[0]
         self.assertEqual(box.split(">", 1)[1].strip(), "")            # en blanco
         self.assertIn("usa un acuse de recibo sugerido", page)
@@ -390,8 +392,9 @@ class TechnicalReviewFlowTests(Base):
     def test_a_case_with_questions_still_gets_the_suggested_text(self):
         work_import.dashboard_upsert(b64(json.dumps(payload(thread="T8", missing_data=["Crítico: plano del predio"]))))
         with patch("anka.web.paginas.load_config", return_value={"active_mode": "chatgpt_work",
+                                                    "required_fields": ["ubicación"]}), patch("anka.web.pantalla_caso.load_config", return_value={"active_mode": "chatgpt_work",
                                                     "required_fields": ["ubicación"]}):
-            page = paginas.render_case("T8")
+            page = pantalla_caso.render_case("T8")
         box = page.split('name="body"')[1].split("</textarea>")[0]
         self.assertIn("confirmar lo siguiente", box)
 
@@ -413,15 +416,15 @@ class WorkDraftTests(Base):
 
     def test_work_draft_text_fills_the_reply_box_and_questions_fill_the_decision_box(self):
         self.work_case(scope_dependencies=[{"description": "KML", "source": "a.kml", "status": "pendiente"}])
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("W1")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("W1")
         questions = page.split('name="questions"')[1].split("</textarea>")[0]
         self.assertIn("Confirmar el datum.", questions)
         self.assertIn("Confirmar fecha de inicio.", questions)
         self.assertNotIn("KML", questions)                           # lo interno no se le pregunta al cliente
         quotes.resolve_technical_review("W1", "ask_client", "¿Datum?")
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("W1")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("W1")
         box = page.split('name="body"')[1].split("</textarea>")[0]
         self.assertIn("Podría confirmar el datum", box.replace("¿", ""))   # el borrador de Work
 
@@ -552,8 +555,8 @@ class GuidedFlowTests(Base):
     """La pantalla del caso sigue un hilo: leer, revisar, responder y, solo con la información validada, emitir la T."""
 
     def page(self, thread="T1", **kw):
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            return paginas.render_case(thread, **kw)
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            return pantalla_caso.render_case(thread, **kw)
 
     def set_status(self, status):
         db = connect()
@@ -675,7 +678,7 @@ class UxFixesTests(Base):
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T2'", (QuoteStatus.REVIEW_PENDING,))
         db.commit()
         db.close()
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = paginas.render_requests()
         self.assertIn("Esperando al cliente", page)
         self.assertIn("Por aclarar con el cliente", page)
@@ -685,8 +688,8 @@ class UxFixesTests(Base):
     def test_no_stale_prompts_once_the_t_exists(self):
         self.set_status(QuoteStatus.READY)
         self.assign()
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T1")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T1")
         self.assertNotIn("Respuesta sugerida lista", page)
         self.assertNotIn("Recepción completa", page)
         self.assertNotIn("Listo para emitir la T</span>", page)           # el paso 2 ya no lo repite
@@ -698,34 +701,34 @@ class UxFixesTests(Base):
     def test_quoted_history_is_split_from_the_new_message(self):
         body = ("Hola, van las coordenadas.\nPC-01: E 1, N 2\n\nEl jue, 1 oct 2026 a las 17:59, Anka comercial ia (<\n"
                 "ankacomercialia@gmail.com>) escribió:\n> Hola Andrés, gracias\n> por la información")
-        fresh, quoted = paginas.split_quoted(body)
+        fresh, quoted = pantalla_caso.split_quoted(body)
         self.assertEqual(fresh, "Hola, van las coordenadas.\nPC-01: E 1, N 2")
         self.assertIn("escribió:", quoted)
         self.assertIn("> Hola Andrés", quoted)
-        self.assertEqual(paginas.split_quoted("Solo mensaje nuevo ▎ sin cita")[1], "")
-        self.assertEqual(paginas.split_quoted("A\nDe: x@y.com\nEnviado: ayer\ntexto")[0], "A")
-        self.assertEqual(paginas.split_quoted("A\n-----Original Message-----\nB")[1].startswith("-----"), True)
+        self.assertEqual(pantalla_caso.split_quoted("Solo mensaje nuevo ▎ sin cita")[1], "")
+        self.assertEqual(pantalla_caso.split_quoted("A\nDe: x@y.com\nEnviado: ayer\ntexto")[0], "A")
+        self.assertEqual(pantalla_caso.split_quoted("A\n-----Original Message-----\nB")[1].startswith("-----"), True)
 
     def test_conversation_folds_the_quoted_part(self):
         self.sync({"m1": coded_mail(
             "T1", "Ana <ana@acme.com>", self.t0 + 600,
             "Les confirmo el datum.\n\nEl jue, 1 oct 2026 a las 17:59, Anka escribió:\n> pregunta anterior")})
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T1")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T1")
         self.assertIn("Mostrar el mensaje citado", page)
         self.assertIn("Les confirmo el datum.", page)
 
     # 4. «qué hacer hoy»
     def test_summary_is_a_to_do_list_first(self):
         self.set_status(QuoteStatus.REVIEW_PENDING)
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = paginas.render_index()
         self.assertIn("Qué hacer hoy", page)
         self.assertIn("Por aclarar con el cliente", page)
         self.assertIn("Ver estadísticas", page)                           # las gráficas quedan plegadas
         self.assertLess(page.index("Por aclarar con el cliente"), page.index("Ver estadísticas"))
         self.set_status(QuoteStatus.WAITING)
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             self.assertIn("No hay nada pendiente de tu parte", paginas.render_index())
 
     # 5. encabezado
@@ -779,9 +782,9 @@ class DoubleSendTests(Base):
         db.close()
         self.send(self.Gmail())
         self.assertEqual(quotes.get_quote("T1")["status"], QuoteStatus.WAITING)
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T1")
-            free = paginas.render_case("T1", template="libre")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T1")
+            free = pantalla_caso.render_case("T1", template="libre")
         self.assertIn("Correo enviado.", page)
         self.assertNotIn('formaction="/send"', page)            # ya no se ofrece enviar lo mismo
         self.assertIn("Escribir otro correo", page)
@@ -956,15 +959,15 @@ class ClientDelayFollowupTests(Base):
 
     def test_the_case_page_shows_the_follow_up_panel_and_its_controls(self):
         self.wait_for_client(auto=False)
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T1")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T1")
         self.assertIn("Seguimiento del cliente", page)
         self.assertIn("Activar seguimiento automático", page)
         self.assertIn("Ya hablé con el cliente", page)
         from anka.servicios import followup_reminders as fup
         fup.set_followup("T1", "auto_on")
-        with patch("anka.web.paginas.load_config", return_value=CONFIG):
-            page = paginas.render_case("T1")
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            page = pantalla_caso.render_case("T1")
         self.assertIn("Pausar seguimiento", page)
         kinds = {e["kind"] for e in quotes.thread_events("T1")}
         self.assertIn("followup_auto_on", kinds)

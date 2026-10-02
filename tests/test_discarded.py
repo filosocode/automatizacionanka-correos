@@ -45,7 +45,7 @@ class DiscardedTests(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.patches = [
             patch.object(settings, "DATA_DIR", Path(self._tmp.name)),
-            patch("anka.web.paginas.load_config", return_value=test_config()),
+            patch("anka.web.paginas.load_config", return_value=test_config()), patch("anka.web.pantalla_caso.load_config", return_value=test_config()),
         ]
         for p in self.patches:
             p.start()

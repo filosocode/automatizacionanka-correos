@@ -130,7 +130,7 @@ class ApproveRouteTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         for p in (patch.object(settings, "DATA_DIR", Path(self._tmp.name)),
-                  patch("anka.web.paginas.load_config", return_value=test_config())):
+                  patch("anka.web.paginas.load_config", return_value=test_config()), patch("anka.web.pantalla_caso.load_config", return_value=test_config())):
             p.start()
             self.addCleanup(p.stop)
 
