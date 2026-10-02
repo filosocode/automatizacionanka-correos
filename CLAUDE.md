@@ -48,6 +48,8 @@ Código en el paquete `anka/` (detalle en `spec/06-arquitectura.md`), en cinco c
 - **Consola de Windows (cp1252)**: usa `PYTHONIOENCODING=utf-8` al imprimir tildes.
 - **Ruta nueva del dashboard**: regístrala en `GET_ROUTES` (`server.py`) o `POST_ROUTES` (`acciones.py`) **y** descríbela en
   `anka/web/openapi.py`: una prueba falla si falta (Swagger en `/docs`, ver `spec/07-api.md`).
+- **Autorización de Google**: `credentials()` nunca abre el navegador (lanza `AutorizacionDeGoogle`); solo
+  `authorize_interactive()` lo hace (botón del dashboard o `python app.py auth`). No cambies eso: ver D-27.
 - **Módulo nuevo**: nómbralo en el «Mapa de módulos» de `spec/06-arquitectura.md` (una prueba lo exige).
 - **Sin dependencias nuevas** a la ligera: el CI instala con hashes (`requirements-dev.lock`).
 - Para scripts de parcheo con comillas, escribe el archivo con la herramienta de archivos en vez de heredocs.

@@ -5,7 +5,9 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-from anka.dominio.errores import ErrorDeAnka
+from pathlib import Path
+
+from anka.dominio.errores import AutorizacionDeGoogle, ErrorDeAnka
 from anka.infra import settings
 from anka.infra.logging_setup import get_logger
 
@@ -26,32 +28,58 @@ SCOPES = [
 FOLDER_MIME = "application/vnd.google-apps.folder"
 
 
-def credentials(force_auth: bool = False) -> Credentials:
-    """Credenciales de Google: reutiliza o renueva el token y, si hace falta, abre el consentimiento."""
+def _token_path() -> Path:
+    return settings.DATA_DIR / "token.json"
+
+
+def credentials() -> Credentials:
+    """Credenciales de Google ya autorizadas: reutiliza el token guardado y lo renueva si hace falta.
+
+    Nunca abre el navegador: quien corre sin nadie delante (el puente, el dashboard, la revisión programada) no
+    puede quedarse esperando un consentimiento. Si falta el token, no tiene los permisos o ya no sirve, lanza
+    `AutorizacionDeGoogle`; reautorizar es `authorize_interactive()` (botón del dashboard o `python app.py auth`).
+    """
+    from google.auth.exceptions import RefreshError
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
+
+    token_path = _token_path()
+    if not token_path.exists():
+        raise AutorizacionDeGoogle("Falta autorizar la cuenta de Google.")
+    creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+    if not creds.has_scopes(SCOPES):
+        raise AutorizacionDeGoogle("El token guardado no tiene todos los permisos necesarios.")
+    renovado = False
+    try:
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            renovado = True
+    except RefreshError as exc:
+        log.warning("Google rechazó renovar el token (%s)", type(exc).__name__)
+        raise AutorizacionDeGoogle("Google ya no acepta el token guardado.") from exc
+    if not creds.valid:
+        raise AutorizacionDeGoogle("El token guardado no es válido.")
+    if renovado:   # solo se reescribe lo que cambió: esta función se llama a menudo y desde varios procesos
+        token_path.write_text(creds.to_json(), encoding="utf-8")
+    return creds
+
+
+def authorize_interactive(timeout_seconds: int | None = None) -> Credentials:
+    """Abre el consentimiento de Google en el navegador de este equipo y guarda la autorización nueva.
+
+    Espera a que la persona inicie sesión y acepte (`timeout_seconds` limita la espera; sin límite desde la terminal).
+    No toca el token anterior hasta que la autorización nueva se completa.
+    """
     from google_auth_oauthlib.flow import InstalledAppFlow
 
-    token_path = settings.DATA_DIR / "token.json"
     secrets_path = settings.DATA_DIR / "credentials.json"
-    creds = None
-    if force_auth and token_path.exists():
-        token_path.unlink()
-    if token_path.exists():
-        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
-        if not creds.has_scopes(SCOPES):
-            log.warning("token.json necesita permisos nuevos; se abrira la autorizacion de Google.")
-            creds = None
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-    if not creds or not creds.valid:
-        if not secrets_path.exists():
-            raise ErrorDeAnka(f"Falta {secrets_path} del cliente OAuth de escritorio.")
-        creds = InstalledAppFlow.from_client_secrets_file(
-            str(secrets_path), SCOPES
-        ).run_local_server(port=0, open_browser=os.getenv("ANKA_NO_BROWSER") != "1")
+    if not secrets_path.exists():
+        raise ErrorDeAnka(f"Falta {secrets_path} del cliente OAuth de escritorio.")
+    creds = InstalledAppFlow.from_client_secrets_file(str(secrets_path), SCOPES).run_local_server(
+        port=0, open_browser=os.getenv("ANKA_NO_BROWSER") != "1", timeout_seconds=timeout_seconds)
     settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    token_path.write_text(creds.to_json(), encoding="utf-8")
+    _token_path().write_text(creds.to_json(), encoding="utf-8")
+    log.info("Autorización de Google renovada")
     return creds
 
 

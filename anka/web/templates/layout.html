@@ -14,6 +14,10 @@
     <nav><a href="/">Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests">Solicitudes</a><a href="/discarded">Descartadas</a><a href="/archive">Archivo</a></nav>
     <div class="toolbar">
       <span id="bridge-chip" class="bridge-chip" hidden></span>
+      <span id="google-chip" class="bridge-chip" hidden></span>
+      <form method="post" action="/google/reautorizar" id="google-reauth" hidden>
+        <button type="submit" class="secondary" data-confirm="Se abrirá la ventana de Google en este equipo para iniciar sesión y aceptar los permisos. ¿Continuar?">Reautorizar Google</button>
+      </form>
       <details class="settings"><summary>Ajustes</summary><div class="settings-box">{{ mode_selector }}</div></details>
       {% if not is_work %}<form method="post" action="/refresh">
         <button type="submit">Actualizar correo</button>
@@ -41,6 +45,8 @@
     (function () {
       let base = null, dirty = false;
       const chip = document.getElementById('bridge-chip');
+      const googleChip = document.getElementById('google-chip');
+      const googleForm = document.getElementById('google-reauth');
       document.addEventListener('input', () => { dirty = true; });
       document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); });
       async function poll() {
@@ -55,6 +61,13 @@
             chip.textContent = {ok: 'Puente activo', error: 'Puente con avisos',
                                 stopped: 'Puente detenido', never: 'Puente sin iniciar'}[s.bridge];
           } else { chip.hidden = true; }
+          const g = s.google || {};
+          const needsGoogle = g.estado === 'vencida' || g.estado === 'fallida';
+          googleForm.hidden = !needsGoogle;
+          googleChip.hidden = !(needsGoogle || g.estado === 'en_curso');
+          googleChip.dataset.state = needsGoogle ? 'stopped' : 'error';
+          googleChip.title = g.texto || '';
+          googleChip.textContent = needsGoogle ? 'Google desconectado' : 'Autorizando Google…';
           if (base === null) base = s.v;
           else if (s.v !== base) {
             if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {

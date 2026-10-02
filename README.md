@@ -67,7 +67,7 @@ El programa no cambia automáticamente de proveedor si falla el seleccionado. As
 
 ## Uso
 
-`python app.py auth`: autoriza la cuenta de Google.
+`python app.py auth`: autoriza la cuenta de Google (también se puede hacer desde el dashboard con el botón «Reautorizar Google» cuando la autorización vence).
 
 `python app.py drive-tree`: muestra las carpetas del nivel raíz y un nivel inferior, con sus IDs, para elegir la carpeta de arranque.
 

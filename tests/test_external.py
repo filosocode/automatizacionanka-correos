@@ -15,7 +15,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.errores import AutorizacionDeGoogle, ErrorDeAnka
 from anka.servicios import commercial_index
 from anka.infra import google_services
 from anka.infra import llm
@@ -222,41 +222,76 @@ class DriveTests(unittest.TestCase):
 
 # Cubre: T-06
 class CredentialsTests(unittest.TestCase):
-    def test_missing_client_secret_stops_with_a_clear_message(self):
+    def test_a_missing_token_asks_to_authorize_and_never_opens_a_browser(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)),                 patch("google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file") as flow:
+            with self.assertRaisesRegex(AutorizacionDeGoogle, "Reautorizar Google"):
+                google_services.credentials()
+            flow.assert_not_called()                 # sin nadie delante no se abre ningún consentimiento
+
+    def test_authorizing_needs_the_client_secret_file(self):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
             with self.assertRaisesRegex(ErrorDeAnka, "credentials.json"):
-                google_services.credentials()
+                google_services.authorize_interactive()
 
-    def test_valid_saved_token_is_reused_and_rewritten(self):
+    def test_valid_saved_token_is_reused_without_rewriting_it(self):
         creds = MagicMock(expired=False, valid=True)
         creds.has_scopes.return_value = True
         creds.to_json.return_value = '{"token": "t"}'
-        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)), \
-                patch("google.oauth2.credentials.Credentials.from_authorized_user_file",
+        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)),                 patch("google.oauth2.credentials.Credentials.from_authorized_user_file",
                       return_value=creds) as load:
             (Path(d) / "token.json").write_text("{}", encoding="utf-8")
             result = google_services.credentials()
             self.assertIs(result, creds)
             load.assert_called_once()
-            self.assertEqual((Path(d) / "token.json").read_text(encoding="utf-8"), '{"token": "t"}')
+            self.assertEqual((Path(d) / "token.json").read_text(encoding="utf-8"), "{}")   # no hizo falta renovar
 
-    def test_force_auth_discards_the_saved_token(self):
-        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
-            token = Path(d) / "token.json"
-            token.write_text("{}", encoding="utf-8")
-            with self.assertRaises(ErrorDeAnka):  # sin credentials.json tras borrar el token
-                google_services.credentials(force_auth=True)
-            self.assertFalse(token.exists())
+    def test_a_renewed_token_is_saved(self):
+        creds = MagicMock(expired=True, refresh_token="r", valid=True)
+        creds.has_scopes.return_value = True
+        creds.to_json.return_value = '{"token": "renovado"}'
+        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)), \
+                patch("google.oauth2.credentials.Credentials.from_authorized_user_file", return_value=creds), \
+                patch("google.auth.transport.requests.Request"):
+            (Path(d) / "token.json").write_text("{}", encoding="utf-8")
+            google_services.credentials()
+            self.assertEqual((Path(d) / "token.json").read_text(encoding="utf-8"), '{"token": "renovado"}')
+
+    def test_a_token_google_no_longer_accepts_asks_to_reauthorize(self):
+        from google.auth.exceptions import RefreshError
+        creds = MagicMock(expired=True, refresh_token="r")
+        creds.has_scopes.return_value = True
+        creds.refresh.side_effect = RefreshError("invalid_grant")
+        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)),                 patch("google.oauth2.credentials.Credentials.from_authorized_user_file", return_value=creds):
+            (Path(d) / "token.json").write_text("{}", encoding="utf-8")
+            with self.assertRaises(AutorizacionDeGoogle) as raised:
+                google_services.credentials()
+        self.assertIn("python app.py auth", str(raised.exception))
+        self.assertNotIn("invalid_grant", str(raised.exception))     # el texto técnico de Google no se muestra
 
     def test_token_with_missing_scopes_is_not_trusted(self):
         creds = MagicMock()
         creds.has_scopes.return_value = False
-        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)), \
-                patch("google.oauth2.credentials.Credentials.from_authorized_user_file",
+        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)),                 patch("google.oauth2.credentials.Credentials.from_authorized_user_file",
                       return_value=creds):
             (Path(d) / "token.json").write_text("{}", encoding="utf-8")
-            with self.assertRaisesRegex(ErrorDeAnka, "credentials.json"):
+            with self.assertRaisesRegex(AutorizacionDeGoogle, "permisos"):
                 google_services.credentials()
+
+    def test_a_completed_authorization_replaces_the_token_and_a_failed_one_keeps_the_old(self):
+        new = MagicMock()
+        new.to_json.return_value = '{"token": "nuevo"}'
+        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)),                 patch("google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file") as flow:
+            (Path(d) / "credentials.json").write_text("{}", encoding="utf-8")
+            (Path(d) / "token.json").write_text('{"token": "viejo"}', encoding="utf-8")
+            flow.return_value.run_local_server.side_effect = TimeoutError("sin respuesta")
+            with self.assertRaises(TimeoutError):
+                google_services.authorize_interactive(timeout_seconds=1)
+            self.assertEqual((Path(d) / "token.json").read_text(encoding="utf-8"), '{"token": "viejo"}')
+            flow.return_value.run_local_server.side_effect = None
+            flow.return_value.run_local_server.return_value = new
+            google_services.authorize_interactive(timeout_seconds=300)
+            self.assertEqual((Path(d) / "token.json").read_text(encoding="utf-8"), '{"token": "nuevo"}')
+            self.assertEqual(flow.return_value.run_local_server.call_args.kwargs["timeout_seconds"], 300)
 
     def test_services_builds_gmail_and_drive_with_the_same_credentials(self):
         with patch("anka.infra.google_services.credentials", return_value="CREDS"), \

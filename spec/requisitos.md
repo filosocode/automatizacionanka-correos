@@ -95,6 +95,12 @@ las rutas reales y falla una prueba si una ruta queda sin documentar. Ver `07-ap
 motor de análisis están bien, y 503 con la causa si alguno falla; con `profundo=1` consulta además Gmail y Drive. Un
 fallo nunca se lanza como excepción ni revela datos de clientes o claves. Ver `07-api.md`.
 
+### T-15 · Reautorizar Google desde el dashboard
+Cuando la autorización de Google falta, venció o fue revocada, el dashboard lo avisa («Google desconectado») y ofrece
+el botón «Reautorizar Google», que abre el consentimiento en el navegador de este equipo. La autorización nunca se
+abre sola: ni el puente, ni el dashboard, ni la revisión programada esperan un consentimiento; la espera tiene un
+tope, no se abre más de una ventana a la vez y el token no se muestra ni se registra. Ver `07-api.md`.
+
 ## Experiencia de usuario
 
 ### U-01 · Siguiente paso claro

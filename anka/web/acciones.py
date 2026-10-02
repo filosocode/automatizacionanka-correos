@@ -19,6 +19,7 @@ from anka.infra.modes import (
 from anka.infra.settings import load_config
 
 from anka.servicios.case_actions import approve_review, delete_cases, save_dashboard_draft, send_dashboard_reply
+from anka.servicios.autorizacion import reautorizar_google
 from anka.servicios.estado_de_revision import checked_run, describe_check, sync_status_text
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
@@ -169,6 +170,10 @@ def _post_delete(form: Form) -> str:
     return _to("/requests", delete_cases(form.get("thread_id", [])))
 
 
+def _post_google_reauthorize(form: Form) -> str:
+    return _to("/", reautorizar_google())
+
+
 def _post_notifications_read(form: Form) -> str:
     mark_notifications_read()
     return _to("/", "Novedades marcadas como revisadas.")
@@ -191,5 +196,6 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/link": _post_link,
     "/proposal": _post_proposal,
     "/delete": _post_delete,
+    "/google/reautorizar": _post_google_reauthorize,
     "/notifications/read": _post_notifications_read,
 }

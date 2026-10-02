@@ -19,6 +19,7 @@ from anka.infra.settings import load_config
 from anka.web.templating import render
 
 from anka.servicios import salud
+from anka.servicios.autorizacion import estado_de_google
 from anka.infra.work_heartbeat import bridge_state
 from anka.servicios.quotes import (
     all_quotes, archived_threads, change_marker, get_quote,
@@ -47,6 +48,7 @@ GET_ROUTES: dict[str, str] = {
     "/state": "_get_state",
     "/api/casos": "_get_api_cases",
     "/api/salud": "_get_api_health",
+    "/api/autorizacion": "_get_api_authorization",
     "/docs": "_get_docs",
     "/openapi.json": "_get_openapi",
 }
@@ -154,11 +156,17 @@ class ReviewHandler(BaseHTTPRequestHandler):
         except (ErrorDeAnka, OSError, ValueError):
             work = False
         state, text = bridge_state() if work else ("", "")
-        self._send_json({"v": change_marker(), "bridge": state, "text": text})
+        google = estado_de_google()
+        self._send_json({"v": change_marker(), "bridge": state, "text": text,
+                         "google": {"estado": google.estado, "texto": google.texto}})
 
     def _get_api_cases(self, query: dict[str, list[str]]) -> None:
         include_discarded = field(query, "descartados").lower() in ("1", "true", "si", "sí")
         self._send_json([resumen_de_caso(caso) for caso in all_quotes(include_discarded)])
+
+    def _get_api_authorization(self, query: dict[str, list[str]]) -> None:
+        google = estado_de_google()
+        self._send_json({"estado": google.estado, "texto": google.texto})
 
     def _get_api_health(self, query: dict[str, list[str]]) -> None:
         report = salud.informe(field(query, "profundo").lower() in ("1", "true", "si", "sí"))

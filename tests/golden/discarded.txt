@@ -45,6 +45,13 @@ Archivo
 <div class="toolbar">
 <span id="bridge-chip" class="bridge-chip" hidden="">
 </span>
+<span id="google-chip" class="bridge-chip" hidden="">
+</span>
+<form method="post" action="/google/reautorizar" id="google-reauth" hidden="">
+<button type="submit" class="secondary" data-confirm="Se abrirá la ventana de Google en este equipo para iniciar sesión y aceptar los permisos. ¿Continuar?">
+Reautorizar Google
+</button>
+</form>
 <details class="settings">
 <summary>
 Ajustes
@@ -208,7 +215,7 @@ Rescatar
 </div>
 </main>
 <script>
-// Evita el doble envío: tras el primer clic en «Enviar ahora» el botón queda bloqueado. document.addEventListener('submit', event => { const sender = event.submitter; if (sender && sender.getAttribute('formaction') === '/send') { setTimeout(() => { sender.disabled = true; sender.textContent = 'Enviando…'; }, 0); } }); window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); }); document.addEventListener('click', event => { if (event.target.closest('[data-print]')) window.print(); const button = event.target.closest('[data-confirm]'); if (button && !confirm(button.dataset.confirm)) event.preventDefault(); }); (function () { let base = null, dirty = false; const chip = document.getElementById('bridge-chip'); document.addEventListener('input', () => { dirty = true; }); document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); }); async function poll() { try { const r = await fetch('/state', {cache: 'no-store'}); if (!r.ok) return; const s = await r.json(); if (s.bridge) { chip.hidden = false; chip.dataset.state = s.bridge; chip.title = s.text; chip.textContent = {ok: 'Puente activo', error: 'Puente con avisos', stopped: 'Puente detenido', never: 'Puente sin iniciar'}[s.bridge]; } else { chip.hidden = true; } if (base === null) base = s.v; else if (s.v !== base) { if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { document.getElementById('fresh-banner').hidden = false; } else location.reload(); } } catch (e) { /* servidor local cerrado: se reintenta */ } } poll(); setInterval(poll, 20000); })();
+// Evita el doble envío: tras el primer clic en «Enviar ahora» el botón queda bloqueado. document.addEventListener('submit', event => { const sender = event.submitter; if (sender && sender.getAttribute('formaction') === '/send') { setTimeout(() => { sender.disabled = true; sender.textContent = 'Enviando…'; }, 0); } }); window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); }); document.addEventListener('click', event => { if (event.target.closest('[data-print]')) window.print(); const button = event.target.closest('[data-confirm]'); if (button && !confirm(button.dataset.confirm)) event.preventDefault(); }); (function () { let base = null, dirty = false; const chip = document.getElementById('bridge-chip'); const googleChip = document.getElementById('google-chip'); const googleForm = document.getElementById('google-reauth'); document.addEventListener('input', () => { dirty = true; }); document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); }); async function poll() { try { const r = await fetch('/state', {cache: 'no-store'}); if (!r.ok) return; const s = await r.json(); if (s.bridge) { chip.hidden = false; chip.dataset.state = s.bridge; chip.title = s.text; chip.textContent = {ok: 'Puente activo', error: 'Puente con avisos', stopped: 'Puente detenido', never: 'Puente sin iniciar'}[s.bridge]; } else { chip.hidden = true; } const g = s.google || {}; const needsGoogle = g.estado === 'vencida' || g.estado === 'fallida'; googleForm.hidden = !needsGoogle; googleChip.hidden = !(needsGoogle || g.estado === 'en_curso'); googleChip.dataset.state = needsGoogle ? 'stopped' : 'error'; googleChip.title = g.texto || ''; googleChip.textContent = needsGoogle ? 'Google desconectado' : 'Autorizando Google…'; if (base === null) base = s.v; else if (s.v !== base) { if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { document.getElementById('fresh-banner').hidden = false; } else location.reload(); } } catch (e) { /* servidor local cerrado: se reintenta */ } } poll(); setInterval(poll, 20000); })();
 </script>
 </body>
 </html>

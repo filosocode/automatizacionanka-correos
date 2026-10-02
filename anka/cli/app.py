@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 from anka.dominio.errores import ErrorDeAnka
-from anka.infra.google_services import credentials, services, list_folders
+from anka.infra.google_services import authorize_interactive, services, list_folders
 from anka.dominio.reception import (
     reception_questions,
 )
@@ -381,7 +381,7 @@ def _cmd_analyze_text(args: argparse.Namespace, parser: argparse.ArgumentParser)
 
 
 def _cmd_auth(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
-    credentials(args.force_auth)
+    authorize_interactive()   # `--force-auth` se conserva por compatibilidad: `auth` siempre pide una autorización nueva
     print("Autorización lista.")
 
 

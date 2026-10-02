@@ -58,6 +58,7 @@ La descripción es la primera frase de su docstring.
 
 | Módulo | Para qué sirve |
 |---|---|
+| `autorizacion` | Estado de la autorización de Google y su renovación desde el dashboard. |
 | `case_actions` | Acciones sobre un caso desde el dashboard: destinatario, borrador, envío, aprobación. |
 | `change_control` | Código de la oferta (T / T&E) y control de cambios: quién pide qué, con qué código y a quién se avisa. |
 | `commercial_index` | Construye un indice comercial agregado y local desde el archivo historico T&E. |

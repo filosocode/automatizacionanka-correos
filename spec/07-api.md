@@ -42,6 +42,28 @@ detalle de cada una:
 (Work deja borradores en Gmail y el puente los lee), por eso se mide con la última revisión del puente y, a fondo,
 con Gmail.
 
+## Reautorizar Google (T-15)
+La autorización de Google (Gmail y Drive) puede vencer (si el proyecto de Google Cloud está en modo «Testing»,
+cada 7 días) o ser revocada. Sin ella el puente de Work no lee Gmail y el dashboard no recibe correos.
+
+| Qué | Dónde |
+|---|---|
+| Ver el estado | Aviso «Google desconectado» en el encabezado; `GET /api/autorizacion` (`ok`, `vencida`, `en_curso`, `fallida`, `desconocido`); campo `google` de `GET /state`; componente `autorizacion_google` de `GET /api/salud` |
+| Reautorizar | Botón «Reautorizar Google» (aparece solo si hace falta) o `POST /google/reautorizar` |
+| Desde la terminal | `python app.py auth` |
+
+Cómo funciona:
+- El consentimiento (iniciar sesión y aceptar permisos) lo hace una persona en el **navegador de este equipo**; el
+  dashboard solo lo lanza en segundo plano y responde enseguida. Por eso hay que estar frente al computador donde corre.
+- La espera tiene tope de 5 minutos, no se abre una segunda ventana mientras hay una en curso, y si se cierra la
+  ventana o vence la espera queda como `fallida` con un mensaje claro (sin el detalle técnico de Google).
+- El token anterior no se toca hasta que la autorización nueva termina bien.
+- `credentials()` **nunca** abre el navegador: sin nadie delante lanza `AutorizacionDeGoogle` con la instrucción.
+  Solo `authorize_interactive()` (botón o `python app.py auth`) abre el consentimiento.
+- La verificación se guarda 5 minutos (1 si falló) y no congela la pantalla: sin internet el estado es
+  `desconocido` y no se ofrece reautorizar por eso.
+- El puente de Work se reconecta solo en su siguiente ciclo (hasta 60 segundos) después de reautorizar.
+
 ## Cómo se prueba una acción (POST)
 1. Abre `http://127.0.0.1:8765/docs`.
 2. Elige la operación y pulsa **Try it out**. El campo `csrf_token` ya viene relleno con el token vigente.

@@ -29,8 +29,9 @@ EFECTOS = {
     "drive": "⚠ Puede enviar un correo real o crear carpetas en Google Drive.",
     "gmail": "⚠ Consulta Gmail y actualiza los casos.",
     "elimina": "⚠ Elimina el caso del dashboard (su historial se conserva como evidencia).",
+    "google": "⚠ Abre el consentimiento de Google en el navegador de este equipo y guarda una autorización nueva.",
 }
-EFECTOS_EXTERNOS = {"correo", "drive", "gmail", "elimina"}
+EFECTOS_EXTERNOS = {"correo", "drive", "gmail", "elimina", "google"}
 
 TAGS = {
     "Lectura (JSON)": "Rutas que devuelven JSON y no cambian nada. El mejor punto de partida para probar.",
@@ -107,12 +108,21 @@ OPERACIONES: tuple[Operacion, ...] = (
                    "detalle": "Puente Work activo: Gmail revisado hace 36 s.", "ms": 0},
                   {"componente": "motor_de_analisis", "estado": "no_aplica",
                    "detalle": "En modo ChatGPT Work el análisis lo hace Work, no Anka.", "ms": 0}]}),
+    Operacion("get", "/api/autorizacion", "Lectura (JSON)", "Estado de la autorización de Google",
+              "Dice si la autorización de Google (Gmail y Drive) está vigente: `ok`, `vencida` (hay que reautorizar), "
+              "`en_curso` (esperando el consentimiento), `fallida` (no se completó) o `desconocido` (sin conexión). "
+              "Se verifica como máximo cada 5 minutos.",
+              contenido="json",
+              ejemplo_respuesta={"estado": "vencida", "texto": "Google ya no acepta el token guardado. "
+                                 "La autorización de Google venció o falta. Pulsa «Reautorizar Google» en el dashboard "
+                                 "o ejecuta: python app.py auth"}),
     Operacion("get", "/state", "Lectura (JSON)", "Estado para refrescar la pantalla",
               "Marca de cambios (`v`) y estado del puente de ChatGPT Work. Las páginas abiertas la consultan cada "
               "20 segundos para saber si deben recargarse.",
               contenido="json",
               ejemplo_respuesta={"v": "3|2026-10-01T19:01:12-05:00|0|50", "bridge": "ok",
-                                 "text": "Puente Work activo: Gmail revisado hace 36 s."}),
+                                 "text": "Puente Work activo: Gmail revisado hace 36 s.",
+                                 "google": {"estado": "ok", "texto": "La autorización de Google está vigente."}}),
     # ------------------------------------------------------------------ páginas
     Operacion("get", "/", "Páginas", "Resumen («qué hacer hoy»)",
               "Novedades, casos que esperan acción y métricas.", campos=(_MENSAJE,)),
@@ -212,6 +222,11 @@ OPERACIONES: tuple[Operacion, ...] = (
     Operacion("post", "/refresh", "Acciones generales", "⚠ Actualizar correo",
               "Revisa Gmail ahora. En modo ChatGPT Work no lee Gmail: solo informa el estado del puente.",
               "gmail", (), "redirect"),
+    Operacion("post", "/google/reautorizar", "Acciones generales", "⚠ Reautorizar Google",
+              "Abre en **este equipo** el consentimiento de Google (iniciar sesión y aceptar los permisos de Gmail y "
+              "Drive) y espera hasta 5 minutos a que se complete. Responde enseguida; el avance se ve en "
+              "`GET /api/autorizacion`. Solo hace falta cuando la autorización venció o fue revocada.",
+              "google", (), "redirect"),
     Operacion("post", "/mode", "Acciones generales", "Cambiar el modo de operación",
               "Elige quién lee el correo: Ollama (local), API de OpenAI o ChatGPT Work.", "guarda",
               (Campo("mode", "Modo de operación.", requerido=True, opciones=tuple(sorted(ACTIVE_MODES))),),

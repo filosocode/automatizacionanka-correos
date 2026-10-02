@@ -10,3 +10,13 @@ from __future__ import annotations
 
 class ErrorDeAnka(Exception):
     """Un problema con explicación para la persona; `str(error)` es el texto que se le muestra."""
+
+
+class AutorizacionDeGoogle(ErrorDeAnka):
+    """La autorización de Google falta, venció o fue revocada: hay que reautorizar (el dashboard ofrece el botón)."""
+
+    MENSAJE = ("La autorización de Google venció o falta. Pulsa «Reautorizar Google» en el dashboard "
+               "o ejecuta: python app.py auth")
+
+    def __init__(self, motivo: str = "") -> None:
+        super().__init__(f"{motivo + ' ' if motivo else ''}{self.MENSAJE}".strip())
