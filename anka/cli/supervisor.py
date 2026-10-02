@@ -23,6 +23,7 @@ log = get_logger(__name__)
 ROOT = Path(__file__).resolve().parents[2]
 EXIT_STOP = 2                       # el puente pide no reiniciarlo (modo o cuenta incorrectos)
 REMINDER_EVERY = 300                # segundos entre revisiones de recordatorios
+MODE_RECHECK = 30          # segundos entre lecturas de config.json para saber si el puente debe estar activo
 WATCH_EVERY = 3                     # segundos entre revisiones de cambios y de procesos
 CHILD_PYTHON = sys.executable.replace("pythonw.exe", "python.exe")
 MARKERS = ("app.py review-ui", "work_dashboard_sync.py", "supervisor.py")
@@ -138,6 +139,7 @@ def main() -> None:
     children = [dashboard, bridge]
     snapshot = code_snapshot()
     last_reminders = 0.0
+    mode_checked, in_work_mode = 0.0, False   # config.json se relee cada MODE_RECHECK s, no en cada vuelta
     log.info("Anka iniciado: dashboard en http://127.0.0.1:8765/")
     try:
         while True:
@@ -148,7 +150,9 @@ def main() -> None:
                 for child in children:
                     child.stop()
                     child.stopped, child.failures, child.retry_at = False, 0, 0.0
-            if work_mode():
+            if time.time() - mode_checked >= MODE_RECHECK:
+                mode_checked, in_work_mode = time.time(), work_mode()
+            if in_work_mode:
                 bridge.check()
             elif bridge.process:
                 bridge.stop()                        # cambió a otro modo: el puente sobra

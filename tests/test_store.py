@@ -114,3 +114,37 @@ class MigrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Cubre: T-10
+class ResourceUseTests(unittest.TestCase):
+    def seed(self, directory):
+        db = store.open_db(Path(directory))
+        for thread in ("t-1", "t-2"):
+            store.save(db, thread, f"m-{thread}", "review_pending", "a@b.co",
+                       {"received_at": "2026-10-01 09:00"})
+        db.commit()
+        db.close()
+
+    def test_get_quote_builds_only_the_requested_case_and_matches_the_full_list(self):
+        from anka.infra import settings
+        from anka.servicios import quotes
+        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
+            self.seed(d)
+            one = quotes.get_quote("t-2")
+            self.assertEqual(one, next(q for q in quotes.all_quotes(True) if q["thread_id"] == "t-2"))
+            self.assertEqual([q["thread_id"] for q in quotes.all_quotes(True, "t-1")], ["t-1"])
+            self.assertIsNone(quotes.get_quote("no-existe"))
+
+    def test_opening_the_database_does_not_write_when_nothing_is_missing(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.seed(d)
+            first = store.open_db(Path(d))   # deriva las novedades que faltaban
+            derived = first.execute("SELECT count(*) FROM dashboard_notifications").fetchone()[0]
+            first.close()
+            second = store.open_db(Path(d))
+            try:
+                self.assertGreater(derived, 0)
+                self.assertEqual(second.total_changes, 0)
+            finally:
+                second.close()

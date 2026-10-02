@@ -278,30 +278,37 @@ def migrate(db: sqlite3.Connection, db_path: Path | None = None) -> None:
         db.commit()
 
 
+# Novedades que se derivan de los casos guardados: (tipo, título, mensaje, fecha, condición sobre el caso).
+_DERIVED_NOTIFICATIONS = (
+    ("request_received", "Correo nuevo recibido",
+     "La solicitud ya fue analizada y agregada al dashboard.",
+     "first_seen_at", f"status <> '{QuoteStatus.IGNORED}'"),
+    ("draft_suggested", "Respuesta sugerida lista para revisar",
+     "Revisa el destinatario y el texto antes de guardarlo en Gmail o enviarlo.",
+     "COALESCE(updated_at, first_seen_at)",
+     f"status IN {sql_in(QuoteStatus.REVIEW_PENDING, QuoteStatus.REVIEW, QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED)}"),
+)
+
+
 def _derive_notifications(db: sqlite3.Connection) -> None:
     """Crea las novedades que corresponden a solicitudes ya guardadas.
 
-    Es idempotente y corre en cada apertura a propósito: `save()` no genera novedades,
-    esta derivación es lo que las produce (UNIQUE evita duplicados).
+    `save()` no genera novedades; esta derivación es lo que las produce (UNIQUE evita duplicados).
+    Corre en cada apertura, así que primero comprueba con una lectura si falta alguna y solo escribe
+    (y toma el candado de escritura) cuando hace falta.
     """
-    db.execute(f"""INSERT OR IGNORE INTO dashboard_notifications
-                  (thread_id, kind, source_key, title, message, created_at)
-                  SELECT thread_id, 'request_received', last_inbound_id,
-                         'Correo nuevo recibido',
-                         'La solicitud ya fue analizada y agregada al dashboard.',
-                         first_seen_at
-                  FROM quotes
-                  WHERE first_seen_at IS NOT NULL AND status <> '{QuoteStatus.IGNORED}'""")
-    db.execute(f"""INSERT OR IGNORE INTO dashboard_notifications
-                  (thread_id, kind, source_key, title, message, created_at)
-                  SELECT thread_id, 'draft_suggested', last_inbound_id,
-                         'Respuesta sugerida lista para revisar',
-                         'Revisa el destinatario y el texto antes de guardarlo en Gmail o enviarlo.',
-                         COALESCE(updated_at, first_seen_at)
-                  FROM quotes
-                  WHERE first_seen_at IS NOT NULL
-                    AND status IN {sql_in(QuoteStatus.REVIEW_PENDING, QuoteStatus.REVIEW,
-                                          QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED)}""")
+    for kind, title, message, created, condition in _DERIVED_NOTIFICATIONS:
+        base = (f"FROM quotes q WHERE first_seen_at IS NOT NULL AND last_inbound_id IS NOT NULL AND {condition}")
+        missing = db.execute(
+            f"""SELECT 1 {base} AND NOT EXISTS (
+                    SELECT 1 FROM dashboard_notifications n
+                    WHERE n.thread_id = q.thread_id AND n.kind = ? AND n.source_key = q.last_inbound_id)
+                LIMIT 1""", (kind,)).fetchone()
+        if missing:
+            db.execute(f"""INSERT OR IGNORE INTO dashboard_notifications
+                          (thread_id, kind, source_key, title, message, created_at)
+                          SELECT thread_id, ?, last_inbound_id, ?, ?, {created} {base}""",
+                       (kind, title, message))
 
 
 def connect() -> sqlite3.Connection:

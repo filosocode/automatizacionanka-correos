@@ -426,32 +426,43 @@ def _waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None) ->
     return sent_at
 
 
-def all_quotes(include_ignored: bool = False) -> list[Caso]:
-    """Todos los casos con sus cambios, vínculos, seguimiento y espera, el más reciente primero."""
+def all_quotes(include_ignored: bool = False, thread_id: str | None = None) -> list[Caso]:
+    """Todos los casos con sus cambios, vínculos, seguimiento y espera, el más reciente primero.
+
+    Con `thread_id` solo se arma ese caso (y solo se consultan sus filas relacionadas).
+    """
     db = connect()
     try:
-        where = "" if include_ignored else f"WHERE q.status <> '{QuoteStatus.IGNORED}'"
+        conditions = [] if include_ignored else [f"q.status <> '{QuoteStatus.IGNORED}'"]
+        scope = (thread_id,) if thread_id is not None else ()
+        if thread_id is not None:
+            conditions.append("q.thread_id = ?")
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        only = " AND thread_id = ?" if thread_id is not None else ""
+        only_where = " WHERE thread_id = ?" if thread_id is not None else ""
         rows = db.execute(f"""SELECT q.*, m.client_type, m.sector,
                                       m.client_name, m.notes
                                FROM quotes q
                                LEFT JOIN quote_metadata m ON m.thread_id = q.thread_id
                                {where}
                                ORDER BY COALESCE(q.updated_at, q.first_seen_at, '') DESC,
-                                        q.thread_id DESC""").fetchall()
+                                        q.thread_id DESC""", scope).fetchall()
         latest_reply = {r["thread_id"]: (r["occurred_at"], r["ref"]) for r in db.execute(
             "SELECT thread_id, ref, occurred_at FROM case_events "
-            "WHERE kind='received' ORDER BY occurred_at, id")}
-        followups = {r["thread_id"]: dict(r) for r in db.execute("SELECT * FROM case_followup")}
+            f"WHERE kind='received'{only} ORDER BY occurred_at, id", scope)}
+        followups = {r["thread_id"]: dict(r) for r in db.execute(f"SELECT * FROM case_followup{only_where}", scope)}
         reminders: dict[str, list[str]] = {}
-        for r in db.execute("SELECT thread_id, ref FROM case_events WHERE kind='reminder_sent' ORDER BY id"):
+        for r in db.execute(
+                f"SELECT thread_id, ref FROM case_events WHERE kind='reminder_sent'{only} ORDER BY id", scope):
             reminders.setdefault(r["thread_id"], []).append(r["ref"])
         changes: dict[str, list[dict]] = {}
         for change in db.execute(
-                "SELECT * FROM case_changes WHERE state IN ('pending', 'change') ORDER BY occurred_at"):
+                f"SELECT * FROM case_changes WHERE state IN ('pending', 'change'){only} ORDER BY occurred_at",
+                scope):
             changes.setdefault(change["thread_id"], []).append(dict(change))
         pending_links: dict[str, list[dict]] = {}
         for link in db.execute(
-                "SELECT * FROM case_links WHERE state='pending' ORDER BY occurred_at"):
+                f"SELECT * FROM case_links WHERE state='pending'{only} ORDER BY occurred_at", scope):
             pending_links.setdefault(link["thread_id"], []).append(dict(link))
     finally:
         db.close()
@@ -509,7 +520,7 @@ def all_quotes(include_ignored: bool = False) -> list[Caso]:
 
 def get_quote(thread_id: str) -> Caso | None:
     """Un caso por su hilo, o `None` si no existe."""
-    return next((item for item in all_quotes(True) if item["thread_id"] == thread_id), None)
+    return next(iter(all_quotes(True, thread_id)), None)
 
 
 def discarded_quotes() -> list[dict]:
