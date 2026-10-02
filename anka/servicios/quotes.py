@@ -6,12 +6,12 @@ import hashlib
 from uuid import uuid4
 import json
 import re
-import sqlite3
 from datetime import datetime
 from pathlib import Path
 from anka.dominio.status import (
     REVIEW_QUEUE_STATUSES, QuoteStatus, sql_in,
 )
+from anka.dominio.caso import Caso
 from anka.infra import settings
 from anka.dominio.correo import decode_websafe
 from anka.dominio.activities import normalize_estado
@@ -21,7 +21,7 @@ from anka.dominio.reception import (
 from anka.infra.logging_setup import get_logger
 from anka.servicios.change_control import apply_guard
 from anka.dominio.status import canonical_work_status
-from anka.infra.store import add_table_version, latest_table_version, case_events, open_db, record_event, register_change, save, verify_chain
+from anka.infra.store import add_table_version, latest_table_version, case_events, connect, record_event, register_change, save, verify_chain
 
 log = get_logger(__name__)
 
@@ -84,12 +84,10 @@ def save_review_packet(thread_id: str, recipient: str, analysis: dict,
     return path
 
 
-def init_db() -> sqlite3.Connection:
-    return open_db(settings.DATA_DIR)
 
 
 def unread_notifications(limit: int = 20) -> list[dict]:
-    db = init_db()
+    db = connect()
     try:
         rows = db.execute("""SELECT n.*, q.analysis_json
                              FROM dashboard_notifications n
@@ -113,7 +111,7 @@ def unread_notifications(limit: int = 20) -> list[dict]:
 
 def mark_notifications_read(thread_id: str | None = None) -> None:
     now = datetime.now().astimezone().isoformat(timespec="seconds")
-    db = init_db()
+    db = connect()
     try:
         if thread_id:
             db.execute("""UPDATE dashboard_notifications SET read_at=?
@@ -256,7 +254,7 @@ def reason_label(reason: str) -> str:
 
 def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
     """Una persona confirma o descarta que un correo de otro hilo pertenece a este caso."""
-    db = init_db()
+    db = connect()
     try:
         link = db.execute(
             "SELECT * FROM case_links WHERE id=? AND thread_id=? AND state='pending'",
@@ -293,7 +291,7 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
 
 def case_conversation(thread_id: str, limit: int = 12) -> list[dict]:
     """Correos del hilo, el más reciente primero."""
-    db = init_db()
+    db = connect()
     try:
         rows = db.execute(
             "SELECT direction, sender, subject, body, occurred_at FROM case_messages WHERE thread_id=? "
@@ -305,7 +303,7 @@ def case_conversation(thread_id: str, limit: int = 12) -> list[dict]:
 
 def case_change_log(thread_id: str) -> list[dict]:
     """Todas las solicitudes de cambio del caso (cualquier estado), de la más antigua a la más nueva."""
-    db = init_db()
+    db = connect()
     try:
         return [dict(row) for row in db.execute(
             "SELECT * FROM case_changes WHERE thread_id=? ORDER BY occurred_at", (thread_id,))]
@@ -314,7 +312,7 @@ def case_change_log(thread_id: str) -> list[dict]:
 
 
 def chain_status(thread_id: str) -> tuple[bool, int]:
-    db = init_db()
+    db = connect()
     try:
         return verify_chain(db, thread_id)
     finally:
@@ -323,7 +321,7 @@ def chain_status(thread_id: str) -> tuple[bool, int]:
 
 def archived_threads() -> list[dict]:
     """Casos eliminados del dashboard cuyo historial se conserva como evidencia."""
-    db = init_db()
+    db = connect()
     try:
         rows = db.execute(
             """SELECT thread_id, COUNT(*) AS n, MAX(occurred_at) AS last, MIN(occurred_at) AS first
@@ -335,7 +333,7 @@ def archived_threads() -> list[dict]:
 
 
 def case_has_links(thread_id: str) -> bool:
-    db = init_db()
+    db = connect()
     try:
         return db.execute(
             "SELECT 1 FROM case_links WHERE thread_id=? "
@@ -348,7 +346,7 @@ def case_has_links(thread_id: str) -> bool:
 
 def case_people(thread_id: str, contact_emails: set[str]) -> list[dict]:
     """Quién ha escrito en el caso: persona, empresa, cuántos correos y el último."""
-    db = init_db()
+    db = connect()
     try:
         rows = db.execute(
             """SELECT actor_email, MAX(actor_name) AS name, COUNT(*) AS n, MAX(occurred_at) AS last
@@ -371,7 +369,7 @@ def case_people(thread_id: str, contact_emails: set[str]) -> list[dict]:
 
 def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
     """La persona adopta la tabla que propone el modelo o conserva la suya."""
-    db = init_db()
+    db = connect()
     try:
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
@@ -407,8 +405,8 @@ def _waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None) ->
     return sent_at
 
 
-def all_quotes(include_ignored: bool = False) -> list[dict]:
-    db = init_db()
+def all_quotes(include_ignored: bool = False) -> list[Caso]:
+    db = connect()
     try:
         where = "" if include_ignored else f"WHERE q.status <> '{QuoteStatus.IGNORED}'"
         rows = db.execute(f"""SELECT q.*, m.client_type, m.sector,
@@ -435,7 +433,7 @@ def all_quotes(include_ignored: bool = False) -> list[dict]:
             pending_links.setdefault(link["thread_id"], []).append(dict(link))
     finally:
         db.close()
-    quotes = []
+    quotes: list[Caso] = []
     for row in rows:
         analysis = _load_analysis(row["analysis_json"])
         routing = analysis.get("routing", {})
@@ -445,49 +443,49 @@ def all_quotes(include_ignored: bool = False) -> list[dict]:
         review_states = {QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.REVIEW}
         if row["status"] in review_states and assessment:
             status_label = assessment["label"]
-        quotes.append({
-            "thread_id": row["thread_id"],
-            "status": row["status"],
-            "status_label": status_label,
-            "recipient": row["recipient"],
-            "client_email": client_email,
-            "client_name": row["client_name"] or routing.get("original_sender") or client_email,
-            "client_name_saved": row["client_name"] or "",
-            "client_type": row["client_type"] or "No clasificado",
-            "sector": row["sector"] or "No clasificado",
-            "notes": row["notes"] or "",
-            "analysis": analysis,
-            "reception_assessment": assessment,
-            "services": _service_names(analysis),
-            "first_seen_at": row["first_seen_at"] or analysis.get("received_at") or "",
-            "updated_at": row["updated_at"] or "",
-            "folder_id": row["folder_id"],
-            "draft_id": row["draft_id"],
-            "draft_body": row["draft_body"] or "",
-            "sent_at": row["sent_at"] or "",
-            "reply_pending": _unanalyzed_reply(
+        quotes.append(Caso(
+            thread_id=row["thread_id"],
+            status=row["status"],
+            status_label=status_label,
+            recipient=row["recipient"],
+            client_email=client_email,
+            client_name=row["client_name"] or routing.get("original_sender") or client_email,
+            client_name_saved=row["client_name"] or "",
+            client_type=row["client_type"] or "No clasificado",
+            sector=row["sector"] or "No clasificado",
+            notes=row["notes"] or "",
+            analysis=analysis,
+            reception_assessment=assessment,
+            services=_service_names(analysis),
+            first_seen_at=row["first_seen_at"] or analysis.get("received_at") or "",
+            updated_at=row["updated_at"] or "",
+            folder_id=row["folder_id"],
+            draft_id=row["draft_id"],
+            draft_body=row["draft_body"] or "",
+            sent_at=row["sent_at"] or "",
+            reply_pending=_unanalyzed_reply(
                 latest_reply.get(row["thread_id"]), row["last_inbound_id"], analysis,
                 row["first_seen_at"] or "", row["status"]),
-            "proposal": model_proposal(analysis),
-            "links": pending_links.get(row["thread_id"], []),
-            "changes": changes.get(row["thread_id"], []),
-            "waiting_since": _waiting_since(row["status"], row["sent_at"] or "", latest_reply.get(row["thread_id"])),
-            "followup": {
+            proposal=model_proposal(analysis),
+            links=pending_links.get(row["thread_id"], []),
+            changes=changes.get(row["thread_id"], []),
+            waiting_since=_waiting_since(row["status"], row["sent_at"] or "", latest_reply.get(row["thread_id"])),
+            followup={
                 "auto_enabled": bool(followups.get(row["thread_id"], {}).get("auto_enabled")),
                 "paused": bool(followups.get(row["thread_id"], {}).get("paused")),
                 "contacted_at": followups.get(row["thread_id"], {}).get("contacted_at") or "",
             },
-            "reminders": [ref for ref in reminders.get(row["thread_id"], [])
+            reminders=[ref for ref in reminders.get(row["thread_id"], [])
                           if ref.startswith((row["sent_at"] or "") + "|")],
-            "quote_code": row["quote_code"] or "",
-            "code_stage": row["code_stage"] or "",
-            "code_assigned_at": row["code_assigned_at"] or "",
-            "contact_email": row["contact_email"] or "",
-        })
+            quote_code=row["quote_code"] or "",
+            code_stage=row["code_stage"] or "",
+            code_assigned_at=row["code_assigned_at"] or "",
+            contact_email=row["contact_email"] or "",
+        ))
     return quotes
 
 
-def get_quote(thread_id: str) -> dict | None:
+def get_quote(thread_id: str) -> Caso | None:
     return next((item for item in all_quotes(True) if item["thread_id"] == thread_id), None)
 
 
@@ -516,7 +514,7 @@ def rescue_discarded(thread_id: str) -> str:
     No cambia su estado: lo reprocesa el ciclo normal (`pipeline.run`), que salta el
     filtro de ruido para los hilos con `force_analysis`.
     """
-    db = init_db()
+    db = connect()
     try:
         row = db.execute(
             "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
@@ -548,7 +546,7 @@ def delete_quotes(thread_ids: list[str]) -> str:
     if not ids:
         return "No seleccionaste ninguna solicitud."
     marks = ",".join("?" * len(ids))
-    db = init_db()
+    db = connect()
     try:
         found = [row["thread_id"] for row in db.execute(
             f"SELECT thread_id FROM quotes WHERE thread_id IN ({marks})", ids)]
@@ -583,7 +581,7 @@ def resolve_technical_review(thread_id: str, decision: str, questions_text: str 
     questions = [line.strip()[:500] for line in questions_text.splitlines() if line.strip()][:10]
     if decision == "ask_client" and not questions:
         raise ValueError("Escribe al menos una pregunta para el cliente (una por línea).")
-    db = init_db()
+    db = connect()
     try:
         row = db.execute(
             "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
@@ -623,7 +621,7 @@ def save_quote_metadata(thread_id: str, client_name: str, client_type: str,
     if not get_quote(thread_id):
         raise ValueError("La solicitud ya no existe.")
     now = datetime.now().astimezone().isoformat(timespec="seconds")
-    db = init_db()
+    db = connect()
     try:
         db.execute("""INSERT INTO quote_metadata
                       (thread_id, client_type, sector, client_name, notes, updated_at)
@@ -641,7 +639,7 @@ def save_quote_metadata(thread_id: str, client_name: str, client_type: str,
 def set_client_name(thread_id: str, client_name: str) -> None:
     """Guarda el cliente confirmado de un caso sin tocar el resto de sus datos comerciales."""
     now = datetime.now().astimezone().isoformat(timespec="seconds")
-    db = init_db()
+    db = connect()
     try:
         db.execute("""INSERT INTO quote_metadata
                       (thread_id, client_type, sector, client_name, notes, updated_at)
@@ -722,7 +720,7 @@ def describe_edit(diff: dict, old_totals: dict, new_totals: dict) -> str:
 
 
 def table_versions(thread_id: str) -> list[dict]:
-    db = init_db()
+    db = connect()
     try:
         rows = db.execute("SELECT * FROM table_versions WHERE thread_id=? ORDER BY version",
                           (thread_id,)).fetchall()
@@ -733,7 +731,7 @@ def table_versions(thread_id: str) -> list[dict]:
 
 def last_manual_version(thread_id: str) -> dict | None:
     """Última edición de una persona y si ya se avisó al cliente de ella."""
-    db = init_db()
+    db = connect()
     try:
         row = db.execute(
             "SELECT * FROM table_versions WHERE thread_id=? AND source='dashboard' "
@@ -750,7 +748,7 @@ def last_manual_version(thread_id: str) -> dict | None:
 
 def save_activities(thread_id: str, activities: list[dict], reason: str = "") -> str:
     """Guarda la tabla editada a mano y la marca para que un reproceso no la pise."""
-    db = init_db()
+    db = connect()
     try:
         row = db.execute(
             "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
@@ -890,7 +888,7 @@ def dashboard_upsert(payload_base64: str) -> None:
         # Igual que el piloto de Python (decide_analysis): con dependencias o contradicciones
         # pendientes el caso pasa a revisión técnica interna, donde una persona decide.
         status = QuoteStatus.REVIEW
-    db = init_db()
+    db = connect()
     try:
         apply_guard(
             db, thread_id, analysis, str(payload.get("requested_by_email") or ""),
@@ -940,7 +938,7 @@ def dashboard_upsert(payload_base64: str) -> None:
 
 def thread_events(thread_id: str) -> list[dict]:
     """Seguimiento del caso, del más reciente al más antiguo."""
-    db = init_db()
+    db = connect()
     try:
         rows = case_events(db, thread_id)
     finally:
@@ -950,7 +948,7 @@ def thread_events(thread_id: str) -> list[dict]:
 
 def change_marker() -> str:
     """Cambia cuando se añade, edita o borra cualquier caso (para refrescar el dashboard)."""
-    db = init_db()
+    db = connect()
     try:
         row = db.execute(
             "SELECT COUNT(*) AS n, MAX(COALESCE(updated_at, first_seen_at)) AS ts, "
@@ -963,7 +961,7 @@ def change_marker() -> str:
 
 
 def pending_reviews() -> list[dict]:
-    db = init_db()
+    db = connect()
     try:
         rows = db.execute(
             f"""SELECT thread_id, status, recipient, analysis_json

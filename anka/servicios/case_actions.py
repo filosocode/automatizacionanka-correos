@@ -24,12 +24,12 @@ from anka.dominio.reception import (
 )
 from anka.infra.settings import load_config
 from anka.infra.logging_setup import SENSITIVE, get_logger
-from anka.infra.store import add_dashboard_notification, record_event, save
+from anka.infra.store import add_dashboard_notification, connect, record_event, save
 
 from anka.servicios.drive_contents import populate_project_folder
 from anka.servicios.pipeline import confirmed_client
 from anka.servicios.change_control import known_addresses, mark_change_sent
-from anka.servicios.quotes import case_has_links, delete_quotes, get_quote, init_db, set_client_name
+from anka.servicios.quotes import case_has_links, delete_quotes, get_quote, set_client_name
 
 log = get_logger(__name__)
 
@@ -53,7 +53,7 @@ def resolve_case_recipient(thread_id: str) -> dict:
         raise ValueError("Gmail no devolvió una dirección válida para responder.")
     analysis = quote["analysis"]
     analysis["routing"] = routing
-    db = init_db()
+    db = connect()
     try:
         db.execute("""UPDATE quotes SET recipient=?, analysis_json=?, updated_at=?
                       WHERE thread_id=?""", (
@@ -111,7 +111,7 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
         ).execute()
     draft_id = result["id"]
     now = datetime.now().astimezone().isoformat(timespec="seconds")
-    db = init_db()
+    db = connect()
     try:
         db.execute(
             f"""UPDATE quotes SET status='{QuoteStatus.DRAFT_CREATED}', draft_id=?, draft_body=?,
@@ -187,7 +187,7 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
         new_status = QuoteStatus.WAITING  # se preguntó al cliente: espera su respuesta (igual que approve_review)
     else:
         new_status = QuoteStatus.RESPONSE_SENT
-    db = init_db()
+    db = connect()
     try:
         analysis = dict(quote["analysis"])
         analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
@@ -211,7 +211,7 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     if change_id and purpose:
         mark_change_sent(thread_id, change_id, purpose, recipient)
     if purpose == "scope_update":
-        db = init_db()
+        db = connect()
         try:
             record_event(db, thread_id, "scope_update_sent", "dashboard", now,
                          f"Avisaste al cliente ({recipient}) de la actualización de la tabla.", now)
@@ -245,7 +245,7 @@ def delete_cases(thread_ids: list[str]) -> str:
     vínculo con su carpeta) y se informa. Las carpetas de cliente nunca se tocan.
     """
     ids = list(dict.fromkeys(thread_ids))
-    db = init_db()
+    db = connect()
     try:
         marks = ",".join("?" * len(ids))
         folders = {
@@ -281,7 +281,7 @@ def delete_cases(thread_ids: list[str]) -> str:
 
 def _note_drive_pending(thread_id: str, message: str) -> None:
     """Deja en el caso el motivo por el que la carpeta no se creó, para mostrarlo en pantalla."""
-    db = init_db()
+    db = connect()
     try:
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if row:
@@ -335,7 +335,7 @@ def approve_review(
     config = load_config()
     gmail, drive = services()
     account_addresses = own_addresses(config, gmail)
-    db = init_db()
+    db = connect()
     try:
         row = db.execute(
             """SELECT last_inbound_id, status, recipient, analysis_json

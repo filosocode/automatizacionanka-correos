@@ -49,9 +49,9 @@ from anka.infra.settings import load_config
 from anka.dominio.activities import normalize_estado
 from anka.servicios.change_control import apply_guard, find_codes
 from email.utils import parseaddr
-from anka.infra.store import save
+from anka.infra.store import connect, save
 
-from anka.servicios.quotes import init_db, save_review_packet
+from anka.servicios.quotes import save_review_packet
 
 
 log = get_logger(__name__)
@@ -59,7 +59,7 @@ LAST_CHECK_FILE = "last_check.json"
 
 
 def _quote_snapshot() -> dict[str, tuple]:
-    db = init_db()
+    db = connect()
     try:
         return {
             row["thread_id"]: (row["status"], row["updated_at"])
@@ -116,7 +116,7 @@ def _ago(iso: str) -> str:
 
 
 def latest_case_activity() -> str:
-    db = init_db()
+    db = connect()
     try:
         row = db.execute(
             "SELECT MAX(COALESCE(updated_at, first_seen_at)) AS ts FROM quotes").fetchone()
@@ -499,7 +499,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
     if apply and not review_only and not gmail_drafts and not config.get("drive_parent_id"):
         raise SystemExit("Para --apply define drive_parent_id en config.json.")
     gmail, drive = services()
-    db = init_db() if apply else None
+    db = connect() if apply else None
     ctx = RunContext(
         config, gmail, drive, db, own_addresses(config, gmail), review_only, gmail_drafts,
     )

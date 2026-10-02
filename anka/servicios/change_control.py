@@ -15,14 +15,10 @@ from datetime import datetime
 from uuid import uuid4
 
 from anka.infra.logging_setup import get_logger
-from anka.infra import settings
-from anka.infra.store import open_db, record_event, register_change
+from anka.infra.store import connect, record_event, register_change
 
 log = get_logger(__name__)
 
-
-def init_db() -> sqlite3.Connection:
-    return open_db(settings.DATA_DIR)
 
 # T26145, T-26145, TE26145, T&E26145, "T&E 26145": año de 2 dígitos + consecutivo de 3.
 CODE_PATTERN = re.compile(
@@ -161,7 +157,7 @@ def suggest_number(year: int | None = None) -> str:
     Es una sugerencia: el consecutivo oficial puede ir más adelante, por eso se confirma a mano.
     """
     prefix = f"{(year or datetime.now().year) % 100:02d}"
-    db = init_db()
+    db = connect()
     try:
         used = [int(row["quote_code"][2:]) for row in db.execute(
             "SELECT quote_code FROM quotes WHERE quote_code LIKE ? AND length(quote_code)=5",
@@ -180,7 +176,7 @@ def assign_code(thread_id: str, number: str) -> str:
     number = number.strip().upper().removeprefix("T&E").removeprefix("TE").removeprefix("T").strip()
     if not NUMBER_PATTERN.match(number):
         raise ValueError("El número debe tener 5 dígitos: año de 2 cifras y consecutivo de 3 (p. ej. 26145).")
-    db = init_db()
+    db = connect()
     try:
         row = db.execute("SELECT quote_code FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
@@ -205,7 +201,7 @@ def assign_code(thread_id: str, number: str) -> str:
 
 def promote_to_te(thread_id: str) -> str:
     """La oferta fue aprobada: la T pasa a T&E (mismo número)."""
-    db = init_db()
+    db = connect()
     try:
         row = db.execute("SELECT quote_code, code_stage FROM quotes WHERE thread_id=?",
                          (thread_id,)).fetchone()
@@ -226,7 +222,7 @@ def promote_to_te(thread_id: str) -> str:
 
 def resolve_change(thread_id: str, change_id: int, is_change: bool) -> str:
     """Una persona decide si el mensaje posterior a la T pide un cambio o es otra cosa."""
-    db = init_db()
+    db = connect()
     try:
         change = db.execute("SELECT * FROM case_changes WHERE id=? AND thread_id=? AND state='pending'",
                             (change_id, thread_id)).fetchone()
@@ -253,7 +249,7 @@ def resolve_change(thread_id: str, change_id: int, is_change: bool) -> str:
 
 def known_addresses(thread_id: str) -> set[str]:
     """Direcciones que ya participan en el caso: solo a ellas se puede escribir desde el dashboard."""
-    db = init_db()
+    db = connect()
     try:
         found = {row[0].casefold() for row in db.execute(
             "SELECT contact_email FROM quotes WHERE thread_id=? "
@@ -272,7 +268,7 @@ def mark_change_sent(thread_id: str, change_id: int, purpose: str, to: str) -> N
     column = "contact_notified_at" if purpose == "notify_contact" else "reply_sent_at"
     labels = {"ack": "Se envió «cambio recibido» a", "ask_code": "Se pidió el código a",
               "notify_contact": "Se avisó al contacto registrado,"}
-    db = init_db()
+    db = connect()
     try:
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         db.execute(f"UPDATE case_changes SET {column}=? WHERE id=? AND thread_id=?",

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import replace
 from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -60,7 +61,7 @@ def _page(title: str, body: Markup, message: str = "") -> str:
                        bool(os.getenv("OPENAI_API_KEY")))
 
 
-def _dashboard_insights(quotes: list[dict], services: Counter, clients: Counter) -> Markup:
+def _dashboard_insights(quotes: Sequence[Mapping[str, Any]], services: Counter, clients: Counter) -> Markup:
     items = []
     if services:
         service, count = services.most_common(1)[0]
@@ -116,7 +117,7 @@ def _render_index(message: str = "") -> str:
     return _page("Resumen comercial", body, message)
 
 
-def _quote_row(quote: dict, is_new: bool = False, selectable: bool = False) -> Markup:
+def _quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool = False) -> Markup:
     project = quote["analysis"].get("project_name") or "Solicitud sin nombre"
     services = ", ".join(quote["services"]) or "Servicio por clasificar"
     return render(
@@ -159,7 +160,7 @@ def _suggested_questions(analysis: dict, assessment: dict) -> str:
     return "\n".join(found)
 
 
-def _link_banner(review: dict) -> Markup:
+def _link_banner(review: Mapping[str, Any]) -> Markup:
     link = review["links"][0]
     contacts = case_contacts(review["recipient"], review["analysis"])
     return render(
@@ -169,7 +170,7 @@ def _link_banner(review: dict) -> Markup:
         show_verify=link["reason"].startswith("domain") or link["sender_email"] not in contacts)
 
 
-def _reply_template(kind: str, review: dict, change: dict | None = None) -> str:
+def _reply_template(kind: str, review: Mapping[str, Any], change: dict | None = None) -> str:
     """Texto base de cada correo del flujo (siempre se revisa antes de enviar).
 
     Los correos a quien no es el contacto registrado nunca incluyen el código del proyecto.
@@ -241,13 +242,13 @@ def _reply_template(kind: str, review: dict, change: dict | None = None) -> str:
     )
 
 
-def _change_banner(review: dict) -> Markup:
+def _change_banner(review: Mapping[str, Any]) -> Markup:
     change = next(c for c in review["changes"] if c["state"] == "pending")
     return render("change_banner.html", change=change, thread_id=review["thread_id"],
                   who=change["sender_name"] or change["sender_email"])
 
 
-def _change_todo(review: dict) -> Markup:
+def _change_todo(review: Mapping[str, Any]) -> Markup:
     """Correos que faltan por enviar por cada cambio confirmado."""
     base = "/case?thread_id=" + urllib.parse.quote(review["thread_id"])
     for change in review.get("changes", []):
@@ -271,7 +272,7 @@ def _change_todo(review: dict) -> Markup:
     return Markup("")
 
 
-def _info_validated(review: dict) -> bool:
+def _info_validated(review: Mapping[str, Any]) -> bool:
     """¿La información del caso ya está validada para empezar a cotizar?
 
     Sí cuando el alcance está completo, una persona dio la información por suficiente, o ya hay T.
@@ -282,7 +283,7 @@ def _info_validated(review: dict) -> bool:
     ) or (analysis.get("manual_review") or {}).get("decision") == "sufficient"
 
 
-def _stepper(review: dict) -> Markup:
+def _stepper(review: Mapping[str, Any]) -> Markup:
     """Recorrido del caso: dónde está y qué sigue, de un vistazo."""
     code = review.get("quote_code", "")
     stage = review.get("code_stage", "")
@@ -301,7 +302,7 @@ def _stepper(review: dict) -> Markup:
     return render("stepper.html", steps=steps)
 
 
-def _code_panel(review: dict) -> Markup:
+def _code_panel(review: Mapping[str, Any]) -> Markup:
     code = review.get("quote_code", "")
     stage = review.get("code_stage", "")
     can_assign = (review["status"] not in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
@@ -316,7 +317,7 @@ def _code_panel(review: dict) -> Markup:
         contact=review.get("contact_email") or review["recipient"])
 
 
-def _next_step_banner(review: dict, work_mode: bool) -> Markup:
+def _next_step_banner(review: Mapping[str, Any], work_mode: bool) -> Markup:
     """Un solo aviso arriba del caso: lo más importante que sigue, con su botón si lo hay."""
     if any(c["state"] == "pending" for c in review.get("changes", [])):
         return _change_banner(review)
@@ -441,7 +442,7 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
                 "El guardado y el envío están bloqueados para evitar un correo incorrecto."
             )
     if review.get("reply_pending"):
-        review = {**review, "status_label": REPLY_LABEL}
+        review = replace(review, status_label=REPLY_LABEL)
     analysis = review["analysis"]
     assessment = review.get("reception_assessment") or reception_assessment(analysis)
     config = load_config()
@@ -567,7 +568,7 @@ def _render_case(thread_id: str, message: str = "", template: str = "", change_i
     return _page("Revisar caso", body, message)
 
 
-def _acta_versions(thread_id: str, review: dict | None) -> list[dict]:
+def _acta_versions(thread_id: str, review: Mapping[str, Any] | None) -> list[dict]:
     """Versiones de la tabla con su origen; las ediciones internas posteriores a la T se rotulan."""
     assigned = ((review or {}).get("code_assigned_at") or "")
     result = []
@@ -601,10 +602,10 @@ def _render_acta(thread_id: str) -> str:
     ]
     if not review and not events:
         return _page("Caso no encontrado", render("empty.html", text="No hay historial para ese caso."))
-    contact = (review or {}).get("contact_email", "")
+    contact = review.get("contact_email", "") if review else ""
     ok, count = chain_status(thread_id)
     code = ""
-    stage = (review or {}).get("code_stage", "")
+    stage = review.get("code_stage", "") if review else ""
     if review and review.get("quote_code"):
         code = code_label(review["quote_code"], stage or "T")
     body = render(
@@ -637,7 +638,7 @@ def split_quoted(body: str) -> tuple[str, str]:
     return text[:cut].strip(), text[cut:].strip()
 
 
-def _followup_panel(review: dict) -> Markup:
+def _followup_panel(review: Mapping[str, Any]) -> Markup:
     """Seguimiento del cliente: cuánto lleva esperando, recordatorios y qué hacer."""
     since = review.get("waiting_since", "")
     if not since:
@@ -664,7 +665,7 @@ def _outgoing_pending(changes: list[dict]) -> bool:
     return False
 
 
-def _case_stage(quote: dict) -> tuple[str, bool]:
+def _case_stage(quote: Mapping[str, Any]) -> tuple[str, bool]:
     """(texto, requiere acción): la etapa del caso o lo que espera de una persona, en una frase."""
     changes = quote.get("changes", [])
     status = quote["status"]

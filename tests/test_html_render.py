@@ -17,10 +17,12 @@ import tempfile
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
+from datetime import datetime
 from unittest.mock import patch
 
 from anka.infra import settings
 from anka.infra import store
+from anka.servicios import followup_reminders as fup
 from anka.web import server as web
 from anka.dominio.status import QuoteStatus
 from tests.test_app import test_config
@@ -212,7 +214,10 @@ class Pages(unittest.TestCase):
     @classmethod
     def render_all(cls):
         pages = {}
-        with patch.object(settings, "DATA_DIR", cls.data_dir), \
+        real_waiting_days = fup.waiting_days
+        # Los días de espera dependen de hoy: se fija el reloj para que la instantánea no cambie con la fecha.
+        fixed_now = datetime.fromisoformat("2026-10-01T12:00:00-05:00")
+        with patch.object(settings, "DATA_DIR", cls.data_dir),                 patch.object(fup, "waiting_days", lambda since, now=None: real_waiting_days(since, fixed_now)), \
                 patch("anka.web.server.load_config", return_value=test_config()), \
                 patch("anka.web.server.sync_status_text", return_value="Sincronización de prueba."), \
                 patch("anka.servicios.internal_context.load_internal_commercial_index", return_value=CONTEXT_INDEX):

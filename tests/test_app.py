@@ -570,7 +570,7 @@ class QuoteFlowTests(unittest.TestCase):
         ), patch("anka.servicios.case_actions.load_config", return_value=test_config()), patch(
             "anka.servicios.case_actions.services", return_value=(gmail, object())
         ):
-            db = quotes.init_db()
+            db = store.connect()
             store.save(
                 db, "thread-dashboard", "client-1", "review_pending",
                 "cliente@example.com", analysis,
@@ -914,12 +914,12 @@ class ActivitiesTests(unittest.TestCase):
     def test_manual_edit_survives_reprocessing(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ):
-            db = quotes.init_db()
+            db = store.connect()
             store.save(db, "t1", "m1", "missing", "a@b.co",
                      {"activities": [{"activity": "modelo v1"}], "received_at": "x"})
             db.close()
             quotes.save_activities("t1", [{"activity": "editada", "estado": "confirmado"}])
-            db = quotes.init_db()
+            db = store.connect()
             store.save(db, "t1", "m2", "missing", "a@b.co",
                      {"activities": [{"activity": "modelo v2"}], "received_at": "x"})
             db.close()
@@ -940,12 +940,12 @@ class CheckStatusTests(unittest.TestCase):
     def test_checked_run_records_new_and_updated_cases(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ):
-            db = quotes.init_db()
+            db = store.connect()
             store.save(db, "old", "m1", "missing", "a@b.co", {"received_at": "x"})
             db.close()
 
             def fake_run(*args):
-                db = quotes.init_db()
+                db = store.connect()
                 store.save(db, "old", "m2", "review_pending", "a@b.co", {"received_at": "x"})
                 store.save(db, "nuevo", "m3", "missing", "a@b.co", {"received_at": "x"})
                 db.close()

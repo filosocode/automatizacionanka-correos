@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from anka.dominio.status import QuoteStatus, sql_in
+from anka.infra import settings
 
 
 QUOTES_EXTRA_COLUMNS = ("first_seen_at", "updated_at", "draft_id", "draft_body", "sent_at")
@@ -299,6 +300,11 @@ def _derive_notifications(db: sqlite3.Connection) -> None:
                   WHERE first_seen_at IS NOT NULL
                     AND status IN {sql_in(QuoteStatus.REVIEW_PENDING, QuoteStatus.REVIEW,
                                           QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED)}""")
+
+
+def connect() -> sqlite3.Connection:
+    """Abre la base de la carpeta de datos vigente (la única forma de abrirla desde los servicios)."""
+    return open_db(settings.DATA_DIR)
 
 
 def open_db(data_dir: Path) -> sqlite3.Connection:

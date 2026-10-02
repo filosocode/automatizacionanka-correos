@@ -15,7 +15,6 @@ from unittest.mock import patch
 from anka.infra import logging_setup
 from tests.fake_drive import FakeDriveTree
 from anka.servicios import pipeline
-from anka.servicios import quotes
 from anka.infra import settings
 from anka.infra import store
 from anka.dominio.status import QuoteStatus
@@ -57,11 +56,11 @@ class RunFlowTests(unittest.TestCase):
             "anka.servicios.pipeline.services", return_value=(gmail, drive)
         ), patch("anka.servicios.pipeline.analyze", return_value=analysis) as analyze_mock:
             if seed:
-                db = quotes.init_db()
+                db = store.connect()
                 store.save(db, *seed)
                 db.close()
             for thread_id, client in (metadata or {}).items():
-                db = quotes.init_db()
+                db = store.connect()
                 db.execute(
                     "INSERT INTO quote_metadata (thread_id, client_name, updated_at) VALUES (?, ?, 'x')",
                     (thread_id, client))

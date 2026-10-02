@@ -22,7 +22,7 @@ from anka.infra import llm
 from anka.servicios import pipeline
 from anka.servicios import quotes
 from anka.dominio import reception
-from anka.infra import settings
+from anka.infra import settings, store
 from tests.fake_drive import FakeDriveTree
 from anka.dominio.status import QuoteStatus
 from tests.test_app import FakeGmail, complete_analysis, test_config
@@ -234,7 +234,7 @@ class ChangeRuleR11(unittest.TestCase):
             "activities": self.OLD, "received_at": "2026-10-01T09:00:00-05:00"}))
         if code:
             change_control.assign_code(thread, code)
-            db = quotes.init_db()
+            db = store.connect()
             db.execute("UPDATE quotes SET code_assigned_at='2026-10-01T10:00:00-05:00' WHERE thread_id=?",
                        (thread,))
             db.commit()
@@ -280,7 +280,7 @@ class ChangeRuleR11(unittest.TestCase):
                 self.seed(case["id"], case["codigo_del_caso"])
                 analysis = {"activities": [dict(r) for r in self.NEW], "project_name": "P",
                             "received_at": "2026-10-01 09:30" if case["anterior_a_la_t"] else "2026-10-01 11:00"}
-                db = quotes.init_db()
+                db = store.connect()
                 change_control.apply_guard(
                     db, case["id"], analysis, case["de"].split("<")[-1].strip(" >"), "x",
                     sorted(change_control.find_codes(case["cuerpo"])), "m1", "Asunto", "texto", "python")
@@ -318,7 +318,7 @@ class ChangeRuleR11(unittest.TestCase):
                 "anka.servicios.pipeline.services", return_value=(gmail, drive)), patch(
                 "anka.servicios.pipeline.analyze", return_value=complete_analysis(location="")):
             self.seed("t-1", "26145")
-            db = quotes.init_db()
+            db = store.connect()
             db.execute("UPDATE quotes SET contact_email='ana@empresa.co', last_inbound_id='old', "
                        "status='waiting', code_assigned_at='2000-01-01T00:00:00-05:00' WHERE thread_id='t-1'")
             db.commit()

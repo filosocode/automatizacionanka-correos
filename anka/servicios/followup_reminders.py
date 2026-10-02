@@ -14,9 +14,8 @@ import base64
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from anka.infra import settings
 from anka.infra.logging_setup import get_logger
-from anka.infra.store import open_db, record_event
+from anka.infra.store import connect, record_event
 
 log = get_logger(__name__)
 
@@ -66,8 +65,7 @@ def reminder_text(number: int) -> str:
             "resolver cualquier duda.\n\nSaludos,\nGrupo Anka")
 
 
-def _db() -> Any:
-    return open_db(settings.DATA_DIR)
+_db = connect
 
 
 def followup_state(db: Any, thread_id: str) -> dict:

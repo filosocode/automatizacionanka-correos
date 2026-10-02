@@ -19,10 +19,9 @@ from typing import Any
 from anka.infra import settings
 from anka.servicios.change_control import company_domain, mentions_code
 from anka.infra.logging_setup import get_logger
-from anka.servicios.quotes import init_db
 from anka.dominio.status import QuoteStatus
 from anka.dominio.correo import message_text
-from anka.infra.store import add_dashboard_notification, add_message, record_event, register_change
+from anka.infra.store import add_dashboard_notification, add_message, connect, record_event, register_change
 
 log = get_logger(__name__)
 
@@ -142,7 +141,7 @@ def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
 
     `seen` guarda los mensajes ya revisados en este proceso; la base evita duplicar entre reinicios.
     """
-    db = init_db()
+    db = connect()
     try:
         cases = {row["thread_id"]: row for row in db.execute(
             "SELECT thread_id, status, first_seen_at, last_inbound_id, recipient, analysis_json, "

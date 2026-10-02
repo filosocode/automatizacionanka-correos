@@ -16,7 +16,7 @@ from anka.servicios import case_actions
 from anka.servicios import gmail_followup
 from anka.servicios import quotes
 from anka.infra import settings
-from anka.servicios.quotes import init_db
+from anka.servicios.quotes import connect
 from anka.dominio.status import QuoteStatus
 from tests.test_work_sync import FollowupGmail, _Exec, b64, mail, payload
 
@@ -53,7 +53,7 @@ class Transitions(unittest.TestCase):
         thread = f"S{self.counter}"
         quotes.dashboard_upsert(b64(json.dumps(payload(
             thread=thread, message="m1", received_at="2026-10-01T10:00:00-05:00"))))
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=?, recipient='c@example.com', "
                    "quote_code=?, code_stage=? WHERE thread_id=?",
                    (status, "26001" if coded else None, "T" if coded else None, thread))

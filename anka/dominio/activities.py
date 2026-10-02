@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from io import BytesIO
+from typing import Any
 
 ACTIVITY_COLUMNS = [
     ("activity", "Actividad"),
@@ -63,7 +65,7 @@ def _cell(value: object) -> str:
     return "'" + text if text[:1] in ("=", "+", "-", "@") else text
 
 
-def build_workbook(quotes: list[dict]) -> bytes:
+def build_workbook(quotes: Sequence[Mapping[str, Any]]) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter

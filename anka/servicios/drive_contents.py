@@ -14,6 +14,7 @@ deshacer la creación de la carpeta; por eso `populate_project_folder` informa e
 from __future__ import annotations
 
 import mimetypes
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any
@@ -94,7 +95,7 @@ def client_attachments(gmail: Any, thread: dict, own_addresses: set[str]) -> lis
 
 
 def populate_project_folder(
-    gmail: Any, drive: Any, thread: dict, folder_id: str, quote: dict | None,
+    gmail: Any, drive: Any, thread: dict, folder_id: str, quote: Mapping[str, Any] | None,
     own_addresses: set[str],
 ) -> ContentReport:
     """Copia a `folder_id` todos los adjuntos del cliente y crea la tabla de actividades (Sheet)."""

@@ -16,7 +16,7 @@ from anka.servicios import gmail_followup
 from anka.servicios import quotes
 from anka.infra import settings
 from anka.web import server as web
-from anka.servicios.quotes import init_db
+from anka.servicios.quotes import connect
 from anka.dominio.status import QuoteStatus
 from anka.infra.store import record_event, verify_chain
 from tests.test_work_sync import FollowupGmail, _Exec, b64, draft_message, mail, payload
@@ -59,7 +59,7 @@ class Base(unittest.TestCase):
 
     def assign(self, number="26145"):
         change_control.assign_code("T1", number)
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET code_assigned_at='2026-10-01T10:30:00-05:00' WHERE thread_id='T1'")
         db.commit()
         db.close()
@@ -195,7 +195,7 @@ class EmailTests(Base):
             case_actions._recipient("T1", quote, "desconocido@otra.com")
 
     def test_closed_case_with_code_accepts_replies_with_prepared_text(self):
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.READY,))
         db.commit()
         db.close()
@@ -209,7 +209,7 @@ class EmailTests(Base):
 # Cubre: T-04
 class EvidenceTests(Base):
     def test_chain_detects_tampering_and_removal(self):
-        db = init_db()
+        db = connect()
         for n in range(3):
             record_event(db, "T1", "x", "dashboard", f"r{n}", f"hecho {n}")
         db.commit()
@@ -306,7 +306,7 @@ class VersionTests(Base):
             page = web._render_case("T1")
         self.assertIn("Solo está en tu historial", page)
         self.assertIn("Preparar un correo de actualización", page)
-        db = init_db()
+        db = connect()
         record_event(db, "T1", "scope_update_sent", "dashboard", "x", "Avisaste")
         db.commit()
         db.close()
@@ -314,7 +314,7 @@ class VersionTests(Base):
             self.assertIn("Ya avisaste al cliente", web._render_case("T1"))
 
     def test_notice_can_be_prepared_even_for_a_closed_case(self):
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.READY,))
         db.commit()
         db.close()
@@ -327,7 +327,7 @@ class VersionTests(Base):
     def test_acta_lists_versions_and_marks_internal_edits_after_the_code(self):
         self.edit([{"activity": "antes"}])
         self.assign()
-        db = init_db()
+        db = connect()
         db.execute("UPDATE table_versions SET created_at='2026-10-01T09:00:00-05:00'")
         db.commit()
         db.close()
@@ -524,7 +524,7 @@ class RowStateAndStatusFlowTests(Base):
         self.assertEqual(tuple(block["actividades"]["estados"]), ESTADOS)
 
     def set_status(self, status):
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (status,))
         db.commit()
         db.close()
@@ -554,7 +554,7 @@ class GuidedFlowTests(Base):
             return web._render_case(thread, **kw)
 
     def set_status(self, status):
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (status,))
         db.commit()
         db.close()
@@ -601,7 +601,7 @@ class GuidedFlowTests(Base):
         self.assertEqual(len(quotes.case_conversation("T1")), 1)
 
     def test_a_case_with_a_pending_reply_says_so_in_its_label(self):
-        db = init_db()
+        db = connect()
         from anka.infra.store import record_event as rec
         rec(db, "T1", "received", "gmail", "r9", "x", "2026-10-01T12:00:00-05:00", "ana@acme.com", "Ana")
         db.commit()
@@ -635,7 +635,7 @@ class UxFixesTests(Base):
     «qué hacer hoy» y un encabezado sin controles peligrosos."""
 
     def set_status(self, status):
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (status,))
         db.commit()
         db.close()
@@ -669,7 +669,7 @@ class UxFixesTests(Base):
     def test_the_list_shows_the_stage_and_puts_cases_that_need_action_first(self):
         quotes.dashboard_upsert(b64(json.dumps(payload(thread="T2", message="mx"))))
         self.set_status(QuoteStatus.WAITING)                              # T1 espera al cliente
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T2'", (QuoteStatus.REVIEW_PENDING,))
         db.commit()
         db.close()
@@ -771,7 +771,7 @@ class DoubleSendTests(Base):
         self.assertEqual(len(gmail.sent), 2)
 
     def test_after_sending_questions_the_case_waits_and_hides_the_send_form(self):
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.REVIEW_PENDING,))
         db.commit()
         db.close()
@@ -806,7 +806,7 @@ class ClientDelayFollowupTests(Base):
 
     def wait_for_client(self, auto=True):
         from anka.servicios import followup_reminders as fup
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=?, sent_at=?, recipient='ana@acme.com' WHERE thread_id='T1'",
                    (QuoteStatus.WAITING, self.SENT))
         db.commit()
@@ -835,13 +835,13 @@ class ClientDelayFollowupTests(Base):
         self.wait_for_client()
         self.assertEqual(self.due("2026-10-01T16:00:00-05:00"), [])                  # el mismo día: nada
         self.assertEqual(self.due("2026-10-02T10:00:00-05:00"), [("T1", 1)])         # 1 día hábil
-        db = init_db()
+        db = connect()
         record_event(db, "T1", "reminder_sent", "dashboard", f"{self.SENT}|1", "r1", "2026-10-02T10:30:00-05:00")
         db.commit()
         db.close()
         self.assertEqual(self.due("2026-10-05T10:00:00-05:00"), [])                  # a 2 días hábiles aún no
         self.assertEqual(self.due("2026-10-06T10:00:00-05:00"), [("T1", 2)])         # a 3 días hábiles
-        db = init_db()
+        db = connect()
         record_event(db, "T1", "reminder_sent", "dashboard", f"{self.SENT}|2", "r2", "2026-10-06T10:30:00-05:00")
         db.commit()
         db.close()
@@ -867,13 +867,13 @@ class ClientDelayFollowupTests(Base):
         self.assertEqual(self.due(when), [("T1", 1)])
         fup.set_followup("T1", "contacted")
         self.assertEqual(self.due(when), [])                                          # ya habló con el cliente
-        db = init_db()
+        db = connect()
         db.execute("UPDATE case_followup SET contacted_at=NULL WHERE thread_id='T1'")
         record_event(db, "T1", "received", "gmail", "r-cliente", "respondió", "2026-10-01T18:00:00-05:00", "ana@acme.com")
         db.commit()
         db.close()
         self.assertEqual(self.due(when), [])                                          # el cliente respondió
-        db = init_db()
+        db = connect()
         db.execute("DELETE FROM case_events WHERE ref='r-cliente'")
         db.execute("UPDATE quotes SET recipient='otra@acme.com' WHERE thread_id='T1'")
         db.commit()

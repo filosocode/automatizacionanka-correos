@@ -17,7 +17,7 @@ from anka.cli import work_sync as sync
 from anka.infra import work_heartbeat
 from anka.servicios import gmail_followup
 from anka.infra.store import case_events
-from anka.servicios.quotes import init_db
+from anka.servicios.quotes import connect
 from anka.dominio.status import QuoteStatus
 
 
@@ -113,7 +113,7 @@ class BridgeTests(unittest.TestCase):
         quotes.dashboard_upsert(b64(json.dumps(payload())))
         quotes.save_quote_metadata("T1", "Cliente Confirmado", "Empresa privada",
                                    "Infraestructura", "nota")
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.READY,))
         db.commit()
         db.close()
@@ -172,7 +172,7 @@ class FollowupTests(unittest.TestCase):
         self.t0 = int(datetime.fromisoformat("2026-10-01T10:00:00-05:00").timestamp())
 
     def events(self):
-        db = init_db()
+        db = connect()
         try:
             return [(e["kind"], e["source"]) for e in case_events(db, "T1")]
         finally:
@@ -190,7 +190,7 @@ class FollowupTests(unittest.TestCase):
         self.assertEqual(gmail.gets, 1)
 
     def test_send_made_from_dashboard_is_not_recorded_twice(self):
-        db = init_db()
+        db = connect()
         from anka.infra.store import record_event
         record_event(db, "T1", "sent", "dashboard", "s1", "enviado")
         db.commit()
@@ -232,7 +232,7 @@ class NextStepTests(unittest.TestCase):
 
     def reply(self, ref, minutes_after, ago_minutes=0):
         when = datetime.fromisoformat("2026-10-01T10:00:00-05:00") + timedelta(minutes=minutes_after)
-        db = init_db()
+        db = connect()
         from anka.infra.store import record_event
         record_event(db, "T1", "received", "gmail", ref, "Correo recibido", when.isoformat())
         db.commit()
@@ -279,7 +279,7 @@ class NextStepTests(unittest.TestCase):
         stored = quotes.get_quote("T1")
         self.assertEqual(stored["analysis"]["activities"], [{"activity": "solo mía"}])
         self.assertEqual(stored["proposal"], [])
-        db = init_db()
+        db = connect()
         kinds = [e["kind"] for e in case_events(db, "T1")]
         db.close()
         self.assertEqual(kinds.count("proposal"), 2)
@@ -361,7 +361,7 @@ class RelatedThreadTests(unittest.TestCase):
 
     def test_banner_offers_both_reply_templates_and_form_for_closed_case(self):
         from anka.web import server as web
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.READY,))
         db.commit()
         db.close()
@@ -377,7 +377,7 @@ class RelatedThreadTests(unittest.TestCase):
         self.assertIn("autorizado(a) para solicitar cambios", verify)
 
     def test_closed_case_without_notices_stays_blocked(self):
-        db = init_db()
+        db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.READY,))
         db.commit()
         db.close()
