@@ -32,7 +32,9 @@ from anka.infra.store import add_dashboard_notification, connect, record_event, 
 
 from anka.servicios.drive_contents import populate_project_folder
 from anka.servicios.pipeline import confirmed_client
-from anka.servicios.change_control import known_addresses, mark_change_sent
+from anka.servicios.change_control import (
+    assign_code, code_label, known_addresses, mark_change_sent, normalize_number,
+)
 from anka.servicios.quotes import case_has_links, delete_quotes, get_quote, set_client_name
 
 log = get_logger(__name__)
@@ -210,10 +212,11 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
 
 
 def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int = 0,
-                         purpose: str = "") -> str:
+                         purpose: str = "", create_folder: bool = True) -> str:
     """Envía al cliente el correo escrito en el dashboard (ya revisado por una persona) y deja constancia.
 
-    Rechaza un reenvío idéntico reciente.
+    Rechaza un reenvío idéntico reciente. Un caso con información suficiente crea además su carpeta en Drive,
+    salvo que quien llama ya se haya ocupado de ella (`create_folder=False`).
     """
     body = body.strip()
     if not body:
@@ -242,9 +245,40 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
         finally:
             db.close()
     message = f"Correo enviado a {recipient} en el mismo hilo."
-    if new_status == QuoteStatus.READY_REVIEW:
+    if new_status == QuoteStatus.READY_REVIEW and create_folder:
         message += " " + auto_create_project_folder(thread_id)
     return message
+
+
+def _with_final_code(body: str, suggested: str, number: str) -> str:
+    """El texto se preparó con el número sugerido; si la persona lo corrigió, el correo debe llevar el final."""
+    suggested, number = normalize_number(suggested), normalize_number(number)
+    if suggested and number and suggested != number:
+        return body.replace(code_label(suggested, "T"), code_label(number, "T"))
+    return body
+
+
+def issue_code_and_notify(thread_id: str, number: str, body: str, suggested_number: str = "") -> str:
+    """Emite la T y, en el mismo paso: crea la carpeta en Drive (con los documentos del cliente y la tabla) y envía
+    al cliente el correo con el código, las instrucciones y el proceso.
+
+    El texto (`body`) es el que la persona vio y pudo editar en el panel de la T: pulsar el botón es la revisión y el
+    envío (R8). Si algo después de emitir la T falla, la T queda emitida y se dice qué quedó pendiente.
+    """
+    if not body.strip():
+        raise ValueError("Escribe el correo para el cliente (o usa «Solo emitir la T»).")
+    final_body = _with_final_code(body, suggested_number, number)
+    parts = [assign_code(thread_id, number).split(" Revisa el correo")[0]]
+    parts.append(auto_create_project_folder(thread_id))      # carpeta, documentos del cliente y tabla
+    try:
+        parts.append(send_dashboard_reply(thread_id, final_body, "", 0, "received", create_folder=False))
+    except ValueError as exc:                                  # p. ej. el mismo texto ya salió hace poco
+        parts.append(f"⚠ El correo no se envió: {exc}")
+    except Exception:
+        log.exception("%s: no se pudo enviar el correo con la T", thread_id)
+        parts.append("⚠ El correo NO se envió (error de Gmail). La T quedó emitida: "
+                     "reintenta desde «Respuesta al cliente».")
+    return " ".join(parts)
 
 
 def _fill_folder(gmail: Any, drive: Any, thread_id: str, folder_id: str,

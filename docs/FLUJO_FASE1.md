@@ -101,7 +101,7 @@ Cada paso debe cumplir lo mismo en los tres modos (`local`, `api`, `chatgpt_work
 
 ## 5. Código de la oferta (T / T&E) y control de cambios
 
-**Ciclo del código.** Antes de aceptar el proyecto no hay código: el cliente puede escribir libremente (dudas, aclaraciones). Al aceptar el proyecto una persona asigna la **T** (`T` + año de 2 cifras + consecutivo de 3, p. ej. `T26145`) y se prepara el correo «proyecto recibido». Cuando el cliente aprueba la oferta, la T pasa a **T&E** con el mismo número. `T26145`, `T-26145` y `T&E26145` se reconocen como el mismo código.
+**Ciclo del código.** Antes de aceptar el proyecto no hay código: el cliente puede escribir libremente (dudas, aclaraciones). Al aceptar el proyecto una persona emite la **T** (`T` + año de 2 cifras + consecutivo de 3, p. ej. `T26145`) y, **en un solo paso**, se crea la carpeta del proyecto en Drive (con los documentos del cliente y la tabla de actividades) y se envía al cliente el correo «proyecto recibido» con la T y cómo sigue el proceso; el texto se ve y se puede editar antes de pulsar el botón. Cuando el cliente aprueba la oferta, la T pasa a **T&E** con el mismo número. `T26145`, `T-26145` y `T&E26145` se reconocen como el mismo código.
 
 **El contacto registrado** es quien escribió primero.
 

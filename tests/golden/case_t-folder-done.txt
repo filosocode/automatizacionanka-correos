@@ -482,10 +482,11 @@ Información validada
 </span>
 </div>
 <p class="meta">
-La información ya está validada. Al emitir la T damos por recibido el proyecto: se genera el código, se prepara el correo de «proyecto recibido» para cliente@example.com y, desde ahí, todo cambio debe citar el código.
+La información ya está validada. Al emitir la T damos por recibido el proyecto, en un solo paso: se genera el código, se crea la carpeta en Drive con los documentos del cliente y la tabla de actividades, y se envía a cliente@example.com el correo con la T y cómo sigue el proceso. Todo cambio debe citar el código.
 </p>
-<form method="post" action="/code">
+<form method="post" action="/code-issue">
 <input type="hidden" name="thread_id" value="t-folder-done">
+<input type="hidden" name="suggested_number" value="26001">
 <div class="filters">
 <label>
 Número de la T (año + consecutivo)
@@ -493,11 +494,20 @@ Número de la T (año + consecutivo)
 </label>
 </div>
 <p class="meta">
-Es una sugerencia según los códigos de este dashboard; confírmala o corrígela con el consecutivo real.
+Es una sugerencia según los códigos de este dashboard; confírmala o corrígela con el consecutivo real (el texto del correo se ajusta solo).
 </p>
+<label>
+Correo que se enviará a cliente@example.com (puedes editarlo)
+<textarea name="body" rows="14" required="">
+Hola, Recibimos toda la información de su proyecto «Proyecto con Carpeta» y ya está en proceso de cotización. Hemos generado el código T26001. Cómo continúa el proceso: 1. Revisaremos la información que nos compartió y le enviaremos la cotización por este mismo hilo. 2. Para cualquier cambio o solicitud sobre este proyecto, cite siempre este código (T26001); las solicitudes que no lo incluyan no podrán procesarse. 3. Le recomendamos escribir siempre desde el correo registrado (cliente@example.com) o desde el dominio de su empresa. Si otra persona de su organización necesita pedir un cambio, el contacto registrado deberá confirmarlo. Saludos, Grupo Anka
+</textarea>
+</label>
 <div class="toolbar">
-<button type="submit" data-confirm="Se emitirá la T para este caso y se preparará el correo de «proyecto recibido». ¿Confirmas el número?">
-Emitir la T y preparar el correo de recibido
+<button type="submit" data-confirm="Se emitirá la T, se creará la carpeta en Drive con los documentos del cliente y la tabla, y SE ENVIARÁ este correo a cliente@example.com. ¿Confirmas el número y el texto?">
+Emitir la T, crear la carpeta y enviar el correo
+</button>
+<button type="submit" class="secondary" formaction="/code" data-confirm="Solo se emitirá la T y se preparará el correo, sin enviarlo ni crear la carpeta. ¿Continuar?">
+Solo emitir la T (lo envío yo después)
 </button>
 </div>
 </form>

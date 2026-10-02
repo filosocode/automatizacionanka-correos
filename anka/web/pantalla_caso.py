@@ -98,17 +98,26 @@ class _ReplyData(NamedTuple):
     link: Mapping[str, Any] | None
 
 
+def received_email_text(project: str, code: str, contact: str) -> str:
+    """Correo de «proyecto recibido»: confirma que se tiene toda la información, da el código y explica cómo sigue."""
+    return (
+        f"Hola,\n\nRecibimos toda la información de su proyecto «{project}» y ya está en proceso de cotización. "
+        f"Hemos generado el código {code}.\n\n"
+        "Cómo continúa el proceso:\n"
+        "1. Revisaremos la información que nos compartió y le enviaremos la cotización por este mismo hilo.\n"
+        f"2. Para cualquier cambio o solicitud sobre este proyecto, cite siempre este código ({code}); "
+        "las solicitudes que no lo incluyan no podrán procesarse.\n"
+        f"3. Le recomendamos escribir siempre desde el correo registrado ({contact}) o desde el dominio de su "
+        "empresa. Si otra persona de su organización necesita pedir un cambio, el contacto registrado deberá "
+        "confirmarlo.\n\nSaludos,\nGrupo Anka"
+    )
+
+
 def _tpl_received(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
-    """Acuse de recibido con la T recién emitida (solo si ya hay código)."""
+    """Correo de «proyecto recibido» con la T ya emitida (solo si ya hay código)."""
     if not d.code:
         return None
-    return (
-        f"Hola,\n\nRecibimos su proyecto «{d.project}» y ya está en proceso de cotización. "
-        f"Hemos generado el código {d.code}.\n\nPara cualquier cambio o solicitud sobre este proyecto, "
-        f"por favor cite este código ({d.code}); las solicitudes que no lo incluyan no podrán "
-        f"procesarse. Le recomendamos escribir siempre desde el correo registrado ({d.contact}) o "
-        "desde el dominio de su empresa.\n\nSaludos,\nGrupo Anka"
-    )
+    return received_email_text(d.project, d.code, d.contact)
 
 
 def _tpl_acuse(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
@@ -287,12 +296,15 @@ def _code_panel(review: Caso) -> Markup:
                   and review.informacion_validada)
     if not code and not can_assign:
         return Markup("")
+    suggestion = suggest_number() if not code else ""
+    contact = review.get("contact_email") or review["recipient"]
+    project = review["analysis"].get("project_name") or "su solicitud"
     return render(
         "code_panel.html", code=code_label(code, stage or "T") if code else "", stage=stage,
         stage_label=STAGE_LABELS.get(stage, ""), thread_id=review["thread_id"],
         approved_code=code_label(code, "TE") if code else "", can_assign=can_assign and not code,
-        suggestion=suggest_number() if not code else "",
-        contact=review.get("contact_email") or review["recipient"])
+        suggestion=suggestion, contact=contact,
+        received_text=received_email_text(project, code_label(suggestion, "T"), contact) if suggestion else "")
 
 
 def _next_step_banner(review: Caso, work_mode: bool) -> Markup:

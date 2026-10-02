@@ -101,6 +101,13 @@ el botón «Reautorizar Google», que abre el consentimiento en el navegador de 
 abre sola: ni el puente, ni el dashboard, ni la revisión programada esperan un consentimiento; la espera tiene un
 tope, no se abre más de una ventana a la vez y el token no se muestra ni se registra. Ver `07-api.md`.
 
+### T-16 · Emitir la T en un solo paso
+Cuando la información está validada, emitir la T hace, en un solo paso: asignar el código, crear la carpeta del
+proyecto en Drive con los documentos del cliente y la tabla de actividades, y enviar al cliente el correo con la T,
+las instrucciones y cómo sigue el proceso. El texto se muestra y se puede editar antes de pulsar el botón (que dice
+que envía), así que sigue siendo una persona quien revisa y envía (R8). Si la carpeta o el correo fallan, la T queda
+emitida y se dice qué quedó pendiente. Existe además «Solo emitir la T», que no envía ni crea nada.
+
 ## Experiencia de usuario
 
 ### U-01 · Siguiente paso claro

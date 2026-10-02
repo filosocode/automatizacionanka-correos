@@ -174,9 +174,14 @@ def _action_ref() -> str:
     return f"{datetime.now().astimezone().isoformat(timespec='seconds')}-{uuid4().hex[:6]}"
 
 
+def normalize_number(number: str) -> str:
+    """El número de la T sin prefijo («T26145», «T&E26145» y «26145» son el mismo)."""
+    return number.strip().upper().removeprefix("T&E").removeprefix("TE").removeprefix("T").strip()
+
+
 def assign_code(thread_id: str, number: str) -> str:
     """Acepta el proyecto: le asigna su T. Desde aquí cualquier cambio debe citarla."""
-    number = number.strip().upper().removeprefix("T&E").removeprefix("TE").removeprefix("T").strip()
+    number = normalize_number(number)
     if not NUMBER_PATTERN.match(number):
         raise ValueError("El número debe tener 5 dígitos: año de 2 cifras y consecutivo de 3 (p. ej. 26145).")
     db = connect()

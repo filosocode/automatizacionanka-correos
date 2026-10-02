@@ -18,7 +18,9 @@ from anka.infra.modes import (
 )
 from anka.infra.settings import load_config
 
-from anka.servicios.case_actions import approve_review, delete_cases, save_dashboard_draft, send_dashboard_reply
+from anka.servicios.case_actions import (
+    approve_review, delete_cases, issue_code_and_notify, save_dashboard_draft, send_dashboard_reply,
+)
 from anka.servicios.autorizacion import reautorizar_google
 from anka.servicios.estado_de_revision import checked_run, describe_check, sync_status_text
 from anka.servicios import followup_reminders as fup
@@ -140,6 +142,13 @@ def _post_code(form: Form) -> str:
     return _to_case(thread_id, message, "&template=received#respuesta")
 
 
+def _post_code_issue(form: Form) -> str:
+    thread_id = field(form, "thread_id")
+    message = _guidance(lambda: issue_code_and_notify(
+        thread_id, field(form, "number"), field(form, "body"), field(form, "suggested_number")), ValueError)
+    return _to_case(thread_id, message)
+
+
 def _post_code_approve(form: Form) -> str:
     thread_id = field(form, "thread_id")
     message = _guidance(lambda: promote_to_te(thread_id), ValueError)
@@ -192,6 +201,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/review-decision": _post_review_decision,
     "/followup": _post_followup,
     "/code": _post_code,
+    "/code-issue": _post_code_issue,
     "/code-approve": _post_code_approve,
     "/change": _post_change,
     "/link": _post_link,

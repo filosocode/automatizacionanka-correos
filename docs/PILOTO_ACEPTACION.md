@@ -11,11 +11,12 @@ Fecha: __________  Versión de las reglas: **5**  Caso: __________
 - [ ] Tienes dos correos de prueba: el del **contacto registrado** (quien escribió primero) y **otro** distinto.
 
 ## 1. Aceptar el proyecto
-1. Abre el caso → panel **Aceptar el proyecto** → confirma el número de la T → **Aceptar proyecto y asignar la T**.
+1. Abre el caso → panel **Listo para cotizar: emitir la T** → confirma el número de la T, revisa (y si quieres edita) el correo → **Emitir la T, crear la carpeta y enviar el correo**.
    - [ ] El caso muestra `T…` en la cabecera y en el panel «Código de la oferta».
-2. Se abre el correo de **proyecto recibido**: revísalo y **Enviar ahora**.
-   - [ ] El correo incluye el código y recomienda escribir desde el correo registrado.
+   - [ ] Se creó la carpeta del proyecto en Drive, con los documentos que envió el cliente y la tabla de actividades.
+   - [ ] El correo llegó al cliente con el código, los 3 pasos del proceso y la recomendación de escribir desde el correo registrado.
    - [ ] En *Seguimiento* aparecen «Se aceptó el proyecto…» y «Correo enviado…».
+2. (Alternativa) **Solo emitir la T**: no envía ni crea nada; el correo queda preparado en «Respuesta al cliente» para enviarlo después con el enlace «proyecto recibido».
 
 ## 2. Tres mensajes del cliente (responde en el mismo hilo)
 Espera 1–2 minutos entre cada uno y mira el aviso arriba del caso.

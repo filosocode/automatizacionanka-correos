@@ -199,8 +199,19 @@ OPERACIONES: tuple[Operacion, ...] = (
               (_ID, Campo("action", "Acción de seguimiento.", requerido=True,
                           opciones=tuple(sorted(FOLLOWUP_ACTIONS)))),
               "redirect"),
-    Operacion("post", "/code", "Acciones del caso", "Asignar el código T",
-              "Registra el código de la oferta (5 dígitos: año y consecutivo). No se puede reutilizar.", "guarda",
+    Operacion("post", "/code-issue", "Acciones del caso", "⚠ Emitir la T: carpeta en Drive y correo al cliente",
+              "Un solo paso: **asigna el código T**, **crea la carpeta del proyecto en Drive** (con los documentos "
+              "que envió el cliente y la tabla de actividades) y **envía al cliente el correo** con la T, las "
+              "instrucciones y cómo sigue el proceso. El texto de `body` es el que la persona vio y pudo editar. Si la "
+              "carpeta o el correo fallan, la T queda emitida y la respuesta dice qué quedó pendiente.", "drive",
+              (_ID, Campo("number", "Número de la T (5 dígitos: año y consecutivo).", requerido=True, ejemplo="26145"),
+               Campo("body", "Correo que se enviará al cliente.", requerido=True,
+                     ejemplo="Hola, recibimos toda la información de su proyecto…"),
+               Campo("suggested_number", "El número con el que se preparó el texto; si `number` es otro, el texto se "
+                     "ajusta solo.", ejemplo="26145")), "redirect"),
+    Operacion("post", "/code", "Acciones del caso", "Asignar el código T (sin enviar nada)",
+              "Registra el código de la oferta (5 dígitos: año y consecutivo) y deja preparado el correo, sin "
+              "enviarlo ni crear la carpeta. No se puede reutilizar.", "guarda",
               (_ID, Campo("number", "Código de 5 dígitos.", requerido=True, ejemplo="26145")), "redirect"),
     Operacion("post", "/code-approve", "Acciones del caso", "Promover la T a T&E",
               "Marca la oferta como aprobada.", "guarda", (_ID,), "redirect"),
