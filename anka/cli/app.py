@@ -279,16 +279,14 @@ def warn_unknown_config_keys() -> None:
         )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Los comandos y opciones de la línea de comandos."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "command",
-        choices=[
-            "auth", "drive-tree", "mode", "run", "reviews", "approve", "review-ui",
-            "set-mode", "analyze-text", "dashboard-upsert",
-        ],
-    )
+COMMANDS_ORDER = (
+    "auth", "drive-tree", "mode", "run", "reviews", "approve", "review-ui",
+    "set-mode", "analyze-text", "dashboard-upsert",
+)
+
+
+def _add_run_options(parser: argparse.ArgumentParser) -> None:
+    """Opciones de la revisión de Gmail (`run`)."""
     parser.add_argument("--apply", action="store_true")
     parser.add_argument(
         "--review-only", action="store_true",
@@ -302,6 +300,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--watch-seconds", type=int, default=0,
         help="Revisa Gmail en bucle cada N segundos. Usa 0 para una sola ejecución.",
     )
+
+
+def _add_text_options(parser: argparse.ArgumentParser) -> None:
+    """Opciones para probar el analizador con un texto (`analyze-text`)."""
     text_source = parser.add_mutually_exclusive_group()
     text_source.add_argument("--text", help="Texto de correo para probar el analizador local/API.")
     text_source.add_argument("--file", help="Archivo UTF-8 con el texto del correo de prueba.")
@@ -309,6 +311,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--required-field", action="append", default=[],
         help="Dato que se desea verificar; puede repetirse.",
     )
+
+
+def _add_case_options(parser: argparse.ArgumentParser) -> None:
+    """Opciones que actúan sobre un caso (`approve`, `dashboard-upsert`)."""
     parser.add_argument("--thread-id", help="ID del hilo a aprobar.")
     parser.add_argument(
         "--payload-base64", help="Registro JSON codificado para actualizar el dashboard."
@@ -325,6 +331,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--new-client", action="store_true",
         help="Confirma que puede crearse la carpeta del cliente si no existe.",
     )
+
+
+def _add_setup_options(parser: argparse.ArgumentParser) -> None:
+    """Opciones del servidor local, la autorización y el modo de operación."""
     parser.add_argument("--host", default="127.0.0.1", help=argparse.SUPPRESS)
     parser.add_argument("--port", type=int, default=8765, help=argparse.SUPPRESS)
     parser.add_argument("--no-browser", action="store_true", help=argparse.SUPPRESS)
@@ -337,6 +347,14 @@ def build_parser() -> argparse.ArgumentParser:
         choices=sorted(ACTIVE_MODES),
         help="Modo a activar con set-mode.",
     )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Los comandos y opciones de la línea de comandos."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=list(COMMANDS_ORDER))
+    for add_options in (_add_run_options, _add_text_options, _add_case_options, _add_setup_options):
+        add_options(parser)
     return parser
 
 

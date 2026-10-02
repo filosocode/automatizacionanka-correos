@@ -191,47 +191,35 @@ def _scan_client_files(client_dir: Path, source: Path, profile: dict, global_pro
     return request_docs
 
 
-def build_index(source: Path) -> dict:
-    """Recorre el archivo histórico (solo lectura) y arma el índice comercial por cliente, sin texto ni precios."""
-    if not source.exists():
-        raise FileNotFoundError(f"No existe la fuente: {source}")
+def _new_profile(client_dir: Path) -> dict[str, Any]:
+    """Perfil vacío de un cliente (la carpeta del archivo histórico)."""
+    company_type, confidence = inferred_company_type(client_dir.name)
+    return {
+        "client_name": client_dir.name,
+        "company_type": company_type,
+        "company_type_confidence": confidence,
+        "file_count": 0,
+        "commercial_document_count": 0,
+        "request_document_count": 0,
+        "project_types": Counter(),
+        "sectors": Counter(),
+        "usual_requests": Counter(),
+        "source_references": [],
+    }
 
-    global_projects: Counter[str] = Counter()
-    global_sectors: Counter[str] = Counter()
-    global_requirements: Counter[str] = Counter()
-    extension_counts: Counter[str] = Counter()
-    profiles: dict[str, dict] = {}
 
-    for client_dir in sorted((item for item in source.iterdir() if item.is_dir()), key=lambda p: p.name.casefold()):
-        profile: dict[str, Any] = {
-            "client_name": client_dir.name,
-            "company_type": inferred_company_type(client_dir.name)[0],
-            "company_type_confidence": inferred_company_type(client_dir.name)[1],
-            "file_count": 0,
-            "commercial_document_count": 0,
-            "request_document_count": 0,
-            "project_types": Counter(),
-            "sectors": Counter(),
-            "usual_requests": Counter(),
-            "source_references": [],
-        }
-        try:
-            request_docs = _scan_client_files(
-                client_dir, source, profile, global_projects, global_sectors, extension_counts)
-        except (OSError, PermissionError):
-            continue
+def _read_requests(profile: dict, request_docs: list[Path], global_requirements: Counter[str]) -> None:
+    """Qué suele pedir el cliente: cuenta las exigencias que aparecen en sus documentos de solicitud."""
+    for path in request_docs:
+        text = extract_request_text(path)
+        for label in matched_labels(text, REQUIREMENT_RULES):
+            profile["usual_requests"][label] += 1
+            global_requirements[label] += 1
 
-        for path in request_docs:
-            text = extract_request_text(path)
-            for label in matched_labels(text, REQUIREMENT_RULES):
-                profile["usual_requests"][label] += 1
-                global_requirements[label] += 1
 
-        if profile["file_count"]:
-            for key in ("project_types", "sectors", "usual_requests"):
-                profile[key] = dict(profile[key].most_common())
-            profiles[normalize(client_dir.name)] = profile
-
+def _index_document(profiles: dict[str, dict], global_projects: Counter[str], global_sectors: Counter[str],
+                    global_requirements: Counter[str], extension_counts: Counter[str]) -> dict:
+    """El documento del índice: resumen global y perfil de cada cliente (sin texto ni precios)."""
     return {
         "schema_version": 1,
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -252,6 +240,33 @@ def build_index(source: Path) -> dict:
         },
         "clients": profiles,
     }
+
+
+def build_index(source: Path) -> dict:
+    """Recorre el archivo histórico (solo lectura) y arma el índice comercial por cliente, sin texto ni precios."""
+    if not source.exists():
+        raise FileNotFoundError(f"No existe la fuente: {source}")
+
+    global_projects: Counter[str] = Counter()
+    global_sectors: Counter[str] = Counter()
+    global_requirements: Counter[str] = Counter()
+    extension_counts: Counter[str] = Counter()
+    profiles: dict[str, dict] = {}
+
+    for client_dir in sorted((item for item in source.iterdir() if item.is_dir()), key=lambda p: p.name.casefold()):
+        profile = _new_profile(client_dir)
+        try:
+            request_docs = _scan_client_files(
+                client_dir, source, profile, global_projects, global_sectors, extension_counts)
+        except (OSError, PermissionError):
+            continue
+        _read_requests(profile, request_docs, global_requirements)
+        if profile["file_count"]:
+            for key in ("project_types", "sectors", "usual_requests"):
+                profile[key] = dict(profile[key].most_common())
+            profiles[normalize(client_dir.name)] = profile
+
+    return _index_document(profiles, global_projects, global_sectors, global_requirements, extension_counts)
 
 
 def main() -> None:
