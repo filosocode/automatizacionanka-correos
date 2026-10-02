@@ -85,6 +85,11 @@ El código vive en `anka/` en cinco capas (dominio, infra, servicios, web, cli) 
 sin ciclos y sin importar nombres privados de otro módulo; la raíz solo tiene puntos de entrada delgados.
 Ver `06-arquitectura.md`.
 
+### T-13 · API documentada con Swagger
+`/docs` abre Swagger UI y `/openapi.json` entrega la especificación OpenAPI 3 de todas las rutas del dashboard
+(lectura JSON, páginas y acciones), con sus campos, respuestas y el efecto de cada una. La documentación se genera de
+las rutas reales y falla una prueba si una ruta queda sin documentar. Ver `07-api.md`.
+
 ## Experiencia de usuario
 
 ### U-01 · Siguiente paso claro

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import json
+import re
 import secrets
 import urllib.error
 import urllib.parse
@@ -35,7 +35,8 @@ from anka.servicios.quotes import (
 )
 from anka.servicios.ediciones import save_activities
 
-from anka.web import paginas
+from anka.web import openapi, paginas
+from anka.web.api import a_json, resumen_de_caso
 from anka.web import pantalla_caso
 from anka.web.seguridad import (
     CSRF_TOKEN, add_csrf_tokens, is_local_host_header, is_same_origin,
@@ -205,17 +206,44 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
 }
 
 
+# Rutas GET: ruta -> método del manejador. `openapi.py` las documenta y una prueba comprueba que no falte ninguna.
+GET_ROUTES: dict[str, str] = {
+    "/": "_get_index",
+    "/requests": "_get_requests",
+    "/discarded": "_get_discarded",
+    "/case": "_get_case",
+    "/acta": "_get_acta",
+    "/archive": "_get_archive",
+    "/export.xlsx": "_get_export",
+    "/state": "_get_state",
+    "/api/casos": "_get_api_cases",
+    "/docs": "_get_docs",
+    "/openapi.json": "_get_openapi",
+}
+GET_PATTERNS: dict[str, str] = {"/api/casos/{thread_id}": "_get_api_case"}
+_GET_PATTERNS = [(re.compile(re.sub(r"\{\w+\}", "([^/]+)", template)), name) for template, name in GET_PATTERNS.items()]
+
+
 class ReviewHandler(BaseHTTPRequestHandler):
     """Servidor HTTP local del dashboard: páginas por GET y acciones por POST con token."""
-    def _send_html(self, content: str, status: int = 200) -> None:
-        data = add_csrf_tokens(content).encode("utf-8")
+    def _send_bytes(self, status: int, content_type: str, data: bytes,
+                    extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(status)
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_html(self, content: str, status: int = 200) -> None:
+        self._send_bytes(status, "text/html; charset=utf-8", add_csrf_tokens(content).encode("utf-8"))
+
+    def _send_json(self, value: Any, status: int = 200) -> None:
+        self._send_bytes(status, "application/json; charset=utf-8", a_json(value))
 
     def _read_form(self) -> dict[str, list[str]]:
         length = int(self.headers.get("Content-Length", "0"))
@@ -241,53 +269,78 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return self._reject("Host no permitido.")
         parsed = urllib.parse.urlparse(self.path)
         query = urllib.parse.parse_qs(parsed.query)
-        if parsed.path == "/":
-            self._send_html(paginas.render_index(query.get("message", [""])[0]))
-        elif parsed.path == "/state":
-            try:
-                work = load_config().get("active_mode") == "chatgpt_work"
-            except (ErrorDeAnka, OSError, ValueError):
-                work = False
-            state, text = bridge_state() if work else ("", "")
-            data = json.dumps({"v": change_marker(), "bridge": state, "text": text}).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-        elif parsed.path == "/export.xlsx":
-            thread_id = query.get("thread_id", [""])[0]
-            quotes = [get_quote(thread_id)] if thread_id else all_quotes()
-            quotes = [item for item in quotes if item]
-            if thread_id and not quotes:
-                return self._send_html(
+        method = GET_ROUTES.get(parsed.path)
+        arguments: tuple[str, ...] = ()
+        if method is None:
+            for pattern, name in _GET_PATTERNS:
+                found = pattern.fullmatch(parsed.path)
+                if found:
+                    method, arguments = name, tuple(urllib.parse.unquote(g) for g in found.groups())
+                    break
+        if method is None:
+            return self._send_html(
+                paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
+        getattr(self, method)(query, *arguments)
+
+    # --- páginas (GET)
+    def _get_index(self, query: dict[str, list[str]]) -> None:
+        self._send_html(paginas.render_index(_field(query, "message")))
+
+    def _get_requests(self, query: dict[str, list[str]]) -> None:
+        self._send_html(paginas.render_requests(_field(query, "message")))
+
+    def _get_discarded(self, query: dict[str, list[str]]) -> None:
+        self._send_html(paginas.render_discarded(_field(query, "message")))
+
+    def _get_case(self, query: dict[str, list[str]]) -> None:
+        self._send_html(pantalla_caso.render_case(
+            _field(query, "thread_id"), _field(query, "message"), _field(query, "template"),
+            _int_field(query, "change_id"), _field(query, "to"),
+        ))
+
+    def _get_acta(self, query: dict[str, list[str]]) -> None:
+        self._send_html(pantalla_caso.render_acta(_field(query, "thread_id")))
+
+    def _get_archive(self, query: dict[str, list[str]]) -> None:
+        self._send_html(paginas.page("Archivo", render("archive.html", items=archived_threads())))
+
+    def _get_export(self, query: dict[str, list[str]]) -> None:
+        thread_id = _field(query, "thread_id")
+        quotes = [get_quote(thread_id)] if thread_id else all_quotes()
+        quotes = [item for item in quotes if item]
+        if thread_id and not quotes:
+            return self._send_html(
                 paginas.page("No encontrado", render("empty.html", text="La solicitud no existe.")), 404)
-            data = build_workbook(quotes)
-            stamp = datetime.now().strftime("%Y%m%d-%H%M")
-            name = f"actividades-{thread_id[:8] or 'todas'}-{stamp}.xlsx"
-            self.send_response(200)
-            self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-        elif parsed.path == "/requests":
-            self._send_html(paginas.render_requests(query.get("message", [""])[0]))
-        elif parsed.path == "/discarded":
-            self._send_html(paginas.render_discarded(query.get("message", [""])[0]))
-        elif parsed.path == "/case":
-            self._send_html(pantalla_caso.render_case(
-                query.get("thread_id", [""])[0], query.get("message", [""])[0],
-                query.get("template", [""])[0],
-                int(query.get("change_id", ["0"])[0] or 0), query.get("to", [""])[0],
-            ))
-        elif parsed.path == "/acta":
-            self._send_html(pantalla_caso.render_acta(query.get("thread_id", [""])[0]))
-        elif parsed.path == "/archive":
-            self._send_html(paginas.page("Archivo", render("archive.html", items=archived_threads())))
-        else:
-            self._send_html(paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M")
+        name = f"actividades-{thread_id[:8] or 'todas'}-{stamp}.xlsx"
+        self._send_bytes(
+            200, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", build_workbook(quotes),
+            {"Content-Disposition": f'attachment; filename="{name}"'})
+
+    # --- lectura JSON y documentación (GET)
+    def _get_state(self, query: dict[str, list[str]]) -> None:
+        try:
+            work = load_config().get("active_mode") == "chatgpt_work"
+        except (ErrorDeAnka, OSError, ValueError):
+            work = False
+        state, text = bridge_state() if work else ("", "")
+        self._send_json({"v": change_marker(), "bridge": state, "text": text})
+
+    def _get_api_cases(self, query: dict[str, list[str]]) -> None:
+        include_discarded = _field(query, "descartados").lower() in ("1", "true", "si", "sí")
+        self._send_json([resumen_de_caso(caso) for caso in all_quotes(include_discarded)])
+
+    def _get_api_case(self, query: dict[str, list[str]], thread_id: str) -> None:
+        caso = get_quote(thread_id)
+        if not caso:
+            return self._send_json({"error": "La solicitud no existe."}, 404)
+        self._send_json(caso)
+
+    def _get_docs(self, query: dict[str, list[str]]) -> None:
+        self._send_bytes(200, "text/html; charset=utf-8", openapi.docs_page().encode("utf-8"))
+
+    def _get_openapi(self, query: dict[str, list[str]]) -> None:
+        self._send_json(openapi.build_spec(CSRF_TOKEN))
 
     def do_POST(self) -> None:
         """Valida host, origen y token y ejecuta la acción de `POST_ROUTES`; redirige al resultado."""

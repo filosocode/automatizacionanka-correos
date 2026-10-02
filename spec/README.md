@@ -12,6 +12,7 @@ Work se derivan de aquí y se comparan contra aquí.
 | [04-ux.md](04-ux.md) | ¿Cómo debe sentirse el dashboard? (criterios y nota vigente) |
 | [05-decisiones.md](05-decisiones.md) | ¿Por qué se decidió así? (registro de decisiones) |
 | [06-arquitectura.md](06-arquitectura.md) | ¿Cómo está organizado el código? (capas y reglas de dependencia) |
+| [07-api.md](07-api.md) | ¿Cómo se documenta y se prueba cada petición? (Swagger UI y OpenAPI) |
 | [requisitos.md](requisitos.md) | Lista de requisitos con identificador, uno por línea de trazabilidad |
 
 ## Cómo se trabaja con ella

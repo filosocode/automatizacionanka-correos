@@ -45,6 +45,7 @@ Iniciar Anka.bat                                 el lanzador de uso diario
 | Saber qué debe cumplir el sistema | [`spec/README.md`](spec/README.md) (requisitos, reglas, estados, contrato con Work, decisiones) |
 | Cambiar el comportamiento | [`docs/ESTANDAR_CAMBIOS.md`](docs/ESTANDAR_CAMBIOS.md) |
 | Operar los tres modos | [`docs/MODO_OPERACION.md`](docs/MODO_OPERACION.md) |
+| Probar cada petición del dashboard | Swagger en http://127.0.0.1:8765/docs ([`spec/07-api.md`](spec/07-api.md)) |
 | Probar en ChatGPT Work | [`docs/PILOTO_ACEPTACION.md`](docs/PILOTO_ACEPTACION.md) |
 | Trabajar con un agente de IA | [`CLAUDE.md`](CLAUDE.md) |
 | El índice completo | [`docs/README.md`](docs/README.md) |

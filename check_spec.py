@@ -22,7 +22,7 @@ SPEC = ROOT / "spec"
 RULES = ROOT / "skills" / "anka-cotizaciones-correo" / "references" / "reglas_operativas.md"
 REQUIRED_FILES = (
     "spec/README.md", "spec/00-alcance.md", "spec/01-flujo-y-estados.md", "spec/02-reglas.md",
-    "spec/03-contrato-work.md", "spec/04-ux.md", "spec/05-decisiones.md", "spec/06-arquitectura.md", "spec/requisitos.md",
+    "spec/03-contrato-work.md", "spec/04-ux.md", "spec/05-decisiones.md", "spec/06-arquitectura.md", "spec/07-api.md", "spec/requisitos.md",
     "spec/transiciones.json", "spec/contrato_work.schema.json",
 )
 HEADING = re.compile(r"^### ([A-Z0-9]+-\d+) · ", re.MULTILINE)

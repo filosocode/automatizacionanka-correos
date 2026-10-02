@@ -20,7 +20,7 @@ Código en el paquete `anka/` (detalle en `spec/06-arquitectura.md`), en cinco c
 - `anka/infra/`: lo externo (`settings`, `store` SQLite, `google_services`, `mail`, `llm`, `logging_setup`, `backup`).
 - `anka/servicios/`: casos de uso (`repositorio` (clase `RepositorioDeCasos`), `quotes` (fachada), `ediciones`, `work_import`, `pipeline` (clase `RevisorDeHilos`), `case_actions`, `change_control`, `followup_reminders`,
   `gmail_followup`, `drive_layout`, `drive_contents`).
-- `anka/web/`: servidor y formularios (`server.py`), páginas (`paginas.py` y `pantalla_caso.py`), seguridad CSRF (`seguridad.py`), vistas (`views.py`) y `templates/`. `anka/cli/`: `app`, `supervisor`, `work_sync`.
+- `anka/web/`: servidor y formularios (`server.py`), páginas (`paginas.py` y `pantalla_caso.py`), API JSON y Swagger (`api.py`, `openapi.py`), seguridad CSRF (`seguridad.py`), vistas (`views.py`) y `templates/`. `anka/cli/`: `app`, `supervisor`, `work_sync`.
 - **Tres modos** (`active_mode` en `config.json`, fuera del repo): `local` (Ollama) y `api` comparten el código de
   `pipeline`; `chatgpt_work` es otro orquestador (la tarea de ChatGPT con la skill) y **Python no lee Gmail**: un
   puente de solo lectura (`anka/cli/work_sync.py`) importa los borradores de Work al dashboard.
