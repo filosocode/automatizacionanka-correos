@@ -7,6 +7,7 @@ import sqlite3
 from dataclasses import dataclass
 from collections.abc import Sequence
 from typing import Any
+from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.status import (
@@ -62,7 +63,7 @@ class RevisorDeHilos:
     (`db=None`) es una simulación: decide e informa, pero no guarda ni envía nada.
     """
 
-    def __init__(self, config: dict, gmail: Any, drive: Any, db: sqlite3.Connection | None,
+    def __init__(self, config: Configuracion, gmail: Any, drive: Any, db: sqlite3.Connection | None,
                  account_addresses: set[str], review_only: bool, gmail_drafts: bool) -> None:
         self.config = config
         self.gmail = gmail

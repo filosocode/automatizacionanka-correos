@@ -26,3 +26,30 @@ class AnalysisShapeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Cubre: T-09
+class ConfigurationShapeTests(unittest.TestCase):
+    def test_every_documented_config_key_is_declared_and_nothing_extra(self):
+        from anka.dominio.configuracion import Configuracion
+        from anka.infra.settings import KNOWN_CONFIG_KEYS
+        self.assertEqual(set(get_type_hints(Configuracion)), KNOWN_CONFIG_KEYS)
+
+    def test_the_example_config_only_uses_declared_keys(self):
+        import json
+        from pathlib import Path
+
+        from anka.dominio.configuracion import ConfigLlm, Configuracion
+        example = json.loads((Path(__file__).resolve().parents[1] / "config.example.json").read_text(encoding="utf-8"))
+        self.assertLessEqual(set(example), set(get_type_hints(Configuracion)))
+        self.assertLessEqual(set(example["llm"]), set(get_type_hints(ConfigLlm)))
+
+
+# Cubre: T-14
+class HealthReportShapeTests(unittest.TestCase):
+    def test_the_report_type_matches_what_swagger_documents(self):
+        from anka.servicios.salud import InformeDeSalud, ResultadoDeComprobacion
+        from anka.web import openapi
+        schema = openapi.build_spec("t")["components"]["schemas"]["Salud"]["properties"]
+        self.assertEqual(set(get_type_hints(InformeDeSalud)), set(schema))
+        self.assertEqual(set(get_type_hints(ResultadoDeComprobacion)), set(schema["comprobaciones"]["items"]["properties"]))

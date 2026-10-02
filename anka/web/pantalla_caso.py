@@ -16,6 +16,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from markupsafe import Markup
+from anka.dominio.configuracion import Configuracion
 from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
 from anka.web.views import (
@@ -330,7 +331,7 @@ def _routing_summary(analysis: Analisis) -> str:
 _FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse")
 
 
-def _compose_state(review: Caso, analysis: Analisis, config: dict, template: str, change_id: int, *,
+def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, template: str, change_id: int, *,
                    email_allowed: bool, reopened: bool, technical: bool, recipient_error: str,
                    ) -> tuple[str, str, bool]:
     """Qué muestra el cuadro de respuesta: (modo, texto inicial, ¿en blanco?)."""
@@ -420,7 +421,7 @@ def _code_text(review: Mapping[str, Any]) -> str:
     return code_label(review["quote_code"], stage) + " · " + STAGE_LABELS.get(stage, "")
 
 
-def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: dict, config: dict,
+def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: dict, config: Configuracion,
                  events: list[Evento], integrity_ok: bool, event_count: int) -> dict[str, Any]:
     """Los paneles de la pantalla del caso, cada uno ya renderizado."""
     proposal = review.get("proposal", [])

@@ -11,7 +11,9 @@ import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TypedDict
 
+from anka.dominio.configuracion import Configuracion
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra.google_services import credentials, services
@@ -20,6 +22,23 @@ from anka.infra.store import SCHEMA_VERSION, connect
 from anka.infra.work_heartbeat import bridge_state
 
 OK, ERROR, NO_APLICA = "ok", "error", "no_aplica"
+
+
+class ResultadoDeComprobacion(TypedDict):
+    """Una comprobación tal como sale en el JSON de `/api/salud`."""
+
+    componente: str
+    estado: str
+    detalle: str
+    ms: int
+
+
+class InformeDeSalud(TypedDict):
+    """El informe completo de `/api/salud`."""
+
+    estado: str          # ok | error
+    profundo: bool
+    comprobaciones: list[ResultadoDeComprobacion]
 
 
 @dataclass(frozen=True)
@@ -83,7 +102,7 @@ def _gmail() -> tuple[str, str]:
     return OK, "Gmail responde (consulta de solo lectura)."
 
 
-def _drive(config: dict) -> tuple[str, str]:
+def _drive(config: Configuracion) -> tuple[str, str]:
     parent = config.get("drive_parent_id")
     if not parent:
         return NO_APLICA, "No hay drive_parent_id en config.json."
@@ -92,7 +111,7 @@ def _drive(config: dict) -> tuple[str, str]:
     return OK, "Drive responde y la carpeta de arranque existe (consulta de solo lectura)."
 
 
-def _motor(config: dict, modo: str) -> tuple[str, str]:
+def _motor(config: Configuracion, modo: str) -> tuple[str, str]:
     if modo == "chatgpt_work":
         return NO_APLICA, "En modo ChatGPT Work el análisis lo hace Work, no Anka."
     if modo == "api":
@@ -118,7 +137,7 @@ def comprobar(profundo: bool = False) -> list[Comprobacion]:
     return resultados
 
 
-def informe(profundo: bool = False) -> dict:
+def informe(profundo: bool = False) -> InformeDeSalud:
     """El informe completo: `estado` global (`ok` si ninguna comprobación falló) y cada comprobación."""
     resultados = comprobar(profundo)
     return {

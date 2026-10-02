@@ -16,7 +16,7 @@ ahí y se verifica contra ahí:
 ## Cómo está armado
 Código en el paquete `anka/` (detalle en `spec/06-arquitectura.md`), en cinco capas que solo dependen hacia abajo
 (`cli`/`web` → `servicios` → `infra` → `dominio`); `tests/test_arquitectura.py` lo comprueba:
-- `anka/dominio/`: reglas puras (`status`, `activities`, `reception`, `correo`, `analisis` (la forma del análisis: `TypedDict`), `decision` (qué hacer con un hilo, sin ejecutarlo), `caso` y `registros` (objetos `Caso`, `Evento`, `Cambio`, `Vinculo`), `work_contract`, `attachments`).
+- `anka/dominio/`: reglas puras (`status`, `activities`, `reception`, `correo`, `analisis` y `configuracion` (la forma del análisis y de `config.json`: `TypedDict`), `decision` (qué hacer con un hilo, sin ejecutarlo), `caso` y `registros` (objetos `Caso`, `Evento`, `Cambio`, `Vinculo`), `work_contract`, `attachments`).
 - `anka/infra/`: lo externo (`settings`, `store` SQLite, `google_services`, `mail`, `llm`, `logging_setup`, `backup`).
 - `anka/servicios/`: casos de uso (`repositorio` (clase `RepositorioDeCasos`), `quotes` (fachada), `ediciones`, `work_import`, `pipeline` (clase `RevisorDeHilos`), `estado_de_revision` (última revisión y vigilancia), `case_actions`, `change_control`, `followup_reminders`,
   `gmail_followup`, `drive_layout`, `drive_contents`).

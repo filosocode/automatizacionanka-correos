@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import sqlite3
 from typing import Any
+from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.status import (
@@ -329,8 +330,8 @@ def _saved_client_name(db: Any, thread_id: str) -> str:
     return str(row[0]) if row else ""
 
 
-def _send_questions(db: sqlite3.Connection, gmail: Any, config: dict, thread_id: str, last_id: str, recipient: str,
-                    analysis: Analisis, body_file: str | None, body_text: str | None,
+def _send_questions(db: sqlite3.Connection, gmail: Any, config: Configuracion, thread_id: str, last_id: str,
+                    recipient: str, analysis: Analisis, body_file: str | None, body_text: str | None,
                     account_addresses: set[str]) -> str:
     """Envía al cliente las preguntas de un caso con datos pendientes y lo deja esperando su respuesta."""
     thread = gmail.users().threads().get(userId="me", id=thread_id, format="full").execute()
@@ -368,7 +369,7 @@ def _resolve_client(db: sqlite3.Connection, thread_id: str, analysis: Analisis, 
     return client
 
 
-def _create_case_folder(db: sqlite3.Connection, gmail: Any, drive: Any, config: dict, thread_id: str,
+def _create_case_folder(db: sqlite3.Connection, gmail: Any, drive: Any, config: Configuracion, thread_id: str,
                         last_id: str, recipient: str, analysis: Analisis, client_name: str | None,
                         new_client: bool, auto: bool, allow_similar_project: bool,
                         account_addresses: set[str]) -> str:

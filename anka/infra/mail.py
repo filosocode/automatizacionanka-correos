@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 from typing import Any
 
+from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Adjunto
 from anka.dominio.attachments import extract_attachment_text
 from anka.dominio.correo import (
@@ -61,7 +62,7 @@ def extract_message_attachments(gmail: Any, message: dict) -> list[Adjunto]:
     return results
 
 
-def own_addresses(config: dict, gmail: Any) -> set[str]:
+def own_addresses(config: Configuracion, gmail: Any) -> set[str]:
     """Direcciones de la cuenta propia (las de config.json más la principal de Gmail)."""
     addresses = {
         normalized_address(value) for value in config.get("own_addresses", []) if value

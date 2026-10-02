@@ -11,6 +11,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+from anka.dominio.configuracion import ConfigLlm
 from anka.dominio.analisis import Analisis, Adjunto
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.correo import header, message_datetime, message_text
@@ -94,7 +95,7 @@ ANALYSIS_SCHEMA: dict[str, Any] = {
 }
 
 
-def check_ollama(llm: dict, timeout: float = 3.0) -> None:
+def check_ollama(llm: ConfigLlm, timeout: float = 3.0) -> None:
     """Verifica que Ollama responda y tenga el modelo; lanza ErrorDeAnka con el motivo si no."""
     base_url = (llm.get("base_url") or "http://127.0.0.1:11434").rstrip("/")
     model = llm.get("model") or "qwen2.5:7b"
@@ -171,7 +172,7 @@ def analysis_prompt(
 
 
 def analyze(
-    messages: list[dict], required_fields: list[str], llm: dict,
+    messages: list[dict], required_fields: list[str], llm: ConfigLlm,
     attachments: list[Adjunto] | None = None,
 ) -> Analisis:
     """Usa exactamente un proveedor configurado: Ollama local u OpenAI API."""
@@ -206,7 +207,7 @@ def explicit_quote_request(messages: list[dict]) -> bool:
     return any(pattern.search(message_text(m.get("payload", {}))) for m in messages)
 
 
-def analyze_openai(prompt: str, llm: dict) -> Analisis:
+def analyze_openai(prompt: str, llm: ConfigLlm) -> Analisis:
     """Analiza el correo con la API de OpenAI (requiere OPENAI_API_KEY) y devuelve el JSON del análisis."""
     from openai import OpenAI
 
@@ -224,7 +225,7 @@ def analyze_openai(prompt: str, llm: dict) -> Analisis:
     return json.loads(response.output_text)
 
 
-def analyze_ollama(prompt: str, llm: dict) -> Analisis:
+def analyze_ollama(prompt: str, llm: ConfigLlm) -> Analisis:
     """Analiza el correo con el modelo local de Ollama y devuelve el JSON del análisis."""
     payload = json.dumps({
         "model": llm.get("model", "qwen2.5:7b"),
@@ -247,7 +248,7 @@ def analyze_ollama(prompt: str, llm: dict) -> Analisis:
     return json.loads(data["response"])
 
 
-def analyze_text(text: str, required_fields: list[str], llm: dict) -> Analisis:
+def analyze_text(text: str, required_fields: list[str], llm: ConfigLlm) -> Analisis:
     """Analiza texto pegado o desde archivo, sin acceder a Gmail ni Drive."""
     encoded = base64.urlsafe_b64encode(text.encode("utf-8")).decode("ascii")
     message = {

@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import NamedTuple
+from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Adjunto, Analisis
 from anka.dominio.status import (
     QuoteStatus,
@@ -103,7 +104,7 @@ def _decide_ask_client(thread_id: str, analysis: Analisis, logs: list[Note], que
     return Decision(QuoteStatus.WAITING, analysis, logs, Action.SEND, body=body)
 
 
-def _decide_complete_scope(thread_id: str, analysis: Analisis, logs: list[Note], config: dict,
+def _decide_complete_scope(thread_id: str, analysis: Analisis, logs: list[Note], config: Configuracion,
                            *, review_only: bool) -> Decision:
     """El alcance está completo: se propone la carpeta del proyecto (o se crea, si no es solo revisión)."""
     name = safe_folder_name(
@@ -121,7 +122,7 @@ def _decide_complete_scope(thread_id: str, analysis: Analisis, logs: list[Note],
 
 def decide_analysis(
     thread_id: str, analysis: Analisis, blocked: list[Adjunto], recipient: str, is_forwarded: bool,
-    config: dict, *, review_only: bool, gmail_drafts: bool,
+    config: Configuracion, *, review_only: bool, gmail_drafts: bool,
 ) -> Decision:
     """Decide el destino de un hilo ya analizado."""
     if not analysis["is_quote_request"]:

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from anka.dominio.configuracion import Configuracion
 from anka.dominio.errores import ErrorDeAnka
 
 import json
 import os
+from collections.abc import Mapping
+from typing import Any, cast
 from pathlib import Path
 
 
@@ -39,7 +42,7 @@ def _is_text_list(value: object) -> bool:
     return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
-def validate_config(config: dict) -> list[str]:
+def validate_config(config: Mapping[str, Any]) -> list[str]:
     """Lista todos los problemas de config.json (vacía si es válido). No lanza ni imprime."""
     problems: list[str] = []
     mode = config.get("active_mode", "local")
@@ -98,12 +101,12 @@ def _engine_problems(engine: dict, mode: str) -> list[str]:
     return problems
 
 
-def unknown_config_keys(config: dict) -> list[str]:
+def unknown_config_keys(config: Mapping[str, Any]) -> list[str]:
     """Claves de primer nivel que el programa no usa (suelen ser errores de tipeo)."""
     return sorted(set(config) - KNOWN_CONFIG_KEYS)
 
 
-def load_config() -> dict:
+def load_config() -> Configuracion:
     """Lee y valida `config.json` de la carpeta de datos; termina con un mensaje claro si falta o es inválido."""
     path = DATA_DIR / "config.json"
     if not path.exists():
@@ -122,10 +125,10 @@ def load_config() -> dict:
             f"{path.name} tiene {len(problems)} problema(s):\n"
             + "\n".join(f" - {problem}" for problem in problems)
         )
-    return config
+    return cast(Configuracion, config)   # ya validada: tiene la forma de `Configuracion`
 
 
-def write_config(config: dict) -> None:
+def write_config(config: Mapping[str, Any]) -> None:
     """Guarda `config.json` solo si la configuración resultante es válida."""
     problems = validate_config(config)
     if problems:
