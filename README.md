@@ -22,7 +22,7 @@ anka/               el código, en capas (ver spec/06-arquitectura.md)
   dominio/            reglas puras: estados, actividades, recepción, correo, contrato con Work
   infra/              lo externo: configuración, base SQLite, Gmail/Drive, modelos, registro, copias
   servicios/          casos de uso: importar, enviar, controlar cambios, seguir al cliente, carpetas de Drive
-  web/                servidor y formularios, páginas (resumen, caso), seguridad CSRF y plantillas (templates/)
+  web/                servidor, acciones de formularios, páginas (resumen, caso), seguridad CSRF y plantillas (templates/)
   cli/                comandos, lanzador único y puente con Work
 tests/              pruebas (y tests/golden/ con las instantáneas de pantalla)
 spec/               especificación: requisitos, reglas, contrato con Work, transiciones, decisiones

@@ -60,6 +60,7 @@ Las acciones con «⚠» actúan de verdad (envían correo, crean carpetas, elim
   que el navegador carga desde un CDN al abrir `/docs`. Los datos de los casos no salen de la máquina.
 
 ## Cómo agregar o cambiar una ruta
-1. Añade la función en `server.py` y regístrala en `GET_ROUTES` o `POST_ROUTES`.
+1. Añade la función: una página o lectura (GET) en `server.py` y `GET_ROUTES`; una acción (POST) en `acciones.py` y
+   `POST_ROUTES`.
 2. Descríbela en `anka/web/openapi.py` (resumen, campos, efecto, etiqueta).
 3. Corre `check.bat`: la prueba de cobertura de la documentación te avisa si falta algo.

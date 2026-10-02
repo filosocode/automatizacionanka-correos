@@ -315,7 +315,7 @@ class ErrorPageTests(unittest.TestCase):
         handler.path = path
         handler.rfile = io.BytesIO(body)
         handler._send_html = lambda content, status=200: sent.update(status=status, page=content)
-        with tempfile.TemporaryDirectory() as temp_dir,                 patch.object(settings, "DATA_DIR", Path(temp_dir)),                 patch("anka.web.paginas.load_config", return_value=test_config()), patch("anka.web.pantalla_caso.load_config", return_value=test_config()), patch("anka.web.server.load_config", return_value=test_config()):
+        with tempfile.TemporaryDirectory() as temp_dir,                 patch.object(settings, "DATA_DIR", Path(temp_dir)),                 patch("anka.web.paginas.load_config", return_value=test_config()), patch("anka.web.pantalla_caso.load_config", return_value=test_config()), patch("anka.web.server.load_config", return_value=test_config()), patch("anka.web.acciones.load_config", return_value=test_config()):
             getattr(handler, f"do_{method}")()
         return sent
 
@@ -336,7 +336,7 @@ class ErrorPageTests(unittest.TestCase):
     def test_error_text_from_an_exception_is_escaped(self):
         body = ("csrf_token=" + seguridad.CSRF_TOKEN).encode()
         boom = RuntimeError(f"<img src=x onerror={MARK}(1)>")
-        with patch("anka.web.server.checked_run", side_effect=boom):
+        with patch("anka.web.acciones.checked_run", side_effect=boom):
             with self.assertLogs("anka.web.server", "ERROR") as logs:
                 sent = self.request("POST", "/refresh", body)
         self.assertEqual(sent["status"], 500)

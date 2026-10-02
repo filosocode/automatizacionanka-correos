@@ -143,7 +143,7 @@ class ApproveRouteTests(unittest.TestCase):
         handler.rfile = io.BytesIO(body)
         handler._send_html = lambda content, status=200: sent.update(status=status, page=content)
         handler._redirect = lambda location: sent.update(status=303, location=location)
-        with patch("anka.web.server.approve_review", return_value=approve_result, side_effect=side_effect) as mock:
+        with patch("anka.web.acciones.approve_review", return_value=approve_result, side_effect=side_effect) as mock:
             handler.do_POST()
         return sent, mock
 

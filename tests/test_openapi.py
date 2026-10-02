@@ -14,6 +14,7 @@ from anka.dominio.status import QuoteStatus
 from anka.infra import settings, store
 from anka.web import openapi, seguridad
 from anka.web import server as web
+from anka.web import acciones
 from tests.test_app import test_config
 
 
@@ -44,8 +45,8 @@ class DocumentationCoversTheRealRoutes(unittest.TestCase):
 
     def test_every_post_route_is_documented_and_nothing_extra_is(self):
         _, documented_post = openapi.rutas_documentadas()
-        self.assertEqual(set(web.POST_ROUTES) - documented_post, set(), "Rutas POST sin documentar")
-        self.assertEqual(documented_post - set(web.POST_ROUTES), set(), "Rutas POST documentadas que ya no existen")
+        self.assertEqual(set(acciones.POST_ROUTES) - documented_post, set(), "Rutas POST sin documentar")
+        self.assertEqual(documented_post - set(acciones.POST_ROUTES), set(), "Rutas POST documentadas que ya no existen")
 
     def test_every_get_route_points_to_a_real_method(self):
         for method in list(web.GET_ROUTES.values()) + list(web.GET_PATTERNS.values()):
