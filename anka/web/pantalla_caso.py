@@ -16,7 +16,8 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from markupsafe import Markup
-from anka.dominio.analisis import Analisis
+from anka.dominio.caso import Caso
+from anka.dominio.analisis import Analisis, RevisionManual
 from anka.web.views import (
     attachments_table, reception_assessment_panel, activities_editor,
 )
@@ -282,7 +283,7 @@ def _next_step_banner(review: Mapping[str, Any], work_mode: bool) -> Markup:
     return Markup("")
 
 
-def _manual_review_note(manual: dict | None) -> str:
+def _manual_review_note(manual: RevisionManual | None) -> str:
     if not manual:
         return ""
     when = (manual.get("at") or "")[:16].replace("T", " ")
@@ -392,12 +393,11 @@ def _timeline_panel(thread_id: str, review: Mapping[str, Any], analysis: Analisi
         people=case_people(thread_id, case_contacts(review["recipient"], analysis)))
 
 
-def render_case(thread_id: str, message: str = "", template: str = "", change_id: int = 0,
-                 to_kind: str = "") -> str:
-    """Pantalla de un caso: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento."""
+def _load_review(thread_id: str) -> tuple[Caso | None, str]:
+    """El caso de la pantalla y, si no se pudo confirmar el destinatario en Gmail, el aviso que lo bloquea."""
     review = get_quote(thread_id)
     if not review:
-        return page("Caso no encontrado", render("empty.html", text="La solicitud no existe."), message)
+        return None, ""
     recipient_error = ""
     if not valid_email_address(review["recipient"]):
         try:
@@ -410,12 +410,58 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
             )
     if review.get("reply_pending"):
         review = replace(review, status_label=REPLY_LABEL)
+    return review, recipient_error
+
+
+def _compose_to(review: Mapping[str, Any], change: Cambio | None, to_kind: str) -> str:
+    """Destinatario que se propone al responder por un cambio: quien lo escribió o el contacto registrado."""
+    if change and to_kind == "sender":
+        return change["sender_email"]
+    if change and to_kind == "contact":
+        return review.get("contact_email") or review["recipient"]
+    return ""
+
+
+def _code_text(review: Mapping[str, Any]) -> str:
+    """«T26145 · En cotización» (o «T&E…· Aprobada»); vacío mientras no haya código."""
+    if not review.get("quote_code"):
+        return ""
+    stage = review.get("code_stage") or "T"
+    return code_label(review["quote_code"], stage) + " · " + STAGE_LABELS.get(stage, "")
+
+
+def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: dict, config: dict,
+                 events: list[Evento], integrity_ok: bool, event_count: int) -> dict[str, Any]:
+    """Los paneles de la pantalla del caso, cada uno ya renderizado."""
+    proposal = review.get("proposal", [])
+    return {
+        "assessment_panel": reception_assessment_panel(assessment),
+        "internal_context": _internal_context_panel(review["client_name"]),
+        "activities_editor": activities_editor(thread_id, analysis.get("activities", []), list(EDIT_REASONS.items())),
+        "attachments_table": attachments_table(analysis.get("attachments", [])),
+        "manual_review": _manual_review_note(analysis.get("manual_review")),
+        "conversation": _conversation_panel(thread_id),
+        "stepper": _stepper(review),
+        "followup": _followup_panel(review),
+        "edit_note": _edit_note(thread_id),
+        "code_panel": _code_panel(review),
+        "code_text": _code_text(review),
+        "next_step": _next_step_banner(review, config.get("active_mode") == "chatgpt_work"),
+        "proposal_panel": render("proposal.html", changes=proposal, thread_id=thread_id) if proposal else Markup(""),
+        "timeline": _timeline_panel(thread_id, review, analysis, events, integrity_ok, event_count),
+    }
+
+
+def render_case(thread_id: str, message: str = "", template: str = "", change_id: int = 0,
+                to_kind: str = "") -> str:
+    """Pantalla de un caso: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento."""
+    review, recipient_error = _load_review(thread_id)
+    if not review:
+        return page("Caso no encontrado", render("empty.html", text="La solicitud no existe."), message)
     analysis = review["analysis"]
     assessment = review.get("reception_assessment") or reception_assessment(analysis)
     config = load_config()
-    routing_summary = _routing_summary(analysis)
-    scope_issues = unresolved_scope_issues(analysis)
-    issues_summary = "\n".join(f"- {issue}" for issue in scope_issues) or "Sin asuntos pendientes."
+    issues_summary = "\n".join(f"- {issue}" for issue in unresolved_scope_issues(analysis)) or "Sin asuntos pendientes."
     technical = assessment.get("status") == "technical_review"
     reopened = review["status"] in (QuoteStatus.READY, QuoteStatus.RESPONSE_SENT) and case_has_links(thread_id)
     email_allowed = (
@@ -427,17 +473,11 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         review, analysis, config, template, change_id,
         email_allowed=email_allowed, reopened=reopened, technical=technical, recipient_error=recipient_error)
     change = next((c for c in review.get("changes", []) if c["id"] == change_id), None)
-    compose_to = ""
-    if change and to_kind == "sender":
-        compose_to = change["sender_email"]
-    elif change and to_kind == "contact":
-        compose_to = review.get("contact_email") or review["recipient"]
     events = thread_events(thread_id)
     integrity_ok, event_count = chain_status(thread_id)
     # «Enviada» se cumple venga el envío del dashboard, de Gmail o de Work.
     sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT or any(
         event["kind"] == "sent" for event in events)
-    no_reply_needed = review["status"] in {QuoteStatus.READY, QuoteStatus.IGNORED}
     body = render(
         "case.html",
         review=review, thread_id=thread_id,
@@ -446,35 +486,18 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         service_family=assessment.get("service_family", "Por clasificar"),
         suggestion_complete=review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING},
         draft_complete=bool(review["draft_id"] or sent_complete),
-        sent_complete=sent_complete, no_reply_needed=no_reply_needed,
-        assessment_panel=reception_assessment_panel(assessment),
+        sent_complete=sent_complete, no_reply_needed=review["status"] in {QuoteStatus.READY, QuoteStatus.IGNORED},
         client_types=CLIENT_TYPES, sectors=SECTORS,
-        internal_context=_internal_context_panel(review["client_name"]),
-        activities_editor=activities_editor(thread_id, analysis.get("activities", []), list(EDIT_REASONS.items())),
-        attachments_table=attachments_table(analysis.get("attachments", [])),
-        routing_summary=routing_summary, issues_summary=issues_summary,
-        email=email, email_body=email_body, recipient_error=recipient_error,
+        routing_summary=_routing_summary(analysis), issues_summary=issues_summary,
+        email=email, email_body=email_body, recipient_error=recipient_error, blank_reply=blank_reply,
         sufficient=assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=review["status"] == QuoteStatus.REVIEW,
-        manual_review=_manual_review_note(analysis.get("manual_review")),
         prefill_questions=_suggested_questions(analysis, assessment) if technical else "",
-        blank_reply=blank_reply,
-        conversation=_conversation_panel(thread_id),
-        stepper=_stepper(review),
-        followup=_followup_panel(review),
-        compose_to=compose_to, compose_change_id=change_id if change else 0,
+        compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),
-        edit_note=_edit_note(thread_id),
-        code_panel=_code_panel(review),
-        code_text=(code_label(review["quote_code"], review.get("code_stage") or "T")
-                   + " · " + STAGE_LABELS.get(review.get("code_stage") or "T", "")
-                   if review.get("quote_code") else ""),
-        next_step=_next_step_banner(review, config.get("active_mode") == "chatgpt_work"),
-        proposal_panel=(render("proposal.html", changes=review.get("proposal", []), thread_id=thread_id)
-                        if review.get("proposal", []) else Markup("")),
-        timeline=_timeline_panel(thread_id, review, analysis, events, integrity_ok, event_count),
+        **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count),
     )
     return page("Revisar caso", body, message)
 

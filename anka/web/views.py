@@ -86,10 +86,10 @@ def reception_assessment_panel(assessment: dict) -> Markup:
     )
 
 
-def activities_editor(thread_id: str, activities: list[dict],
+def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
                       reasons: list[tuple[str, str]] | None = None) -> Markup:
     """Tabla editable: colores por estado, celdas vacias en gris y una fila nueva al final."""
-    def cells(item: dict) -> list[dict]:
+    def cells(item: Mapping[str, Any]) -> list[dict]:
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
 
     rows = [
