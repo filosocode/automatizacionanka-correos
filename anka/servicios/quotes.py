@@ -8,6 +8,7 @@ La edición de la tabla de actividades vive en `ediciones.py` y la importación 
 
 from __future__ import annotations
 
+import sqlite3
 from uuid import uuid4
 import json
 from datetime import datetime
@@ -176,6 +177,28 @@ def reason_label(reason: str) -> str:
     return text + (" · el asunto menciona el proyecto" if hint else "")
 
 
+def _close_sibling_links(db: sqlite3.Connection, thread_id: str, link: sqlite3.Row, now: str) -> int:
+    """Un correo pertenece a un solo caso: al confirmarlo en uno, se cierra el mismo aviso pendiente en los demás.
+
+    Cada correo crea un aviso por cada caso del mismo remitente; sin esto habría que descartarlo caso por caso. Queda
+    anotado en el seguimiento de cada caso a dónde se asignó. Devuelve cuántos avisos cerró.
+    """
+    target = load_analysis(db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?",
+                                      (thread_id,)).fetchone()["analysis_json"]).get("project_name") or "otro caso"
+    siblings = db.execute(
+        "SELECT id, thread_id FROM case_links WHERE message_id=? AND thread_id<>? AND state='pending'",
+        (link["message_id"], thread_id)).fetchall()
+    for sibling in siblings:
+        db.execute("UPDATE case_links SET state='assigned_elsewhere', decided_at=? WHERE id=?", (now, sibling["id"]))
+        db.execute("UPDATE dashboard_notifications SET read_at=? WHERE thread_id=? AND kind='possible_update' "
+                   "AND source_key=? AND read_at IS NULL", (now, sibling["thread_id"], link["message_id"]))
+        record_event(db, sibling["thread_id"], "link_assigned", "dashboard", f"link-{sibling['id']}",
+                     f"El correo «{link['subject'][:80]}» de {link['sender_name'] or link['sender_email']} se asignó "
+                     f"al caso «{target}»: ya no es una posible actualización de este.", now,
+                     link["sender_email"], link["sender_name"])
+    return len(siblings)
+
+
 def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
     """Una persona confirma o descarta que un correo de otro hilo pertenece a este caso."""
     db = connect()
@@ -189,11 +212,15 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
         who = link["sender_name"] or link["sender_email"]
         db.execute("UPDATE case_links SET state=?, decided_at=? WHERE id=?",
                    ("linked" if accept else "dismissed", now, link_id))
+        closed = _close_sibling_links(db, thread_id, link, now) if accept else 0
         if accept:
             summary = (f"Confirmaste que el correo «{link['subject'][:80]}» de {who} "
                        f"({reason_label(link['reason'])}) pertenece a este caso: «{link['snippet']}»")
             message = ("Anotado en el seguimiento con su autor y fecha. El agente todavía no lee "
                        "otros hilos: actualiza la tabla a mano si hace falta.")
+            if closed:
+                message += (f" Este mismo correo también aparecía como posible actualización en {closed} caso(s) más: "
+                            "ya no se muestra allí.")
         else:
             summary = f"Descartaste que el correo «{link['subject'][:80]}» de {who} sea de este caso."
             message = "Descartado: no se mostrará de nuevo."

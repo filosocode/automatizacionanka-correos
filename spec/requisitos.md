@@ -117,6 +117,13 @@ nota de uso, de modo que nada del origen del caso se pierde. Si alguien edita la
 (sus cambios quedan en el historial de versiones de Google). Un fallo no interrumpe nada: se muestra en el caso y se
 puede reintentar.
 
+### T-18 · Un correo, un solo caso
+Cuando una persona confirma que un correo de otro hilo pertenece a un caso, ese mismo correo deja de aparecer como
+«posible actualización» en los demás casos del mismo remitente: sus avisos se cierran y sus novedades se marcan leídas.
+Cada caso afectado conserva una anotación de a qué caso se asignó. Lo que una persona ya descartó se respeta, descartar
+en un caso no cierra los otros, y un aviso cerrado no cuenta como avance del caso. Los avisos que ya habían quedado
+repetidos se limpian al actualizar la base.
+
 ## Experiencia de usuario
 
 ### U-01 · Siguiente paso claro

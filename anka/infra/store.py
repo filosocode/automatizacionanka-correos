@@ -240,6 +240,25 @@ def _migration_10_sheet(db: sqlite3.Connection) -> None:
             db.execute(f"ALTER TABLE quotes ADD COLUMN {column} TEXT")
 
 
+def _migration_11_one_case_per_message(db: sqlite3.Connection) -> None:
+    """Un correo pertenece a un solo caso: si ya se confirmó en uno, el mismo aviso pendiente en los demás se cierra.
+
+    Antes cada correo creaba un aviso por cada caso del mismo remitente y confirmar uno dejaba los otros pendientes.
+    """
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    db.execute("""UPDATE dashboard_notifications SET read_at=?
+                  WHERE kind='possible_update' AND read_at IS NULL AND EXISTS (
+                      SELECT 1 FROM case_links p WHERE p.state='pending'
+                        AND p.thread_id=dashboard_notifications.thread_id
+                        AND p.message_id=dashboard_notifications.source_key
+                        AND EXISTS (SELECT 1 FROM case_links l WHERE l.message_id=p.message_id AND l.state='linked'
+                                    AND l.thread_id<>p.thread_id))""", (now,))
+    db.execute("""UPDATE case_links SET state='assigned_elsewhere', decided_at=?
+                  WHERE state='pending' AND EXISTS (
+                      SELECT 1 FROM case_links l WHERE l.message_id=case_links.message_id AND l.state='linked'
+                        AND l.thread_id<>case_links.thread_id)""", (now,))
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -253,6 +272,7 @@ MIGRATIONS = (
     _migration_8_case_messages,
     _migration_9_case_followup,
     _migration_10_sheet,
+    _migration_11_one_case_per_message,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

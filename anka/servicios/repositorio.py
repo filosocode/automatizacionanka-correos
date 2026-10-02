@@ -229,10 +229,13 @@ class RepositorioDeCasos:
             return verify_chain(db, thread_id)
 
     def tiene_vinculos(self, thread_id: str) -> bool:
-        """¿El caso avanzó más allá del primer análisis (correos vinculados, código de oferta o tabla editada)?"""
+        """¿El caso avanzó más allá del primer análisis (correos vinculados, código de oferta o tabla editada)?
+
+        Un aviso descartado o asignado a otro caso no cuenta: no hubo nada nuevo en este.
+        """
         with self._conexion() as db:
             return db.execute(
-                "SELECT 1 FROM case_links WHERE thread_id=? "
+                "SELECT 1 FROM case_links WHERE thread_id=? AND state IN ('pending', 'linked') "
                 "UNION SELECT 1 FROM quotes WHERE thread_id=? AND quote_code IS NOT NULL AND quote_code <> '' "
                 "UNION SELECT 1 FROM table_versions WHERE thread_id=? AND source='dashboard' "
                 "LIMIT 1", (thread_id, thread_id, thread_id)).fetchone() is not None
