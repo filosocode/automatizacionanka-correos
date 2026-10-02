@@ -6,7 +6,9 @@ import base64
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+import sqlite3
 from typing import Any
+from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.status import (
     CLOSED_STATUSES, QuoteStatus,
@@ -328,6 +330,84 @@ def _saved_client_name(db: Any, thread_id: str) -> str:
     return str(row[0]) if row else ""
 
 
+def _send_questions(db: sqlite3.Connection, gmail: Any, config: dict, thread_id: str, last_id: str, recipient: str,
+                    analysis: Analisis, body_file: str | None, body_text: str | None,
+                    account_addresses: set[str]) -> str:
+    """Envía al cliente las preguntas de un caso con datos pendientes y lo deja esperando su respuesta."""
+    thread = gmail.users().threads().get(userId="me", id=thread_id, format="full").execute()
+    if body_text is not None:
+        body = body_text
+    elif body_file:
+        body = Path(body_file).read_text(encoding="utf-8")
+    else:
+        body = question_email(
+            reception_questions(analysis, config["required_fields"]),
+            analysis.get("routing", {}).get("is_forwarded", False),
+        )
+    save(db, thread_id, last_id, QuoteStatus.SENDING, recipient, analysis)
+    sent_id = send_reply(gmail, thread, recipient, body, account_addresses)
+    save(db, thread_id, last_id, QuoteStatus.WAITING, recipient, analysis, sent_message_id=sent_id)
+    record_event(db, thread_id, "sent", "dashboard", sent_id,
+                 f"Preguntas enviadas desde el dashboard a {recipient}.")
+    db.commit()
+    message = f"{thread_id}: correo enviado a {recipient}."
+    log.info("%s: correo enviado tras aprobación", thread_id)
+    log.info("%s", message, extra=SENSITIVE)
+    return message
+
+
+def _resolve_client(db: sqlite3.Connection, thread_id: str, analysis: Analisis, recipient: str,
+                    client_name: str | None, auto: bool) -> str:
+    """Nombre de la carpeta del cliente: el escrito, el ya guardado o (en modo automático) el confirmado."""
+    client = (client_name or "").strip() or _saved_client_name(db, thread_id)
+    if not client and auto:
+        client = confirmed_client(db, thread_id, analysis, recipient)
+    if auto and "@" in client:
+        client = ""  # un correo no es el nombre de una empresa: no crear una carpeta con él
+    if not client:
+        raise ErrorDeAnka("Indica la carpeta del cliente.")
+    return client
+
+
+def _create_case_folder(db: sqlite3.Connection, gmail: Any, drive: Any, config: dict, thread_id: str,
+                        last_id: str, recipient: str, analysis: Analisis, client_name: str | None,
+                        new_client: bool, auto: bool, allow_similar_project: bool,
+                        account_addresses: set[str]) -> str:
+    """Crea la carpeta del proyecto en Drive para un caso con alcance completo y la llena."""
+    parent = config.get("drive_parent_id")
+    if not parent:
+        raise ErrorDeAnka("Para aprobar alcance completo define drive_parent_id en config.json.")
+    client = _resolve_client(db, thread_id, analysis, recipient, client_name, auto)
+    mismatch = year_mismatch(drive, parent, analysis.get("received_at", ""))
+    if mismatch:
+        raise ErrorDeAnka(mismatch)
+    request_name = safe_folder_name(
+        analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion"),
+    )
+    try:
+        result = create_project_folder(
+            drive, parent, client, request_name, create_client=new_client,
+            auto_create_client=auto,
+            attachment_names=[
+                str(item.get("filename") or "") for item in analysis.get("attachments", [])
+                if isinstance(item, dict)
+            ],
+            allow_similar_project=allow_similar_project,
+        )
+    except DriveLayoutError as exc:
+        raise ErrorDeAnka(str(exc)) from exc
+    analysis.pop("drive", None)
+    save(db, thread_id, last_id, QuoteStatus.READY, recipient, analysis, folder_id=result.folder["id"])
+    set_client_name(thread_id, client)  # los próximos correos del remitente se resuelven solos
+    contents = _fill_folder(gmail, drive, thread_id, result.folder["id"], account_addresses)
+    log.info("%s: carpeta del proyecto creada tras aprobación: %s", thread_id, result.folder["id"])
+    message = f"{thread_id}: carpeta creada/encontrada: {result.folder['id']}"
+    if result.client_created:
+        log.info("%s: carpeta de cliente nuevo creada tras confirmación", thread_id)
+        message += " Se creó también la carpeta del cliente nuevo."
+    return message + " " + contents
+
+
 def approve_review(
     thread_id: str, body_file: str | None = None, body_text: str | None = None,
     client_name: str | None = None, new_client: bool = False,
@@ -347,81 +427,19 @@ def approve_review(
     db = connect()
     try:
         row = db.execute(
-            """SELECT last_inbound_id, status, recipient, analysis_json
-               FROM quotes WHERE thread_id=?""",
+            "SELECT last_inbound_id, status, recipient, analysis_json FROM quotes WHERE thread_id=?",
             (thread_id,),
         ).fetchone()
         if not row:
             raise ErrorDeAnka(f"No existe revisión registrada para el hilo {thread_id}.")
         last_id, status, recipient, analysis_json = row
-        analysis = json.loads(analysis_json)
+        analysis: Analisis = json.loads(analysis_json)
         if status == QuoteStatus.REVIEW_PENDING:
-            thread = gmail.users().threads().get(
-                userId="me", id=thread_id, format="full"
-            ).execute()
-            if body_text is not None:
-                body = body_text
-            elif body_file:
-                body = Path(body_file).read_text(encoding="utf-8")
-            else:
-                body = question_email(
-                    reception_questions(analysis, config["required_fields"]),
-                    analysis.get("routing", {}).get("is_forwarded", False),
-                )
-            save(db, thread_id, last_id, QuoteStatus.SENDING, recipient, analysis)
-            sent_id = send_reply(gmail, thread, recipient, body, account_addresses)
-            save(db, thread_id, last_id, QuoteStatus.WAITING, recipient, analysis,
-                 sent_message_id=sent_id)
-            record_event(db, thread_id, "sent", "dashboard", sent_id,
-                         f"Preguntas enviadas desde el dashboard a {recipient}.")
-            db.commit()
-            message = f"{thread_id}: correo enviado a {recipient}."
-            log.info("%s: correo enviado tras aprobación", thread_id)
-            log.info("%s", message, extra=SENSITIVE)
-            return message
-        elif status == QuoteStatus.READY_REVIEW:
-            parent = config.get("drive_parent_id")
-            if not parent:
-                raise ErrorDeAnka("Para aprobar alcance completo define drive_parent_id en config.json.")
-            client = (client_name or "").strip() or _saved_client_name(db, thread_id)
-            if not client and auto:
-                client = confirmed_client(db, thread_id, analysis, recipient)
-            if auto and "@" in client:
-                client = ""  # un correo no es el nombre de una empresa: no crear una carpeta con él
-            if not client:
-                raise ErrorDeAnka("Indica la carpeta del cliente.")
-            mismatch = year_mismatch(drive, parent, analysis.get("received_at", ""))
-            if mismatch:
-                raise ErrorDeAnka(mismatch)
-            request_name = safe_folder_name(
-                analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion"),
-            )
-            try:
-                result = create_project_folder(
-                    drive, parent, client, request_name, create_client=new_client,
-                    auto_create_client=auto,
-                    attachment_names=[
-                        str(item.get("filename") or "") for item in analysis.get("attachments", [])
-                        if isinstance(item, dict)
-                    ],
-                    allow_similar_project=allow_similar_project,
-                )
-            except DriveLayoutError as exc:
-                raise ErrorDeAnka(str(exc)) from exc
-            analysis.pop("drive", None)
-            save(db, thread_id, last_id, QuoteStatus.READY, recipient, analysis,
-                 folder_id=result.folder["id"])
-            set_client_name(thread_id, client)  # los próximos correos del remitente se resuelven solos
-            contents = _fill_folder(gmail, drive, thread_id, result.folder["id"], account_addresses)
-            log.info("%s: carpeta del proyecto creada tras aprobación: %s", thread_id, result.folder["id"])
-            message = f"{thread_id}: carpeta creada/encontrada: {result.folder['id']}"
-            if result.client_created:
-                log.info("%s: carpeta de cliente nuevo creada tras confirmación", thread_id)
-                message += " Se creó también la carpeta del cliente nuevo."
-            return message + " " + contents
-        else:
-            raise ErrorDeAnka(
-                f"El hilo {thread_id} está en estado '{status}', no pendiente de aprobación."
-            )
+            return _send_questions(db, gmail, config, thread_id, last_id, recipient, analysis,
+                                   body_file, body_text, account_addresses)
+        if status == QuoteStatus.READY_REVIEW:
+            return _create_case_folder(db, gmail, drive, config, thread_id, last_id, recipient, analysis,
+                                       client_name, new_client, auto, allow_similar_project, account_addresses)
+        raise ErrorDeAnka(f"El hilo {thread_id} está en estado '{status}', no pendiente de aprobación.")
     finally:
         db.close()

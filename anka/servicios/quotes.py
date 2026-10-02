@@ -11,6 +11,8 @@ from __future__ import annotations
 from uuid import uuid4
 import json
 from datetime import datetime
+import sqlite3
+from typing import Any, NamedTuple
 from pathlib import Path
 from anka.dominio.analisis import Analisis
 from anka.dominio.status import (
@@ -418,6 +420,110 @@ def _waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None) ->
     return sent_at
 
 
+class _CaseRelations(NamedTuple):
+    """Lo que se guarda aparte de cada caso y que `Caso` necesita (todo indexado por hilo)."""
+
+    latest_reply: dict[str, tuple[str, str]]
+    followups: dict[str, dict]
+    reminders: dict[str, list[str]]
+    changes: dict[str, list[Cambio]]
+    pending_links: dict[str, list[Vinculo]]
+
+
+def _case_rows(db: sqlite3.Connection, include_ignored: bool, thread_id: str | None) -> list[sqlite3.Row]:
+    """Filas de los casos con sus datos comerciales, el más reciente primero."""
+    conditions = [] if include_ignored else [f"q.status <> '{QuoteStatus.IGNORED}'"]
+    if thread_id is not None:
+        conditions.append("q.thread_id = ?")
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    return db.execute(f"""SELECT q.*, m.client_type, m.sector, m.client_name, m.notes
+                          FROM quotes q
+                          LEFT JOIN quote_metadata m ON m.thread_id = q.thread_id
+                          {where}
+                          ORDER BY COALESCE(q.updated_at, q.first_seen_at, '') DESC, q.thread_id DESC""",
+                      (thread_id,) if thread_id is not None else ()).fetchall()
+
+
+def _case_relations(db: sqlite3.Connection, thread_id: str | None) -> _CaseRelations:
+    """Respuestas, seguimiento, recordatorios, cambios y vínculos de todos los casos (o de uno solo)."""
+    scope = (thread_id,) if thread_id is not None else ()
+    only = " AND thread_id = ?" if thread_id is not None else ""
+    only_where = " WHERE thread_id = ?" if thread_id is not None else ""
+    latest_reply = {r["thread_id"]: (r["occurred_at"], r["ref"]) for r in db.execute(
+        "SELECT thread_id, ref, occurred_at FROM case_events "
+        f"WHERE kind='received'{only} ORDER BY occurred_at, id", scope)}
+    followups = {r["thread_id"]: dict(r) for r in db.execute(f"SELECT * FROM case_followup{only_where}", scope)}
+    reminders: dict[str, list[str]] = {}
+    for r in db.execute(
+            f"SELECT thread_id, ref FROM case_events WHERE kind='reminder_sent'{only} ORDER BY id", scope):
+        reminders.setdefault(r["thread_id"], []).append(r["ref"])
+    changes: dict[str, list[Cambio]] = {}
+    for change in db.execute(
+            f"SELECT * FROM case_changes WHERE state IN ('pending', 'change'){only} ORDER BY occurred_at", scope):
+        changes.setdefault(change["thread_id"], []).append(Cambio.from_row(change))
+    pending_links: dict[str, list[Vinculo]] = {}
+    for link in db.execute(
+            f"SELECT * FROM case_links WHERE state='pending'{only} ORDER BY occurred_at", scope):
+        pending_links.setdefault(link["thread_id"], []).append(Vinculo.from_row(link))
+    return _CaseRelations(latest_reply, followups, reminders, changes, pending_links)
+
+
+def _status_label(status: Any, assessment: dict) -> str:
+    """Etiqueta del estado; en revisión la da la evaluación de recepción (qué le falta al caso)."""
+    review_states = {QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.REVIEW}
+    if status in review_states and assessment:
+        return str(assessment["label"])
+    return STATUS_LABELS.get(status) or str(status)
+
+
+def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
+    """Arma el `Caso` de una fila con lo que se guardó aparte."""
+    thread = row["thread_id"]
+    analysis = load_analysis(row["analysis_json"])
+    routing = analysis.get("routing", {})
+    client_email = routing.get("original_sender_email") or row["recipient"]
+    assessment = reception_assessment(analysis) if analysis else {}
+    followup = rel.followups.get(thread, {})
+    latest = rel.latest_reply.get(thread)
+    return Caso(
+        thread_id=thread,
+        status=row["status"],
+        status_label=_status_label(row["status"], assessment),
+        recipient=row["recipient"],
+        client_email=client_email,
+        client_name=row["client_name"] or routing.get("original_sender") or client_email,
+        client_name_saved=row["client_name"] or "",
+        client_type=row["client_type"] or "No clasificado",
+        sector=row["sector"] or "No clasificado",
+        notes=row["notes"] or "",
+        analysis=analysis,
+        reception_assessment=assessment,
+        services=_service_names(analysis),
+        first_seen_at=row["first_seen_at"] or analysis.get("received_at") or "",
+        updated_at=row["updated_at"] or "",
+        folder_id=row["folder_id"],
+        draft_id=row["draft_id"],
+        draft_body=row["draft_body"] or "",
+        sent_at=row["sent_at"] or "",
+        reply_pending=_unanalyzed_reply(
+            latest, row["last_inbound_id"], analysis, row["first_seen_at"] or "", row["status"]),
+        proposal=model_proposal(analysis),
+        links=rel.pending_links.get(thread, []),
+        changes=rel.changes.get(thread, []),
+        waiting_since=_waiting_since(row["status"], row["sent_at"] or "", latest),
+        followup={
+            "auto_enabled": bool(followup.get("auto_enabled")),
+            "paused": bool(followup.get("paused")),
+            "contacted_at": followup.get("contacted_at") or "",
+        },
+        reminders=[ref for ref in rel.reminders.get(thread, []) if ref.startswith((row["sent_at"] or "") + "|")],
+        quote_code=row["quote_code"] or "",
+        code_stage=row["code_stage"] or "",
+        code_assigned_at=row["code_assigned_at"] or "",
+        contact_email=row["contact_email"] or "",
+    )
+
+
 def all_quotes(include_ignored: bool = False, thread_id: str | None = None) -> list[Caso]:
     """Todos los casos con sus cambios, vínculos, seguimiento y espera, el más reciente primero.
 
@@ -425,89 +531,11 @@ def all_quotes(include_ignored: bool = False, thread_id: str | None = None) -> l
     """
     db = connect()
     try:
-        conditions = [] if include_ignored else [f"q.status <> '{QuoteStatus.IGNORED}'"]
-        scope = (thread_id,) if thread_id is not None else ()
-        if thread_id is not None:
-            conditions.append("q.thread_id = ?")
-        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-        only = " AND thread_id = ?" if thread_id is not None else ""
-        only_where = " WHERE thread_id = ?" if thread_id is not None else ""
-        rows = db.execute(f"""SELECT q.*, m.client_type, m.sector,
-                                      m.client_name, m.notes
-                               FROM quotes q
-                               LEFT JOIN quote_metadata m ON m.thread_id = q.thread_id
-                               {where}
-                               ORDER BY COALESCE(q.updated_at, q.first_seen_at, '') DESC,
-                                        q.thread_id DESC""", scope).fetchall()
-        latest_reply = {r["thread_id"]: (r["occurred_at"], r["ref"]) for r in db.execute(
-            "SELECT thread_id, ref, occurred_at FROM case_events "
-            f"WHERE kind='received'{only} ORDER BY occurred_at, id", scope)}
-        followups = {r["thread_id"]: dict(r) for r in db.execute(f"SELECT * FROM case_followup{only_where}", scope)}
-        reminders: dict[str, list[str]] = {}
-        for r in db.execute(
-                f"SELECT thread_id, ref FROM case_events WHERE kind='reminder_sent'{only} ORDER BY id", scope):
-            reminders.setdefault(r["thread_id"], []).append(r["ref"])
-        changes: dict[str, list[Cambio]] = {}
-        for change in db.execute(
-                f"SELECT * FROM case_changes WHERE state IN ('pending', 'change'){only} ORDER BY occurred_at",
-                scope):
-            changes.setdefault(change["thread_id"], []).append(Cambio.from_row(change))
-        pending_links: dict[str, list[Vinculo]] = {}
-        for link in db.execute(
-                f"SELECT * FROM case_links WHERE state='pending'{only} ORDER BY occurred_at", scope):
-            pending_links.setdefault(link["thread_id"], []).append(Vinculo.from_row(link))
+        rows = _case_rows(db, include_ignored, thread_id)
+        relations = _case_relations(db, thread_id)
     finally:
         db.close()
-    quotes: list[Caso] = []
-    for row in rows:
-        analysis = load_analysis(row["analysis_json"])
-        routing = analysis.get("routing", {})
-        client_email = routing.get("original_sender_email") or row["recipient"]
-        assessment = reception_assessment(analysis) if analysis else {}
-        status_label = STATUS_LABELS.get(row["status"], row["status"])
-        review_states = {QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.REVIEW}
-        if row["status"] in review_states and assessment:
-            status_label = assessment["label"]
-        quotes.append(Caso(
-            thread_id=row["thread_id"],
-            status=row["status"],
-            status_label=status_label,
-            recipient=row["recipient"],
-            client_email=client_email,
-            client_name=row["client_name"] or routing.get("original_sender") or client_email,
-            client_name_saved=row["client_name"] or "",
-            client_type=row["client_type"] or "No clasificado",
-            sector=row["sector"] or "No clasificado",
-            notes=row["notes"] or "",
-            analysis=analysis,
-            reception_assessment=assessment,
-            services=_service_names(analysis),
-            first_seen_at=row["first_seen_at"] or analysis.get("received_at") or "",
-            updated_at=row["updated_at"] or "",
-            folder_id=row["folder_id"],
-            draft_id=row["draft_id"],
-            draft_body=row["draft_body"] or "",
-            sent_at=row["sent_at"] or "",
-            reply_pending=_unanalyzed_reply(
-                latest_reply.get(row["thread_id"]), row["last_inbound_id"], analysis,
-                row["first_seen_at"] or "", row["status"]),
-            proposal=model_proposal(analysis),
-            links=pending_links.get(row["thread_id"], []),
-            changes=changes.get(row["thread_id"], []),
-            waiting_since=_waiting_since(row["status"], row["sent_at"] or "", latest_reply.get(row["thread_id"])),
-            followup={
-                "auto_enabled": bool(followups.get(row["thread_id"], {}).get("auto_enabled")),
-                "paused": bool(followups.get(row["thread_id"], {}).get("paused")),
-                "contacted_at": followups.get(row["thread_id"], {}).get("contacted_at") or "",
-            },
-            reminders=[ref for ref in reminders.get(row["thread_id"], [])
-                          if ref.startswith((row["sent_at"] or "") + "|")],
-            quote_code=row["quote_code"] or "",
-            code_stage=row["code_stage"] or "",
-            code_assigned_at=row["code_assigned_at"] or "",
-            contact_email=row["contact_email"] or "",
-        ))
-    return quotes
+    return [_build_caso(row, relations) for row in rows]
 
 
 def get_quote(thread_id: str) -> Caso | None:
