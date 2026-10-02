@@ -304,6 +304,8 @@ def _backfill_messages(gmail: Any, db: Any, limit: int = 20) -> None:
         try:
             message = gmail.users().messages().get(userId="me", id=row["ref"], format="full").execute()
         except Exception:
+            log.warning("%s: no se pudo leer el mensaje %s en Gmail; queda como no disponible",
+                        row["thread_id"], row["ref"], exc_info=True)
             add_message(db, row["thread_id"], row["ref"], row["kind"], "", "",
                         "(no se pudo leer el mensaje en Gmail)", "")
             continue

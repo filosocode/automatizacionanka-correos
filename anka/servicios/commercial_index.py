@@ -12,11 +12,14 @@ from typing import Any
 import zipfile
 from xml.etree import ElementTree
 
+from anka.infra.logging_setup import get_logger
 from anka.infra import settings
 
 
 DEFAULT_SOURCE = Path(r"I:\T&E")
 DEFAULT_OUTPUT = settings.DATA_DIR / "internal_context" / "commercial_index.json"
+log = get_logger(__name__)
+
 MAX_SOURCE_REFERENCES = 12   # topes por cliente: indexar el archivo histórico debe terminar en minutos,
 MAX_DOCUMENTS_PER_CLIENT = 12   # no en horas, aunque un cliente tenga miles de archivos
 MAX_PDF_BYTES = 12 * 1024 * 1024   # un PDF más grande se omite: tarda y pesa en memoria
@@ -135,7 +138,8 @@ def extract_pdf_text(path: Path) -> str:
         from pypdf import PdfReader
         reader = PdfReader(str(path), strict=False)
         return " ".join((page.extract_text() or "") for page in reader.pages[:MAX_PDF_PAGES])[:120000]
-    except Exception:
+    except Exception as exc:   # un PDF dañado o protegido no debe frenar el índice; solo se deja constancia
+        log.warning("PDF no legible para el índice comercial (%s)", type(exc).__name__)
         return ""
 
 

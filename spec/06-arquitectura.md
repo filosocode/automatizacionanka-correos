@@ -42,6 +42,9 @@ Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funcion
 - **Sin ciclos** de importación entre módulos.
 - **Solo la línea de comandos termina el programa**: un servicio lanza `ErrorDeAnka` (`anka/dominio/errores.py`) con
   un mensaje para la persona; `anka/cli` lo convierte en salida con código 1 y el dashboard en un aviso.
+- **Un `except Exception` nunca calla**: solo se usa en un límite (un bucle, una petición, una tarea opcional) y
+  siempre registra el error, lo relanza o lo usa para explicarlo; una prueba lo comprueba. El puente de Work, que
+  corre sin consola, registra sus fallos en el archivo de registro además de imprimirlos.
 - **Lo privado no se importa**: un nombre con `_` es de su módulo; si otro lo necesita, se hace público o se mueve.
 - **Cada módulo empieza con un docstring** que dice para qué sirve; cada capa lo tiene en su `__init__.py`.
 - **Toda función, clase y método público del paquete tiene docstring** (una frase que dice qué hace, no cómo) y

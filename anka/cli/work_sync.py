@@ -13,12 +13,15 @@ from typing import Any, NoReturn
 
 from anka.servicios.gmail_followup import sync_thread_activity
 from anka.dominio.errores import ErrorDeAnka
+from anka.infra.logging_setup import configure_logging, get_logger
 from anka.dominio.status import canonical_work_status
 from anka.dominio.work_contract import validate
 from anka.infra.work_heartbeat import other_bridge_running, write_heartbeat
 
 START = "[ANKA_DASHBOARD_JSON_V1]"
 END = "[/ANKA_DASHBOARD_JSON_V1]"
+log = get_logger(__name__)
+
 EXIT_STOP = 2  # el .bat no reinicia con este código
 DEFAULT_ACCOUNT = "ankacomercialia@gmail.com"
 
@@ -106,6 +109,7 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
                     candidates[thread] = (stamp, found)
         except Exception as exc:
             failures += 1
+            log.warning("Borrador %s: no importado (%s)", draft["id"], type(exc).__name__, exc_info=True)
             print(f"Borrador {draft['id']}: no importado ({type(exc).__name__}: {exc}).", flush=True)
     updated = 0
     for thread, (_, (_payload, raw)) in candidates.items():
@@ -124,6 +128,7 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
             print(f"Dashboard actualizado: {thread}", flush=True)
         except (Exception, SystemExit) as exc:
             failures += 1
+            log.warning("Hilo %s: importación fallida (%s); se reintentará", thread, type(exc).__name__, exc_info=True)
             print(f"Hilo {thread}: importación fallida ({type(exc).__name__}). Se reintentará.", flush=True)
     print(f"Revisión: {len(drafts)} borradores; {updated} actualizados; {failures} errores.", flush=True)
     return {"drafts": len(drafts), "updated": updated, "failures": failures}
@@ -143,6 +148,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.seconds < 30:
         parser.error("--seconds debe ser al menos 30")
+    # Sin consola (arranque con Windows) los errores quedaban solo en stdout y se perdían: ahora van al registro.
+    configure_logging(console=False)
     from anka.infra.settings import DATA_DIR, load_config
     from anka.infra.google_services import services
     from anka.servicios.work_import import dashboard_upsert
@@ -176,10 +183,12 @@ def main() -> None:
                 result["events"] = follow["events"] + follow["related"]
             except Exception as exc:  # el seguimiento no debe frenar la importación de borradores
                 error = f"Seguimiento: {type(exc).__name__}: {exc}"[:200]
+                log.warning("Error en el seguimiento de Gmail", exc_info=True)
                 print(error, flush=True)
         except Exception as exc:
             gmail = None  # reconectar en el siguiente ciclo (token vencido, red caída)
             error = f"{type(exc).__name__}: {exc}"[:200]
+            log.warning("Error de sincronización; se reconecta en el siguiente ciclo", exc_info=True)
             print(f"Error de sincronización: {error}", flush=True)
         write_heartbeat(args.seconds, error=error, **result)
         if args.once:

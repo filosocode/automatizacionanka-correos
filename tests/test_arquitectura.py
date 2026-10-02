@@ -133,6 +133,26 @@ class LayerRules(unittest.TestCase):
                         offenders.append(f"{dotted}.{function.name}")
         self.assertEqual(offenders, [], "Lanza ErrorDeAnka (anka.dominio.errores) en vez de SystemExit")
 
+    def test_a_broad_except_never_swallows_the_error_silently(self):
+        """Un `except Exception` es válido en un límite (bucle, petición, tarea opcional), pero deja rastro: registra,
+        relanza o usa el error para explicarlo. Callarlo hace que un fallo real pase desapercibido."""
+        silent = []
+        for dotted, path in modules():
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if not (isinstance(node, ast.ExceptHandler) and node.type is not None
+                        and ast.unparse(node.type) == "Exception"):
+                    continue
+                body = ast.Module(body=node.body, type_ignores=[])
+                logs = any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                           and isinstance(n.func.value, ast.Name) and n.func.value.id == "log"
+                           for n in ast.walk(body))
+                raises = any(isinstance(n, ast.Raise) for n in ast.walk(body))
+                uses_error = node.name is not None and any(
+                    isinstance(n, ast.Name) and n.id == node.name for n in ast.walk(body))
+                if not (logs or raises or uses_error):
+                    silent.append(f"{dotted}:{node.lineno}")
+        self.assertEqual(silent, [], "except Exception sin registrar, relanzar ni usar el error")
+
     def test_the_package_never_depends_on_the_tests(self):
         for dotted, path in modules():
             for target, _ in imports_of(path):
