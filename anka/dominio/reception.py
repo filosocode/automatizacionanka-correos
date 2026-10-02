@@ -131,8 +131,33 @@ def _detected_service_family(analysis: Analisis) -> str:
                 "Servicio por clasificar")
 
 
-def reception_assessment(analysis: Analisis) -> dict:
-    """Determina si el correo permite iniciar la revisión interna, no cotizar."""
+# Pregunta por la magnitud del trabajo según el servicio; si no hay una específica se usa la genérica.
+_MAGNITUDE_QUESTIONS = {
+    "Batimetría": "¿Cuál es la extensión, longitud o número de secciones del cuerpo de agua que debe cubrirse?",
+    "Termografía o inspección": (
+        "¿Cuál es la cantidad de activos, módulos, estructuras o sitios que deben inspeccionarse?"),
+    "Topografía": "¿Cuál es el área, longitud o cantidad aproximada de elementos que deben levantarse?",
+}
+_GENERIC_MAGNITUDE_QUESTION = "¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo?"
+
+# Lo que conviene precisar antes de cotizar, según el servicio.
+_TECHNICAL_CHECKS = {
+    "Topografía": ["Elementos y nivel de detalle", "Precisión y sistema de referencia",
+                   "Entregables y formatos", "Accesos o restricciones"],
+    "LiDAR": ["Densidad o resolución", "Precisión y sistema de referencia",
+              "Productos derivados", "Restricciones de vuelo"],
+    "Fotogrametría": ["GSD o resolución", "Control terrestre", "Entregables y formatos", "Restricciones de vuelo"],
+    "Batimetría": ["Rango de profundidades", "Separación de líneas o secciones",
+                   "Datum o referencia vertical", "Acceso y permisos"],
+    "Termografía o inspección": ["Tipo de activo", "Condiciones operativas",
+                                 "Frecuencia de inspección", "Formato del informe"],
+    "Georradar": ["Objeto de búsqueda", "Profundidad esperada", "Condiciones del terreno", "Entregables"],
+}
+_GENERIC_TECHNICAL_CHECKS = ["Método técnico", "Precisión requerida", "Entregables", "Accesos o restricciones"]
+
+
+def _intake_facts(analysis: Analisis) -> tuple[bool, bool, bool]:
+    """¿Se conocen el objetivo, la ubicación y la magnitud? (en los datos extraídos o en las actividades)."""
     fields = {
         normalized_text(str(item.get("name") or "")): item.get("value")
         for item in analysis.get("fields", []) if isinstance(item, dict)
@@ -154,7 +179,11 @@ def reception_assessment(analysis: Analisis) -> dict:
     purpose_known = bool(activities) and any(
         _known_intake_value(item.get("activity")) for item in activities
     )
-    service = _detected_service_family(analysis)
+    return purpose_known, location_known, magnitude_known
+
+
+def _intake_questions(service: str, purpose_known: bool, location_known: bool, magnitude_known: bool) -> list[str]:
+    """Las preguntas básicas que faltan para poder iniciar la revisión interna."""
     questions = []
     if not purpose_known:
         questions.append("¿Cuál es el objetivo del trabajo y qué elementos o activos deben revisarse o levantarse?")
@@ -166,26 +195,18 @@ def reception_assessment(analysis: Analisis) -> dict:
         else:
             questions.append("¿Puede indicar la ubicación del proyecto y el sector o tramo que debe cubrirse?")
     if not magnitude_known:
-        magnitude_question = {
-            "Batimetría": "¿Cuál es la extensión, longitud o número de secciones del cuerpo de agua que debe cubrirse?",
-            "Termografía o inspección": (
-                "¿Cuál es la cantidad de activos, módulos, estructuras o sitios que deben inspeccionarse?"),
-            "Topografía": "¿Cuál es el área, longitud o cantidad aproximada de elementos que deben levantarse?",
-        }.get(service, "¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo?")
-        questions.append(magnitude_question)
+        questions.append(_MAGNITUDE_QUESTIONS.get(service, _GENERIC_MAGNITUDE_QUESTION))
+    return questions
 
-    technical_checks = {
-        "Topografía": ["Elementos y nivel de detalle", "Precisión y sistema de referencia",
-                       "Entregables y formatos", "Accesos o restricciones"],
-        "LiDAR": ["Densidad o resolución", "Precisión y sistema de referencia",
-                  "Productos derivados", "Restricciones de vuelo"],
-        "Fotogrametría": ["GSD o resolución", "Control terrestre", "Entregables y formatos", "Restricciones de vuelo"],
-        "Batimetría": ["Rango de profundidades", "Separación de líneas o secciones",
-                       "Datum o referencia vertical", "Acceso y permisos"],
-        "Termografía o inspección": ["Tipo de activo", "Condiciones operativas",
-                                     "Frecuencia de inspección", "Formato del informe"],
-        "Georradar": ["Objeto de búsqueda", "Profundidad esperada", "Condiciones del terreno", "Entregables"],
-    }.get(service, ["Método técnico", "Precisión requerida", "Entregables", "Accesos o restricciones"])
+
+def reception_assessment(analysis: Analisis) -> dict:
+    """Determina si el correo permite iniciar la revisión interna, no cotizar."""
+    activities = [item for item in analysis.get("activities", []) if isinstance(item, dict)]
+    purpose_known, location_known, magnitude_known = _intake_facts(analysis)
+    service = _detected_service_family(analysis)
+    questions = _intake_questions(service, purpose_known, location_known, magnitude_known)
+    # copia: quien reciba la evaluación puede modificar la lista sin tocar la tabla común
+    technical_checks = list(_TECHNICAL_CHECKS.get(service, _GENERIC_TECHNICAL_CHECKS))
 
     issues = unresolved_scope_issues(analysis)
     blocked = any(
