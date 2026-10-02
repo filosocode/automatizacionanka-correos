@@ -204,27 +204,67 @@ def decide_prefilter(thread_id: str, noise_reason: str | None, email: dict) -> D
     )
 
 
+def _decide_not_a_request(thread_id: str, analysis: Analisis, blocked: list[Adjunto]) -> Decision:
+    """El modelo concluyó que no es una solicitud: se descarta, salvo que haya adjuntos que no se pudieron leer."""
+    if blocked:
+        # La solicitud puede estar dentro del adjunto que no se pudo leer: no se descarta.
+        return Decision(
+            QuoteStatus.REVIEW, analysis, packet=True,
+            logs=[Note(
+                f"{thread_id}: el texto no parece una solicitud, pero hay "
+                f"{len(blocked)} adjunto(s) no legible(s); requiere revisión manual",
+                level=logging.WARNING,
+            )],
+        )
+    analysis.setdefault("ignored_reason", "El modelo no la identificó como solicitud de cotización")
+    return Decision(
+        QuoteStatus.IGNORED, analysis,
+        logs=[Note(f"{thread_id}: no es solicitud de cotización")],
+    )
+
+
+def _decide_ask_client(thread_id: str, analysis: Analisis, logs: list[Note], questions: list[str], recipient: str,
+                       is_forwarded: bool, *, review_only: bool, gmail_drafts: bool) -> Decision:
+    """Faltan datos: se propone pedirlos al cliente (borrador de Gmail, cola de revisión o envío directo)."""
+    body = question_email(questions, is_forwarded)
+    logs.append(Note(f"{thread_id}: faltan datos; se propone pedirlos al cliente"))
+    logs.append(Note(f"{thread_id}: Borrador para {recipient}:\n{body}", sensitive=True))
+    if gmail_drafts:
+        return Decision(
+            QuoteStatus.DRAFT_CREATED, analysis, logs, Action.GMAIL_DRAFT,
+            packet=True, questions=questions, body=body,
+        )
+    if review_only:
+        return Decision(
+            QuoteStatus.REVIEW_PENDING, analysis, logs, Action.QUEUE,
+            packet=True, questions=questions, body=body,
+        )
+    return Decision(QuoteStatus.WAITING, analysis, logs, Action.SEND, body=body)
+
+
+def _decide_complete_scope(thread_id: str, analysis: Analisis, logs: list[Note], config: dict,
+                           *, review_only: bool) -> Decision:
+    """El alcance está completo: se propone la carpeta del proyecto (o se crea, si no es solo revisión)."""
+    name = safe_folder_name(
+        analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion")
+    )
+    logs.append(Note(f"{thread_id}: alcance completo"))
+    logs.append(Note(f"{thread_id}: carpeta propuesta: {name}", sensitive=True))
+    if review_only:
+        return Decision(
+            QuoteStatus.READY_REVIEW, analysis, logs, Action.QUEUE,
+            packet=True, folder_name=name,
+        )
+    return Decision(QuoteStatus.READY, analysis, logs, Action.FOLDER, folder_name=name)
+
+
 def decide_analysis(
     thread_id: str, analysis: Analisis, blocked: list[Adjunto], recipient: str, is_forwarded: bool,
     config: dict, *, review_only: bool, gmail_drafts: bool,
 ) -> Decision:
     """Decide el destino de un hilo ya analizado."""
     if not analysis["is_quote_request"]:
-        if blocked:
-            # La solicitud puede estar dentro del adjunto que no se pudo leer: no se descarta.
-            return Decision(
-                QuoteStatus.REVIEW, analysis, packet=True,
-                logs=[Note(
-                    f"{thread_id}: el texto no parece una solicitud, pero hay "
-                    f"{len(blocked)} adjunto(s) no legible(s); requiere revisión manual",
-                    level=logging.WARNING,
-                )],
-            )
-        analysis.setdefault("ignored_reason", "El modelo no la identificó como solicitud de cotización")
-        return Decision(
-            QuoteStatus.IGNORED, analysis,
-            logs=[Note(f"{thread_id}: no es solicitud de cotización")],
-        )
+        return _decide_not_a_request(thread_id, analysis, blocked)
     logs = [
         Note(f"{thread_id}: solicitud de cotización analizada; "
              f"{len(analysis['activities'])} actividad(es)"),
@@ -261,31 +301,9 @@ def decide_analysis(
         )
     questions = reception_questions(analysis, required)
     if questions:
-        body = question_email(questions, is_forwarded)
-        logs.append(Note(f"{thread_id}: faltan datos; se propone pedirlos al cliente"))
-        logs.append(Note(f"{thread_id}: Borrador para {recipient}:\n{body}", sensitive=True))
-        if gmail_drafts:
-            return Decision(
-                QuoteStatus.DRAFT_CREATED, analysis, logs, Action.GMAIL_DRAFT,
-                packet=True, questions=questions, body=body,
-            )
-        if review_only:
-            return Decision(
-                QuoteStatus.REVIEW_PENDING, analysis, logs, Action.QUEUE,
-                packet=True, questions=questions, body=body,
-            )
-        return Decision(QuoteStatus.WAITING, analysis, logs, Action.SEND, body=body)
-    name = safe_folder_name(
-        analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion")
-    )
-    logs.append(Note(f"{thread_id}: alcance completo"))
-    logs.append(Note(f"{thread_id}: carpeta propuesta: {name}", sensitive=True))
-    if review_only:
-        return Decision(
-            QuoteStatus.READY_REVIEW, analysis, logs, Action.QUEUE,
-            packet=True, folder_name=name,
-        )
-    return Decision(QuoteStatus.READY, analysis, logs, Action.FOLDER, folder_name=name)
+        return _decide_ask_client(thread_id, analysis, logs, questions, recipient, is_forwarded,
+                                  review_only=review_only, gmail_drafts=gmail_drafts)
+    return _decide_complete_scope(thread_id, analysis, logs, config, review_only=review_only)
 
 
 @dataclass
