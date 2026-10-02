@@ -148,3 +148,79 @@ class ResourceUseTests(unittest.TestCase):
                 self.assertEqual(second.total_changes, 0)
             finally:
                 second.close()
+
+
+# Cubre: T-10
+class RequestScopeTests(unittest.TestCase):
+    def count_opens(self, directory, body):
+        from anka.infra import settings
+        opened = []
+        real = store.open_db
+
+        def counting(path):
+            opened.append(path)
+            return real(path)
+
+        with patch.object(settings, "DATA_DIR", Path(directory)), patch.object(store, "open_db", counting):
+            body()
+        return len(opened)
+
+    def test_inside_a_request_every_connect_shares_one_connection(self):
+        def body():
+            with store.request_scope():
+                for _ in range(5):
+                    db = store.connect()
+                    db.execute("SELECT 1")
+                    db.close()
+                with store.request_scope():   # anidar no abre otra
+                    store.connect().close()
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self.count_opens(d, body), 1)
+
+    def test_outside_a_request_every_connect_opens_its_own(self):
+        def body():
+            for _ in range(3):
+                store.connect().close()
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self.count_opens(d, body), 3)
+
+    def test_closing_a_shared_connection_discards_what_was_not_committed(self):
+        from anka.infra import settings
+        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
+            with store.request_scope():
+                db = store.connect()
+                db.execute("INSERT INTO case_followup (thread_id, updated_at) VALUES ('t-1', 'x')")   # sin commit
+                db.close()                                                           # como cerrar una conexión propia
+                check = store.connect()
+                self.assertEqual(check.execute("SELECT count(*) FROM case_followup").fetchone()[0], 0)
+                check.close()
+
+    def test_a_committed_change_survives_the_close_and_is_seen_by_the_next_function(self):
+        from anka.infra import settings
+        with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)):
+            with store.request_scope():
+                db = store.connect()
+                store.save(db, "t-1", "m-1", "review_pending", "a@b.co", {})
+                db.commit()
+                db.close()
+                self.assertEqual(store.connect().execute("SELECT count(*) FROM quotes").fetchone()[0], 1)
+
+    def test_a_case_page_opens_one_connection_instead_of_many(self):
+        from unittest.mock import patch as p2
+
+        from anka.infra import settings
+        from tests import test_html_render as page_tests
+        page_tests.GoldenTests.setUpClass()
+        try:
+            def body():
+                with store.request_scope(), p2("anka.web.pantalla_caso.load_config", return_value=page_tests.test_config()), \
+                        p2("anka.web.paginas.load_config", return_value=page_tests.test_config()):
+                    page_tests.pantalla_caso.render_case("t-sent")
+            with patch.object(settings, "DATA_DIR", page_tests.GoldenTests.data_dir):
+                opened = []
+                real = store.open_db
+                with patch.object(store, "open_db", lambda path: (opened.append(path), real(path))[1]):
+                    body()
+            self.assertEqual(len(opened), 1)
+        finally:
+            page_tests.GoldenTests.tearDownClass()

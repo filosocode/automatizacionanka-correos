@@ -26,6 +26,8 @@ Una capa solo importa de las que tiene **debajo**. `web` y `cli` no se importan 
 5. ¿Es algo que se ejecuta desde la terminal o el lanzador? → `cli/`.
 
 ## Otras reglas
+- **Una conexión por petición web**: `request_scope()` (`anka/infra/store.py`) hace que todas las consultas de una
+  petición compartan una conexión; `close()` descarta lo no confirmado. Fuera de una petición cada `connect()` abre la suya.
 - **Sin ciclos** de importación entre módulos.
 - **Solo la línea de comandos termina el programa**: un servicio lanza `ErrorDeAnka` (`anka/dominio/errores.py`) con
   un mensaje para la persona; `anka/cli` lo convierte en salida con código 1 y el dashboard en un aviso.

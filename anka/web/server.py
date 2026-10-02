@@ -18,6 +18,7 @@ from anka.infra.modes import (
     set_mode,
 )
 from anka.infra.logging_setup import get_logger
+from anka.infra.store import request_scope
 from anka.infra.settings import load_config
 from anka.web.templating import render
 
@@ -229,7 +230,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         """Atiende las páginas del dashboard; un error se registra y se muestra sin romper el servidor."""
         try:
-            self._get()
+            with request_scope():   # una sola conexión a la base para toda la petición
+                self._get()
         except Exception as exc:
             log.exception("Error atendiendo GET %s", self.path.split("?")[0])
             self._send_html(paginas.page("Error", render("empty.html", text=str(exc))), 500)
@@ -303,7 +305,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return self._send_html(
                 paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
         try:
-            self._redirect(action(form))
+            with request_scope():
+                location = action(form)
+            self._redirect(location)
         except Exception as exc:
             log.exception("Error atendiendo POST %s", path)
             self._send_html(paginas.page("Error", render("empty.html", text=str(exc))), 500)

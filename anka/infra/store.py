@@ -5,6 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, cast
 from datetime import datetime
 from pathlib import Path
 
@@ -313,8 +317,52 @@ def _derive_notifications(db: sqlite3.Connection) -> None:
                        (kind, title, message))
 
 
+_request_db: ContextVar[sqlite3.Connection | None] = ContextVar("anka_request_db", default=None)
+
+
+class _RequestConnection:
+    """La conexión de una petición vista desde cada función que la «abre» y la «cierra».
+
+    Cada función de los servicios hace `db = connect()` ... `db.close()`. Dentro de una petición todas comparten la
+    misma conexión, así que `close()` no la cierra: descarta lo que quedó sin confirmar, igual que haría cerrar una
+    conexión propia, para que una función que falla a medias no deje cambios pendientes a la siguiente.
+    """
+
+    def __init__(self, db: sqlite3.Connection) -> None:
+        self._db = db
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._db, name)
+
+    def close(self) -> None:
+        if self._db.in_transaction:
+            self._db.rollback()
+
+
+@contextmanager
+def request_scope() -> Iterator[None]:
+    """Una sola conexión (y una sola comprobación de esquema y novedades) para toda una petición web.
+
+    Sin esto cada consulta abre la suya: una pantalla de caso llegaba a abrir ocho. Fuera de una petición
+    (comandos, el piloto, el puente) `connect()` sigue abriendo una conexión nueva cada vez. Se pueden anidar.
+    """
+    if _request_db.get() is not None:
+        yield
+        return
+    db = open_db(settings.DATA_DIR)
+    token = _request_db.set(db)
+    try:
+        yield
+    finally:
+        _request_db.reset(token)
+        db.close()
+
+
 def connect() -> sqlite3.Connection:
     """Abre la base de la carpeta de datos vigente (la única forma de abrirla desde los servicios)."""
+    shared = _request_db.get()
+    if shared is not None:
+        return cast(sqlite3.Connection, _RequestConnection(shared))
     return open_db(settings.DATA_DIR)
 
 
