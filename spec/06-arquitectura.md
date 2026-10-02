@@ -12,7 +12,7 @@ Una capa solo importa de las que tiene **debajo**. `web` y `cli` no se importan 
 
 | Capa (`anka/…`) | Qué contiene | Qué NO puede hacer |
 |---|---|---|
-| `dominio/` | Reglas del negocio y funciones puras: estados, tabla de actividades, recepción (qué falta y qué preguntar), contrato con Work, lectura de un mensaje de Gmail (`correo`), los objetos del caso (`Caso`, `Evento`, `Cambio`, `Vinculo`: dataclasses inmutables que también se leen como mapa) y la forma del análisis (`Analisis`, `Actividad`…: `TypedDict` que mypy verifica y que se guardan como JSON sin cambios), extracción de texto de adjuntos. | Hablar con Gmail, Drive, la base de datos ni el disco. |
+| `dominio/` | Reglas del negocio y funciones puras: estados, tabla de actividades, recepción (qué falta y qué preguntar), contrato con Work, lectura de un mensaje de Gmail (`correo`), la decisión sobre un hilo (`decision`: qué hacer, sin ejecutarlo), los objetos del caso (`Caso`, `Evento`, `Cambio`, `Vinculo`: dataclasses inmutables que también se leen como mapa) y la forma del análisis (`Analisis`, `Actividad`…: `TypedDict` que mypy verifica y que se guardan como JSON sin cambios), extracción de texto de adjuntos. | Hablar con Gmail, Drive, la base de datos ni el disco. |
 | `infra/` | Todo lo que toca el mundo exterior: configuración (`settings`), base SQLite (`store`), clientes de Google (`google_services`, `mail`), modelos de lenguaje (`llm`), registro (`logging_setup`), copias de seguridad, modo de operación. | Conocer casos de uso ni pantallas. |
 | `servicios/` | Los casos de uso: importar un borrador de Work (`work_import`), ver y decidir casos (`quotes`), editar la tabla (`ediciones`), enviar y borrar casos (`case_actions`), el ciclo de revisión (`pipeline`), control de cambios y código de la oferta, seguimiento de hilos y recordatorios, carpetas de Drive. | Conocer el servidor web ni los comandos. |
 | `web/` | El servidor HTTP local y las acciones de los formularios (`server`), las páginas (`paginas`: resumen y listas; `pantalla_caso`: un caso y su acta), el token CSRF y la comprobación de Host/Origen (`seguridad`), los fragmentos (`views`), la documentación OpenAPI/Swagger y el JSON de lectura (`openapi`, `api`) y las plantillas. | Importar de `cli`. |
@@ -24,7 +24,8 @@ Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funcion
   Las funciones de `quotes.py` (`get_quote`, `all_quotes`…) son una fachada sobre una instancia por defecto.
 - `Caso` y los demás objetos del dominio llevan las reglas que dependen solo de sus campos (`cerrado`, `reabierto`,
   `admite_correo`, `informacion_validada`, `espera_al_cliente`), para que no se repitan en cada pantalla.
-- `RevisorDeHilos` (`servicios/pipeline.py`): una pasada de revisión de Gmail; guarda el contexto (configuración,
+- `RevisorDeHilos` (`servicios/pipeline.py`): una pasada de revisión de Gmail que **ejecuta** las decisiones que toma
+  `dominio/decision.py`; el estado de la última revisión y la vigilancia viven en `servicios/estado_de_revision.py`; guarda el contexto (configuración,
   Gmail, Drive, base, modo) que antes viajaba como argumento por cada función.
 - Las reglas puras (recepción, estados, correo) siguen siendo funciones: no tienen estado y así se prueban sin montar nada.
 

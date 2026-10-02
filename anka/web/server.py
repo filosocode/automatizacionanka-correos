@@ -24,7 +24,7 @@ from anka.web.templating import render
 
 from anka.servicios.case_actions import approve_review, delete_cases, save_dashboard_draft, send_dashboard_reply
 from anka.servicios import salud
-from anka.servicios.pipeline import checked_run, describe_check, sync_status_text
+from anka.servicios.estado_de_revision import checked_run, describe_check, sync_status_text
 from anka.infra.work_heartbeat import bridge_state
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (

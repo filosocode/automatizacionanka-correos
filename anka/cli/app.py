@@ -26,7 +26,8 @@ from anka.infra.settings import ACTIVE_MODES, load_config, unknown_config_keys
 from anka.servicios.quotes import list_reviews
 from anka.servicios.work_import import dashboard_upsert
 from anka.servicios.case_actions import approve_review
-from anka.servicios.pipeline import run, watch
+from anka.servicios.estado_de_revision import watch
+from anka.servicios.pipeline import run
 from anka.web.server import review_ui
 
 

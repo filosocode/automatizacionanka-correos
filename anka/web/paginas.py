@@ -23,7 +23,7 @@ from anka.infra.logging_setup import get_logger
 from anka.infra.settings import load_config
 from anka.web.templating import render
 
-from anka.servicios.pipeline import sync_status_text
+from anka.servicios.estado_de_revision import sync_status_text
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
     code_label, required_messages,

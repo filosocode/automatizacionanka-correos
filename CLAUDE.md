@@ -16,9 +16,9 @@ ahí y se verifica contra ahí:
 ## Cómo está armado
 Código en el paquete `anka/` (detalle en `spec/06-arquitectura.md`), en cinco capas que solo dependen hacia abajo
 (`cli`/`web` → `servicios` → `infra` → `dominio`); `tests/test_arquitectura.py` lo comprueba:
-- `anka/dominio/`: reglas puras (`status`, `activities`, `reception`, `correo`, `analisis` (la forma del análisis: `TypedDict`), `caso` y `registros` (objetos `Caso`, `Evento`, `Cambio`, `Vinculo`), `work_contract`, `attachments`).
+- `anka/dominio/`: reglas puras (`status`, `activities`, `reception`, `correo`, `analisis` (la forma del análisis: `TypedDict`), `decision` (qué hacer con un hilo, sin ejecutarlo), `caso` y `registros` (objetos `Caso`, `Evento`, `Cambio`, `Vinculo`), `work_contract`, `attachments`).
 - `anka/infra/`: lo externo (`settings`, `store` SQLite, `google_services`, `mail`, `llm`, `logging_setup`, `backup`).
-- `anka/servicios/`: casos de uso (`repositorio` (clase `RepositorioDeCasos`), `quotes` (fachada), `ediciones`, `work_import`, `pipeline` (clase `RevisorDeHilos`), `case_actions`, `change_control`, `followup_reminders`,
+- `anka/servicios/`: casos de uso (`repositorio` (clase `RepositorioDeCasos`), `quotes` (fachada), `ediciones`, `work_import`, `pipeline` (clase `RevisorDeHilos`), `estado_de_revision` (última revisión y vigilancia), `case_actions`, `change_control`, `followup_reminders`,
   `gmail_followup`, `drive_layout`, `drive_contents`).
 - `anka/web/`: servidor y formularios (`server.py`), páginas (`paginas.py` y `pantalla_caso.py`), API JSON y Swagger (`api.py`, `openapi.py`), seguridad CSRF (`seguridad.py`), vistas (`views.py`) y `templates/`. `anka/cli/`: `app`, `supervisor`, `work_sync`.
 - **Tres modos** (`active_mode` en `config.json`, fuera del repo): `local` (Ollama) y `api` comparten el código de

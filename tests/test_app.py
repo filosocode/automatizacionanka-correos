@@ -13,6 +13,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from anka.servicios import estado_de_revision
 from anka.dominio.caso import Caso
 from anka.dominio.errores import ErrorDeAnka
 from anka.servicios import case_actions
@@ -476,21 +477,21 @@ class QuoteFlowTests(unittest.TestCase):
 
     def test_watch_handles_keyboard_interrupt_from_sleep(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("anka.servicios.pipeline.load_config", return_value={"active_mode": "local"}), patch(
-            "anka.servicios.pipeline.run"
-        ) as run_mock, patch("anka.servicios.pipeline.time.sleep", side_effect=KeyboardInterrupt):
-            with self.assertLogs("anka.servicios.pipeline", "INFO") as logs:
-                pipeline.watch(False, False, 30)
+        ), patch("anka.servicios.estado_de_revision.load_config", return_value={"active_mode": "local"}), patch(
+            "anka.servicios.estado_de_revision.run"
+        ) as run_mock, patch("anka.servicios.estado_de_revision.time.sleep", side_effect=KeyboardInterrupt):
+            with self.assertLogs("anka.servicios.estado_de_revision", "INFO") as logs:
+                estado_de_revision.watch(False, False, 30)
         run_mock.assert_called_once_with(False, False, False)
         self.assertIn("Vigilancia detenida por el usuario.", " ".join(logs.output))
 
     def test_watch_stops_in_chatgpt_work_mode(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("anka.servicios.pipeline.load_config", return_value={"active_mode": "chatgpt_work"}), patch(
-            "anka.servicios.pipeline.run"
+        ), patch("anka.servicios.estado_de_revision.load_config", return_value={"active_mode": "chatgpt_work"}), patch(
+            "anka.servicios.estado_de_revision.run"
         ) as run_mock, redirect_stdout(io.StringIO()):
             with self.assertRaises(ErrorDeAnka):
-                pipeline.watch(True, False, 30, True)
+                estado_de_revision.watch(True, False, 30, True)
         run_mock.assert_not_called()
 
     def test_gmail_draft_body_starts_with_review_note(self):
@@ -958,20 +959,20 @@ class CheckStatusTests(unittest.TestCase):
                 store.save(db, "nuevo", "m3", "missing", "a@b.co", {"received_at": "x"})
                 db.close()
 
-            with patch("anka.servicios.pipeline.run", side_effect=fake_run):
-                result = pipeline.checked_run(True, True, False, "dashboard")
-            saved = pipeline.read_last_check()
+            with patch("anka.servicios.estado_de_revision.run", side_effect=fake_run):
+                result = estado_de_revision.checked_run(True, True, False, "dashboard")
+            saved = estado_de_revision.read_last_check()
         self.assertEqual((result["new"], result["updated"], result["error"]), (1, 1, ""))
         self.assertEqual(saved["source"], "dashboard")
-        self.assertIn("1 solicitudes nuevas, 1 actualizadas", pipeline.describe_check(result))
+        self.assertIn("1 solicitudes nuevas, 1 actualizadas", estado_de_revision.describe_check(result))
 
     def test_checked_run_records_error_instead_of_raising(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
-        ), patch("anka.servicios.pipeline.run", side_effect=ErrorDeAnka("falta token")):
-            with self.assertLogs("anka.servicios.pipeline", "ERROR") as logs:
-                result = pipeline.checked_run(True, True, False, "dashboard")
+        ), patch("anka.servicios.estado_de_revision.run", side_effect=ErrorDeAnka("falta token")):
+            with self.assertLogs("anka.servicios.estado_de_revision", "ERROR") as logs:
+                result = estado_de_revision.checked_run(True, True, False, "dashboard")
         self.assertEqual(result["error"], "falta token")
-        self.assertIn("falló: falta token", pipeline.describe_check(result))
+        self.assertIn("falló: falta token", estado_de_revision.describe_check(result))
         # El error queda con su traceback en el registro, no solo como texto en last_check.
         self.assertIsNotNone(logs.records[0].exc_info)
         self.assertIn("(dashboard)", logs.output[0])
@@ -981,8 +982,8 @@ class CheckStatusTests(unittest.TestCase):
         ), patch.dict(os.environ, {"CODEX_HOME": temp_dir}):
             for mode, expected in (("local", "Motor Ollama"), ("api", "Motor API"),
                                    ("chatgpt_work", "ChatGPT Work")):
-                with patch("anka.servicios.pipeline.load_config", return_value={"active_mode": mode}):
-                    self.assertIn(expected, pipeline.sync_status_text())
+                with patch("anka.servicios.estado_de_revision.load_config", return_value={"active_mode": mode}):
+                    self.assertIn(expected, estado_de_revision.sync_status_text())
 
 
 if __name__ == "__main__":

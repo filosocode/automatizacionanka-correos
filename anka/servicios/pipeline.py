@@ -3,21 +3,16 @@
 from __future__ import annotations
 
 import json
-import logging
 import sqlite3
-import time
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from collections.abc import Sequence
-from enum import StrEnum
-from typing import Any, NamedTuple
-from anka.dominio.analisis import Adjunto, Analisis
+from typing import Any
+from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.status import (
     QuoteStatus,
 )
-from anka.infra import settings
-from anka.infra.work_heartbeat import bridge_state
+from anka.dominio.decision import Action, Decision, decide_analysis, decide_prefilter
 from anka.infra.logging_setup import SENSITIVE, get_logger
 from anka.servicios.drive_layout import (
     AmbiguousClient, ClientNotFound, create_project_folder, year_mismatch,
@@ -40,8 +35,7 @@ from anka.infra.mail import (
 )
 from anka.dominio.reception import (
     attachment_report, automated_noise_reason, draft_body_with_review_note,
-    mentions_commercial_terms, question_email, reception_questions, safe_folder_name,
-    unresolved_scope_issues,
+    mentions_commercial_terms,
 )
 from anka.infra.llm import analyze
 from anka.infra.modes import (
@@ -57,253 +51,6 @@ from anka.servicios.quotes import save_review_packet
 
 
 log = get_logger(__name__)
-LAST_CHECK_FILE = "last_check.json"
-
-
-def _quote_snapshot() -> dict[str, tuple]:
-    db = connect()
-    try:
-        return {
-            row["thread_id"]: (row["status"], row["updated_at"])
-            for row in db.execute("SELECT thread_id, status, updated_at FROM quotes")
-        }
-    finally:
-        db.close()
-
-
-def read_last_check() -> dict | None:
-    """Resultado de la última revisión de Gmail, o `None`."""
-    try:
-        return json.loads((settings.DATA_DIR / LAST_CHECK_FILE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-
-
-def checked_run(apply: bool, review_only: bool, gmail_drafts: bool, source: str) -> dict:
-    """Ejecuta una revision de Gmail y registra cuando, cuanto tardo y que cambio."""
-    before = _quote_snapshot()
-    started = time.time()
-    error = ""
-    try:
-        run(apply, review_only, gmail_drafts)
-    except Exception as exc:
-        error = str(exc) or exc.__class__.__name__
-        log.exception("Error en la revisión de Gmail (%s)", source)
-    after = _quote_snapshot()
-    result = {
-        "at": datetime.now().astimezone().isoformat(timespec="seconds"),
-        "source": source,
-        "seconds": round(time.time() - started, 1),
-        "new": len([key for key in after if key not in before]),
-        "updated": len([key for key in after if key in before and after[key] != before[key]]),
-        "error": error,
-    }
-    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    (settings.DATA_DIR / LAST_CHECK_FILE).write_text(
-        json.dumps(result, ensure_ascii=False), encoding="utf-8")
-    return result
-
-
-def _ago(iso: str) -> str:
-    try:
-        seconds = (datetime.now().astimezone() - datetime.fromisoformat(iso)).total_seconds()
-    except (TypeError, ValueError):
-        return ""
-    if seconds < 90:
-        return "hace instantes"
-    if seconds < 3600:
-        return f"hace {int(seconds // 60)} min"
-    if seconds < 86400:
-        return f"hace {int(seconds // 3600)} h"
-    return f"hace {int(seconds // 86400)} d"
-
-
-def latest_case_activity() -> str:
-    """Marca de tiempo de la actividad más reciente de cualquier caso."""
-    db = connect()
-    try:
-        row = db.execute(
-            "SELECT MAX(COALESCE(updated_at, first_seen_at)) AS ts FROM quotes").fetchone()
-    finally:
-        db.close()
-    return row["ts"] or ""
-
-
-def describe_check(result: dict) -> str:
-    """Frase que cuenta cómo salió la última revisión de Gmail."""
-    when = result["at"][11:19]
-    if result.get("error"):
-        return f"La revisión de las {when} falló: {result['error']}"
-    return (
-        f"Gmail revisado a las {when} en {result['seconds']} s: "
-        f"{result['new']} solicitudes nuevas, {result['updated']} actualizadas."
-    )
-
-
-def sync_status_text() -> str:
-    """Texto del estado de la sincronización según el modo activo."""
-    try:
-        mode = load_config().get("active_mode", "local")
-    except ErrorDeAnka:
-        return "Sin configuración de motor."
-    if mode == "chatgpt_work":
-        last = latest_case_activity()
-        tail = f" Último caso actualizado: {last[:16].replace('T', ' ')} ({_ago(last)})." if last else ""
-        return "Motor ChatGPT Work. " + bridge_state()[1] + tail
-    label = "Ollama" if mode == "local" else "API de OpenAI"
-    last_check = read_last_check()
-    if last_check:
-        text = describe_check(last_check)
-        return f"Motor {label}. {text} ({_ago(last_check['at'])}). El botón Actualizar correo revisa al instante."
-    return (
-        f"Motor {label}. Aún no se ha revisado Gmail desde este panel. La revisión periódica "
-        "solo ocurre si el piloto (Piloto borradores Gmail.bat) está abierto, cada 5 min."
-    )
-
-
-class Action(StrEnum):
-    """Efecto externo que exige una decisión, además de guardar el estado."""
-    NONE = "none"
-    SEND = "send"          # enviar las preguntas al cliente y esperar respuesta
-    GMAIL_DRAFT = "draft"  # crear borrador en Gmail
-    QUEUE = "queue"        # dejar la respuesta propuesta en la cola de revisión
-    FOLDER = "folder"      # crear la carpeta del proyecto en Drive
-
-
-class Note(NamedTuple):
-    """Mensaje de registro de una decisión. `sensitive` = lleva datos de un cliente."""
-    text: str
-    sensitive: bool = False
-    level: int = logging.INFO
-
-
-@dataclass
-class Decision:
-    """Qué hacer con un hilo. Se calcula sin tocar Gmail, SQLite ni Drive."""
-    status: QuoteStatus
-    analysis: Analisis
-    logs: list[Note] = field(default_factory=list)
-    action: Action = Action.NONE
-    packet: bool = False               # guardar ficha de revisión
-    questions: list[str] = field(default_factory=list)
-    body: str = ""                     # borrador de preguntas al cliente
-    folder_name: str = ""
-
-
-def decide_prefilter(thread_id: str, noise_reason: str | None, email: dict) -> Decision | None:
-    """Descarta un hilo sin analizarlo solo si es ruido evidente; None si debe analizarse.
-
-    El motivo y el asunto/remitente se guardan para que una persona pueda revisar lo
-    descartado en el dashboard y rescatarlo.
-    """
-    if not noise_reason:
-        return None
-    return Decision(
-        QuoteStatus.IGNORED, {"ignored_reason": noise_reason, "email": email},
-        logs=[Note(f"{thread_id}: descartado sin analizar: {noise_reason}")],
-    )
-
-
-def _decide_not_a_request(thread_id: str, analysis: Analisis, blocked: list[Adjunto]) -> Decision:
-    """El modelo concluyó que no es una solicitud: se descarta, salvo que haya adjuntos que no se pudieron leer."""
-    if blocked:
-        # La solicitud puede estar dentro del adjunto que no se pudo leer: no se descarta.
-        return Decision(
-            QuoteStatus.REVIEW, analysis, packet=True,
-            logs=[Note(
-                f"{thread_id}: el texto no parece una solicitud, pero hay "
-                f"{len(blocked)} adjunto(s) no legible(s); requiere revisión manual",
-                level=logging.WARNING,
-            )],
-        )
-    analysis.setdefault("ignored_reason", "El modelo no la identificó como solicitud de cotización")
-    return Decision(
-        QuoteStatus.IGNORED, analysis,
-        logs=[Note(f"{thread_id}: no es solicitud de cotización")],
-    )
-
-
-def _decide_ask_client(thread_id: str, analysis: Analisis, logs: list[Note], questions: list[str], recipient: str,
-                       is_forwarded: bool, *, review_only: bool, gmail_drafts: bool) -> Decision:
-    """Faltan datos: se propone pedirlos al cliente (borrador de Gmail, cola de revisión o envío directo)."""
-    body = question_email(questions, is_forwarded)
-    logs.append(Note(f"{thread_id}: faltan datos; se propone pedirlos al cliente"))
-    logs.append(Note(f"{thread_id}: Borrador para {recipient}:\n{body}", sensitive=True))
-    if gmail_drafts:
-        return Decision(
-            QuoteStatus.DRAFT_CREATED, analysis, logs, Action.GMAIL_DRAFT,
-            packet=True, questions=questions, body=body,
-        )
-    if review_only:
-        return Decision(
-            QuoteStatus.REVIEW_PENDING, analysis, logs, Action.QUEUE,
-            packet=True, questions=questions, body=body,
-        )
-    return Decision(QuoteStatus.WAITING, analysis, logs, Action.SEND, body=body)
-
-
-def _decide_complete_scope(thread_id: str, analysis: Analisis, logs: list[Note], config: dict,
-                           *, review_only: bool) -> Decision:
-    """El alcance está completo: se propone la carpeta del proyecto (o se crea, si no es solo revisión)."""
-    name = safe_folder_name(
-        analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion")
-    )
-    logs.append(Note(f"{thread_id}: alcance completo"))
-    logs.append(Note(f"{thread_id}: carpeta propuesta: {name}", sensitive=True))
-    if review_only:
-        return Decision(
-            QuoteStatus.READY_REVIEW, analysis, logs, Action.QUEUE,
-            packet=True, folder_name=name,
-        )
-    return Decision(QuoteStatus.READY, analysis, logs, Action.FOLDER, folder_name=name)
-
-
-def decide_analysis(
-    thread_id: str, analysis: Analisis, blocked: list[Adjunto], recipient: str, is_forwarded: bool,
-    config: dict, *, review_only: bool, gmail_drafts: bool,
-) -> Decision:
-    """Decide el destino de un hilo ya analizado."""
-    if not analysis["is_quote_request"]:
-        return _decide_not_a_request(thread_id, analysis, blocked)
-    logs = [
-        Note(f"{thread_id}: solicitud de cotización analizada; "
-             f"{len(analysis['activities'])} actividad(es)"),
-        Note(f"{thread_id}: {analysis['summary']}", sensitive=True),
-        Note(json.dumps(analysis["activities"], ensure_ascii=False, indent=2), sensitive=True),
-    ]
-    required = config["required_fields"]
-    if blocked:
-        names = ", ".join(item["filename"] for item in blocked)
-        logs.append(Note(
-            f"{thread_id}: {len(blocked)} adjunto(s) no legible(s); requiere revisión manual",
-            level=logging.WARNING,
-        ))
-        logs.append(Note(f"{thread_id}: adjuntos no legibles: {names}", sensitive=True,
-                         level=logging.WARNING))
-        return Decision(
-            QuoteStatus.REVIEW, analysis, logs, packet=True,
-            questions=reception_questions(analysis, required),
-        )
-    if not analysis["activities"]:
-        logs.append(Note(
-            f"{thread_id}: sin actividades identificables; requiere revisión manual",
-            level=logging.WARNING,
-        ))
-        return Decision(QuoteStatus.REVIEW, analysis, logs)
-    if unresolved_scope_issues(analysis):
-        logs.append(Note(
-            f"{thread_id}: dependencias o contradicciones pendientes; requiere revisión manual",
-            level=logging.WARNING,
-        ))
-        return Decision(
-            QuoteStatus.REVIEW, analysis, logs, packet=True,
-            questions=reception_questions(analysis, required),
-        )
-    questions = reception_questions(analysis, required)
-    if questions:
-        return _decide_ask_client(thread_id, analysis, logs, questions, recipient, is_forwarded,
-                                  review_only=review_only, gmail_drafts=gmail_drafts)
-    return _decide_complete_scope(thread_id, analysis, logs, config, review_only=review_only)
 
 
 @dataclass
@@ -576,21 +323,3 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
     finally:
         if db:
             db.close()
-
-
-def watch(apply: bool, review_only: bool, seconds: int, gmail_drafts: bool = False) -> None:
-    """Repite `run` cada N segundos hasta Ctrl+C."""
-    if seconds < 30:
-        raise ErrorDeAnka("--watch-seconds debe ser de al menos 30 segundos.")
-    log.info("Vigilando Gmail cada %s segundos. Presiona Ctrl+C para detener.", seconds)
-    try:
-        while True:
-            log.info(time.strftime("\n[%Y-%m-%d %H:%M:%S] Revisando buzón..."))
-            ensure_local_or_api_mode(load_config())  # en modo Work el bot se detiene
-            try:
-                checked_run(apply, review_only, gmail_drafts, "piloto")
-            except Exception:
-                log.exception("Error en ciclo de revisión")
-            time.sleep(seconds)
-    except KeyboardInterrupt:
-        log.info("\nVigilancia detenida por el usuario.")

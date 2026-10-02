@@ -12,6 +12,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from anka.dominio import decision as decisiones
 from anka.infra import logging_setup
 from tests.fake_drive import FakeDriveTree
 from anka.servicios import pipeline
@@ -377,7 +378,7 @@ class DecideAnalysisTests(unittest.TestCase):
     """Reglas de decisión puras: sin Gmail, SQLite ni Drive."""
 
     def decide(self, analysis, *, blocked=(), review_only=False, gmail_drafts=False):
-        return pipeline.decide_analysis(
+        return decisiones.decide_analysis(
             "t-1", analysis, list(blocked), "cliente@example.com", False, test_config(),
             review_only=review_only, gmail_drafts=gmail_drafts,
         )
@@ -385,9 +386,9 @@ class DecideAnalysisTests(unittest.TestCase):
     def test_mode_flags_pick_the_action_for_missing_data(self):
         analysis = complete_analysis(location="")
         cases = [
-            ({}, QuoteStatus.WAITING, pipeline.Action.SEND),
-            ({"review_only": True}, QuoteStatus.REVIEW_PENDING, pipeline.Action.QUEUE),
-            ({"gmail_drafts": True}, QuoteStatus.DRAFT_CREATED, pipeline.Action.GMAIL_DRAFT),
+            ({}, QuoteStatus.WAITING, decisiones.Action.SEND),
+            ({"review_only": True}, QuoteStatus.REVIEW_PENDING, decisiones.Action.QUEUE),
+            ({"gmail_drafts": True}, QuoteStatus.DRAFT_CREATED, decisiones.Action.GMAIL_DRAFT),
         ]
         for flags, status, action in cases:
             with self.subTest(flags=flags):
@@ -398,23 +399,23 @@ class DecideAnalysisTests(unittest.TestCase):
     def test_blocked_attachment_wins_over_everything_else(self):
         decision = self.decide(complete_analysis(), blocked=[{"filename": "plano.dwg"}])
         self.assertEqual(decision.status, QuoteStatus.REVIEW)
-        self.assertEqual(decision.action, pipeline.Action.NONE)
+        self.assertEqual(decision.action, decisiones.Action.NONE)
         self.assertTrue(decision.packet)
 
     def test_complete_scope_names_the_folder(self):
         decision = self.decide(complete_analysis())
         self.assertEqual(decision.status, QuoteStatus.READY)
-        self.assertEqual(decision.action, pipeline.Action.FOLDER)
+        self.assertEqual(decision.action, decisiones.Action.FOLDER)
         self.assertIn("Proyecto Norte", decision.folder_name)
 
     def test_prefilter_only_discards_when_there_is_a_noise_reason(self):
-        self.assertIsNone(pipeline.decide_prefilter("t-1", None, {}))
-        ignored = pipeline.decide_prefilter("t-1", "lista de correo", {"subject": "S"})
+        self.assertIsNone(decisiones.decide_prefilter("t-1", None, {}))
+        ignored = decisiones.decide_prefilter("t-1", "lista de correo", {"subject": "S"})
         self.assertEqual(ignored.status, QuoteStatus.IGNORED)
         self.assertEqual(ignored.analysis["ignored_reason"], "lista de correo")
         self.assertEqual(ignored.analysis["email"], {"subject": "S"})
         self.assertFalse(any(note.sensitive for note in ignored.logs))
-        private = pipeline.decide_prefilter("t-1", "lista", {"subject": "ASUNTO SECRETO"})
+        private = decisiones.decide_prefilter("t-1", "lista", {"subject": "ASUNTO SECRETO"})
         self.assertNotIn("ASUNTO SECRETO", " ".join(note.text for note in private.logs))
 
 
