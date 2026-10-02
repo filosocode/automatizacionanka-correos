@@ -90,6 +90,11 @@ Ver `06-arquitectura.md`.
 (lectura JSON, páginas y acciones), con sus campos, respuestas y el efecto de cada una. La documentación se genera de
 las rutas reales y falla una prueba si una ruta queda sin documentar. Ver `07-api.md`.
 
+### T-14 · Salud de las conexiones
+`GET /api/salud` responde 200 si la base, la configuración, el puente de ChatGPT Work, la autorización de Google y el
+motor de análisis están bien, y 503 con la causa si alguno falla; con `profundo=1` consulta además Gmail y Drive. Un
+fallo nunca se lanza como excepción ni revela datos de clientes o claves. Ver `07-api.md`.
+
 ## Experiencia de usuario
 
 ### U-01 · Siguiente paso claro

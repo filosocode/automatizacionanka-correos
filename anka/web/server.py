@@ -23,6 +23,7 @@ from anka.infra.settings import load_config
 from anka.web.templating import render
 
 from anka.servicios.case_actions import approve_review, delete_cases, save_dashboard_draft, send_dashboard_reply
+from anka.servicios import salud
 from anka.servicios.pipeline import checked_run, describe_check, sync_status_text
 from anka.infra.work_heartbeat import bridge_state
 from anka.servicios import followup_reminders as fup
@@ -217,6 +218,7 @@ GET_ROUTES: dict[str, str] = {
     "/export.xlsx": "_get_export",
     "/state": "_get_state",
     "/api/casos": "_get_api_cases",
+    "/api/salud": "_get_api_health",
     "/docs": "_get_docs",
     "/openapi.json": "_get_openapi",
 }
@@ -329,6 +331,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def _get_api_cases(self, query: dict[str, list[str]]) -> None:
         include_discarded = _field(query, "descartados").lower() in ("1", "true", "si", "sí")
         self._send_json([resumen_de_caso(caso) for caso in all_quotes(include_discarded)])
+
+    def _get_api_health(self, query: dict[str, list[str]]) -> None:
+        report = salud.informe(_field(query, "profundo").lower() in ("1", "true", "si", "sí"))
+        self._send_json(report, 200 if report["estado"] == "ok" else 503)
 
     def _get_api_case(self, query: dict[str, list[str]], thread_id: str) -> None:
         caso = get_quote(thread_id)

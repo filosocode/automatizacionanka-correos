@@ -16,7 +16,7 @@ Todas las rutas que atiende el servidor, agrupadas en etiquetas:
 
 | Etiqueta | Contenido |
 |---|---|
-| **Lectura (JSON)** | `GET /api/casos`, `GET /api/casos/{thread_id}`, `GET /state`: devuelven JSON, no cambian nada. |
+| **Lectura (JSON)** | `GET /api/salud`, `GET /api/casos`, `GET /api/casos/{thread_id}`, `GET /state`: devuelven JSON, no cambian nada. |
 | **Páginas** | Las pantallas HTML (`/`, `/requests`, `/case`, `/acta`, `/discarded`, `/archive`) y la descarga `/export.xlsx`. |
 | **Acciones del caso** | Los formularios `POST` que actúan sobre un caso (tabla, respuesta, código T, cambios, vínculos…). |
 | **Acciones generales** | `POST` que no son de un caso: modo de operación, revisar Gmail, rescatar, eliminar, novedades. |
@@ -24,6 +24,23 @@ Todas las rutas que atiende el servidor, agrupadas en etiquetas:
 Cada operación dice qué recibe (campos con tipo, obligatoriedad y ejemplo), qué responde y **qué efecto tiene**:
 `lectura`, `guarda en la base`, `envía un correo real al cliente`, `crea carpetas en Drive` o `elimina`. Las que
 tienen efecto fuera del dashboard llevan «⚠» en el resumen.
+
+## Salud de las conexiones (T-14)
+`GET /api/salud` contesta «¿conecta todo?»: **200** si ninguna comprobación falla y **503** si alguna sí, con el
+detalle de cada una:
+
+| Componente | Qué mira |
+|---|---|
+| `base_de_datos` | La base local abre y tiene el esquema esperado. |
+| `configuracion` | `config.json` existe y es válido; si no, no se mira lo demás. |
+| `puente_work` | En modo ChatGPT Work, que el puente haya revisado Gmail hace poco. Fuera de ese modo: `no_aplica`. |
+| `autorizacion_google` | Que haya autorización guardada (con `profundo=1`, que siga vigente). |
+| `gmail`, `drive` | Solo con `profundo=1`: una consulta real de solo lectura. |
+| `motor_de_analisis` | Ollama responde y tiene el modelo (modo local), o hay clave de OpenAI (modo api). En Work: `no_aplica`. |
+
+**Work no se consulta directamente**: ChatGPT Work no expone una API a la que Anka llame. La conexión es indirecta
+(Work deja borradores en Gmail y el puente los lee), por eso se mide con la última revisión del puente y, a fondo,
+con Gmail.
 
 ## Cómo se prueba una acción (POST)
 1. Abre `http://127.0.0.1:8765/docs`.

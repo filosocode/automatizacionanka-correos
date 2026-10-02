@@ -93,6 +93,20 @@ OPERACIONES: tuple[Operacion, ...] = (
               campos=(Campo("thread_id", "Id del hilo de Gmail del caso.", requerido=True, en="path",
                             ejemplo="18f3a9c2d4e5b601"),),
               contenido="json"),
+    Operacion("get", "/api/salud", "Lectura (JSON)", "¿Conecta todo? Salud de las conexiones",
+              "Revisa la base local, la configuración, el puente de ChatGPT Work, la autorización de Google y el "
+              "motor de análisis. Responde **200** si todo está bien (o no aplica) y **503** si algo falla; el "
+              "cuerpo dice qué. Con `profundo=1` hace además una consulta real de solo lectura a **Gmail** y a "
+              "**Drive** (más lento, pero confirma que conectan de verdad).",
+              campos=(Campo("profundo", "Consultar de verdad a Gmail y a Drive (solo lectura).", "boolean",
+                            ejemplo=False),),
+              contenido="json",
+              ejemplo_respuesta={"estado": "ok", "profundo": False, "comprobaciones": [
+                  {"componente": "base_de_datos", "estado": "ok", "detalle": "Base local lista (esquema 9).", "ms": 3},
+                  {"componente": "puente_work", "estado": "ok",
+                   "detalle": "Puente Work activo: Gmail revisado hace 36 s.", "ms": 0},
+                  {"componente": "motor_de_analisis", "estado": "no_aplica",
+                   "detalle": "En modo ChatGPT Work el análisis lo hace Work, no Anka.", "ms": 0}]}),
     Operacion("get", "/state", "Lectura (JSON)", "Estado para refrescar la pantalla",
               "Marca de cambios (`v`) y estado del puente de ChatGPT Work. Las páginas abiertas la consultan cada "
               "20 segundos para saber si deben recargarse.",
@@ -277,10 +291,15 @@ def _respuestas_get(operacion: Operacion) -> dict[str, Any]:
             else {"type": "object" if operacion.ruta != "/api/casos" else "array"}
         if operacion.ruta == "/api/casos":
             schema = {"type": "array", "items": {"$ref": "#/components/schemas/ResumenDeCaso"}}
+        elif operacion.ruta == "/api/salud":
+            schema = {"$ref": "#/components/schemas/Salud"}
         media: dict[str, Any] = {"schema": schema}
         if operacion.ejemplo_respuesta is not None:
             media["example"] = operacion.ejemplo_respuesta
         responses: dict[str, Any] = {"200": {"description": "Correcto.", "content": {"application/json": media}}}
+        if operacion.ruta == "/api/salud":
+            responses["503"] = {"description": "Alguna conexión falla; el cuerpo dice cuál.",
+                                "content": {"application/json": media}}
         if "{thread_id}" in operacion.ruta:
             responses["404"] = {"description": "El caso no existe.",
                                 "content": {"application/json": {"example": {"error": "La solicitud no existe."}}}}
@@ -322,7 +341,8 @@ _DESCRIPCION = """
 Dashboard **local** de Anka: páginas HTML y acciones por formulario. Esta página sirve para **probar cada petición**.
 
 ### Cómo probar
-1. Empieza por **Lectura (JSON)**: `GET /api/casos` lista los casos y no cambia nada.
+1. Empieza por **Lectura (JSON)**: `GET /api/salud` dice si todo conecta (200) o qué falla (503) y
+   `GET /api/casos` lista los casos.
 2. Copia un `thread_id` y pruébalo en `GET /api/casos/{thread_id}` o en `GET /case`.
 3. Para una **acción** (`POST`), pulsa *Try it out*: el `csrf_token` ya viene relleno. Completa los campos y *Execute*.
    La respuesta real es `303` hacia la pantalla del caso; el navegador la sigue y Swagger muestra esa página.
@@ -349,6 +369,12 @@ def build_spec(csrf_token: str) -> dict[str, Any]:
         "paths": paths,
         "components": {"schemas": {
             "Caso": _caso_schema(),
+            "Salud": {"type": "object", "properties": {
+                "estado": {"type": "string", "enum": ["ok", "error"]}, "profundo": {"type": "boolean"},
+                "comprobaciones": {"type": "array", "items": {"type": "object", "properties": {
+                    "componente": {"type": "string"},
+                    "estado": {"type": "string", "enum": ["ok", "error", "no_aplica"]},
+                    "detalle": {"type": "string"}, "ms": {"type": "integer"}}}}}},
             "ResumenDeCaso": {"type": "object", "properties": {
                 "thread_id": {"type": "string"}, "project_name": {"type": "string"},
                 "client_name": {"type": "string"}, "recipient": {"type": "string"},
