@@ -89,3 +89,19 @@ class CasoRulesTests(unittest.TestCase):
     def test_it_waits_for_the_client_only_after_something_was_sent(self):
         self.assertFalse(sample().espera_al_cliente)                       # esperando, pero sin correo enviado
         self.assertTrue(replace(sample(), sent_at="2026-10-01T10:00:00-05:00").espera_al_cliente)
+
+
+# Cubre: T-12
+class FieldNameCacheTests(unittest.TestCase):
+    def test_field_names_are_computed_once_per_class_and_never_mixed_between_classes(self):
+        from anka.dominio.registros import Cambio, Vinculo
+        self.assertIs(Caso._names(), Caso._names())              # la misma tupla: no se reconstruye en cada acceso
+        self.assertIsNot(Cambio._names(), Vinculo._names())
+        self.assertIn("thread_id", Caso._name_set())
+        self.assertNotIn("sender_email", Caso._name_set())        # cada clase conserva sus propios campos
+        self.assertIn("sender_email", Cambio._name_set())
+
+    def test_the_text_normalizer_is_cached_with_a_limit_and_still_correct(self):
+        from anka.dominio.reception import normalized_text
+        self.assertEqual(normalized_text("  Ubicación DEL Área"), "  ubicacion del area")
+        self.assertEqual(normalized_text.cache_info().maxsize, 4096)   # con tope: no crece sin límite

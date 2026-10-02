@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 from email.utils import parseaddr
 
 from anka.dominio.analisis import Analisis, Adjunto
 from anka.dominio.correo import attachment_names, header, message_datetime, message_text
 
 
+@lru_cache(maxsize=4096)   # función pura que se llama con los mismos textos (nombres de campos) una y otra vez
 def normalized_text(value: str) -> str:
     """Texto en minúsculas y sin tildes, para comparar sin que las mayúsculas o los acentos importen."""
     value = "".join(c for c in unicodedata.normalize("NFD", value.casefold())

@@ -10,6 +10,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, fields
+from functools import cache
 from typing import Any, Self
 
 
@@ -17,7 +18,7 @@ class MapaDeSoloLectura(Mapping[str, Any]):
     """Un dato inmutable (dataclass) que además se lee como un mapa de sus campos."""
 
     def __getitem__(self, key: str) -> Any:
-        if key not in self._names():
+        if key not in self._name_set():
             raise KeyError(key)
         return getattr(self, key)
 
@@ -27,9 +28,17 @@ class MapaDeSoloLectura(Mapping[str, Any]):
     def __len__(self) -> int:
         return len(self._names())
 
+    # Los nombres de los campos se calculan una vez por clase: se consultan en cada acceso (decenas de miles por
+    # pantalla) y reconstruirlos costaba más de la mitad del tiempo de renderizar la lista.
     @classmethod
+    @cache
     def _names(cls) -> tuple[str, ...]:
         return tuple(f.name for f in fields(cls))  # type: ignore[arg-type]
+
+    @classmethod
+    @cache
+    def _name_set(cls) -> frozenset[str]:
+        return frozenset(cls._names())
 
     # Campos que la base guarda como 0/1 y que aquí son verdaderos o falsos.
     _FLAGS: tuple[str, ...] = ()
