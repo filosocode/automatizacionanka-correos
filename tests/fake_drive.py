@@ -1,9 +1,20 @@
 """Drive falso con árbol de carpetas, para pruebas. Soporta lo que usa google_services."""
 
 import re
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 _PARENT = re.compile(r"^'((?:[^'\\]|\\.)*)' in parents")
+_NAME = re.compile(r"name = '((?:[^'\\]|\\.)*)'")
+SHEET_MIME = "application/vnd.google-apps.spreadsheet"
+
+
+class FakeHttpError(Exception):
+    """Como el error de googleapiclient: lleva `resp.status`."""
+
+    def __init__(self, status):
+        super().__init__(f"HttpError {status}")
+        self.resp = SimpleNamespace(status=status)
 
 
 class FakeDriveTree:
@@ -12,7 +23,10 @@ class FakeDriveTree:
         self.folders = {}
         self.trashed = set()
         self.uploads = []  # (carpeta, nombre, mimeType destino, bytes)
+        self.updates = []  # ids de hojas reescritas
         self.created = []
+        self.sheets: dict[str, dict] = {}   # hojas de Google: id -> nombre, carpeta, bytes, modificación
+        self._tick = 0
         self.files_by_folder: dict[str, list[str]] = {}
         self._next = 1
         self.root_id = self._add(root_name, None, root_id)
@@ -55,6 +69,11 @@ class FakeDriveTree:
     def list(self, q, fields=None, pageSize=None, pageToken=None):
         match = _PARENT.match(q)
         parent = match.group(1).replace("\\'", "'").replace("\\\\", "\\") if match else None
+        if f"mimeType = '{SHEET_MIME}'" in q:
+            name = _NAME.search(q).group(1).replace("\\'", "'") if _NAME.search(q) else None
+            found = [{"id": i, "name": h["name"], "modifiedTime": h["modified"]} for i, h in self.sheets.items()
+                     if h["parent"] == parent and not h["trashed"] and (name is None or h["name"] == name)]
+            return MagicMock(execute=lambda: {"files": found})
         if "mimeType !=" in q:
             files = [{"name": n} for n in self.files_by_folder.get(parent, [])]
         else:
@@ -63,6 +82,14 @@ class FakeDriveTree:
         return MagicMock(execute=lambda: {"files": files})
 
     def get(self, fileId, fields=None):
+        if fileId.startswith("sheet-"):
+            sheet = self.sheets.get(fileId)
+            if sheet is None:
+                def missing():
+                    raise FakeHttpError(404)
+                return MagicMock(execute=missing)
+            return MagicMock(execute=lambda: {"id": fileId, "modifiedTime": sheet["modified"],
+                                              "trashed": sheet["trashed"]})
         folder = self.folders.get(fileId)
         if folder is None:
             raise KeyError(fileId)
@@ -72,10 +99,31 @@ class FakeDriveTree:
             "trashed": folder["id"] in self.trashed,
         })
 
-    def update(self, fileId, body):
-        if body.get("trashed"):
+    def update(self, fileId, body=None, media_body=None, fields=None):
+        if media_body is not None and fileId in self.sheets:
+            sheet = self.sheets[fileId]
+            sheet["bytes"] = media_body.getbytes(0, media_body.size())
+            sheet["modified"] = self._stamp()
+            self.updates.append(fileId)
+            return MagicMock(execute=lambda: {"id": fileId, "modifiedTime": sheet["modified"]})
+        if body and body.get("trashed"):
             self.trashed.add(fileId)
         return MagicMock(execute=lambda: {"id": fileId})
+
+    def _stamp(self):
+        self._tick += 1
+        return f"2026-10-02T10:00:{self._tick:02d}.000Z"
+
+    def edit_sheet_in_drive(self, sheet_id, minutos=5):
+        """Simula que una persona editó la hoja directamente en Drive (unos minutos después de la última escritura)."""
+        self.sheets[sheet_id]["modified"] = f"2026-10-02T10:{minutos:02d}:00.000Z"
+
+    def settle_conversion(self, sheet_id):
+        """Simula que Drive terminó de convertir la hoja y movió su fecha un par de segundos (no es una edición)."""
+        self.sheets[sheet_id]["modified"] = "2026-10-02T10:00:59.000Z"
+
+    def trash_sheet(self, sheet_id):
+        self.sheets[sheet_id]["trashed"] = True
 
     def create(self, body, fields=None, media_body=None):
         parent = body["parents"][0]
@@ -83,6 +131,12 @@ class FakeDriveTree:
             data = media_body.getbytes(0, media_body.size()) if media_body is not None else b""
             self.uploads.append((parent, body["name"], body.get("mimeType", ""), data))
             self.add_file(parent, body["name"])
+            if body.get("mimeType") == SHEET_MIME:
+                sheet_id = f"sheet-{len(self.sheets) + 1}"
+                self.sheets[sheet_id] = {"name": body["name"], "parent": parent, "bytes": data,
+                                         "modified": self._stamp(), "trashed": False}
+                return MagicMock(execute=lambda: {"id": sheet_id, "name": body["name"],
+                                                  "modifiedTime": self.sheets[sheet_id]["modified"]})
             return MagicMock(execute=lambda: {"id": f"file{len(self.uploads)}", "name": body["name"]})
         folder_id = self._add(body["name"], parent)
         self.created.append(self.path(folder_id))

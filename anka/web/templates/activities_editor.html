@@ -21,3 +21,18 @@
   </div>
   <p class="meta">Tus ediciones solo quedan en el historial (versión, qué cambió y cuándo); no se envía nada al cliente. Una fila nueva se guarda solo si tiene datos.</p>
 </form>
+<div class="sheet-box" id="hoja-google">
+  <div class="toolbar">
+    <strong>Hoja de Google Sheets</strong>
+    {% if hoja.url %}<a class="button secondary" href="{{ hoja.url }}" target="_blank" rel="noopener noreferrer">Abrir en Google Sheets</a>{% endif %}
+    {% if hoja.tiene_carpeta %}<form method="post" action="/hoja" style="display:inline">
+      <input type="hidden" name="thread_id" value="{{ thread_id }}">
+      <button type="submit" class="secondary">{% if hoja.url %}Actualizar ahora{% else %}Crear la hoja de Google{% endif %}</button>
+    </form>{% endif %}
+  </div>
+  {% if hoja.url %}<p class="meta">Se actualiza sola cada vez que guardas la tabla{% if hoja.actualizada %} · última actualización {{ hoja.actualizada }}{% endif %}.</p>
+  {% elif hoja.tiene_carpeta %}<p class="meta">Todavía no hay hoja de Google para este caso: créala y desde entonces se actualiza sola.</p>
+  {% else %}<p class="meta">La hoja de Google se crea en la carpeta del proyecto, que se crea al emitir la T. Mientras tanto puedes descargar el Excel.</p>{% endif %}
+  {% if hoja.error %}<div class="notice">⚠ {{ hoja.error }}</div>{% endif %}
+  <p class="meta">Edita la tabla aquí, en el dashboard: lo que se escriba directamente en la hoja se sobrescribe en la próxima actualización (Google guarda las versiones anteriores en Archivo &gt; Historial de versiones). La hoja incluye también la solicitud inicial y el historial de cambios.</p>
+</div>

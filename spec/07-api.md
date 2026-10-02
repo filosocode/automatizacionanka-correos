@@ -42,6 +42,15 @@ detalle de cada una:
 (Work deja borradores en Gmail y el puente los lee), por eso se mide con la última revisión del puente y, a fondo,
 con Gmail.
 
+## Hoja de Google Sheets del caso (T-17)
+`POST /hoja` crea la hoja del caso en la carpeta del proyecto o la actualiza ahora; después se actualiza sola cada vez
+que cambia la tabla. El libro tiene cuatro hojas: **Actividades** (la tabla vigente), **Solicitud inicial** (el primer
+correo del cliente y la primera tabla), **Historial** (cada versión: fecha, origen y qué cambió) y **Léeme**.
+- Requiere que el caso tenga carpeta de proyecto (se crea al emitir la T); antes, solo el Excel descargable.
+- Siempre se reescribe **el mismo archivo**: Google conserva sus versiones anteriores.
+- Si alguien la editó directamente en Drive, se avisa y esos cambios quedan en el historial de versiones de Google.
+- Se puede apagar la actualización automática con la variable de entorno `ANKA_HOJA_AUTOMATICA=0`.
+
 ## Reautorizar Google (T-15)
 La autorización de Google (Gmail y Drive) puede vencer (si el proyecto de Google Cloud está en modo «Testing»,
 cada 7 días) o ser revocada. Sin ella el puente de Work no lee Gmail y el dashboard no recibe correos.

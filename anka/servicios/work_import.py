@@ -21,6 +21,7 @@ from anka.dominio.status import QuoteStatus, canonical_work_status
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import connect, record_event, save
 from anka.servicios.change_control import apply_guard
+from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.quotes import save_quote_metadata
 from anka.dominio.caso import CLIENT_TYPES, SECTORS
 
@@ -207,3 +208,4 @@ def dashboard_upsert(payload_base64: str) -> None:
         db.close()
     client_name, client_type, sector, notes = _commercial_metadata(payload, saved)
     save_quote_metadata(thread_id, client_name, client_type, sector, notes)
+    programar_actualizacion_de_hoja(thread_id)   # si el análisis cambió la tabla, la hoja de Google lo refleja

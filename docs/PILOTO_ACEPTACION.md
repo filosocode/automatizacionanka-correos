@@ -16,6 +16,8 @@ Fecha: __________  Versión de las reglas: **5**  Caso: __________
    - [ ] Se creó la carpeta del proyecto en Drive, con los documentos que envió el cliente y la tabla de actividades.
    - [ ] El correo llegó al cliente con el código, los 3 pasos del proceso y la recomendación de escribir desde el correo registrado.
    - [ ] En *Seguimiento* aparecen «Se aceptó el proyecto…» y «Correo enviado…».
+   - [ ] En «Tabla de actividades» aparece **Abrir en Google Sheets**; la hoja tiene las pestañas Actividades, Solicitud inicial, Historial y Léeme.
+   - [ ] Edita una celda y pulsa **Guardar tabla**: a los pocos segundos la hoja de Google muestra el cambio (mismo archivo) y el Historial suma una versión.
 2. (Alternativa) **Solo emitir la T**: no envía ni crea nada; el correo queda preparado en «Respuesta al cliente» para enviarlo después con el enlace «proyecto recibido».
 
 ## 2. Tres mensajes del cliente (responde en el mismo hilo)

@@ -48,6 +48,7 @@ from anka.servicios.change_control import apply_guard, find_codes
 from email.utils import parseaddr
 from anka.infra.store import connect, save
 
+from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.quotes import save_review_packet
 
 
@@ -210,6 +211,7 @@ class RevisorDeHilos:
                 log.info("%s: %s: %s", thread_id, verb, packet.name)
         if d.action is Action.SEND:
             log.info("%s: preguntas enviadas al cliente; se espera respuesta", thread_id)
+        programar_actualizacion_de_hoja(thread_id)   # si el análisis cambió la tabla, la hoja de Google lo refleja
 
     def _create_project_folder_or_hold(
         self, thread_id: str, last: dict, recipient: str, d: Decision, thread: dict,

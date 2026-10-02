@@ -36,6 +36,7 @@ La descripción es la primera frase de su docstring.
 | `decision` | Qué hacer con un hilo ya leído: la decisión (estado, acción, avisos) sin ejecutar nada. |
 | `errores` | Errores propios de Anka. |
 | `reception` | Reglas de recepción: qué falta, qué preguntar y cómo redactar la respuesta. |
+| `hoja` | El libro de cálculo de un caso (Excel / Google Sheets): la tabla vigente y, aparte, lo que no debe perderse. |
 | `registros` | Los hechos que se guardan de un caso, como objetos con campos nombrados: `Evento`, `Cambio` y `Vinculo`. |
 | `status` | Estados del ciclo de vida de una solicitud, definidos en un solo lugar. |
 | `work_contract` | Contrato entre ChatGPT Work y el puente: valida el JSON del borrador contra `spec/contrato_work.schema.json`. |
@@ -68,6 +69,7 @@ La descripción es la primera frase de su docstring.
 | `estado_de_revision` | Estado de la revisión de Gmail: cuándo fue la última, cuánto tardó, qué cambió y cómo se cuenta a la persona. |
 | `followup_reminders` | Seguimiento cuando el cliente tarda en responder (R13). |
 | `gmail_followup` | Seguimiento del hilo en Gmail (solo lectura): registra lo enviado y lo recibido, venga de donde venga. |
+| `hoja_de_calculo` | La hoja de Google Sheets de cada caso: se crea en la carpeta del proyecto y se mantiene al día sola (spec T-17). |
 | `internal_context` | Contexto comercial interno: solo lectura, nunca sale en correos. |
 | `pipeline` | Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica. |
 | `quotes` | Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard. |

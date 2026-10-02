@@ -22,6 +22,7 @@ from anka.dominio.caso import (
 from anka.dominio.registros import Cambio, Evento
 from anka.infra import settings
 from anka.infra.logging_setup import get_logger
+from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.repositorio import RepositorioDeCasos
 from anka.infra.store import add_table_version, connect, record_event, register_change
 
@@ -268,6 +269,7 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
         db.commit()
     finally:
         db.close()
+    programar_actualizacion_de_hoja(thread_id)   # la tabla pudo cambiar: la hoja de Google se actualiza sola
     return summary
 
 

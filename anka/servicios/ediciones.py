@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from anka.dominio.analisis import Actividad
 from anka.infra.logging_setup import get_logger
+from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.repositorio import RepositorioDeCasos
 from anka.infra.store import add_table_version, connect, latest_table_version, record_event
 from anka.dominio.caso import load_analysis
@@ -141,4 +142,5 @@ def save_activities(thread_id: str, activities: list[Actividad], reason: str = "
         db.commit()
     finally:
         db.close()
+    programar_actualizacion_de_hoja(thread_id)   # la hoja de Google se actualiza sola
     return f"Tabla guardada (versión {version}): {summary}."

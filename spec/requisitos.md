@@ -108,6 +108,15 @@ las instrucciones y cómo sigue el proceso. El texto se muestra y se puede edita
 que envía), así que sigue siendo una persona quien revisa y envía (R8). Si la carpeta o el correo fallan, la T queda
 emitida y se dice qué quedó pendiente. Existe además «Solo emitir la T», que no envía ni crea nada.
 
+### T-17 · Hoja de Google Sheets del caso
+Desde el caso se puede abrir y crear/actualizar una hoja de Google Sheets (y descargar el Excel). La hoja vive en la
+carpeta del proyecto en Drive y **se actualiza sola cada vez que cambia la tabla** (edición, propuesta del modelo
+adoptada, nuevo análisis), siempre sobre el mismo archivo. El dashboard sigue siendo la fuente de verdad: el libro
+lleva la tabla vigente, la **solicitud inicial** (primer correo y primera tabla), el **historial** de versiones y una
+nota de uso, de modo que nada del origen del caso se pierde. Si alguien edita la hoja directamente en Drive se avisa
+(sus cambios quedan en el historial de versiones de Google). Un fallo no interrumpe nada: se muestra en el caso y se
+puede reintentar.
+
 ## Experiencia de usuario
 
 ### U-01 · Siguiente paso claro

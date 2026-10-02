@@ -199,6 +199,11 @@ OPERACIONES: tuple[Operacion, ...] = (
               (_ID, Campo("action", "Acción de seguimiento.", requerido=True,
                           opciones=tuple(sorted(FOLLOWUP_ACTIONS)))),
               "redirect"),
+    Operacion("post", "/hoja", "Acciones del caso", "⚠ Crear o actualizar la hoja de Google Sheets",
+              "Crea la hoja de Google del caso en la carpeta del proyecto o la actualiza ahora (el mismo archivo). "
+              "Después se actualiza sola cada vez que se guarda la tabla. El libro lleva la tabla vigente, la "
+              "solicitud inicial y el historial de versiones. Requiere que el caso ya tenga carpeta en Drive.",
+              "drive", (_ID,), "redirect"),
     Operacion("post", "/code-issue", "Acciones del caso", "⚠ Emitir la T: carpeta en Drive y correo al cliente",
               "Un solo paso: **asigna el código T**, **crea la carpeta del proyecto en Drive** (con los documentos "
               "que envió el cliente y la tabla de actividades) y **envía al cliente el correo** con la T, las "

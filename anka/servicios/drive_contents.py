@@ -19,7 +19,9 @@ from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any
 
-from anka.dominio.activities import build_workbook
+from anka.dominio.hoja import build_case_workbook
+from anka.servicios.hoja_de_calculo import publicar
+from anka.servicios.repositorio import RepositorioDeCasos
 from anka.servicios.drive_layout import clean_folder_name
 from anka.infra.google_services import list_file_names
 from anka.infra.logging_setup import get_logger
@@ -71,6 +73,19 @@ def _upload(drive: Any, folder_id: str, name: str, content: bytes, mime: str,
         body["mimeType"] = target_mime  # convierte el Excel en una hoja de Google
     media = MediaIoBaseUpload(BytesIO(content), mimetype=mime, resumable=False)
     drive.files().create(body=body, media_body=media, fields="id,name").execute()
+
+
+def _create_sheet(drive: Any, folder_id: str, name: str, quote: Mapping[str, Any]) -> None:
+    """Crea la hoja de Google del caso con el libro completo (tabla, solicitud inicial, historial) y recuerda su id."""
+    from datetime import datetime
+
+    repo = RepositorioDeCasos()
+    thread_id = quote.get("thread_id", "")
+    contenido = build_case_workbook(
+        quote, repo.versiones_de_tabla(thread_id), repo.primer_mensaje(thread_id),
+        datetime.now().astimezone().strftime("%Y-%m-%d %H:%M"))
+    hecho = publicar(drive, folder_id, name, contenido, "", "")
+    repo.guardar_hoja(thread_id, hecho.id, hecho.modificada)
 
 
 def client_attachments(gmail: Any, thread: dict, own_addresses: set[str]) -> list[tuple[str, bytes]]:
@@ -131,7 +146,7 @@ def populate_project_folder(
             report.table = "ya existía"
         else:
             try:
-                _upload(drive, folder_id, table_name, build_workbook([quote]), XLSX_MIME, SHEET_MIME)
+                _create_sheet(drive, folder_id, table_name, quote)
                 report.table = "creada"
             except Exception:
                 log.exception("No se pudo crear la tabla de actividades en Drive")

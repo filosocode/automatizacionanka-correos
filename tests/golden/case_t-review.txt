@@ -439,6 +439,19 @@ Descargar Excel
 Tus ediciones solo quedan en el historial (versión, qué cambió y cuándo); no se envía nada al cliente. Una fila nueva se guarda solo si tiene datos.
 </p>
 </form>
+<div class="sheet-box" id="hoja-google">
+<div class="toolbar">
+<strong>
+Hoja de Google Sheets
+</strong>
+</div>
+<p class="meta">
+La hoja de Google se crea en la carpeta del proyecto, que se crea al emitir la T. Mientras tanto puedes descargar el Excel.
+</p>
+<p class="meta">
+Edita la tabla aquí, en el dashboard: lo que se escriba directamente en la hoja se sobrescribe en la próxima actualización (Google guarda las versiones anteriores en Archivo > Historial de versiones). La hoja incluye también la solicitud inicial y el historial de cambios.
+</p>
+</div>
 </section>
 <section class="section" id="respuesta">
 <h2>

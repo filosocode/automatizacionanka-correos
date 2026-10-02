@@ -21,7 +21,10 @@ from anka.infra.settings import load_config
 from anka.servicios.case_actions import (
     approve_review, delete_cases, issue_code_and_notify, save_dashboard_draft, send_dashboard_reply,
 )
+from anka.infra.logging_setup import get_logger
 from anka.servicios.autorizacion import reautorizar_google
+from anka.servicios.hoja_de_calculo import sincronizar_hoja, texto_del_error
+from anka.servicios.repositorio import RepositorioDeCasos
 from anka.servicios.estado_de_revision import checked_run, describe_check, sync_status_text
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
@@ -38,6 +41,8 @@ from anka.servicios.ediciones import save_activities
 # --- Acciones de los formularios (POST). Cada una recibe el formulario y devuelve a dónde redirigir.
 # Un ValueError (o un ErrorDeAnka) es orientación para la persona: se muestra
 # como mensaje, no como fallo del servidor.
+
+log = get_logger(__name__)
 
 Form = dict[str, list[str]]
 
@@ -180,6 +185,17 @@ def _post_delete(form: Form) -> str:
     return _to("/requests", delete_cases(form.get("thread_id", [])))
 
 
+def _post_sheet(form: Form) -> str:
+    thread_id = field(form, "thread_id")
+    try:
+        message = sincronizar_hoja(thread_id).mensaje
+    except Exception as exc:     # Google o la red: se explica en el caso y se puede reintentar
+        log.warning("%s: no se pudo actualizar la hoja de Google (%s)", thread_id, type(exc).__name__, exc_info=True)
+        message = texto_del_error(exc)
+        RepositorioDeCasos().registrar_error_de_hoja(thread_id, message)
+    return _to_case(thread_id, message, "#hoja-google")
+
+
 def _post_google_reauthorize(form: Form) -> str:
     return _to("/", reautorizar_google())
 
@@ -207,6 +223,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/link": _post_link,
     "/proposal": _post_proposal,
     "/delete": _post_delete,
+    "/hoja": _post_sheet,
     "/google/reautorizar": _post_google_reauthorize,
     "/notifications/read": _post_notifications_read,
 }

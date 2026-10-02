@@ -511,7 +511,10 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
     return {
         "assessment_panel": reception_assessment_panel(assessment),
         "internal_context": _internal_context_panel(review["client_name"]),
-        "activities_editor": activities_editor(thread_id, analysis.get("activities", []), list(EDIT_REASONS.items())),
+        "activities_editor": activities_editor(
+            thread_id, analysis.get("activities", []), list(EDIT_REASONS.items()),
+            hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
+                  "actualizada": review.sheet_synced_at[:16].replace("T", " ")}),
         "attachments_table": attachments_table(analysis.get("attachments", [])),
         "manual_review": _manual_review_note(analysis.get("manual_review")),
         "conversation": _conversation_panel(thread_id),
