@@ -6,6 +6,7 @@ import unittest
 from dataclasses import FrozenInstanceError, replace
 
 from anka.dominio.caso import Caso
+from anka.dominio.status import QuoteStatus
 
 
 def sample() -> Caso:
@@ -60,3 +61,31 @@ class RegistrosTests(unittest.TestCase):
         from anka.dominio.registros import Vinculo
         with self.assertRaises(KeyError):
             Vinculo.from_row({"id": 1})
+
+
+# Cubre: T-12
+class CasoRulesTests(unittest.TestCase):
+    def test_a_closed_case_only_admits_mail_if_the_client_wrote_again(self):
+        sent = replace(sample(), status=QuoteStatus.RESPONSE_SENT)
+        self.assertTrue(sent.cerrado)
+        self.assertFalse(sent.admite_correo(reabierto=sent.reabierto(False), revision_tecnica=False))
+        self.assertTrue(sent.admite_correo(reabierto=sent.reabierto(True), revision_tecnica=False))
+        self.assertFalse(replace(sample(), status=QuoteStatus.IGNORED).reabierto(True))   # lo descartado no se reabre
+
+    def test_mail_needs_a_valid_recipient_and_no_technical_block(self):
+        open_case = sample()
+        self.assertTrue(open_case.admite_correo(reabierto=False, revision_tecnica=False))
+        self.assertFalse(open_case.admite_correo(reabierto=False, revision_tecnica=True))
+        self.assertFalse(replace(open_case, recipient="sin-arroba").admite_correo(
+            reabierto=False, revision_tecnica=False))
+
+    def test_the_information_is_validated_by_scope_code_or_a_persons_decision(self):
+        self.assertFalse(sample().informacion_validada)
+        self.assertTrue(replace(sample(), status=QuoteStatus.READY_REVIEW).informacion_validada)
+        self.assertTrue(replace(sample(), quote_code="26145").informacion_validada)
+        decided = replace(sample(), analysis={"manual_review": {"decision": "sufficient"}})
+        self.assertTrue(decided.informacion_validada)
+
+    def test_it_waits_for_the_client_only_after_something_was_sent(self):
+        self.assertFalse(sample().espera_al_cliente)                       # esperando, pero sin correo enviado
+        self.assertTrue(replace(sample(), sent_at="2026-10-01T10:00:00-05:00").espera_al_cliente)

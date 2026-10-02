@@ -22,7 +22,7 @@ from anka.web.views import (
     attachments_table, reception_assessment_panel, activities_editor,
 )
 from anka.dominio.status import (
-    CLOSED_STATUSES, QuoteStatus,
+    QuoteStatus,
 )
 from anka.dominio.correo import valid_email_address
 from anka.dominio.reception import (
@@ -190,22 +190,11 @@ def _change_todo(review: Mapping[str, Any]) -> Markup:
     return Markup("")
 
 
-def _info_validated(review: Mapping[str, Any]) -> bool:
-    """¿La información del caso ya está validada para empezar a cotizar?
-
-    Sí cuando el alcance está completo, una persona dio la información por suficiente, o ya hay T.
-    """
-    analysis = review["analysis"]
-    return bool(review.get("quote_code")) or review["status"] in (
-        QuoteStatus.READY_REVIEW, QuoteStatus.READY
-    ) or (analysis.get("manual_review") or {}).get("decision") == "sufficient"
-
-
-def _stepper(review: Mapping[str, Any]) -> Markup:
+def _stepper(review: Caso) -> Markup:
     """Recorrido del caso: dónde está y qué sigue, de un vistazo."""
     code = review.get("quote_code", "")
     stage = review.get("code_stage", "")
-    validated = _info_validated(review)
+    validated = review.informacion_validada
     current = 4 if stage == "TE" else 3 if code else 2 if validated else 1
     current_notes = {
         1: review["status_label"], 2: "Listo para emitir la T",
@@ -220,11 +209,11 @@ def _stepper(review: Mapping[str, Any]) -> Markup:
     return render("stepper.html", steps=steps)
 
 
-def _code_panel(review: Mapping[str, Any]) -> Markup:
+def _code_panel(review: Caso) -> Markup:
     code = review.get("quote_code", "")
     stage = review.get("code_stage", "")
     can_assign = (review["status"] not in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
-                  and _info_validated(review))
+                  and review.informacion_validada)
     if not code and not can_assign:
         return Markup("")
     return render(
@@ -235,7 +224,7 @@ def _code_panel(review: Mapping[str, Any]) -> Markup:
         contact=review.get("contact_email") or review["recipient"])
 
 
-def _next_step_banner(review: Mapping[str, Any], work_mode: bool) -> Markup:
+def _next_step_banner(review: Caso, work_mode: bool) -> Markup:
     """Un solo aviso arriba del caso: lo más importante que sigue, con su botón si lo hay."""
     if any(c["state"] == "pending" for c in review.get("changes", [])):
         return _change_banner(review)
@@ -276,7 +265,7 @@ def _next_step_banner(review: Mapping[str, Any], work_mode: bool) -> Markup:
             "next_step.html", tone="warn", title="Falta tu decisión de revisión técnica",
             text="Decide si la información es suficiente o si hay que preguntar al cliente.",
             action_href="#decision", action_label="Decidir")
-    if _info_validated(review) and not review.get("quote_code") and review["status"] != QuoteStatus.IGNORED:
+    if review.informacion_validada and not review.get("quote_code") and review["status"] != QuoteStatus.IGNORED:
         return render(
             "next_step.html", tone="info", title="Información validada: puedes emitir la T",
             text="Damos por recibido el proyecto y empezamos a cotizar.",
@@ -341,11 +330,11 @@ def _routing_summary(analysis: Analisis) -> str:
 _FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse")
 
 
-def _compose_state(review: Mapping[str, Any], analysis: Analisis, config: dict, template: str, change_id: int, *,
+def _compose_state(review: Caso, analysis: Analisis, config: dict, template: str, change_id: int, *,
                    email_allowed: bool, reopened: bool, technical: bool, recipient_error: str,
                    ) -> tuple[str, str, bool]:
     """Qué muestra el cuadro de respuesta: (modo, texto inicial, ¿en blanco?)."""
-    if email_allowed and review["status"] == QuoteStatus.WAITING and not template and review["sent_at"]:
+    if email_allowed and review.espera_al_cliente and not template:
         return "waiting", "", False   # ya se escribió: no se ofrece enviar lo mismo otra vez
     if not email_allowed:
         if review["status"] == QuoteStatus.RESPONSE_SENT:
@@ -464,12 +453,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     config = load_config()
     issues_summary = "\n".join(f"- {issue}" for issue in unresolved_scope_issues(analysis)) or "Sin asuntos pendientes."
     technical = assessment.get("status") == "technical_review"
-    reopened = review["status"] in (QuoteStatus.READY, QuoteStatus.RESPONSE_SENT) and case_has_links(thread_id)
-    email_allowed = (
-        valid_email_address(review["recipient"])
-        and (review["status"] not in CLOSED_STATUSES or reopened)
-        and not technical
-    )
+    reopened = review.reabierto(case_has_links(thread_id))
+    email_allowed = review.admite_correo(reabierto=reopened, revision_tecnica=technical)
     email, email_body, blank_reply = _compose_state(
         review, analysis, config, template, change_id,
         email_allowed=email_allowed, reopened=reopened, technical=technical, recipient_error=recipient_error)

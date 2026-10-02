@@ -11,7 +11,7 @@ from typing import Any
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.status import (
-    CLOSED_STATUSES, QuoteStatus,
+    QuoteStatus,
 )
 from anka.servicios.drive_layout import DriveLayoutError, create_project_folder, trash_project_folder, year_mismatch
 from anka.infra.google_services import services
@@ -76,8 +76,7 @@ def case_email_context(thread_id: str) -> tuple[dict, Any, dict, set[str]]:
     quote = get_quote(thread_id)
     if not quote:
         raise ValueError("La solicitud ya no existe.")
-    reopened = quote["status"] in (QuoteStatus.READY, QuoteStatus.RESPONSE_SENT) and case_has_links(thread_id)
-    if quote["status"] in CLOSED_STATUSES and not reopened:
+    if quote.cerrado and not quote.reabierto(case_has_links(thread_id)):
         raise ValueError("Esta solicitud no admite una respuesta desde el dashboard.")
     context = resolve_case_recipient(thread_id)
     quote = context["quote"]

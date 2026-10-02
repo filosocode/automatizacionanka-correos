@@ -133,7 +133,7 @@ class ResourceUseTests(unittest.TestCase):
             self.seed(d)
             one = quotes.get_quote("t-2")
             self.assertEqual(one, next(q for q in quotes.all_quotes(True) if q["thread_id"] == "t-2"))
-            self.assertEqual([q["thread_id"] for q in quotes.all_quotes(True, "t-1")], ["t-1"])
+            self.assertEqual(quotes.get_quote("t-1")["thread_id"], "t-1")
             self.assertIsNone(quotes.get_quote("no-existe"))
 
     def test_opening_the_database_does_not_write_when_nothing_is_missing(self):

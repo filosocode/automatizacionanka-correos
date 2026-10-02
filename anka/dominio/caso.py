@@ -14,7 +14,8 @@ from datetime import datetime
 
 from anka.dominio.analisis import Analisis
 from anka.dominio.registros import Cambio, MapaDeSoloLectura, Vinculo
-from anka.dominio.status import QuoteStatus
+from anka.dominio.correo import valid_email_address
+from anka.dominio.status import CLOSED_STATUSES, QuoteStatus
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,35 @@ class Caso(MapaDeSoloLectura):
 
     def __hash__(self) -> int:
         return hash(self.thread_id)
+
+    # --- reglas del caso que dependen solo de sus propios campos
+    @property
+    def cerrado(self) -> bool:
+        """¿El caso ya terminó o se descartó (no espera más gestión por correo)?"""
+        return self.status in CLOSED_STATUSES
+
+    @property
+    def informacion_validada(self) -> bool:
+        """¿La información ya está validada para empezar a cotizar?
+
+        Sí cuando el alcance está completo, una persona dio la información por suficiente, o ya hay T.
+        """
+        return (bool(self.quote_code)
+                or self.status in (QuoteStatus.READY_REVIEW, QuoteStatus.READY)
+                or (self.analysis.get("manual_review") or {}).get("decision") == "sufficient")
+
+    @property
+    def espera_al_cliente(self) -> bool:
+        """¿Ya se le escribió al cliente y se espera su respuesta?"""
+        return self.status == QuoteStatus.WAITING and bool(self.sent_at)
+
+    def reabierto(self, tiene_vinculos: bool) -> bool:
+        """Un caso cerrado vuelve a admitir correo si el cliente escribió de nuevo (hay vínculos o código)."""
+        return self.status in (QuoteStatus.READY, QuoteStatus.RESPONSE_SENT) and tiene_vinculos
+
+    def admite_correo(self, *, reabierto: bool, revision_tecnica: bool) -> bool:
+        """¿Se le puede escribir al cliente? Destinatario válido, caso abierto y sin bloqueo técnico."""
+        return valid_email_address(self.recipient) and (not self.cerrado or reabierto) and not revision_tecnica
 
 
 # --- Datos que se derivan de lo guardado de un caso (funciones puras: no tocan la base)

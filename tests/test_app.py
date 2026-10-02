@@ -13,6 +13,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from anka.dominio.caso import Caso
 from anka.dominio.errores import ErrorDeAnka
 from anka.servicios import case_actions
 from anka.servicios import pipeline
@@ -298,13 +299,14 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertEqual(reception.reception_questions(analysis), [])
 
     def test_case_view_renders_reception_assessment(self):
-        review = {
-            "thread_id": "thread-1", "recipient": "cliente@example.com",
-            "status": "review_pending", "status_label": "Requiere aclaraciones",
-            "analysis": complete_analysis(location=""), "draft_body": "",
-            "draft_id": None, "sent_at": "", "client_name": "Cliente",
-            "client_type": "No clasificado", "sector": "No clasificado", "notes": "",
-        }
+        review = Caso(
+            thread_id="thread-1", recipient="cliente@example.com", client_email="cliente@example.com",
+            status="review_pending", status_label="Requiere aclaraciones",
+            analysis=complete_analysis(location=""), reception_assessment={}, services=[], draft_body="",
+            draft_id=None, folder_id=None, sent_at="", client_name="Cliente", client_name_saved="",
+            client_type="No clasificado", sector="No clasificado", notes="", first_seen_at="", updated_at="",
+            reply_pending="", proposal=[],
+        )
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(
             settings, "DATA_DIR", Path(temp_dir)
         ), patch("anka.web.pantalla_caso.get_quote", return_value=review), patch(

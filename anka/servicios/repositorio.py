@@ -1,0 +1,305 @@
+"""`RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite.
+
+Una clase porque tiene estado (cómo abrir la base) y un conjunto de operaciones que viajan juntas. Quien la usa
+pide casos y datos del caso («obtener», «listar», «eventos»…) sin escribir SQL ni abrir ni cerrar conexiones.
+
+Por defecto abre la base con `store.connect()`, así que dentro de una petición web comparte su conexión
+(`request_scope`); para probar basta pasarle otra forma de abrirla. Las funciones de `quotes.py` (`get_quote`,
+`all_quotes`…) son una fachada sobre una instancia por defecto, para no tocar a quienes ya las usan.
+"""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from datetime import datetime
+from typing import NamedTuple
+from uuid import uuid4
+
+from anka.dominio.caso import (
+    Caso, load_analysis, model_proposal, service_names, status_label, unanalyzed_reply, waiting_since,
+)
+from anka.dominio.reception import reception_assessment
+from anka.dominio.registros import Cambio, Evento, Vinculo
+from anka.dominio.status import QuoteStatus
+from anka.infra.logging_setup import get_logger
+from anka.infra.store import case_events, connect, record_event, verify_chain
+
+log = get_logger(__name__)
+
+
+class _CaseRelations(NamedTuple):
+    """Lo que se guarda aparte de cada caso y que `Caso` necesita (todo indexado por hilo)."""
+
+    latest_reply: dict[str, tuple[str, str]]
+    followups: dict[str, dict]
+    reminders: dict[str, list[str]]
+    changes: dict[str, list[Cambio]]
+    pending_links: dict[str, list[Vinculo]]
+
+
+def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
+    """Arma el `Caso` de una fila con lo que se guardó aparte."""
+    thread = row["thread_id"]
+    analysis = load_analysis(row["analysis_json"])
+    routing = analysis.get("routing", {})
+    client_email = routing.get("original_sender_email") or row["recipient"]
+    assessment = reception_assessment(analysis) if analysis else {}
+    followup = rel.followups.get(thread, {})
+    latest = rel.latest_reply.get(thread)
+    return Caso(
+        thread_id=thread,
+        status=row["status"],
+        status_label=status_label(row["status"], assessment),
+        recipient=row["recipient"],
+        client_email=client_email,
+        client_name=row["client_name"] or routing.get("original_sender") or client_email,
+        client_name_saved=row["client_name"] or "",
+        client_type=row["client_type"] or "No clasificado",
+        sector=row["sector"] or "No clasificado",
+        notes=row["notes"] or "",
+        analysis=analysis,
+        reception_assessment=assessment,
+        services=service_names(analysis),
+        first_seen_at=row["first_seen_at"] or analysis.get("received_at") or "",
+        updated_at=row["updated_at"] or "",
+        folder_id=row["folder_id"],
+        draft_id=row["draft_id"],
+        draft_body=row["draft_body"] or "",
+        sent_at=row["sent_at"] or "",
+        reply_pending=unanalyzed_reply(
+            latest, row["last_inbound_id"], analysis, row["first_seen_at"] or "", row["status"]),
+        proposal=model_proposal(analysis),
+        links=rel.pending_links.get(thread, []),
+        changes=rel.changes.get(thread, []),
+        waiting_since=waiting_since(row["status"], row["sent_at"] or "", latest),
+        followup={
+            "auto_enabled": bool(followup.get("auto_enabled")),
+            "paused": bool(followup.get("paused")),
+            "contacted_at": followup.get("contacted_at") or "",
+        },
+        reminders=[ref for ref in rel.reminders.get(thread, []) if ref.startswith((row["sent_at"] or "") + "|")],
+        quote_code=row["quote_code"] or "",
+        code_stage=row["code_stage"] or "",
+        code_assigned_at=row["code_assigned_at"] or "",
+        contact_email=row["contact_email"] or "",
+    )
+
+
+class RepositorioDeCasos:
+    """Lee y escribe casos y sus datos propios (conversación, historial, personas, datos comerciales)."""
+
+    def __init__(self, abrir: Callable[[], sqlite3.Connection] = connect) -> None:
+        self._abrir = abrir
+
+    @contextmanager
+    def _conexion(self) -> Iterator[sqlite3.Connection]:
+        db = self._abrir()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    # ------------------------------------------------------------------ casos
+    def listar(self, incluir_ignorados: bool = False) -> list[Caso]:
+        """Todos los casos con sus cambios, vínculos, seguimiento y espera, el más reciente primero."""
+        return self._armar(incluir_ignorados, None)
+
+    def obtener(self, thread_id: str) -> Caso | None:
+        """Un caso por su hilo, o `None` si no existe (solo consulta las filas de ese caso)."""
+        return next(iter(self._armar(True, thread_id)), None)
+
+    def _armar(self, incluir_ignorados: bool, thread_id: str | None) -> list[Caso]:
+        with self._conexion() as db:
+            rows = self._filas(db, incluir_ignorados, thread_id)
+            relations = self._relaciones(db, thread_id)
+        return [_build_caso(row, relations) for row in rows]
+
+    @staticmethod
+    def _filas(db: sqlite3.Connection, incluir_ignorados: bool, thread_id: str | None) -> list[sqlite3.Row]:
+        """Filas de los casos con sus datos comerciales, el más reciente primero."""
+        conditions = [] if incluir_ignorados else [f"q.status <> '{QuoteStatus.IGNORED}'"]
+        if thread_id is not None:
+            conditions.append("q.thread_id = ?")
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        return db.execute(f"""SELECT q.*, m.client_type, m.sector, m.client_name, m.notes
+                              FROM quotes q
+                              LEFT JOIN quote_metadata m ON m.thread_id = q.thread_id
+                              {where}
+                              ORDER BY COALESCE(q.updated_at, q.first_seen_at, '') DESC, q.thread_id DESC""",
+                          (thread_id,) if thread_id is not None else ()).fetchall()
+
+    @staticmethod
+    def _relaciones(db: sqlite3.Connection, thread_id: str | None) -> _CaseRelations:
+        """Respuestas, seguimiento, recordatorios, cambios y vínculos de todos los casos (o de uno solo)."""
+        scope = (thread_id,) if thread_id is not None else ()
+        only = " AND thread_id = ?" if thread_id is not None else ""
+        only_where = " WHERE thread_id = ?" if thread_id is not None else ""
+        latest_reply = {r["thread_id"]: (r["occurred_at"], r["ref"]) for r in db.execute(
+            "SELECT thread_id, ref, occurred_at FROM case_events "
+            f"WHERE kind='received'{only} ORDER BY occurred_at, id", scope)}
+        followups = {r["thread_id"]: dict(r) for r in db.execute(f"SELECT * FROM case_followup{only_where}", scope)}
+        reminders: dict[str, list[str]] = {}
+        for r in db.execute(
+                f"SELECT thread_id, ref FROM case_events WHERE kind='reminder_sent'{only} ORDER BY id", scope):
+            reminders.setdefault(r["thread_id"], []).append(r["ref"])
+        changes: dict[str, list[Cambio]] = {}
+        for change in db.execute(
+                f"SELECT * FROM case_changes WHERE state IN ('pending', 'change'){only} ORDER BY occurred_at", scope):
+            changes.setdefault(change["thread_id"], []).append(Cambio.from_row(change))
+        pending_links: dict[str, list[Vinculo]] = {}
+        for link in db.execute(
+                f"SELECT * FROM case_links WHERE state='pending'{only} ORDER BY occurred_at", scope):
+            pending_links.setdefault(link["thread_id"], []).append(Vinculo.from_row(link))
+        return _CaseRelations(latest_reply, followups, reminders, changes, pending_links)
+
+    def descartados(self) -> list[dict]:
+        """Hilos descartados, con el motivo, para que una persona pueda revisarlos y rescatarlos."""
+        result = []
+        for caso in self.listar(True):
+            if caso["status"] != QuoteStatus.IGNORED:
+                continue
+            analysis = caso["analysis"]
+            email = analysis.get("email") or {}
+            result.append({
+                "thread_id": caso["thread_id"],
+                "reason": analysis.get("ignored_reason") or "Descartado por una versión anterior (sin motivo guardado)",
+                "subject": email.get("subject") or "",
+                "sender": email.get("from") or caso["recipient"],
+                "date": (caso["updated_at"] or caso["first_seen_at"] or "")[:10],
+                "rescued": bool(analysis.get("force_analysis")),
+            })
+        return result
+
+    def archivados(self) -> list[dict]:
+        """Casos eliminados del dashboard cuyo historial se conserva como evidencia."""
+        with self._conexion() as db:
+            rows = db.execute(
+                """SELECT thread_id, COUNT(*) AS n, MAX(occurred_at) AS last, MIN(occurred_at) AS first
+                   FROM case_events WHERE thread_id NOT IN (SELECT thread_id FROM quotes)
+                   GROUP BY thread_id ORDER BY last DESC""").fetchall()
+        return [dict(row) for row in rows]
+
+    # ------------------------------------------------------- lo que cuelga de un caso
+    def conversacion(self, thread_id: str, limite: int = 12) -> list[dict]:
+        """Correos del hilo, el más reciente primero."""
+        with self._conexion() as db:
+            rows = db.execute(
+                "SELECT direction, sender, subject, body, occurred_at FROM case_messages WHERE thread_id=? "
+                "ORDER BY occurred_at DESC, id DESC LIMIT ?", (thread_id, limite)).fetchall()
+        return [dict(row) for row in rows]
+
+    def cambios(self, thread_id: str) -> list[Cambio]:
+        """Todas las solicitudes de cambio del caso (cualquier estado), de la más antigua a la más nueva."""
+        with self._conexion() as db:
+            return [Cambio.from_row(row) for row in db.execute(
+                "SELECT * FROM case_changes WHERE thread_id=? ORDER BY occurred_at", (thread_id,))]
+
+    def eventos(self, thread_id: str) -> list[Evento]:
+        """Seguimiento del caso, del más reciente al más antiguo."""
+        with self._conexion() as db:
+            rows = case_events(db, thread_id)
+        return [Evento.from_row(row) for row in reversed(rows)]
+
+    def integridad(self, thread_id: str) -> tuple[bool, int]:
+        """¿La cadena de huellas del historial del caso está íntegra? Devuelve (íntegra, cantidad de eventos)."""
+        with self._conexion() as db:
+            return verify_chain(db, thread_id)
+
+    def tiene_vinculos(self, thread_id: str) -> bool:
+        """¿El caso avanzó más allá del primer análisis (correos vinculados, código de oferta o tabla editada)?"""
+        with self._conexion() as db:
+            return db.execute(
+                "SELECT 1 FROM case_links WHERE thread_id=? "
+                "UNION SELECT 1 FROM quotes WHERE thread_id=? AND quote_code IS NOT NULL AND quote_code <> '' "
+                "UNION SELECT 1 FROM table_versions WHERE thread_id=? AND source='dashboard' "
+                "LIMIT 1", (thread_id, thread_id, thread_id)).fetchone() is not None
+
+    def personas(self, thread_id: str, correos_de_contacto: set[str]) -> list[dict]:
+        """Quién ha escrito en el caso: persona, empresa, cuántos correos y el último."""
+        with self._conexion() as db:
+            rows = db.execute(
+                """SELECT actor_email, MAX(actor_name) AS name, COUNT(*) AS n, MAX(occurred_at) AS last
+                   FROM case_events WHERE thread_id=? AND actor_email <> ''
+                     AND kind IN ('received', 'linked') GROUP BY actor_email ORDER BY MIN(occurred_at)""",
+                (thread_id,)).fetchall()
+        people = []
+        for row in rows:
+            email = row["actor_email"]
+            people.append({
+                "name": row["name"] or email, "email": email, "domain": email.rsplit("@", 1)[-1],
+                "count": row["n"], "last": row["last"][:16].replace("T", " "),
+                "role": "Contacto del caso" if email in correos_de_contacto else "Otra persona",
+            })
+        return people
+
+    # ---------------------------------------------------------------- escrituras
+    def guardar_datos_comerciales(self, thread_id: str, cliente: str, tipo: str, sector: str, notas: str) -> None:
+        """Guarda cliente, tipo, sector y notas del caso (la validación de las listas es de quien llama)."""
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        with self._conexion() as db:
+            db.execute("""INSERT INTO quote_metadata
+                          (thread_id, client_type, sector, client_name, notes, updated_at)
+                          VALUES (?, ?, ?, ?, ?, ?)
+                          ON CONFLICT(thread_id) DO UPDATE SET
+                          client_type=excluded.client_type, sector=excluded.sector,
+                          client_name=excluded.client_name, notes=excluded.notes,
+                          updated_at=excluded.updated_at""",
+                       (thread_id, tipo, sector, cliente.strip(), notas.strip(), now))
+            db.commit()
+
+    def fijar_cliente(self, thread_id: str, cliente: str) -> None:
+        """Guarda el cliente confirmado de un caso sin tocar el resto de sus datos comerciales."""
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        with self._conexion() as db:
+            db.execute("""INSERT INTO quote_metadata
+                          (thread_id, client_type, sector, client_name, notes, updated_at)
+                          VALUES (?, 'No clasificado', 'No clasificado', ?, '', ?)
+                          ON CONFLICT(thread_id) DO UPDATE SET
+                          client_name=excluded.client_name, updated_at=excluded.updated_at""",
+                       (thread_id, cliente.strip(), now))
+            db.commit()
+
+    def eliminar(self, thread_ids: list[str]) -> list[str]:
+        """Borra solicitud, datos comerciales y novedades de los hilos que existan y devuelve cuáles eran.
+
+        El historial (`case_events`) se conserva como evidencia: queda anotado que el caso se eliminó.
+        """
+        ids = list(dict.fromkeys(thread_ids))
+        if not ids:
+            return []
+        marks = ",".join("?" * len(ids))
+        with self._conexion() as db:
+            found = [row["thread_id"] for row in db.execute(
+                f"SELECT thread_id FROM quotes WHERE thread_id IN ({marks})", ids)]
+            if found:
+                found_marks = ",".join("?" * len(found))
+                for thread_id in found:
+                    record_event(db, thread_id, "deleted", "dashboard",
+                                 f"{datetime.now().astimezone().isoformat(timespec='seconds')}-{uuid4().hex[:6]}",
+                                 "El caso se eliminó del dashboard; su historial se conserva en el archivo.")
+                for table in ("dashboard_notifications", "quote_metadata", "quotes"):
+                    db.execute(f"DELETE FROM {table} WHERE thread_id IN ({found_marks})", found)
+            db.commit()
+        return found
+
+    def marcar_para_reanalisis(self, thread_id: str) -> None:
+        """Marca un hilo descartado para que la próxima revisión de Gmail lo analice (no cambia su estado)."""
+        with self._conexion() as db:
+            row = db.execute(
+                "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
+            ).fetchone()
+            if not row:
+                raise ValueError("La solicitud no existe.")
+            if row["status"] != QuoteStatus.IGNORED:
+                raise ValueError("Solo se pueden rescatar los correos descartados.")
+            analysis = load_analysis(row["analysis_json"])
+            analysis["force_analysis"] = True
+            db.execute(
+                "UPDATE quotes SET last_inbound_id='', analysis_json=?, updated_at=? WHERE thread_id=?",
+                (json.dumps(analysis, ensure_ascii=False),
+                 datetime.now().astimezone().isoformat(timespec="seconds"), thread_id),
+            )
+            db.commit()
