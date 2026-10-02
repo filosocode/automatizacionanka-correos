@@ -185,6 +185,18 @@ def _tpl_verify(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None)
     )
 
 
+def _tpl_te_approved(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
+    """Confirma al cliente que la oferta fue aprobada y quedó como T&E (solo si el caso ya es T&E)."""
+    if review.get("code_stage") != "TE" or not d.code:
+        return None
+    return (
+        f"Hola,\n\nLe confirmamos que su oferta para el proyecto «{d.project}» fue aprobada y quedó "
+        f"registrada con el código {d.code}.\n\nPara cualquier cambio o solicitud sobre este proyecto, "
+        f"por favor cite este código ({d.code}) y escriba desde el correo registrado ({d.contact}) o "
+        "desde el dominio de su empresa.\n\nSaludos,\nGrupo Anka"
+    )
+
+
 def _tpl_default(d: _ReplyData) -> str:
     """Confirmación de recibido genérica (también cuando la plantilla pedida no aplica al caso)."""
     subject = f" «{d.link['subject']}»" if d.link else ""
@@ -198,6 +210,7 @@ def _tpl_default(d: _ReplyData) -> str:
 _REPLY_TEMPLATES = {
     "received": _tpl_received, "acuse": _tpl_acuse, "scope_update": _tpl_scope_update, "ack": _tpl_ack,
     "ask_code": _tpl_ask_code, "notify_contact": _tpl_notify_contact, "verify": _tpl_verify,
+    "te_aprobada": _tpl_te_approved,
 }
 
 
@@ -385,7 +398,8 @@ def _routing_summary(analysis: Analisis) -> str:
     )
 
 
-_FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse")
+_FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify", "scope_update", "acuse",
+                        "te_aprobada")
 
 
 def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, template: str, change_id: int, *,

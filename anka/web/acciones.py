@@ -142,7 +142,8 @@ def _post_code(form: Form) -> str:
 
 def _post_code_approve(form: Form) -> str:
     thread_id = field(form, "thread_id")
-    return _to_case(thread_id, _guidance(lambda: promote_to_te(thread_id), ValueError))
+    message = _guidance(lambda: promote_to_te(thread_id), ValueError)
+    return _to_case(thread_id, message, "&template=te_aprobada#respuesta")   # se prepara el correo; no se envía solo
 
 
 def _post_change(form: Form) -> str:

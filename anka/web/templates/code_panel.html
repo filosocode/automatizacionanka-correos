@@ -7,7 +7,7 @@
   <form method="post" action="/code-approve">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <div class="toolbar"><button type="submit" class="secondary"
-      data-confirm="La oferta pasará de {{ code }} a {{ approved_code }}. ¿El cliente la aprobó?">La oferta fue aprobada (pasa a {{ approved_code }})</button></div>
+      data-confirm="La oferta pasará de {{ code }} a {{ approved_code }} y se preparará el correo de confirmación para {{ contact }} (no se envía solo). ¿El cliente la aprobó?">La oferta fue aprobada (pasa a {{ approved_code }}) y preparar el correo</button></div>
   </form>
   {% endif %}
   {% elif can_assign %}

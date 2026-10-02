@@ -137,7 +137,7 @@ OPERACIONES: tuple[Operacion, ...] = (
               campos=(_ID, _MENSAJE,
                       Campo("template", "Texto prepuesto en el cuadro de respuesta.",
                             opciones=("libre", "received", "ack", "ask_code", "notify_contact", "verify",
-                                      "scope_update", "acuse")),
+                                      "scope_update", "acuse", "te_aprobada")),
                       Campo("change_id", "Cambio al que responde la plantilla.", "integer", ejemplo=1),
                       Campo("to", "A quién proponer el correo del cambio.", opciones=("sender", "contact")))),
     Operacion("get", "/acta", "Páginas", "Acta de cambios (imprimible)",

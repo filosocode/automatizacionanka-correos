@@ -125,3 +125,8 @@ El estado que se ve en la lista, en el detalle y en los avisos no se contradice 
 
 ### U-07 · Respuesta libre en casos avanzados
 Un caso ya avanzado ofrece la caja de respuesta en blanco, sin textos sugeridos desactualizados.
+
+### U-08 · Correos con el código de la oferta
+Un caso con código T ofrece siempre, en la caja de respuesta, preparar el correo de «proyecto recibido» (con el
+código) y, cuando la oferta pasa a T&E, el de «oferta aprobada». Al aprobar la oferta se prepara ese correo, pero
+nada se envía sin que una persona pulse «Enviar ahora» (R8).
