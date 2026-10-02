@@ -123,7 +123,8 @@ Cuando una persona confirma que un correo de otro hilo pertenece a un caso, ese 
 Cada caso afectado conserva una anotación de a qué caso se asignó. Lo que una persona ya descartó se respeta, descartar
 en un caso no cierra los otros, y un aviso cerrado no cuenta como avance del caso. Si el correo ya había creado su
 propio caso (un hilo nuevo), ese caso se **une** al elegido: queda en Descartadas como «unido», con su contenido e
-historial, rescatable; solo si no avanzó (sin código de oferta, carpeta ni respuesta enviada). Los avisos que ya
+historial, rescatable; lo que ese correo traía para la tabla queda como **propuesta pendiente** (la tabla vigente más
+las actividades nuevas o cambiadas, sin quitar filas) que se adopta o se descarta; solo si no avanzó (sin código de oferta, carpeta ni respuesta enviada). Los avisos que ya
 habían quedado repetidos se limpian al actualizar la base.
 
 ## Experiencia de usuario

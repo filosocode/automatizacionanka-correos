@@ -2,6 +2,7 @@
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -141,6 +142,34 @@ class MergeOwnCase(OneEmailOneCase):
         self.assertEqual(caso.analysis["merged_into"], "t-b")
         self.assertIn("otro-hilo", [d["thread_id"] for d in self.repo.descartados()])   # sigue ahí, rescatable
         self.assertTrue([e for e in self.repo.eventos("otro-hilo") if e["kind"] == "merged"])
+
+    def set_activities(self, thread, activities):
+        db = store.open_db(self.folder)
+        analysis = json.loads(db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread,)).fetchone()[0])
+        analysis["activities"] = activities
+        db.execute("UPDATE quotes SET analysis_json=? WHERE thread_id=?", (json.dumps(analysis), thread))
+        db.commit()
+        db.close()
+
+    def test_what_the_merged_email_brought_becomes_a_proposal_without_losing_rows(self):
+        self.set_activities("t-b", [{"activity": "Vuelo", "quantity": "10", "unit": "ha"},
+                                    {"activity": "Informe", "quantity": "1", "unit": "un"}])
+        self.set_activities("otro-hilo", [{"activity": "Vuelo", "quantity": "15", "unit": "ha"},
+                                          {"activity": "Modelo 3D", "quantity": "1", "unit": "un"}])
+        mensaje = quotes.resolve_link("t-b", self.link_id("t-b"), accept=True)
+        caso = self.repo.obtener("t-b")
+        self.assertEqual([a["quantity"] for a in caso.analysis["activities"]], ["10", "1"])      # su tabla no se toca
+        propuesta = {a["activity"]: a["quantity"] for a in caso.analysis["pending_model_activities"]}
+        self.assertEqual(propuesta, {"Vuelo": "15", "Informe": "1", "Modelo 3D": "1"})           # Informe no se pierde
+        self.assertIn("propuesta", mensaje)
+        quotes.resolve_model_proposal("t-b", True)                                                # adoptarla es un clic
+        self.assertEqual(len(self.repo.obtener("t-b").analysis["activities"]), 3)
+
+    def test_no_proposal_when_the_merged_email_changes_nothing(self):
+        self.set_activities("t-b", [{"activity": "Vuelo", "quantity": "10", "unit": "ha"}])
+        self.set_activities("otro-hilo", [{"activity": "vuelo", "quantity": "10", "unit": "ha"}])
+        quotes.resolve_link("t-b", self.link_id("t-b"), accept=True)
+        self.assertNotIn("pending_model_activities", self.repo.obtener("t-b").analysis)
 
     def test_a_case_that_already_advanced_is_never_merged(self):
         db = store.open_db(self.folder)

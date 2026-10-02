@@ -13,12 +13,12 @@ from uuid import uuid4
 import json
 from datetime import datetime
 from pathlib import Path
-from anka.dominio.analisis import Analisis
+from anka.dominio.analisis import Actividad, Analisis
 from anka.dominio.status import (
     REVIEW_QUEUE_STATUSES, QuoteStatus, sql_in,
 )
 from anka.dominio.caso import (
-    Caso, CLIENT_TYPES, SECTORS, load_analysis, timestamp,
+    Caso, CLIENT_TYPES, SECTORS, combine_activities, load_analysis, timestamp,
 )
 from anka.dominio.registros import Cambio, Evento
 from anka.infra import settings
@@ -203,6 +203,21 @@ SIN_AVANCE = (QuoteStatus.WAITING, QuoteStatus.REVIEW, QuoteStatus.REVIEW_PENDIN
               QuoteStatus.DRAFT_CREATED, QuoteStatus.MISSING)
 
 
+def _propose_activities(db: sqlite3.Connection, thread_id: str, analysis: Analisis, incoming: list[Actividad],
+                        source_name: str, now: str) -> None:
+    """Deja como propuesta pendiente la tabla de este caso con lo que trajo el correo unido (se adopta o descarta)."""
+    current = analysis.get("activities") or []
+    combined = combine_activities(current, incoming)
+    if not incoming or combined == current:
+        return
+    analysis["pending_model_activities"] = combined
+    db.execute("UPDATE quotes SET analysis_json=?, updated_at=? WHERE thread_id=?",
+               (json.dumps(analysis, ensure_ascii=False), now, thread_id))
+    record_event(db, thread_id, "table_proposed", "dashboard", f"merged-table-{now}",
+                 f"El correo unido («{source_name}») trae cambios para la tabla: quedan como propuesta pendiente "
+                 "para que la adoptes o la descartes.", now)
+
+
 def _merge_own_case(db: sqlite3.Connection, thread_id: str, link: sqlite3.Row, now: str) -> str:
     """Si el correo confirmado ya generó su propio caso (hilo nuevo), lo une a este: queda descartado como «unido».
 
@@ -217,9 +232,11 @@ def _merge_own_case(db: sqlite3.Connection, thread_id: str, link: sqlite3.Row, n
     if sin_unir:
         return ""
     analysis = load_analysis(row["analysis_json"])
-    target = load_analysis(db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?",
-                                      (thread_id,)).fetchone()["analysis_json"]).get("project_name") or "otro caso"
+    target_row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+    target_analysis = load_analysis(target_row["analysis_json"])
+    target = target_analysis.get("project_name") or "otro caso"
     name = analysis.get("project_name") or "este caso"
+    _propose_activities(db, thread_id, target_analysis, analysis.get("activities") or [], name, now)
     analysis["ignored_reason"] = f"Unido al caso «{target}» (confirmaste que el correo es de ese caso)."
     analysis["merged_into"] = thread_id
     db.execute("UPDATE quotes SET status=?, analysis_json=?, updated_at=? WHERE thread_id=?",
@@ -255,7 +272,8 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
                             "ya no se muestra allí.")
             if merged:
                 message += (f" Además, el caso «{merged}», que había nacido de ese mismo hilo, se unió a este "
-                            "(quedó en Descartadas, por si quieres rescatarlo).")
+                            "(quedó en Descartadas, por si quieres rescatarlo). Si traía cambios para la tabla, "
+                            "los verás como propuesta para adoptar o descartar.")
         else:
             summary = f"Descartaste que el correo «{link['subject'][:80]}» de {who} sea de este caso."
             message = "Descartado: no se mostrará de nuevo."

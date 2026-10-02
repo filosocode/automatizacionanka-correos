@@ -8,11 +8,11 @@ plantillas y el código que ya existía siguen funcionando mientras se migra a a
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import cast, Any
 import json
 from datetime import datetime
 
-from anka.dominio.analisis import Analisis
+from anka.dominio.analisis import Actividad, Analisis
 from anka.dominio.registros import Cambio, MapaDeSoloLectura, Vinculo
 from anka.dominio.correo import valid_email_address
 from anka.dominio.status import CLOSED_STATUSES, QuoteStatus
@@ -187,6 +187,22 @@ def model_proposal(analysis: Analisis) -> list[dict]:
                  for key in ("quantity", "unit", "ubicacion", "entregable", "plazo_restriccion")):
             changes.append({"kind": "distinta", "activity": name, "detail": detail})
     return changes
+
+
+def combine_activities(current: list[Actividad], incoming: list[Actividad]) -> list[Actividad]:
+    """La tabla vigente más lo que trae otro análisis: actualiza las actividades de igual nombre y agrega las nuevas.
+
+    Nunca quita filas: lo que el correo nuevo no menciona se queda como estaba.
+    """
+    def key(item: Actividad) -> str:
+        return str(item.get("activity", "")).strip().casefold()
+
+    news = {key(item): item for item in incoming if key(item)}
+    result: list[Actividad] = []
+    for item in current:
+        new = news.pop(key(item), None)
+        result.append(item if new is None else cast(Actividad, {**new, "activity": item.get("activity", "")}))
+    return result + list(news.values())
 
 
 def waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None) -> str:
