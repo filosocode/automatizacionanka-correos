@@ -137,6 +137,44 @@ def _related_queries(cases: dict) -> list[str]:
     ]
 
 
+def _note_sent_message(db: Any, thread_id: str, message_id: str, headers: dict[str, str], snippet: str,
+                       when: int, analyzed: int, case: Any) -> tuple[int, str | None]:
+    """Anota un correo enviado desde Gmail; devuelve (hechos nuevos, estado nuevo del caso si el envío lo mueve)."""
+    to = parseaddr(headers.get("to", ""))[1] or "el destinatario"
+    events = int(record_event(db, thread_id, "sent", "gmail", message_id,
+                              f"Correo enviado desde Gmail a {to}: «{snippet}»", _iso(when)))
+    new_status = AFTER_SENT.get(case["status"]) if when > analyzed else None
+    if new_status:
+        db.execute(
+            """UPDATE quotes SET status=?, sent_message_id=?, draft_id=NULL,
+                                 sent_at=?, updated_at=? WHERE thread_id=?""",
+            (new_status, message_id, _iso(when),
+             datetime.now().astimezone().isoformat(timespec="seconds"), thread_id))
+        log.info("%s: envío detectado en Gmail; el caso pasa a %s", thread_id, new_status)
+    return events, new_status
+
+
+def _note_received_message(gmail: Any, db: Any, thread_id: str, message_id: str, headers: dict[str, str],
+                           snippet: str, when: int, analyzed: int, case: Any) -> int:
+    """Anota un correo del cliente: el hecho, un posible cambio tras la T y el aviso de que respondió."""
+    name, address = parseaddr(headers.get("from", ""))
+    who = name or address or "el cliente"
+    company = company_domain(address)
+    label = f"{who} ({company})" if company else who
+    if not record_event(db, thread_id, "received", "gmail", message_id,
+                        f"{label} escribió: «{snippet}»", _iso(when), address.casefold(), name):
+        return 0
+    if case["quote_code"] and when > _millis(case["code_assigned_at"] or ""):
+        _register_post_code_change(
+            gmail, db, thread_id, case, message_id, address.casefold(), name,
+            headers.get("subject", ""), snippet, _iso(when))
+    if when > analyzed and message_id != case["last_inbound_id"]:
+        add_dashboard_notification(
+            db, thread_id, "client_reply", message_id, "El cliente respondió",
+            f"Hay un correo nuevo de {who} en el hilo.")
+    return 1
+
+
 def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
     """Anota en cada caso conocido los correos enviados y recibidos y mueve su estado si procede.
 
@@ -150,7 +188,7 @@ def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
         known = {(row["thread_id"], row["ref"]) for row in db.execute(
             "SELECT thread_id, ref FROM case_events WHERE kind IN ('sent', 'received')")}
         linked = {row["message_id"] for row in db.execute("SELECT message_id FROM case_links")}
-        events = moved = related = 0
+        events = moved = 0
         for item in _list_messages(gmail):
             thread_id, message_id = str(item.get("threadId") or ""), item["id"]
             if message_id in seen or thread_id not in cases:
@@ -162,53 +200,30 @@ def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
                 userId="me", id=message_id, format="full").execute()
             case = cases[thread_id]
             when = int(message.get("internalDate", "0"))
-            try:
-                analysis = json.loads(case["analysis_json"])
-            except (TypeError, ValueError):
-                analysis = {}
-            analyzed = _millis(analysis.get("received_at") or "")
             if when < _millis(case["first_seen_at"] or ""):
                 seen.add(message_id)  # anterior a la solicitud: no es seguimiento
                 continue
+            try:
+                analyzed = _millis(json.loads(case["analysis_json"]).get("received_at") or "")
+            except (TypeError, ValueError):
+                analyzed = _millis("")
             headers = _headers(message)
             snippet = " ".join(str(message.get("snippet", "")).split())[:SNIPPET_CHARS]
+            sent = "SENT" in message.get("labelIds", [])
             add_message(
-                db, thread_id, message_id,
-                "sent" if "SENT" in message.get("labelIds", []) else "received",
+                db, thread_id, message_id, "sent" if sent else "received",
                 headers.get("from", ""), headers.get("subject", ""),
                 message_text(message.get("payload", {})) or snippet, _iso(when))
-            if "SENT" in message.get("labelIds", []):
-                to = parseaddr(headers.get("to", ""))[1] or "el destinatario"
-                if record_event(db, thread_id, "sent", "gmail", message_id,
-                                f"Correo enviado desde Gmail a {to}: «{snippet}»", _iso(when)):
-                    events += 1
-                new_status = AFTER_SENT.get(case["status"]) if when > analyzed else None
+            if sent:
+                new_events, new_status = _note_sent_message(
+                    db, thread_id, message_id, headers, snippet, when, analyzed, case)
+                events += new_events
                 if new_status:
-                    db.execute(
-                        """UPDATE quotes SET status=?, sent_message_id=?, draft_id=NULL,
-                                             sent_at=?, updated_at=? WHERE thread_id=?""",
-                        (new_status, message_id, _iso(when),
-                         datetime.now().astimezone().isoformat(timespec="seconds"), thread_id))
                     cases[thread_id] = {**dict(case), "status": new_status}
                     moved += 1
-                    log.info("%s: envío detectado en Gmail; el caso pasa a %s", thread_id, new_status)
             else:
-                name, address = parseaddr(headers.get("from", ""))
-                who = name or address or "el cliente"
-                company = company_domain(address)
-                label = f"{who} ({company})" if company else who
-                if record_event(db, thread_id, "received", "gmail", message_id,
-                                f"{label} escribió: «{snippet}»", _iso(when),
-                                address.casefold(), name):
-                    events += 1
-                    if case["quote_code"] and when > _millis(case["code_assigned_at"] or ""):
-                        _register_post_code_change(
-                            gmail, db, thread_id, case, message_id, address.casefold(), name,
-                            headers.get("subject", ""), snippet, _iso(when))
-                    if when > analyzed and message_id != case["last_inbound_id"]:
-                        add_dashboard_notification(
-                            db, thread_id, "client_reply", message_id, "El cliente respondió",
-                            f"Hay un correo nuevo de {who} en el hilo.")
+                events += _note_received_message(
+                    gmail, db, thread_id, message_id, headers, snippet, when, analyzed, case)
             db.commit()
             seen.add(message_id)
         _backfill_messages(gmail, db)

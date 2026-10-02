@@ -154,6 +154,61 @@ def _already_sent(quote: dict, body: str, recipient: str) -> str:
     return ""
 
 
+def _send_through_gmail(gmail: Any, thread_id: str, raw: str, draft_id: str) -> dict:
+    """Envía el correo y devuelve el mensaje enviado.
+
+    Se envía el borrador existente (el del dashboard o el que dejó Work) para no dejar uno huérfano con la sección
+    interna; si ya no existe en Gmail, se envía como mensaje nuevo en el hilo.
+    """
+    if draft_id:
+        try:
+            gmail.users().drafts().update(
+                userId="me", id=draft_id, body={"message": {"raw": raw, "threadId": thread_id}},
+            ).execute()
+            return gmail.users().drafts().send(userId="me", body={"id": draft_id}).execute()
+        except Exception as exc:
+            if getattr(getattr(exc, "resp", None), "status", None) != 404:
+                raise
+            log.warning("%s: el borrador ya no existe en Gmail; se envía como mensaje nuevo", thread_id)
+    return gmail.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()
+
+
+def _status_after_reply(status: str) -> str:
+    """Estado del caso después de enviarle algo al cliente."""
+    # Un caso con información suficiente sigue abierto para crear su carpeta en Drive:
+    # enviar un acuse o una aclaración no debe cerrarlo.
+    if status in (QuoteStatus.READY_REVIEW, QuoteStatus.READY):
+        return status
+    if status == QuoteStatus.REVIEW_PENDING:
+        return QuoteStatus.WAITING  # se preguntó al cliente: espera su respuesta (igual que approve_review)
+    return QuoteStatus.RESPONSE_SENT
+
+
+def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, recipient: str,
+                       new_status: str, now: str) -> None:
+    """Guarda el estado nuevo, el hecho del envío y la novedad para el dashboard."""
+    db = connect()
+    try:
+        analysis = dict(quote["analysis"])
+        analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
+        db.execute(
+            """UPDATE quotes SET status=?, sent_message_id=?, analysis_json=?,
+                                 draft_id=NULL, draft_body=?, sent_at=?, updated_at=?
+               WHERE thread_id=?""",
+            (new_status, message_id, json.dumps(analysis, ensure_ascii=False), body, now, now, thread_id),
+        )
+        record_event(db, thread_id, "sent", "dashboard", message_id,
+                     f"Correo enviado desde el dashboard a {recipient}.", now)
+        add_dashboard_notification(
+            db, thread_id, QuoteStatus.RESPONSE_SENT, message_id,
+            "Respuesta enviada",
+            f"El correo fue enviado a {recipient} en el mismo hilo.",
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
 def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int = 0,
                          purpose: str = "") -> str:
     """Envía al cliente el correo escrito en el dashboard (ya revisado por una persona) y deja constancia.
@@ -170,53 +225,11 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
         raise ValueError(duplicate)
     email = reply_email(thread, recipient, body, account_addresses)
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
-    # Se envía el borrador existente (el del dashboard o el que dejó Work) para no dejar uno huérfano
-    # con la sección interna; si ya no existe en Gmail, se envía como mensaje nuevo en el hilo.
     draft_id = quote["draft_id"] or (quote["analysis"].get("work_reply") or {}).get("draft_id") or ""
-    result = None
-    if draft_id:
-        try:
-            gmail.users().drafts().update(
-                userId="me", id=draft_id, body={"message": {"raw": raw, "threadId": thread_id}},
-            ).execute()
-            result = gmail.users().drafts().send(userId="me", body={"id": draft_id}).execute()
-        except Exception as exc:
-            if getattr(getattr(exc, "resp", None), "status", None) != 404:
-                raise
-            log.warning("%s: el borrador ya no existe en Gmail; se envía como mensaje nuevo", thread_id)
-    if result is None:
-        result = gmail.users().messages().send(
-            userId="me", body={"raw": raw, "threadId": thread_id}
-        ).execute()
+    result = _send_through_gmail(gmail, thread_id, raw, draft_id)
     now = datetime.now().astimezone().isoformat(timespec="seconds")
-    # Un caso con información suficiente sigue abierto para crear su carpeta en Drive:
-    # enviar un acuse o una aclaración no debe cerrarlo.
-    if quote["status"] in (QuoteStatus.READY_REVIEW, QuoteStatus.READY):
-        new_status = quote["status"]
-    elif quote["status"] == QuoteStatus.REVIEW_PENDING:
-        new_status = QuoteStatus.WAITING  # se preguntó al cliente: espera su respuesta (igual que approve_review)
-    else:
-        new_status = QuoteStatus.RESPONSE_SENT
-    db = connect()
-    try:
-        analysis = dict(quote["analysis"])
-        analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
-        db.execute(
-            """UPDATE quotes SET status=?, sent_message_id=?, analysis_json=?,
-                                 draft_id=NULL, draft_body=?, sent_at=?, updated_at=?
-               WHERE thread_id=?""",
-            (new_status, result["id"], json.dumps(analysis, ensure_ascii=False), body, now, now, thread_id),
-        )
-        record_event(db, thread_id, "sent", "dashboard", result["id"],
-                     f"Correo enviado desde el dashboard a {recipient}.", now)
-        add_dashboard_notification(
-            db, thread_id, QuoteStatus.RESPONSE_SENT, result["id"],
-            "Respuesta enviada",
-            f"El correo fue enviado a {recipient} en el mismo hilo.",
-        )
-        db.commit()
-    finally:
-        db.close()
+    new_status = _status_after_reply(quote["status"])
+    _record_sent_reply(quote, thread_id, result["id"], body, recipient, new_status, now)
     log.info("%s: correo enviado desde el dashboard", thread_id)
     if change_id and purpose:
         mark_change_sent(thread_id, change_id, purpose, recipient)

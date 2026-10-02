@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
-from typing import Any
+from typing import Any, NamedTuple
 import json
 import re
 import urllib.error
@@ -89,76 +89,133 @@ def _link_banner(review: Mapping[str, Any]) -> Markup:
         show_verify=link["reason"].startswith("domain") or link["sender_email"] not in contacts)
 
 
+class _ReplyData(NamedTuple):
+    """Lo que comparten los textos de los correos de un caso."""
+
+    project: str
+    code: str
+    contact: str
+    link: Mapping[str, Any] | None
+
+
+def _tpl_received(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
+    """Acuse de recibido con la T recién emitida (solo si ya hay código)."""
+    if not d.code:
+        return None
+    return (
+        f"Hola,\n\nRecibimos su proyecto «{d.project}» y ya está en proceso de cotización. "
+        f"Hemos generado el código {d.code}.\n\nPara cualquier cambio o solicitud sobre este proyecto, "
+        f"por favor cite este código ({d.code}); las solicitudes que no lo incluyan no podrán "
+        f"procesarse. Le recomendamos escribir siempre desde el correo registrado ({d.contact}) o "
+        "desde el dominio de su empresa.\n\nSaludos,\nGrupo Anka"
+    )
+
+
+def _tpl_acuse(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
+    """Acuse sugerido cuando no hay nada que preguntar."""
+    return (
+        "Hola,\n\nGracias por su solicitud. Confirmamos que la hemos recibido y estamos revisando "
+        "la información compartida para definir el alcance. Si necesitamos alguna aclaración "
+        "adicional, nos comunicaremos por este mismo hilo.\n\nSaludos,\nGrupo Anka"
+    )
+
+
+def _tpl_scope_update(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
+    """Aviso al cliente de que se actualizó la tabla de actividades."""
+    latest = last_manual_version(review["thread_id"])
+    what = f" ({latest['summary']})" if latest else ""
+    return (
+        f"Hola,\n\nActualizamos la tabla de actividades de su proyecto «{d.project}»"
+        f"{f' ({d.code})' if d.code else ''}{what}.\n\nSi algo no coincide con lo que usted solicitó, "
+        "por favor indíquelo respondiendo a este correo.\n\nSaludos,\nGrupo Anka"
+    )
+
+
+def _tpl_ack(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
+    """Confirmación de que se recibió una solicitud de cambio."""
+    if not change:
+        return None
+    return (
+        f"Hola,\n\nConfirmamos que recibimos su solicitud de cambio sobre el proyecto «{d.project}»"
+        f"{f' ({d.code})' if d.code else ''}: «{change['snippet']}».\n\nLa revisaremos y les "
+        "confirmaremos cómo queda el alcance.\n\nSaludos,\nGrupo Anka"
+    )
+
+
+def _tpl_ask_code(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
+    """Pide citar el código de la T para poder procesar un cambio."""
+    if not change:
+        return None
+    return (
+        f"Hola,\n\nRecibimos su mensaje sobre el proyecto «{d.project}». Para poder procesar "
+        "cualquier cambio necesitamos que cite el código del proyecto, que se informó al "
+        "contacto registrado. Por favor envíe de nuevo su solicitud incluyéndolo.\n\n"
+        "Por seguridad, los cambios deben provenir del correo registrado o del dominio de su "
+        "empresa, o ser confirmados por el contacto del proyecto.\n\nSaludos,\nGrupo Anka"
+    )
+
+
+def _tpl_notify_contact(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
+    """Avisa al contacto registrado de que otra persona pidió un cambio."""
+    if not change:
+        return None
+    who = change["sender_name"] or change["sender_email"]
+    cites = "cita" if change["has_code"] else "no cita"
+    return (
+        f"Hola,\n\nLe informamos que {who} ({change['sender_email']}) escribió sobre el proyecto "
+        f"«{d.project}» solicitando: «{change['snippet']}». El mensaje {cites} el código del proyecto."
+        "\n\nPara dejar constancia, ¿puede confirmarnos que está autorizado(a) para solicitar "
+        "cambios y que lo indicado es correcto? Le recomendamos que las solicitudes se envíen "
+        "siempre desde el correo registrado o desde el dominio de su empresa."
+        "\n\nSaludos,\nGrupo Anka"
+    )
+
+
+def _tpl_verify(review: Mapping[str, Any], d: _ReplyData, change: Cambio | None) -> str | None:
+    """Pide confirmar que quien escribió desde otro hilo está autorizado."""
+    link = d.link
+    if not link:
+        return None
+    who = link["sender_name"] or link["sender_email"]
+    return (
+        f"Hola,\n\nRecibimos un correo de {who} ({link['sender_email']}) con una modificación "
+        f"sobre el proyecto {d.project}: «{link['subject']}».\n\nPara dejar constancia, ¿pueden "
+        f"confirmarnos que {who} está autorizado(a) para solicitar cambios en esta solicitud y "
+        "que lo indicado es correcto?\n\nSaludos,\nGrupo Anka"
+    )
+
+
+def _tpl_default(d: _ReplyData) -> str:
+    """Confirmación de recibido genérica (también cuando la plantilla pedida no aplica al caso)."""
+    subject = f" «{d.link['subject']}»" if d.link else ""
+    return (
+        f"Hola,\n\nConfirmamos que recibimos su correo{subject} sobre el proyecto {d.project}. "
+        "Lo revisaremos junto con la solicitud y les confirmaremos cómo queda el alcance."
+        "\n\nSaludos,\nGrupo Anka"
+    )
+
+
+_REPLY_TEMPLATES = {
+    "received": _tpl_received, "acuse": _tpl_acuse, "scope_update": _tpl_scope_update, "ack": _tpl_ack,
+    "ask_code": _tpl_ask_code, "notify_contact": _tpl_notify_contact, "verify": _tpl_verify,
+}
+
+
 def reply_template(kind: str, review: Mapping[str, Any], change: Cambio | None = None) -> str:
     """Texto base de cada correo del flujo (siempre se revisa antes de enviar).
 
     Los correos a quien no es el contacto registrado nunca incluyen el código del proyecto.
     """
-    project = review["analysis"].get("project_name") or "su solicitud"
-    code = code_label(review.get("quote_code", ""), review.get("code_stage", "T")) if review.get("quote_code") else ""
-    contact = review.get("contact_email") or review.get("recipient", "")
-    link = (review.get("links") or [None])[0]
-    if kind == "received" and code:
-        return (
-            f"Hola,\n\nRecibimos su proyecto «{project}» y ya está en proceso de cotización. "
-            f"Hemos generado el código {code}.\n\nPara cualquier cambio o solicitud sobre este proyecto, "
-            f"por favor cite este código ({code}); las solicitudes que no lo incluyan no podrán "
-            f"procesarse. Le recomendamos escribir siempre desde el correo registrado ({contact}) o "
-            "desde el dominio de su empresa.\n\nSaludos,\nGrupo Anka"
-        )
-    if kind == "acuse":
-        return (
-            "Hola,\n\nGracias por su solicitud. Confirmamos que la hemos recibido y estamos revisando "
-            "la información compartida para definir el alcance. Si necesitamos alguna aclaración "
-            "adicional, nos comunicaremos por este mismo hilo.\n\nSaludos,\nGrupo Anka"
-        )
-    if kind == "scope_update":
-        latest = last_manual_version(review["thread_id"])
-        what = f" ({latest['summary']})" if latest else ""
-        return (
-            f"Hola,\n\nActualizamos la tabla de actividades de su proyecto «{project}»"
-            f"{f' ({code})' if code else ''}{what}.\n\nSi algo no coincide con lo que usted solicitó, "
-            "por favor indíquelo respondiendo a este correo.\n\nSaludos,\nGrupo Anka"
-        )
-    if kind == "ack" and change:
-        return (
-            f"Hola,\n\nConfirmamos que recibimos su solicitud de cambio sobre el proyecto «{project}»"
-            f"{f' ({code})' if code else ''}: «{change['snippet']}».\n\nLa revisaremos y les "
-            "confirmaremos cómo queda el alcance.\n\nSaludos,\nGrupo Anka"
-        )
-    if kind == "ask_code" and change:
-        return (
-            f"Hola,\n\nRecibimos su mensaje sobre el proyecto «{project}». Para poder procesar "
-            "cualquier cambio necesitamos que cite el código del proyecto, que se informó al "
-            "contacto registrado. Por favor envíe de nuevo su solicitud incluyéndolo.\n\n"
-            "Por seguridad, los cambios deben provenir del correo registrado o del dominio de su "
-            "empresa, o ser confirmados por el contacto del proyecto.\n\nSaludos,\nGrupo Anka"
-        )
-    if kind == "notify_contact" and change:
-        who = change["sender_name"] or change["sender_email"]
-        cites = "cita" if change["has_code"] else "no cita"
-        return (
-            f"Hola,\n\nLe informamos que {who} ({change['sender_email']}) escribió sobre el proyecto "
-            f"«{project}» solicitando: «{change['snippet']}». El mensaje {cites} el código del proyecto."
-            "\n\nPara dejar constancia, ¿puede confirmarnos que está autorizado(a) para solicitar "
-            "cambios y que lo indicado es correcto? Le recomendamos que las solicitudes se envíen "
-            "siempre desde el correo registrado o desde el dominio de su empresa."
-            "\n\nSaludos,\nGrupo Anka"
-        )
-    if kind == "verify" and link:
-        who = link["sender_name"] or link["sender_email"]
-        return (
-            f"Hola,\n\nRecibimos un correo de {who} ({link['sender_email']}) con una modificación "
-            f"sobre el proyecto {project}: «{link['subject']}».\n\nPara dejar constancia, ¿pueden "
-            f"confirmarnos que {who} está autorizado(a) para solicitar cambios en esta solicitud y "
-            "que lo indicado es correcto?\n\nSaludos,\nGrupo Anka"
-        )
-    subject = f" «{link['subject']}»" if link else ""
-    return (
-        f"Hola,\n\nConfirmamos que recibimos su correo{subject} sobre el proyecto {project}. "
-        "Lo revisaremos junto con la solicitud y les confirmaremos cómo queda el alcance."
-        "\n\nSaludos,\nGrupo Anka"
+    quote_code = review.get("quote_code", "")
+    data = _ReplyData(
+        project=review["analysis"].get("project_name") or "su solicitud",
+        code=code_label(quote_code, review.get("code_stage", "T")) if quote_code else "",
+        contact=review.get("contact_email") or review.get("recipient", ""),
+        link=(review.get("links") or [None])[0],
     )
+    build = _REPLY_TEMPLATES.get(kind)
+    text = build(review, data, change) if build else None
+    return text if text is not None else _tpl_default(data)
 
 
 def _change_banner(review: Mapping[str, Any]) -> Markup:
