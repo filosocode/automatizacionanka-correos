@@ -18,7 +18,7 @@ Es la skill operativa. Las reglas generales de criterio (no inventar datos, sepa
 - Si hay adjuntos que no puedes leer, indica que existen y deja el caso para revision o pregunta por la informacion indispensable.
 - Revisa cada adjunto por separado. Todo dato que obtengas de un archivo debe citar nombre y ubicación concreta (página, párrafo, tabla/fila, hoja/celda o elemento KML/KMZ); separa la cita literal de tu interpretación.
 - Contrasta los datos del correo con cada adjunto. Registra discrepancias con ambos localizadores y no decidas cuál prevalece sin evidencia.
-- En KML/KMZ informa nombres de elementos, tipos de geometría, coordenadas y extensión disponible. No infieras área, longitud, escala, precisión ni sistema de referencia a partir del dibujo.
+- En KML/KMZ, GeoJSON y GPX informa elementos, geometrías, coordenadas, extensiones y estructura de rutas. Puedes calcular una longitud aproximada solo sobre líneas o rutas ordenadas explícitas; márcala como cálculo derivado, no como magnitud declarada ni aprobada para cotizar. No infieras área, escala, precisión ni sistema de referencia a partir del dibujo.
 - Si un archivo o parte está ilegible, protegido, recortado o excede lo que puedes inspeccionar, marca la lectura como parcial y especifica qué falta revisar.
 - Conserva el hilo: cualquier borrador debe responder en el mismo hilo y permitir que comercial revise el correo original antes de enviar.
 - Antes de redactar preguntas, construye una matriz de cada dato necesario frente al correo y cada adjunto. Busca equivalentes en encabezados, tablas, notas, anexos, pies, figuras e imágenes. Si cualquier fuente ya responde, no vuelvas a preguntarlo; cita dónde aparece y pregunta solo lo que siga abierto.
@@ -99,9 +99,7 @@ Cada `fields[].source` y `activities[].fuente` debe nombrar el correo o archivo 
 un objeto `attachments` por cada archivo con `filename`, `status`, `reason`, `coverage`, `reviewed_sections`, `blocked_fields` y `evidence`.
 Cada elemento de `evidence` tiene `topic`, `value`, `location` y `excerpt`; registra solo hallazgos comprobables,
 con una cita breve. Usa lista vacía si no hay evidencia verificable. No atribuyas al archivo valores inferidos.
-Marca lectura parcial cuando aplique y describe qué falta. Para PDF escaneado sin texto, CAD u otro formato no
-soportado, pide revisión manual. En KMZ/KML registra geometría y coordenadas explícitas; no derives área,
-longitud, precisión o sistema de referencia.
+Marca lectura parcial cuando aplique y describe qué falta. Para PDF escaneado sin texto, CAD u otro formato no soportado, pide revisión manual. En KML/KMZ, GeoJSON y GPX registra geometrías y coordenadas explícitas. Puedes calcular una longitud aproximada solo sobre líneas o rutas ordenadas; márcala como cálculo derivado, no como cantidad declarada ni aprobada para cotizar. No derives áreas, precisión o sistema de referencia.
 Incluye en `question_audit` un objeto por pregunta propuesta con `question`, `reason_missing` y `reviewed_sources`
 (correo y todos los adjuntos comprobados). No propongas preguntas sin justificarlas contra las fuentes ni repitas
 un dato encontrado. En cada adjunto informa `coverage` (`completa`, `parcial`, `no_legible`) y `reviewed_sections`

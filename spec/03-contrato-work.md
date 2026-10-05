@@ -1,4 +1,4 @@
-﻿# Contrato con ChatGPT Work
+# Contrato con ChatGPT Work
 
 La tarea de ChatGPT Work no ejecuta cÃ³digo de este repositorio: analiza los correos y deja en Gmail un **borrador**
 cuyo texto interno lleva un bloque JSON. El puente (`work_dashboard_sync.py`) lo lee y lo importa al dashboard.
@@ -28,8 +28,7 @@ Recomendados: `client_name`, `summary`, `received_at`, `gmail_url`, `activities`
 Cada `activities[].fuente` y `fields[].source` debe identificar el correo o archivo y, para adjuntos, el localizador
 concreto. Cada adjunto puede incluir `evidence`: objetos `topic`, `value`, `location` y `excerpt` con hallazgos
 explÃ­citos y citas breves. Work debe revisar cada archivo por separado y contrastarlo con el correo y los demÃ¡s
-archivos. KML/KMZ permite registrar elementos, geometrÃ­as, coordenadas y extensiÃ³n; no sustenta inferencias de
-Ã¡rea, longitud, precisiÃ³n ni sistema de referencia. Una lectura parcial o no disponible debe indicar su lÃ­mite.
+archivos. KML/KMZ, GeoJSON y GPX pueden registrar geometrías, coordenadas y extensiones. Las longitudes de rutas explícitas se pueden calcular como aproximaciones y deben rotularse como cálculos, nunca como cantidades declaradas o aprobadas para cotizar. No derivar áreas, precisión ni sistema de referencia. Una lectura parcial o no disponible debe indicar su lÃ­mite.
 Control de cambios (R11): `requested_by_email`, `requested_by_name`,
 `attachments[].coverage` indica `completa`, `parcial` o `no_legible`; `reviewed_sections` enumera las partes inspeccionadas.
 Antes de preguntar, Work cruza cada faltante con el correo y todos los adjuntos, incluidos tablas, notas, figuras e

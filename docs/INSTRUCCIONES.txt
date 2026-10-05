@@ -72,11 +72,7 @@ Las respuestas nuevas se procesan aunque el thread_id exista; solo repetir el mi
 ya procesado es una repetición del evento. Actualizar el caso por thread_id.
 No afirmes que el dashboard se actualizó: indica JSON preparado; sincronización local pendiente.
 
-El extractor Python del dashboard admite texto (TXT/CSV/JSON/XML/KML), KMZ, PDF con texto, DOCX, XLSX/XLSM,
-PPTX, ODT/ODS/ODP, RTF, HTML y ZIP con documentos compatibles. En modo Python no hay OCR/conversión de PDF
-escaneado, DOC/XLS/PPT antiguos, imágenes o CAD (DWG/DXF); se marca revisión manual. Work debe inspeccionar
-visualmente esos archivos cuando pueda acceder a ellos y, si no puede leerlos o interpretar sus imágenes, dejar
-cobertura parcial o no legible, sin suponer que la información está ausente.
+El extractor Python admite texto estructurado, imágenes con OCR, PDF con texto u OCR selectivo, DOC/DOCX, XLS/XLSX/XLSM, PPT/PPTX, ODT/ODS/ODP, RTF, HTML, KML/KMZ, GeoJSON, GPX, planes QGroundControl (.plan/.waypoints), misiones DJI WPML en KMZ y shapefiles dentro de ZIP. Los gráficos, tablas visuales, contenido recortado, OCR de baja confianza y formatos sin conversor disponible se marcan para revisión; DWG/DXF requieren exportación. Work debe usar la misma cobertura por archivo y no preguntar por datos que encuentre en documentos, figuras, tablas o planes de vuelo.
 
 PRUEBA
 1. Ejecutar --once: verifica cuenta, permisos y módulos.
