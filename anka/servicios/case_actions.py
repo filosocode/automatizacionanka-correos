@@ -19,6 +19,7 @@ from anka.infra.google_services import services
 from anka.dominio.correo import (
     forwarded_routing,
     inbound_messages,
+    reply_body_without_quoted_history,
     reply_email,
     valid_email_address,
 )
@@ -28,7 +29,7 @@ from anka.dominio.reception import (
 )
 from anka.infra.settings import load_config
 from anka.infra.logging_setup import SENSITIVE, get_logger
-from anka.infra.store import add_dashboard_notification, connect, record_event, save
+from anka.infra.store import add_dashboard_notification, add_message, connect, record_event, save
 
 from anka.servicios.drive_contents import populate_project_folder
 from anka.servicios.pipeline import confirmed_client
@@ -101,7 +102,7 @@ def _recipient(thread_id: str, quote: dict, to: str) -> str:
 
 def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     """Guarda como borrador de Gmail el texto escrito en el dashboard, sin enviarlo."""
-    body = body.strip()
+    body = reply_body_without_quoted_history(body).strip()
     if not body:
         raise ValueError("El borrador no puede estar vacío.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
@@ -199,6 +200,7 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
                WHERE thread_id=?""",
             (new_status, message_id, json.dumps(analysis, ensure_ascii=False), body, now, now, thread_id),
         )
+        add_message(db, thread_id, message_id, "sent", "", "", body, now)
         record_event(db, thread_id, "sent", "dashboard", message_id,
                      f"Correo enviado desde el dashboard a {recipient}.", now)
         add_dashboard_notification(
@@ -218,7 +220,7 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     Rechaza un reenvío idéntico reciente. Un caso con información suficiente crea además su carpeta en Drive,
     salvo que quien llama ya se haya ocupado de ella (`create_folder=False`).
     """
-    body = body.strip()
+    body = reply_body_without_quoted_history(body).strip()
     if not body:
         raise ValueError("El correo no puede estar vacío.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)

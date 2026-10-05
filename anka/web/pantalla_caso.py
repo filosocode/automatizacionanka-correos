@@ -10,7 +10,6 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, NamedTuple
 import json
-import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -20,12 +19,12 @@ from anka.dominio.configuracion import Configuracion
 from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
 from anka.web.views import (
-    attachments_table, reception_assessment_panel, activities_editor,
+    attachments_table, reception_assessment_panel, activities_editor, question_audit_panel,
 )
 from anka.dominio.status import (
     QuoteStatus,
 )
-from anka.dominio.correo import valid_email_address
+from anka.dominio.correo import reply_body_without_quoted_history, split_quoted_reply, valid_email_address
 from anka.dominio.reception import (
     reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
 )
@@ -443,8 +442,9 @@ def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, temp
     if blank:
         return "form", "", True
     own_draft = review["draft_body"] if review["draft_id"] and review["draft_id"] != work_reply.get("draft_id") else ""
-    return "form", (own_draft or work_reply.get("text") or review["draft_body"]
-                    or suggested_reply(analysis, config["required_fields"])), False
+    body = (own_draft or work_reply.get("text") or review["draft_body"]
+            or suggested_reply(analysis, config["required_fields"]))
+    return "form", reply_body_without_quoted_history(body), False
 
 
 def _conversation_panel(thread_id: str) -> Markup:
@@ -516,6 +516,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")}),
         "attachments_table": attachments_table(analysis.get("attachments", [])),
+        "question_audit": question_audit_panel(analysis.get("question_audit", [])),
         "manual_review": _manual_review_note(analysis.get("manual_review")),
         "conversation": _conversation_panel(thread_id),
         "stepper": _stepper(review),
@@ -626,21 +627,9 @@ def render_acta(thread_id: str) -> str:
     return page("Acta de cambios", body)
 
 
-_QUOTE_START = re.compile(
-    r"(?:\n\s*(?:El|On)\s[^\n]{0,200}\n?[^\n]{0,160}?(?:escribi[óo]|wrote)\s*:)"   # «El jue… escribió:»
-    r"|(?:\n\s*>)"                                                                    # líneas citadas
-    r"|(?:\n\s*-{2,}\s*(?:Original Message|Mensaje original)\s*-{2,})"
-    r"|(?:\n\s*De:\s[^\n]+\n\s*(?:Enviado|Fecha)\s*:)", re.IGNORECASE)
-
-
 def split_quoted(body: str) -> tuple[str, str]:
     """(mensaje nuevo, historial citado). El historial se muestra plegado para no repetir lo ya leído."""
-    text = (body or "").replace("\r\n", "\n").replace("▎", "").strip()
-    found = _QUOTE_START.search("\n" + text)
-    if not found or found.start() <= 1:
-        return text, ""
-    cut = found.start() - 1
-    return text[:cut].strip(), text[cut:].strip()
+    return split_quoted_reply(body)
 
 
 def _followup_panel(review: Mapping[str, Any]) -> Markup:

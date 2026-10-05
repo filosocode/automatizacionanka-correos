@@ -16,12 +16,19 @@ Es la skill operativa. Las reglas generales de criterio (no inventar datos, sepa
 - Si una solicitud menciona "levantamiento", "inspeccion", "topografia", "LiDAR", "fotogrametria", "batimetria" u otro servicio posible, no asumas automaticamente tecnica, precision, volumen ni producto final.
 - Marca como `no indicado` todo dato que no este explicito.
 - Si hay adjuntos que no puedes leer, indica que existen y deja el caso para revision o pregunta por la informacion indispensable.
+- Revisa cada adjunto por separado. Todo dato que obtengas de un archivo debe citar nombre y ubicación concreta (página, párrafo, tabla/fila, hoja/celda o elemento KML/KMZ); separa la cita literal de tu interpretación.
+- Contrasta los datos del correo con cada adjunto. Registra discrepancias con ambos localizadores y no decidas cuál prevalece sin evidencia.
+- En KML/KMZ informa nombres de elementos, tipos de geometría, coordenadas y extensión disponible. No infieras área, longitud, escala, precisión ni sistema de referencia a partir del dibujo.
+- Si un archivo o parte está ilegible, protegido, recortado o excede lo que puedes inspeccionar, marca la lectura como parcial y especifica qué falta revisar.
 - Conserva el hilo: cualquier borrador debe responder en el mismo hilo y permitir que comercial revise el correo original antes de enviar.
+- Antes de redactar preguntas, construye una matriz de cada dato necesario frente al correo y cada adjunto. Busca equivalentes en encabezados, tablas, notas, anexos, pies, figuras e imágenes. Si cualquier fuente ya responde, no vuelvas a preguntarlo; cita dónde aparece y pregunta solo lo que siga abierto.
+- Distingue requisitos ya fijados por el documento, alternativas que el cliente debe elegir y vacíos propios de esta solicitud. Una especificación general para varias sedes no implica volver a preguntar la cobertura general; pregunta la sede o unidad de cada orden solo si no aparece.
+- Informa cobertura por archivo: completa, parcial o no legible; enumera páginas, hojas, diapositivas o secciones revisadas y límites. Extraer texto no demuestra que se hayan interpretado diagramas, fotos o contenido escaneado.
 
 ## Flujo
 
 1. Identifica si el mensaje es una solicitud de cotizacion o una respuesta a una solicitud previa.
-2. Extrae datos del correo: remitente, fecha/hora, asunto, texto, adjuntos, proyecto, ubicacion, magnitud, servicio probable, entregables, plazos, restricciones y dudas.
+2. Extrae datos del correo y revisa cada adjunto por separado: remitente, fecha/hora, asunto, texto, proyecto, ubicacion, magnitud, servicio probable, entregables, plazos, restricciones y dudas. Para cada archivo conserva evidencia y localizador.
 3. Construye una tabla de actividades. Cada fila debe tener actividad, servicio/tecnica candidata, ubicacion, magnitud, unidad, entregable, plazo/restriccion, fuente y estado.
 4. Determina si el alcance esta incompleto para la siguiente etapa de cotizacion.
 5. Si faltan datos, redacta un borrador breve en espanol claro, con preguntas agrupadas y sin tecnicismos innecesarios.
@@ -87,3 +94,16 @@ Devuelve una estructura con:
 - `recommended_status`: `descartar`, `revision_manual`, `borrador_preguntas`, `alcance_completo` o `carpeta_drive`. Equivalencia con los estados del diseno: `descartar`=descartado; `borrador_preguntas`=alcance_preliminar/esperando_cliente; `revision_manual`=revision_tecnica; `alcance_completo`=listo_para_cotizar; `carpeta_drive`=carpeta_creada;
 - `source_notes`;
 - `requested_by_email`, `requested_by_name` y `cited_codes` (R11): quién escribió el mensaje analizado y qué códigos de oferta cita.
+
+Cada `fields[].source` y `activities[].fuente` debe nombrar el correo o archivo y el localizador concreto. Incluye
+un objeto `attachments` por cada archivo con `filename`, `status`, `reason`, `coverage`, `reviewed_sections`, `blocked_fields` y `evidence`.
+Cada elemento de `evidence` tiene `topic`, `value`, `location` y `excerpt`; registra solo hallazgos comprobables,
+con una cita breve. Usa lista vacía si no hay evidencia verificable. No atribuyas al archivo valores inferidos.
+Marca lectura parcial cuando aplique y describe qué falta. Para PDF escaneado sin texto, CAD u otro formato no
+soportado, pide revisión manual. En KMZ/KML registra geometría y coordenadas explícitas; no derives área,
+longitud, precisión o sistema de referencia.
+Incluye en `question_audit` un objeto por pregunta propuesta con `question`, `reason_missing` y `reviewed_sources`
+(correo y todos los adjuntos comprobados). No propongas preguntas sin justificarlas contra las fuentes ni repitas
+un dato encontrado. En cada adjunto informa `coverage` (`completa`, `parcial`, `no_legible`) y `reviewed_sections`
+con las partes realmente inspeccionadas; no declares lectura completa si queda una página, tabla, imagen o sección
+sin revisar. Los formatos que la herramienta disponible no pueda leer quedan para revisión humana.

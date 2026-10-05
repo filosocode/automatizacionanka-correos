@@ -55,17 +55,41 @@ def _activities_table(activities: list[dict]) -> Markup:
 
 
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
-    """Tabla de adjuntos con su estado, el motivo si no se leyó y los datos que no se pudieron confirmar."""
-    rows = [
-        (
+    """Tabla de adjuntos con estado, datos bloqueados y citas verificables."""
+    rows = []
+    for item in attachments:
+        evidence = []
+        for finding in item.get("evidence") or []:
+            if not isinstance(finding, Mapping):
+                continue
+            parts = [str(finding.get("topic") or "hallazgo")]
+            if finding.get("value"):
+                parts.append(str(finding["value"]))
+            if finding.get("location"):
+                parts.append(str(finding["location"]))
+            if finding.get("excerpt"):
+                parts.append(f"«{finding['excerpt']}»")
+            evidence.append(" · ".join(parts))
+        rows.append((
             str(item.get("filename") or ""),
             str(item.get("status") or ""),
+            str(item.get("coverage") or "sin detalle"),
             str(item.get("reason") or "") or "lectura correcta",
             ", ".join(str(value) for value in (item.get("blocked_fields") or [])) or "ninguno",
-        )
-        for item in attachments
-    ]
+            evidence,
+            [str(value) for value in (item.get("reviewed_sections") or [])],
+        ))
     return render("attachments_table.html", rows=rows)
+
+
+def question_audit_panel(audit: Sequence[Mapping[str, Any]]) -> Markup:
+    """Muestra por qué se propuso cada pregunta y qué fuentes se comprobaron."""
+    rows = [
+        (str(item.get("question") or ""), str(item.get("reason_missing") or ""),
+         ", ".join(str(source) for source in (item.get("reviewed_sources") or [])))
+        for item in audit if isinstance(item, Mapping)
+    ]
+    return render("question_audit.html", rows=rows)
 
 
 def reception_assessment_panel(assessment: dict) -> Markup:

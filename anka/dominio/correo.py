@@ -23,6 +23,27 @@ FORWARDED_BODY_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
+_QUOTED_REPLY_START = re.compile(
+    r"(?:\n\s*(?:El|On)\s[^\n]{0,200}\n?[^\n]{0,160}?(?:escribi[óo]|wrote)\s*:)"
+    r"|(?:\n\s*>)"
+    r"|(?:\n\s*-{2,}\s*(?:Original Message|Mensaje original)\s*-{2,})"
+    r"|(?:\n\s*De:\s[^\n]+\n\s*(?:Enviado|Fecha)\s*:)", re.IGNORECASE)
+
+
+def split_quoted_reply(body: str) -> tuple[str, str]:
+    """Separa el texto nuevo del historial de correo citado, si lo hay."""
+    text = (body or "").replace("\r\n", "\n").replace("▎", "").strip()
+    found = _QUOTED_REPLY_START.search("\n" + text)
+    if not found or found.start() <= 1:
+        return text, ""
+    cut = found.start() - 1
+    return text[:cut].strip(), text[cut:].strip()
+
+
+def reply_body_without_quoted_history(body: str) -> str:
+    """Devuelve solo el texto nuevo para evitar reenviar el historial del hilo en una respuesta."""
+    return split_quoted_reply(body)[0]
+
 
 def header(message: dict, name: str) -> str:
     """Valor de una cabecera del mensaje ('' si no existe), sin distinguir mayúsculas."""

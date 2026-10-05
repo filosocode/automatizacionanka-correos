@@ -4,7 +4,7 @@
   {% for m in messages %}
   <details class="msg {{ m.direction }}"{% if loop.index <= 2 %} open{% endif %}>
     <summary><strong>{{ 'Cliente' if m.direction == 'received' else 'Anka' }}</strong>
-      <span class="meta">{{ m.sender }} · {{ m.when }}</span></summary>
+      <span class="meta">{% if m.sender %}{{ m.sender }} · {% endif %}{{ m.when }}</span></summary>
     <pre>{{ m.fresh }}</pre>
     {% if m.quoted %}<details class="quoted"><summary class="meta">Mostrar el mensaje citado</summary><pre>{{ m.quoted }}</pre></details>{% endif %}
   </details>

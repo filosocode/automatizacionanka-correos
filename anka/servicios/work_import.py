@@ -110,6 +110,7 @@ def _work_analysis(payload: dict) -> Analisis:
         "summary": payload.get("summary", ""),
         "activities": _work_activities(payload),
         "fields": payload.get("fields", []),
+        "question_audit": payload.get("question_audit", []),
         "other_questions": _list_or_wrapped(payload.get("missing_data", []), lambda text: text),
         "scope_dependencies": _list_or_wrapped(payload.get("scope_dependencies", []), lambda text: {
             "description": text, "source": source, "status": "pendiente"}),

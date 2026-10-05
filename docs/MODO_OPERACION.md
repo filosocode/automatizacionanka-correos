@@ -73,6 +73,6 @@ La misma logica debe guiar el bot local, el modo API y el modo ChatGPT Work.
 
 ## Adjuntos
 
-El bot extrae texto básico de TXT, CSV, JSON, XML, KML, KMZ, PDF, DOCX y XLSX. Las imágenes incrustadas mediante `Content-ID` o disposición `inline` se consideran elementos de firma y no bloquean el análisis. Los planos DWG/DXF permanecen en revisión manual. Si un archivo técnico no puede leerse, la ficha registra qué archivo falló, por qué y qué dato obligatorio queda bloqueado.
+El bot extrae texto y cobertura verificable de TXT, CSV, JSON, XML, KML/KMZ, PDF, DOC/DOCX, XLS/XLSX, PPTX, ODT/ODS/ODP, RTF, HTML, imágenes y documentos compatibles dentro de ZIP. El OCR local inspecciona imágenes, páginas PDF escaneadas y figuras incrustadas; formatos Office antiguos se convierten con LibreOffice cuando está instalado. Shapefiles se leen desde ZIP cuando incluyen .shp, .shx y .dbf. Las capturas inline de firma no bloquean el análisis. DWG/DXF, OCR ilegible, gráficos estructurados y todo contenido que no pueda convertirse quedan identificados para revisión manual.
 
 Una referencia a trabajos anteriores sin su alcance adjunto se registra como dependencia pendiente. Las cifras o requisitos incompatibles entre fuentes se registran como contradicciones. Ambos casos impiden crear automáticamente la carpeta del proyecto hasta que comercial o técnica los resuelva.

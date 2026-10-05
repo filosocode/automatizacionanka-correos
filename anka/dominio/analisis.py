@@ -33,6 +33,16 @@ class Campo(TypedDict, total=False):
 
     name: str
     value: str
+    source: str
+
+
+class EvidenciaAdjunto(TypedDict, total=False):
+    """Hallazgo ligado a una ubicación concreta dentro de un adjunto."""
+
+    topic: str
+    value: str
+    location: str
+    excerpt: str
 
 
 class Dependencia(TypedDict, total=False):
@@ -56,12 +66,16 @@ class Adjunto(TypedDict, total=False):
     """Un archivo adjunto y si se pudo leer."""
 
     filename: str
-    status: str          # extraido | bloqueado | ignorado | registrado
+    status: str          # extraido | lectura_parcial | bloqueado | ignorado | registrado
     reason: str
+    coverage: str
+    extracted_chars: int
+    reviewed_sections: list[str]
     blocked_fields: list[str]
     mime_type: str
     source_message_id: str
     text: str            # texto extraído; no se guarda en el análisis, solo viaja hasta el modelo
+    evidence: list[EvidenciaAdjunto]
 
 
 class Enrutamiento(TypedDict, total=False):
@@ -106,6 +120,7 @@ class Analisis(TypedDict, total=False):
     activities: list[Actividad]
     fields: list[Campo]
     other_questions: list[str]
+    question_audit: list[dict[str, object]]
     scope_dependencies: list[Dependencia]
     contradictions: list[Contradiccion]
     attachments: list[Adjunto]

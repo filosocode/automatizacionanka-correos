@@ -212,7 +212,8 @@ def reception_assessment(analysis: Analisis) -> dict:
 
     issues = unresolved_scope_issues(analysis)
     blocked = any(
-        item.get("status") == "bloqueado"
+        item.get("status") in {"bloqueado", "lectura_parcial", "no_legible", "parcial"}
+        or item.get("coverage") in {"parcial", "no_legible"}
         for item in analysis.get("attachments", []) if isinstance(item, dict)
     )
     reviewed = bool(analysis.get("manual_review"))  # una persona ya resolvió la revisión técnica
@@ -260,9 +261,12 @@ def attachment_report(
     for attachment in attachments:
         item: Adjunto = {**attachment}
         item.pop("text", None)   # el texto extraído viaja al modelo, no se guarda en el análisis
+        if attachment.get("reason", "").startswith("lectura parcial"):
+            item["status"] = "lectura_parcial"
+            item["coverage"] = "parcial"
         item["blocked_fields"] = (
             missing or ["validación del alcance técnico"]
-        ) if item.get("status") == "bloqueado" else []
+        ) if item.get("status") in {"bloqueado", "lectura_parcial"} else []
         report.append(item)
     return report
 

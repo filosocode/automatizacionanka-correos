@@ -22,7 +22,7 @@ El objetivo no es minimizar llamadas a cualquier costo: una solicitud válida no
 | Nivel | Trabajo | ¿Usa tokens del modelo? |
 |---|---|---|
 | 0. Gmail + Python | Detectar mensajes nuevos, identificar hilo/remitente, excluir enviados por Anka, deduplicar, guardar estado. | No |
-| 1. Preparación local | Limpiar firmas, avisos y citas repetidas; extraer texto de adjuntos compatibles; reconocer datos explícitos como correos, fechas, magnitudes y unidades conservando su fuente. | No |
+| 1. Preparación local | Limpiar firmas, avisos y citas repetidas; inventariar cada adjunto; extraer texto de formatos compatibles con localizadores y declarar cobertura parcial cuando no se inspeccionan imágenes, gráficos o contenido recortado. | No |
 | 2. Triaje | Reglas de alta certeza para separar ruido inequívoco y reconocer solicitudes explícitas. Los casos dudosos pasan al modelo. | Solo en casos dudosos |
 | 3. Interpretación | En una consulta estructurada, clasificar lo dudoso, reconocer el servicio posible, sintetizar actividades y vincular cada dato con evidencia. | Sí, cuando hace falta |
 | 4. Validación | Python comprueba esquema, evidencia, duplicados, contradicciones y campos obligatorios definidos por Anka para el servicio y la etapa. | No |
@@ -48,7 +48,7 @@ Conviene distinguir **alcance documentado** de **listo para cotizar**. Puede exi
 
 - Guardar un hash del contenido normalizado y la versión del análisis. Si nada relevante cambió, no repetir la consulta.
 - En respuestas posteriores enviar al modelo la tabla vigente, los campos pendientes y el nuevo mensaje, en lugar de reenviar todo el hilo. Recuperar mensajes anteriores solo cuando haya una contradicción o referencia ambigua.
-- Para adjuntos, extraer texto localmente antes de considerar visión u OCR. Un adjunto no legible pasa a revisión; no se trata como ausencia de datos.
+- Para adjuntos, inventariar tipo y cobertura, extraer texto con localizadores y usar lectura visual/OCR cuando esté disponible. Un adjunto o sección no legible pasa a revisión; no se trata como ausencia de datos. Antes de preguntar, contrastar cada campo requerido con cada correo y adjunto y registrar las fuentes verificadas.
 - Limitar el contexto al material pertinente y registrar tamaño de entrada/salida, motivo de la llamada, costo y correcciones humanas.
 - Medir sobre correos reales etiquetados: solicitudes perdidas, falsas solicitudes, exactitud de actividades, preguntas innecesarias, duplicados, casos a revisión y tokens por solicitud completada. No fijar porcentajes de ahorro sin esa muestra.
 

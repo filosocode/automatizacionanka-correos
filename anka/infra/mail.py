@@ -11,7 +11,9 @@ from typing import Any
 
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Adjunto
-from anka.dominio.attachments import extract_attachment_text
+from anka.dominio.attachments import (
+    attachment_reviewed_sections, build_attachment_evidence, extract_attachment_text,
+)
 from anka.dominio.correo import (
     attachment_parts, decode_websafe, is_inline_signature_image, normalized_address, reply_email,
 )
@@ -54,9 +56,13 @@ def extract_message_attachments(gmail: Any, message: dict) -> list[Adjunto]:
             log.warning("Adjunto no legible en el mensaje %s: %s", message.get("id"), type(exc).__name__)
             text, reason = "", f"error al descargar o leer: {exc}"
         record.update({
-            "status": "extraido" if text else "bloqueado",
+            "status": "bloqueado" if not text else "lectura_parcial" if reason else "extraido",
             "text": text,
             "reason": reason,
+            "coverage": "no_legible" if not text else "parcial" if reason else "completa",
+            "extracted_chars": len(text),
+            "reviewed_sections": attachment_reviewed_sections(text) if text else [],
+            "evidence": build_attachment_evidence(text) if text else [],
         })
         results.append(record)
     return results

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import webbrowser
 from typing import TYPE_CHECKING, Any
 
 from pathlib import Path
@@ -26,6 +28,20 @@ SCOPES = [
 
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
+
+
+def _oauth_browser() -> str | None:
+    """Usa Chrome directamente en Windows, donde el navegador predeterminado puede no abrirse desde el supervisor oculto."""
+    candidates = [shutil.which("chrome.exe"), shutil.which("chrome")]
+    for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        base = os.getenv(variable)
+        if base:
+            candidates.append(str(Path(base) / "Google" / "Chrome" / "Application" / "chrome.exe"))
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            webbrowser.register("anka-chrome", None, webbrowser.BackgroundBrowser(candidate))
+            return "anka-chrome"
+    return None
 
 
 def _token_path() -> Path:
@@ -76,7 +92,8 @@ def authorize_interactive(timeout_seconds: int | None = None) -> Credentials:
     if not secrets_path.exists():
         raise ErrorDeAnka(f"Falta {secrets_path} del cliente OAuth de escritorio.")
     creds = InstalledAppFlow.from_client_secrets_file(str(secrets_path), SCOPES).run_local_server(
-        port=0, open_browser=os.getenv("ANKA_NO_BROWSER") != "1", timeout_seconds=timeout_seconds)
+        port=0, open_browser=os.getenv("ANKA_NO_BROWSER") != "1", timeout_seconds=timeout_seconds,
+        browser=_oauth_browser())
     settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
     _token_path().write_text(creds.to_json(), encoding="utf-8")
     log.info("Autorización de Google renovada")

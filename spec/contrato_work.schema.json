@@ -44,7 +44,33 @@
         }
       }
     },
+    "fields": {
+      "type": "array",
+      "$comment": "Datos obligatorios o útiles con el archivo y la ubicación que sustentan cada valor.",
+      "items": {
+        "type": "object",
+        "required": ["name", "value", "source"],
+        "properties": {
+          "name": {"type": "string"},
+          "value": {"type": "string"},
+          "source": {"type": "string"}
+        }
+      }
+    },
     "missing_data": {"type": "array", "items": {"type": "string"}},
+    "question_audit": {
+      "type": "array",
+      "$comment": "Toda pregunta propuesta indica por qué sigue abierta y qué fuentes fueron consultadas para no repetir información existente.",
+      "items": {
+        "type": "object",
+        "required": ["question", "reason_missing", "reviewed_sources"],
+        "properties": {
+          "question": {"type": "string"},
+          "reason_missing": {"type": "string"},
+          "reviewed_sources": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
     "attachments": {
       "type": "array",
       "items": {
@@ -53,7 +79,23 @@
           "filename": {"type": "string"},
           "status": {"type": "string"},
           "reason": {"type": "string"},
-          "blocked_fields": {"type": "array", "items": {"type": "string"}}
+          "coverage": {"type": "string"},
+          "reviewed_sections": {"type": "array", "items": {"type": "string"}},
+          "blocked_fields": {"type": "array", "items": {"type": "string"}},
+          "evidence": {
+            "type": "array",
+            "$comment": "Hallazgos explícitos por archivo. La cita corta debe localizarse en página, párrafo, tabla, hoja/celda o geometría.",
+            "items": {
+              "type": "object",
+              "required": ["topic", "value", "location", "excerpt"],
+              "properties": {
+                "topic": {"type": "string"},
+                "value": {"type": "string"},
+                "location": {"type": "string"},
+                "excerpt": {"type": "string"}
+              }
+            }
+          }
         }
       }
     },

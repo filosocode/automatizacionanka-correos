@@ -43,8 +43,25 @@ no prepares borradores de recordatorio ni escribas al cliente por su silencio.
 estado (R12): exactamente confirmado, pendiente o contradictorio, sin texto añadido. Solo confirmado si todos los datos
 esenciales de esa fila (ubicacion, magnitud y unidad, entregable, plazo o restriccion y, cuando aplique, metodo y
 precision) estan explicitos en el correo o los adjuntos; si falta alguno, pendiente, y en notes escribe que falta.
+En activities[].fuente cita correo o archivo y localizador concreto (pagina, parrafo, tabla/fila, hoja/celda o elemento
+KML/KMZ). Al comparar mensajes, no fusiones instrucciones de mensajes anteriores con la solicitud actual.
+fields: lista de objetos name, value, source; source cita correo o archivo y localizador concreto.
 missing_data: lista de textos distinguiendo crítico/recomendable.
-attachments: lista de objetos filename, status, reason, blocked_fields (lista).
+question_audit: por cada pregunta propuesta, objeto question, reason_missing, reviewed_sources (lista).
+Cada pregunta debe tener motivo verificable y enumerar los correos y adjuntos revisados. Antes de preguntar,
+busca el dato en todo el correo y en cada documento, incluyendo sinónimos, tablas, notas, anexos, encabezados,
+figuras e imágenes. Si una fuente ya responde, no lo preguntes. Distingue el requisito ya fijado, opciones que
+el pliego permite escoger y lo que falta definir para esta solicitud. Pregunta solo lo que siga genuinamente abierto.
+attachments: lista de objetos filename, status, reason, coverage, reviewed_sections (lista), blocked_fields (lista), evidence (lista).
+coverage toma exactamente completa, parcial o no_legible. Indica por cada archivo si la inspección fue completa, parcial o no legible; anota páginas, hojas, diapositivas,
+secciones u otros elementos realmente revisados y límites de lectura. La extracción de texto no equivale a revisar
+diagramas o imágenes: si no puedes interpretarlos, informa esa limitación y pide revisión técnica.
+Cada evidence tiene topic, value, location y excerpt: un hallazgo comprobable, su ubicacion y una cita breve
+del contenido. Revisa cada adjunto por separado, contrasta cifras y requisitos entre correo y documentos y
+registra contradicciones con ambos localizadores. No completes valores que no aparezcan en una fuente.
+Para KMZ/KML informa elementos, tipo de geometria, coordenadas y extension extraida; no infieras area,
+longitud, precision ni sistema de referencia. Marca status como lectura parcial si no pudiste inspeccionar
+todo el archivo. PDF escaneado sin texto, CAD y formatos no soportados requieren revision manual.
 contradictions: lista de objetos topic, details, sources (lista), status.
 scope_dependencies: lista de objetos description, source, status.
 Datos ausentes: no indicado. No inventar IDs, contactos, enlaces ni requisitos.
@@ -54,6 +71,12 @@ Para publicidad y notificaciones automáticas no crees borradores de sincronizac
 Las respuestas nuevas se procesan aunque el thread_id exista; solo repetir el mismo message_id
 ya procesado es una repetición del evento. Actualizar el caso por thread_id.
 No afirmes que el dashboard se actualizó: indica JSON preparado; sincronización local pendiente.
+
+El extractor Python del dashboard admite texto (TXT/CSV/JSON/XML/KML), KMZ, PDF con texto, DOCX, XLSX/XLSM,
+PPTX, ODT/ODS/ODP, RTF, HTML y ZIP con documentos compatibles. En modo Python no hay OCR/conversión de PDF
+escaneado, DOC/XLS/PPT antiguos, imágenes o CAD (DWG/DXF); se marca revisión manual. Work debe inspeccionar
+visualmente esos archivos cuando pueda acceder a ellos y, si no puede leerlos o interpretar sus imágenes, dejar
+cobertura parcial o no legible, sin suponer que la información está ausente.
 
 PRUEBA
 1. Ejecutar --once: verifica cuenta, permisos y módulos.

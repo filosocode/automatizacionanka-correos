@@ -142,7 +142,8 @@ class RevisorDeHilos:
             attachments = []
             for message in inbound:
                 attachments.extend(extract_message_attachments(self.gmail, message))
-            blocked = [item for item in attachments if item.get("status") == "bloqueado"]
+            blocked = [item for item in attachments
+                       if item.get("status") in {"bloqueado", "lectura_parcial"}]
             required = config["required_fields"]
             analysis = analyze(inbound, required, config["llm"], attachments)
             analysis["received_at"] = message_datetime(last)

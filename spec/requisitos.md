@@ -21,6 +21,11 @@ motivo para poder rescatarlo (R1 a R3); ante la duda, analiza.
 ### F1-03 · Tabla de actividades
 Resume cada solicitud en una tabla de actividades que una persona puede editar y exportar a Excel. Se conserva la
 versión del modelo y cada edición queda como versión nueva, con sus diferencias y un motivo opcional.
+Los hechos extraídos de adjuntos conservan el nombre del archivo y un localizador verificable (página, párrafo,
+tabla/fila, hoja/celda o elemento KML/KMZ); los archivos o secciones no leídos se identifican como parciales o
+pendientes de revisión. Se extraen formatos de texto, PDF, DOC/DOCX, XLS/XLSX/XLSM, PPT/PPTX, ODT/ODS/ODP, RTF, HTML, imágenes, KMZ/KML y documentos compatibles dentro de ZIP. El OCR local cubre imágenes sueltas, páginas PDF escaneadas y recursos de imagen incrustados; baja confianza, gráficos estructurados omitidos, límites de cobertura y archivos no convertibles se marcan para revisión. Shapefiles se leen cuando se entregan con sus archivos laterales dentro de ZIP. DWG y DXF permanecen en revisión manual.
+El modo Work sigue el mismo contrato de evidencia y registra, para cada pregunta, las fuentes ya verificadas;
+una pregunta que ya esté contestada en cualquier archivo se elimina.
 
 ### F1-04 · Detectar datos faltantes
 Determina qué datos faltan para la etapa de cotización, distinguiendo lo crítico de lo recomendable, y los convierte
@@ -28,7 +33,10 @@ en preguntas para el cliente. Con dependencias o contradicciones pendientes el c
 
 ### F1-05 · Pedir los datos al cliente
 Prepara el correo de respuesta con las preguntas; una persona lo revisa y lo envía desde el dashboard o desde Gmail
-(R8). Un clic produce un correo: el mismo texto no se reenvía y el caso muestra que ya se envió.
+(R8). En el dashboard, el cuerpo de respuesta contiene solo el texto nuevo: se quita el historial citado que venga en
+un borrador, mientras la conversación completa sigue visible en el caso. La respuesta conserva el hilo original de
+Gmail. Al enviar desde el dashboard, el mensaje aparece de inmediato en «Conversación con el cliente». Un clic produce
+un correo: el mismo texto no se reenvía y el caso muestra que ya se envió.
 
 ### F1-06 · Esperar la respuesta y cerrar el alcance
 Detecta la respuesta del cliente (en el mismo hilo o en otro), avisa, reconcilia la tabla sin pisar lo que una
