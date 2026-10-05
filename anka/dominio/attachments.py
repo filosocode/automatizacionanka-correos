@@ -215,9 +215,24 @@ def _ocr_image(content: bytes) -> str:
             if source.width * source.height > MAX_OCR_PIXELS:
                 raise _Unreadable("imagen excede el límite de píxeles para OCR; requiere revisión manual")
             image = ImageOps.exif_transpose(source).convert("RGB")
-            result, _ = _ocr_engine()(np.asarray(image))
+            return _ocr_pil_image(image, np)
     except _Unreadable:
         raise
+    except Exception as exc:
+        raise _Unreadable(f"no se pudo ejecutar OCR sobre la imagen: {exc}") from None
+
+
+def _ocr_pil_image(image, numpy_module=None) -> str:
+    """Reconoce una imagen PIL ya decodificada, como las páginas renderizadas de PDFium."""
+    if image.width * image.height > MAX_OCR_PIXELS:
+        raise _Unreadable("imagen excede el límite de píxeles para OCR; requiere revisión manual")
+    if numpy_module is None:
+        try:
+            import numpy as numpy_module
+        except ImportError:
+            raise _Unreadable("falta instalar numpy para leer imágenes") from None
+    try:
+        result, _ = _ocr_engine()(numpy_module.asarray(image.convert("RGB")))
     except Exception as exc:
         raise _Unreadable(f"no se pudo ejecutar OCR sobre la imagen: {exc}") from None
     lines = []
@@ -502,7 +517,7 @@ def _pdf_text(content: bytes) -> str:
                 image = bitmap.to_pil()
                 if image.width * image.height > MAX_OCR_PIXELS:
                     raise _Unreadable("página PDF excede el límite de píxeles para OCR")
-                ocr = _ocr_image(image.convert("RGB").tobytes())
+                ocr = _ocr_pil_image(image)
                 text = (text.rstrip() + "\n[Texto reconocido por OCR]\n" + ocr).strip()
                 pdf_page.close()
                 pdf_document.close()
