@@ -1,3 +1,9 @@
+INSTRUCCIONES DE LA TAREA CHATGPT WORK — GRUPO ANKA
+
+Este archivo explica el puente Gmail → dashboard. El prompt que se copia en la tarea está en `PROMPT_WORK_ANKA.txt`; editar archivos locales no actualiza la tarea activa de ChatGPT Work.
+
+El prompt vigente para copiar a la tarea de ChatGPT Work está en docs/PROMPT_WORK_ANKA.txt.
+
 PUENTE GMAIL → DASHBOARD LOCAL
 
 El puente (work_dashboard_sync.py) ya forma parte del proyecto: lo arranca «Iniciar Anka.bat» junto con el dashboard
@@ -8,92 +14,13 @@ python .\work_dashboard_sync.py --seconds 60
 El equipo y el proceso deben permanecer activos. Ctrl+C lo detiene.
 Usa la autorización Google y DATA_DIR existentes. Nunca envía, elimina ni modifica borradores.
 Los borradores anteriores sin bloque JSON no se importan. 0 actualizados no es un error.
-No cambia la tarea de ChatGPT: debes añadir las instrucciones de abajo a UNA tarea.
+No cambia la tarea de ChatGPT: copia `docs/PROMPT_WORK_ANKA.txt` en las instrucciones de una sola tarea activa.
 No actives dos tareas que creen borradores para el mismo evento. Identifica primero la otra tarea.
 No hay pruebas con tu cuenta Windows realizadas desde ChatGPT.
 
-AÑADIR A LAS INSTRUCCIONES DE LA TAREA ACTUAL
-
-PROTOCOLO OBLIGATORIO DE LECTURA Y VALIDACIÓN ANTES DE PREGUNTAR
-Aplica este protocolo a cada mensaje y a cada solicitud nueva del hilo, antes de decidir que falta información o redactar preguntas:
-1. Inventaría lo que Gmail realmente muestra: remitente, destinatario, fecha, asunto, cuerpo completo visible, texto citado pertinente, imágenes insertadas y todos los adjuntos. Conserva los IDs del mensaje actual y del hilo. Usa mensajes anteriores como contexto y para reconocer datos ya entregados, pero separa sus instrucciones de lo que cambió en el mensaje actual. No confundas una respuesta enviada por Anka con información confirmada por el cliente.
-2. Registra por nombre cada archivo adjunto detectado. Comprueba cada archivo individualmente; no asumas que dos documentos con nombres parecidos tienen el mismo contenido ni que el conector abrió el archivo solo porque Gmail lo enumera.
-3. Extrae una matriz de requisitos y evidencia antes de redactar: ubicación/sede; objeto o elemento; área, longitud o cantidades; objetivo/servicio; método; precisión, escala o resolución; entregables y formatos; fechas/plazos; accesos, permisos y seguridad; sistema de coordenadas, datum/proyección o unidades cuando estén especificados. Para cada requisito busca el dato explícito y sus sinónimos en asunto, cuerpo, encabezados, firma, historial pertinente y todos los adjuntos. Marca encontrado, ausente, ilegible o contradictorio, con fuente y localizador. No conviertas una recomendación general del documento en una obligación específica del proyecto.
-4. Revisa el contenido por tipo, hasta donde las herramientas de Work realmente permitan:
-   - PDF: todas las páginas, texto, tablas, notas, anexos, encabezados/pies, formularios, imágenes, planos y diagramas. Si es escaneado, confirma si el texto/imagen de cada página pudo leerse. Identifica páginas no visibles, recortadas, borrosas o sin interpretación visual.
-   - Word/ODT: cuerpo, títulos, tablas, listas, encabezados/pies, anexos e imágenes/planos insertados cuando sean accesibles.
-   - Excel/ODS/CSV: cada hoja disponible, encabezados, filas con datos, unidades, notas y fórmulas/resultados visibles. Registra qué hojas/rangos no se pudieron revisar; no supongas que una hoja no visible está vacía.
-   - KML/KMZ, GeoJSON, GPX y shapefile: inspecciona los elementos/geometrías, nombres, descripciones, ExtendedData, coordenadas explícitas, carpetas y archivos internos que Work pueda abrir. Para KMZ verifica si pudo acceder al KML contenido. No deduzcas área, longitud cotizable, precisión, datum o sistema de referencia por la forma o las coordenadas.
-   - Planes de vuelo (QGroundControl .plan/.waypoints, DJI WPML u otros): busca plataforma, misión, waypoints, alturas, velocidades, solapes, cámara/sensor, límites y coordenadas solo si el contenido del archivo es accesible. Indica exactamente qué propiedades fueron leídas. No trates una extensión conocida como prueba de lectura.
-   - Otros formatos, incluidos imágenes, ZIP y CAD: inspecciona solo el contenido que las herramientas expongan; enumera los componentes abiertos y los que no. Formato no accesible, cifrado, corrupto o ambiguo = lectura parcial o no legible y revisión humana interna.
-5. Después de revisar, cruza cada requisito contra todas las fuentes. Busca equivalencias y valores en tablas, celdas, notas al pie, leyendas, rótulos de planos, llamadas, imágenes y metadatos visibles. Registra las contradicciones con localizador de ambas fuentes, sin escoger una versión por intuición. Un dato hallado una vez no se vuelve a solicitar al cliente.
-6. Para cada pregunta propuesta, completa primero question_audit con: la pregunta concreta, el campo realmente ausente, por qué bloquea la siguiente etapa y la lista de todas las fuentes revisadas. Elimina la pregunta si cualquier mensaje o archivo ya responde. No preguntes al cliente por limitaciones de lectura: marca el adjunto para revisión manual; solo pide reenvío si una persona determina que es indispensable.
-7. Declara `coverage="completa"` únicamente si revisaste de verdad todo el contenido relevante accesible y todas sus páginas/hojas/elementos; `parcial` si algo no fue visible, legible o interpretado; `no_legible` si no pudiste extraer información fiable. En `reviewed_sections` anota páginas, hojas/rangos, secciones, elementos o geometrías efectivamente inspeccionados. En `blocked_fields` enumera los datos que podrían estar dentro de la parte no revisada. Cada dato usado para actividad o pregunta debe tener `source`/`fuente` localizable y, cuando provenga de archivo, evidencia breve.
-8. Antes de producir el borrador, haz una segunda comprobación inversa: toma cada pregunta y verifica otra vez asunto, cuerpo, historial pertinente y todos los adjuntos. Si no puedes demostrar que falta, no la incluyas. Cuando la cobertura sea parcial o existan contradicciones relevantes, deja el caso en revisión interna/técnica; no presentes el inventario como lectura completa.
-
-Sincronización del dashboard mediante borrador Gmail:
-En cada borrador preparado para revisión, dentro de la sección interna inicial
-[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]
-incluye un único bloque de JSON válido, sin Markdown ni comentarios, delimitado exactamente por:
-[ANKA_DASHBOARD_JSON_V1]
-{JSON del análisis}
-[/ANKA_DASHBOARD_JSON_V1]
-Después conserva el correo limpio para el cliente. El bloque completo se borra antes de enviar.
-Nunca copies bloques de correos citados. Si actualizas un borrador, sustituye el bloque previo.
-No envíes notificaciones ni correos para transportar el JSON.
-El JSON tiene:
-thread_id: hilo real del borrador.
-message_id: ID del mensaje del cliente analizado (no ID del borrador).
-status: una etiqueta compatible: Borrador preparado, Faltan datos,
-Requiere revisión técnica interna o Información suficiente para revisión interna.
-client_email: correo real del contacto verificado; si solo está verificado el remitente,
-usa su correo y aclara la identidad comercial pendiente en summary.
-client_name, project_name, summary, received_at (ISO 8601), gmail_url, engine="chatgpt_work".
-requested_by_email, requested_by_name: quien escribió el mensaje del cliente analizado (R11); no inventes.
-cited_codes: lista con los códigos de oferta que cita ese mensaje, tal como aparecen (p. ej. "T26145"); [] si no cita.
-Si el caso ya tiene T, la tabla solo se actualiza con un mensaje del contacto registrado que cite el código; si no, no
-cambies la tabla y describe el cambio pedido. Nunca generes ni escribas el código en un borrador para otra persona.
-activities: lista de objetos con activity, servicio_tecnica, ubicacion, quantity, unit,
-entregable, plazo_restriccion, fuente, estado, notes.
-R13: los recordatorios por falta de respuesta del cliente los envia el dashboard (maximo 2, solo si una persona lo activo);
-no prepares borradores de recordatorio ni escribas al cliente por su silencio.
-estado (R12): exactamente confirmado, pendiente o contradictorio, sin texto añadido. Solo confirmado si todos los datos
-esenciales de esa fila (ubicacion, magnitud y unidad, entregable, plazo o restriccion y, cuando aplique, metodo y
-precision) estan explicitos en el correo o los adjuntos; si falta alguno, pendiente, y en notes escribe que falta.
-En activities[].fuente cita correo o archivo y localizador concreto (pagina, parrafo, tabla/fila, hoja/celda o elemento
-KML/KMZ). Al comparar mensajes, no fusiones instrucciones de mensajes anteriores con la solicitud actual.
-fields: lista de objetos name, value, source; source cita correo o archivo y localizador concreto.
-missing_data: lista de textos distinguiendo crítico/recomendable.
-question_audit: por cada pregunta propuesta, objeto question, reason_missing, reviewed_sources (lista).
-Cada pregunta debe tener motivo verificable y enumerar los correos y adjuntos revisados. Antes de preguntar,
-busca el dato en todo el correo y en cada documento, incluyendo sinónimos, tablas, notas, anexos, encabezados,
-figuras e imágenes. Si una fuente ya responde, no lo preguntes. Distingue el requisito ya fijado, opciones que
-el pliego permite escoger y lo que falta definir para esta solicitud. Pregunta solo lo que siga genuinamente abierto.
-attachments: lista de objetos filename, status, reason, coverage, reviewed_sections (lista), blocked_fields (lista), evidence (lista).
-coverage toma exactamente completa, parcial o no_legible. Indica por cada archivo si la inspección fue completa, parcial o no legible; anota páginas, hojas, diapositivas,
-secciones u otros elementos realmente revisados y límites de lectura. La extracción de texto no equivale a revisar
-diagramas o imágenes: si no puedes interpretarlos, informa esa limitación y pide revisión técnica.
-Cada evidence tiene topic, value, location y excerpt: un hallazgo comprobable, su ubicacion y una cita breve
-del contenido. Revisa cada adjunto por separado, contrasta cifras y requisitos entre correo y documentos y
-registra contradicciones con ambos localizadores. No completes valores que no aparezcan en una fuente.
-Para KMZ/KML informa elementos, tipo de geometria, coordenadas y extension extraida; no infieras area,
-longitud, precision ni sistema de referencia. Marca status como lectura parcial si no pudiste inspeccionar
-todo el archivo. PDF escaneado sin texto, CAD y formatos no soportados requieren revision manual.
-contradictions: lista de objetos topic, details, sources (lista), status.
-scope_dependencies: lista de objetos description, source, status.
-Datos ausentes: no indicado. No inventar IDs, contactos, enlaces ni requisitos.
-En alcance completo, prepara un borrador interno para revisión en el mismo hilo con este bloque;
-no lo envíes y no crees carpetas. El estado es Información suficiente para revisión interna.
-Para publicidad y notificaciones automáticas no crees borradores de sincronización.
-Las respuestas nuevas se procesan aunque el thread_id exista; solo repetir el mismo message_id
-ya procesado es una repetición del evento. Actualizar el caso por thread_id.
-No afirmes que el dashboard se actualizó: indica JSON preparado; sincronización local pendiente.
-
-El modo local/API tiene extractores propios para varios formatos; ChatGPT Work no ejecuta esos extractores Python. En Work, la lectura depende del contenido que Gmail/conector y las herramientas de esa tarea expongan. Usa el protocolo de arriba, registra cobertura real por archivo y nunca declares completa una lectura basándote solo en el nombre/extensión o en que el archivo aparece adjunto. Para DWG/DXF, formatos no expuestos, OCR/diagramas no interpretables o partes no visibles, marca revisión manual. No preguntes al cliente un dato hasta comprobarlo contra el mensaje completo y cada adjunto accesible.
-
 PRUEBA
 1. Ejecutar --once: verifica cuenta, permisos y módulos.
-2. Añadir el texto anterior a la tarea y usar un nuevo correo de prueba elegible.
+2. Copiar `docs/PROMPT_WORK_ANKA.txt` en una sola tarea activa y usar un nuevo correo de prueba elegible.
 3. Confirmar que el borrador tiene el bloque JSON dentro de la sección interna.
 4. Ejecutar --once y comprobar Dashboard actualizado: <thread_id>.
 5. Recargar dashboard y verificar actividades y preguntas.
