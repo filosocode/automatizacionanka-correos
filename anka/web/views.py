@@ -86,10 +86,18 @@ def question_audit_panel(audit: Sequence[Mapping[str, Any]]) -> Markup:
     """Muestra por qué se propuso cada pregunta y qué fuentes se comprobaron."""
     rows = [
         (str(item.get("question") or ""), str(item.get("reason_missing") or ""),
-         ", ".join(str(source) for source in (item.get("reviewed_sources") or [])))
+         ", ".join(str(source) for source in (item.get("reviewed_sources") or [])),
+         str(item.get("disposition") or "sin validar"),
+         str(item.get("unresolved") or ""),
+         ", ".join(str(ref) for ref in (item.get("target_finding_ids") or [])))
         for item in audit if isinstance(item, Mapping)
     ]
     return render("question_audit.html", rows=rows)
+
+
+def question_quality_panel(warnings: Sequence[str]) -> Markup:
+    """Explica controles deterministas que dejaron preguntas sin soporte comprobable."""
+    return render("question_quality.html", warnings=[str(item) for item in warnings if str(item).strip()])
 
 
 def reception_assessment_panel(assessment: dict) -> Markup:

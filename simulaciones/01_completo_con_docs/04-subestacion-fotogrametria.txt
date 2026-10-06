@@ -1,0 +1,13 @@
+De: Jorge Pineda <jpineda@redelectrica-ejemplo.com>
+Asunto: Fotogrametría y modelo 3D subestación 115 kV Yumbo
+Adjuntos (anexar a mano): Plano de planta de la subestación (PDF); fotos de referencia (JPG)
+------------------------------------------------------------
+Buenas tardes,
+
+Requerimos un modelo 3D (fotogrametría + nube de puntos) de la subestación Yumbo 115 kV, área aprox. 3,5 ha, para un proyecto de ampliación de bahías. Necesitamos ortofoto, modelo 3D texturizado y planos de planta actualizados en DWG.
+El vuelo debe coordinarse con el área de operaciones (zona energizada, requiere permiso de trabajo). Entrega objetivo: 20 días hábiles.
+
+Adjunto plano de planta existente y fotos de referencia.
+
+Saludos,
+Jorge Pineda - Ingeniería de Proyectos

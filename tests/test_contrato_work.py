@@ -1,6 +1,6 @@
 """Contrato Work ↔ puente: spec/contrato_work.schema.json es la fuente de verdad.
 
-Cubre: T-02
+Cubre: T-02, T-19
 """
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
@@ -104,6 +104,58 @@ class BridgeUsesTheSchema(unittest.TestCase):
     def test_the_schema_file_is_the_one_the_bridge_loads(self):
         self.assertEqual(work_contract.SCHEMA_PATH.name, "contrato_work.schema.json")
         self.assertEqual(json.loads(work_contract.SCHEMA_PATH.read_text(encoding="utf-8")), SCHEMA)
+
+
+class EvidenceWarningsTests(unittest.TestCase):
+    def finding(self, finding_id="F1", status="absent", owner="client", blocking=True):
+        return {"id": finding_id, "topic": "ubicación", "status": status, "value": "",
+                "source": "correo", "location": "cuerpo", "owner": owner, "blocking": blocking}
+
+    def test_supported_client_question_has_no_warning(self):
+        data = payload(
+            evidence_register=[self.finding()],
+            question_audit=[{"question": "¿En qué municipio?", "reason_missing": "Falta municipio",
+                             "reviewed_sources": ["correo"], "disposition": "ask_client",
+                             "target_finding_ids": ["F1"], "unresolved": "municipio"}],
+        )
+        self.assertEqual(work_contract.question_evidence_warnings(data), [])
+
+    def test_question_without_a_blocking_client_finding_is_warned(self):
+        data = payload(
+            evidence_register=[self.finding(status="explicit")],
+            question_audit=[{"question": "¿Dónde es?", "reason_missing": "",
+                             "reviewed_sources": [], "disposition": "ask_client",
+                             "target_finding_ids": ["F1"], "unresolved": "ubicación"}],
+        )
+        warnings = work_contract.question_evidence_warnings(data)
+        self.assertTrue(any("sin evidencia bloqueante" in warning for warning in warnings))
+
+    def test_duplicate_and_unknown_finding_references_are_warned(self):
+        data = payload(
+            evidence_register=[self.finding(), self.finding()],
+            question_audit=[{"question": "¿En qué municipio?", "reason_missing": "Falta municipio",
+                             "reviewed_sources": ["correo"], "disposition": "ask_client",
+                             "target_finding_ids": ["F1", "NO_EXISTE", "NO_EXISTE"], "unresolved": "municipio"}],
+        )
+        warnings = work_contract.question_evidence_warnings(data)
+        self.assertTrue(any("duplicado" in warning for warning in warnings))
+        self.assertTrue(any("inexistente" in warning for warning in warnings))
+        self.assertTrue(any("repite" in warning for warning in warnings))
+
+    def test_unreadable_attachment_limit_is_internal_review(self):
+        data = payload(
+            attachments=[{"filename": "plano.dwg", "coverage": "no_legible"}],
+            evidence_register=[self.finding("F1", status="unreadable", owner="unknown")],
+            question_audit=[{"question": "¿Qué indica el DWG?", "reason_missing": "",
+                             "reviewed_sources": ["plano.dwg"], "disposition": "ask_client",
+                             "target_finding_ids": ["F1"], "unresolved": "contenido del plano"}],
+        )
+        warnings = work_contract.question_evidence_warnings(data)
+        self.assertTrue(any("no debe pedir" in warning for warning in warnings))
+        self.assertTrue(any("adjunto .dwg no legible" in warning for warning in warnings))
+
+    def test_legacy_payload_without_evidence_remains_compatible(self):
+        self.assertEqual(work_contract.question_evidence_warnings(payload()), [])
 
 
 if __name__ == "__main__":

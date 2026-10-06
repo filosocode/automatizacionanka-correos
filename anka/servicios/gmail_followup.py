@@ -11,6 +11,7 @@ import base64
 import email
 import email.policy
 import json
+import re
 from datetime import datetime
 from email.utils import parseaddr
 from pathlib import Path
@@ -22,6 +23,7 @@ from anka.servicios.change_control import company_domain, mentions_code
 from anka.infra.logging_setup import get_logger
 from anka.dominio.status import QuoteStatus
 from anka.dominio.correo import message_text
+from anka.dominio.errores import ErrorDeAnka
 from anka.infra.store import add_dashboard_notification, add_message, connect, record_event, register_change
 
 log = get_logger(__name__)
@@ -135,6 +137,22 @@ def _related_queries(cases: dict) -> list[str]:
         "newer_than:30d -in:drafts -in:sent (" + " OR ".join(ordered[i:i + RELATED_CHUNK]) + ")"
         for i in range(0, len(ordered), RELATED_CHUNK)
     ]
+
+
+def _is_test_email(sender: str, subject: str) -> bool:
+    """Reconoce pruebas recibidas desde la dirección designada y con asunto marcado."""
+    try:
+        # Sin configuración explícita no se presume que exista una dirección de pruebas.
+        configured = settings.load_config().get("test_sender_addresses", [])
+    except (ErrorDeAnka, OSError, ValueError):
+        configured = []
+    test_senders = {
+        str(address).strip().casefold()
+        for address in configured
+    }
+    if not sender or sender.casefold() not in test_senders:
+        return False
+    return bool(re.search(r"(?<!\w)(?:(?:prueba|test)(?:\s*[-#:]?\s*\d+)?|nuevo)(?!\w)", subject, re.I))
 
 
 def _note_sent_message(db: Any, thread_id: str, message_id: str, headers: dict[str, str], snippet: str,
@@ -265,6 +283,10 @@ def _find_related(gmail: Any, db: Any, cases: dict, seen: set[str], linked: set[
             headers = _headers(message)
             name, address = parseaddr(headers.get("from", ""))
             sender, subject = address.casefold(), headers.get("subject", "")
+            if _is_test_email(sender, subject):
+                # Es una prueba recibida desde el remitente designado y conserva su hilo separado.
+                # No se crea la sugerencia «¿pertenece a este caso?» en casos anteriores.
+                continue
             when = int(message.get("internalDate", "0"))
             snippet = " ".join(str(message.get("snippet", "")).split())[:SNIPPET_CHARS]
             for case_thread, case in cases.items():

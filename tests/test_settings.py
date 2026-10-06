@@ -37,7 +37,7 @@ def with_changes(**changes):
 settings_MISSING = object()
 
 
-# Cubre: T-09
+# Cubre: T-09, T-21
 class ValidateConfigTests(unittest.TestCase):
     def test_valid_config_has_no_problems(self):
         self.assertEqual(settings.validate_config(VALID), [])
@@ -73,6 +73,14 @@ class ValidateConfigTests(unittest.TestCase):
     def test_own_addresses_must_look_like_emails(self):
         problems = settings.validate_config(with_changes(own_addresses=["sin-arroba"]))
         self.assertTrue(any("own_addresses" in p and "sin-arroba" in p for p in problems))
+
+    def test_test_sender_addresses_are_optional_but_validated(self):
+        minimal = {"required_fields": [], "llm": {"provider": "ollama", "base_url": "http://x"}}
+        self.assertEqual(settings.validate_config(minimal), [])
+        self.assertTrue(any("test_sender_addresses" in p for p in settings.validate_config(
+            with_changes(test_sender_addresses="pruebas@anka.com.co"))))
+        self.assertTrue(any("test_sender_addresses" in p for p in settings.validate_config(
+            with_changes(test_sender_addresses=["sin-arroba"]))))
 
     def test_enumerated_values(self):
         self.assertTrue(settings.validate_config(with_changes(active_mode="cloud")))

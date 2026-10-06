@@ -34,7 +34,7 @@
           "activity": {"type": "string"},
           "servicio_tecnica": {"type": "string"},
           "ubicacion": {"type": "string"},
-          "quantity": {"type": "string"},
+          "quantity": {"type": ["string", "number"], "$comment": "El puente normaliza cantidades numéricas a texto para el dashboard."},
           "unit": {"type": "string"},
           "entregable": {"type": "string"},
           "plazo_restriccion": {"type": "string"},
@@ -58,6 +58,24 @@
       }
     },
     "missing_data": {"type": "array", "items": {"type": "string"}},
+    "evidence_register": {
+      "type": "array",
+      "$comment": "Inventario atómico de datos relevantes y estado de evidencia. Referenciado por question_audit en el contrato v2.",
+      "items": {
+        "type": "object",
+        "required": ["id", "topic", "status", "value", "source", "location", "owner", "blocking"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "topic": {"type": "string", "minLength": 1},
+          "status": {"type": "string", "enum": ["explicit", "partial", "absent", "unreadable", "contradictory", "unconfirmed"]},
+          "value": {"type": "string"},
+          "source": {"type": "string"},
+          "location": {"type": "string"},
+          "owner": {"type": "string", "enum": ["client", "anka", "contractor", "unknown"]},
+          "blocking": {"type": "boolean"}
+        }
+      }
+    },
     "question_audit": {
       "type": "array",
       "$comment": "Toda pregunta propuesta indica por qué sigue abierta y qué fuentes fueron consultadas para no repetir información existente.",
@@ -67,7 +85,11 @@
         "properties": {
           "question": {"type": "string"},
           "reason_missing": {"type": "string"},
-          "reviewed_sources": {"type": "array", "items": {"type": "string"}}
+          "reviewed_sources": {"type": "array", "items": {"type": "string"}},
+          "question_id": {"type": "string"},
+          "target_finding_ids": {"type": "array", "items": {"type": "string"}},
+          "disposition": {"type": "string", "enum": ["ask_client", "internal_review", "do_not_ask"]},
+          "unresolved": {"type": "string"}
         }
       }
     },

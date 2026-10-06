@@ -8,12 +8,12 @@ Work se derivan de aquí y se comparan contra aquí.
 | [00-alcance.md](00-alcance.md) | ¿Qué es la Fase 1, qué no se hace y cuándo está terminada? |
 | [01-flujo-y-estados.md](01-flujo-y-estados.md) | ¿Cómo avanza un caso? (estados y transiciones; datos en `transiciones.json`) |
 | [02-reglas.md](02-reglas.md) | Índice de las reglas operativas R1 a R13 (texto en `skills/.../reglas_operativas.md`) |
-| [03-contrato-work.md](03-contrato-work.md) | ¿Qué debe entregar ChatGPT Work? (esquema en `contrato_work.schema.json`) |
+| [03-contrato-work.md](03-contrato-work.md) | ¿Qué debe entregar ChatGPT Work y cómo se revisa la evidencia de sus preguntas? (esquema en `contrato_work.schema.json`) |
 | [04-ux.md](04-ux.md) | ¿Cómo debe sentirse el dashboard? (criterios y nota vigente) |
 | [05-decisiones.md](05-decisiones.md) | ¿Por qué se decidió así? (registro de decisiones) |
 | [06-arquitectura.md](06-arquitectura.md) | ¿Cómo está organizado el código? (capas y reglas de dependencia) |
 | [07-api.md](07-api.md) | ¿Cómo se documenta y se prueba cada petición? (Swagger UI y OpenAPI) |
-| [requisitos.md](requisitos.md) | Lista de requisitos con identificador, uno por línea de trazabilidad |
+| [requisitos.md](requisitos.md) | Lista de requisitos con identificador, uno por línea de trazabilidad; incluye T-19 a T-21 para los cambios actuales |
 
 ## Cómo se trabaja con ella
 1. **Cambio de comportamiento ⇒ empieza aquí.** Edita el requisito, la regla, el esquema o la tabla de

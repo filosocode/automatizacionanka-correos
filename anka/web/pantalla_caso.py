@@ -20,6 +20,7 @@ from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
 from anka.web.views import (
     attachments_table, reception_assessment_panel, activities_editor, question_audit_panel,
+    question_quality_panel,
 )
 from anka.dominio.status import (
     QuoteStatus,
@@ -79,13 +80,15 @@ def _suggested_questions(analysis: Analisis, assessment: dict) -> str:
 
 
 def _link_banner(review: Mapping[str, Any]) -> Markup:
-    link = review["links"][0]
+    links = review["links"]
     contacts = case_contacts(review["recipient"], review["analysis"])
-    return render(
-        "link_banner.html", link=link, who=link["sender_name"] or link["sender_email"],
-        reason=reason_label(link["reason"]), thread_id=review["thread_id"],
-        more=len(review["links"]) - 1,
-        show_verify=link["reason"].startswith("domain") or link["sender_email"] not in contacts)
+    items = [{
+        "link": link,
+        "who": link["sender_name"] or link["sender_email"],
+        "reason": reason_label(link["reason"]),
+        "show_verify": link["reason"].startswith("domain") or link["sender_email"] not in contacts,
+    } for link in links]
+    return render("link_banner.html", links=items, thread_id=review["thread_id"])
 
 
 class _ReplyData(NamedTuple):
@@ -517,6 +520,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")}),
         "attachments_table": attachments_table(analysis.get("attachments", [])),
         "question_audit": question_audit_panel(analysis.get("question_audit", [])),
+        "question_quality": question_quality_panel(analysis.get("question_quality_warnings", [])),
         "manual_review": _manual_review_note(analysis.get("manual_review")),
         "conversation": _conversation_panel(thread_id),
         "stepper": _stepper(review),

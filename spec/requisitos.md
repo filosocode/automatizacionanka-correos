@@ -135,6 +135,24 @@ historial, rescatable; lo que ese correo traía para la tabla queda como **propu
 las actividades nuevas o cambiadas, sin quitar filas) que se adopta o se descarta; solo si no avanzó (sin código de oferta, carpeta ni respuesta enviada). Los avisos que ya
 habían quedado repetidos se limpian al actualizar la base.
 
+### T-19 · Preguntas justificadas por evidencia
+El contrato de Work admite hallazgos atómicos (`evidence_register`) y enlaces de cada pregunta a sus hallazgos
+(`question_audit`). El puente advierte referencias duplicadas o inexistentes, preguntas sin objetivo bloqueante
+pendiente atribuible al cliente/contratista, preguntas sobre datos explícitos y límites de lectura trasladados al
+cliente. La advertencia es informativa: conserva el análisis y el borrador para revisión humana; payloads anteriores
+sin esos campos siguen siendo válidos.
+
+### T-20 · Descarte por lote de posibles vínculos
+Una persona puede seleccionar varias sugerencias de vínculo en un caso o en la lista global y descartarlas en una
+acción. Solo se resuelven los avisos seleccionados que sigan pendientes; correos, casos, tablas e historiales se
+conservan y cada decisión deja un evento.
+
+### T-21 · Aislamiento de correos de prueba en sugerencias de vínculo
+`test_sender_addresses` configura remitentes controlados para pruebas. Solo esos remitentes, con un asunto marcado
+explícitamente `prueba`, `test` o `nuevo`, quedan fuera de las sugerencias de vínculo con casos previos. No se
+excluyen direcciones de Anka por defecto ni correos de clientes externos por usar esas palabras; el filtro no
+elimina ni altera mensajes o casos.
+
 ## Experiencia de usuario
 
 ### U-01 · Siguiente paso claro

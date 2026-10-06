@@ -30,7 +30,7 @@ ACTIVE_MODES = {"local", "api", "chatgpt_work"}
 
 
 KNOWN_CONFIG_KEYS = {
-    "active_mode", "gmail_query", "own_addresses", "forwarded_reply_policy", "llm",
+    "active_mode", "gmail_query", "own_addresses", "test_sender_addresses", "forwarded_reply_policy", "llm",
     "required_fields", "commercial_filter_terms", "drive_parent_id", "folder_prefix",
     "work_sync_account",
 }
@@ -52,14 +52,13 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
     for key in ("gmail_query", "drive_parent_id", "folder_prefix", "work_sync_account"):
         if key in config and not isinstance(config[key], str):
             problems.append(f"{key} debe ser texto.")
-    for key in ("own_addresses", "commercial_filter_terms"):
+    for key in ("own_addresses", "test_sender_addresses", "commercial_filter_terms"):
         if key in config and not _is_text_list(config[key]):
             problems.append(f"{key} debe ser una lista de textos.")
-    for address in config.get("own_addresses", []) if _is_text_list(
-        config.get("own_addresses", [])
-    ) else []:
-        if "@" not in address:
-            problems.append(f"own_addresses contiene '{address}', que no parece un correo.")
+    for key in ("own_addresses", "test_sender_addresses"):
+        for address in config.get(key, []) if _is_text_list(config.get(key, [])) else []:
+            if "@" not in address:
+                problems.append(f"{key} contiene '{address}', que no parece un correo.")
     if "required_fields" not in config:
         problems.append("required_fields es obligatorio (puede ser una lista vacía).")
     elif not _is_text_list(config["required_fields"]):

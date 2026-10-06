@@ -1,35 +1,28 @@
-INSTRUCCIONES DE LA TAREA CHATGPT WORK — GRUPO ANKA
+﻿INSTRUCCIONES DE LA TAREA CHATGPT WORK — GRUPO ANKA
 
-Este archivo explica el puente Gmail → dashboard. El prompt que se copia en la tarea está en `PROMPT_WORK_ANKA.txt`; editar archivos locales no actualiza la tarea activa de ChatGPT Work.
+Este archivo explica el puente Gmail → dashboard. El prompt vigente para copiar en la tarea está en `PROMPT_WORK_ANKA_RIGUROSO_V2.txt`. Editar archivos locales no actualiza una tarea activa de ChatGPT Work.
 
-El prompt vigente para copiar a la tarea de ChatGPT Work está en docs/PROMPT_WORK_ANKA.txt.
+CONTRATO V2: PREGUNTAS CON EVIDENCIA
+El bloque JSON incluye thread_id, message_id, client_email, client_name, project_name, summary, status, engine, received_at, gmail_url, requested_by_email, requested_by_name, cited_codes, activities, fields, missing_data, evidence_register, question_audit, attachments, contradictions y scope_dependencies. El puente agrega draft_reply y draft_id.
+Cada actividad incluye activity, servicio_tecnica, ubicacion, quantity, unit, entregable, plazo_restriccion, fuente, estado y notes. Cada field contiene name, value y source.
+Para cada dato relevante, registra un hallazgo atómico en evidence_register con id, topic, status, value, source, location, owner y blocking. Cada pregunta de other_questions debe tener entrada en question_audit con question, reason_missing, reviewed_sources, question_id, target_finding_ids, disposition y unresolved. Pregunta al cliente solo por evidencia pendiente y bloqueante que le corresponda resolver. No preguntes datos explícitos ni traslades al cliente límites de lectura; estos últimos van a revisión interna. Si el dato es parcial, pregunta solo por lo que falta.
+El dashboard muestra advertencias para revisión humana y conserva el análisis y el borrador. La importación es compatible con payloads anteriores sin evidence_register.
 
 PUENTE GMAIL → DASHBOARD LOCAL
-
-El puente (work_dashboard_sync.py) ya forma parte del proyecto: lo arranca «Iniciar Anka.bat» junto con el dashboard
-y lo reinicia solo si se cae. Para ejecutarlo a mano, en la terminal con .venv activo y desde la carpeta del proyecto:
+El puente (`work_dashboard_sync.py`) lo inicia `Iniciar Anka.bat` junto con el dashboard. Para ejecutarlo una vez:
 python .\work_dashboard_sync.py --once
 Para mantenerlo activo:
 python .\work_dashboard_sync.py --seconds 60
-El equipo y el proceso deben permanecer activos. Ctrl+C lo detiene.
-Usa la autorización Google y DATA_DIR existentes. Nunca envía, elimina ni modifica borradores.
-Los borradores anteriores sin bloque JSON no se importan. 0 actualizados no es un error.
-No cambia la tarea de ChatGPT: copia `docs/PROMPT_WORK_ANKA.txt` en las instrucciones de una sola tarea activa.
-No actives dos tareas que creen borradores para el mismo evento. Identifica primero la otra tarea.
-No hay pruebas con tu cuenta Windows realizadas desde ChatGPT.
+El equipo y el proceso deben permanecer activos. Ctrl+C lo detiene. Usa la autorización Google y la carpeta DATA_DIR configuradas. El puente importa borradores; nunca envía, elimina ni modifica borradores.
+No actives dos tareas que creen borradores para el mismo evento. Para usar el contrato V2, pega `docs/PROMPT_WORK_ANKA_RIGUROSO_V2.txt` en una sola tarea activa.
 
 PRUEBA
-1. Ejecutar --once: verifica cuenta, permisos y módulos.
-2. Copiar `docs/PROMPT_WORK_ANKA.txt` en una sola tarea activa y usar un nuevo correo de prueba elegible.
-3. Confirmar que el borrador tiene el bloque JSON dentro de la sección interna.
-4. Ejecutar --once y comprobar Dashboard actualizado: <thread_id>.
-5. Recargar dashboard y verificar actividades y preguntas.
-6. Ejecutar --once de nuevo: debería mostrar 0 actualizados para el mismo contenido.
-7. Dejar --seconds 60 activo para las siguientes solicitudes.
+1. Ejecuta `--once` para verificar cuenta, permisos y módulos.
+2. Usa un correo de prueba elegible con la tarea activa.
+3. Confirma que el borrador incluye el bloque JSON en la sección interna.
+4. Ejecuta `--once` y comprueba que el dashboard actualice el caso.
+5. Revisa actividades, preguntas y advertencias de evidencia.
+6. Ejecuta `--once` otra vez; el mismo contenido no debe duplicarse.
 
 LIMITACIONES
-Si el borrador se envía o elimina antes de importar, el proceso no lo encontrará.
-JSON inválido o hilo incorrecto no se importa. Los errores no se marcan como procesados.
-La base de datos y sus escrituras siguen usando dashboard_upsert existente.
-El estado mostrado por sync_status_text sigue describiendo la automatización anterior;
-este paquete no cambia ese indicador. El terminal confirma la sincronización real.
+Si el borrador se envía o elimina antes de importar, el proceso no lo encontrará. JSON inválido o un hilo incorrecto no se importan y sus errores no se marcan como procesados. La base SQLite sigue siendo la fuente de persistencia del dashboard.

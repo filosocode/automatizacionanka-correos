@@ -5,6 +5,9 @@
     "correo-principal@anka.com.co",
     "alias-comercial@anka.com.co"
   ],
+  "test_sender_addresses": [
+    "91andresmunoz@gmail.com"
+  ],
   "forwarded_reply_policy": "internal_reviewer",
   "llm": {
     "provider": "ollama",

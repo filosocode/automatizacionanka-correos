@@ -25,7 +25,7 @@ REQUIRED_FILES = (
     "spec/03-contrato-work.md", "spec/04-ux.md", "spec/05-decisiones.md", "spec/06-arquitectura.md", "spec/07-api.md", "spec/requisitos.md",
     "spec/transiciones.json", "spec/contrato_work.schema.json",
 )
-HEADING = re.compile(r"^### ([A-Z0-9]+-\d+) · ", re.MULTILINE)
+HEADING = re.compile("^### ([A-Z0-9]+-\\d+) " + chr(183) + " ", re.MULTILINE)
 RULE_ROW = re.compile(r"^\| (R\d+) \|", re.MULTILINE)
 TAG = re.compile(r"Cubre:\s*([A-Za-z0-9\-,\s]+)")
 

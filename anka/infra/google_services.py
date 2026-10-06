@@ -31,7 +31,7 @@ FOLDER_MIME = "application/vnd.google-apps.folder"
 
 
 def _oauth_browser() -> str | None:
-    """Usa Chrome directamente en Windows, donde el navegador predeterminado puede no abrirse desde el supervisor oculto."""
+    """Usa Chrome en Windows si el navegador predeterminado no abre desde el supervisor oculto."""
     candidates = [shutil.which("chrome.exe"), shutil.which("chrome")]
     for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
         base = os.getenv(variable)

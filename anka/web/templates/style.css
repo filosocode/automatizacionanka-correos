@@ -247,6 +247,19 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .next-step.warn { background: #fbedd9; border-color: #e6c9a0; }
 .next-step div { display: grid; gap: 2px; }
 .next-step span { font-size: 14px; }
+.next-step[aria-label="Posibles actualizaciones"] { display: grid; align-items: start; }
+.link-bulk-toolbar, .link-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.link-bulk-toolbar { margin: 8px 0; }
+.link-bulk-toolbar label, .link-select { display: inline-flex; align-items: center; gap: 8px; }
+.link-list { display: grid; gap: 8px; }
+.link-item { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #e6c9a0; border-radius: 6px; background: rgba(255,255,255,.55); }
+.link-item input[type="checkbox"], .link-bulk-toolbar input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+.link-item .inline-form { display: inline; }
+.link-item .inline-form button { min-height: 34px; padding: 6px 10px; }
+.related-bulk { margin-bottom: 18px; }
+.link-bulk-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.link-bulk-item > span { display: grid; gap: 2px; flex: 1; }
+.link-bulk-item input[type="checkbox"] { flex: 0 0 18px; }
 .proposal { border: 1px dashed #c9a56a; background: #fffaf2; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
 .proposal ul { margin: 8px 0 12px; padding-left: 18px; }
 .chip { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #e3edf1; }

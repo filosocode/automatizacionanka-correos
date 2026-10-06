@@ -293,6 +293,66 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
     return message
 
 
+def dismiss_pending_links(thread_id: str, link_ids: list[int]) -> str:
+    """Descarta en lote sugerencias de vínculo seleccionadas, sin unir ni borrar casos."""
+    ids = sorted({int(value) for value in link_ids if int(value) > 0})
+    if not ids:
+        return "Selecciona al menos una posible actualización."
+    db = connect()
+    try:
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        placeholders = ",".join("?" for _ in ids)
+        rows = db.execute(
+            f"SELECT id, message_id, sender_email, sender_name, subject, snippet FROM case_links "
+            f"WHERE thread_id=? AND state='pending' AND id IN ({placeholders})",
+            (thread_id, *ids),
+        ).fetchall()
+        if not rows:
+            return "Las posibles actualizaciones seleccionadas ya estaban resueltas."
+        for row in rows:
+            db.execute("UPDATE case_links SET state='dismissed', decided_at=? WHERE id=?",
+                       (now, row["id"]))
+            summary = (f"Descartaste en lote que el correo «{row['subject'][:80]}» de "
+                       f"{row['sender_name'] or row['sender_email']} sea de este caso.")
+            record_event(db, thread_id, "dismissed", "dashboard", f"link-{row['id']}", summary,
+                         now, row["sender_email"], row["sender_name"])
+        db.commit()
+        return f"Descartaste {len(rows)} posible(s) actualización(es). Los correos y casos se conservaron."
+    finally:
+        db.close()
+
+
+def dismiss_pending_links_many(references: list[tuple[str, int]]) -> str:
+    """Descarta en lote sugerencias de varios casos sin unir ni borrar sus hilos."""
+    selected = sorted({(str(thread).strip(), int(link_id)) for thread, link_id in references
+                       if str(thread).strip() and int(link_id) > 0})
+    if not selected:
+        return "Selecciona al menos una posible actualización."
+    db = connect()
+    try:
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        dismissed = 0
+        for thread_id, link_id in selected:
+            row = db.execute(
+                "SELECT sender_email, sender_name, subject FROM case_links "
+                "WHERE id=? AND thread_id=? AND state='pending'", (link_id, thread_id)).fetchone()
+            if not row:
+                continue
+            db.execute("UPDATE case_links SET state='dismissed', decided_at=? WHERE id=? AND thread_id=?",
+                       (now, link_id, thread_id))
+            record_event(db, thread_id, "dismissed", "dashboard", f"link-{link_id}",
+                         f"Descartaste en lote que el correo «{row['subject'][:80]}» de "
+                         f"{row['sender_name'] or row['sender_email']} sea de este caso.",
+                         now, row["sender_email"], row["sender_name"])
+            dismissed += 1
+        db.commit()
+        if not dismissed:
+            return "Las posibles actualizaciones seleccionadas ya estaban resueltas."
+        return f"Descartaste {dismissed} posible(s) actualización(es). Los correos y casos se conservaron."
+    finally:
+        db.close()
+
+
 def case_conversation(thread_id: str, limit: int = 12) -> list[dict]:
     """Correos del hilo, el más reciente primero."""
     return repositorio.conversacion(thread_id, limit)

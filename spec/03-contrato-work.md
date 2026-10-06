@@ -34,8 +34,21 @@ Control de cambios (R11): `requested_by_email`, `requested_by_name`,
 Antes de preguntar, Work cruza cada faltante con el correo y todos los adjuntos, incluidos tablas, notas, figuras e
 imágenes. `question_audit` registra la pregunta, por qué sigue abierta y las fuentes revisadas; si alguna fuente ya
 la responde, la pregunta se elimina.
-`cited_codes`. El puente agrega `draft_reply` y `draft_id`. Los valores `null` en campos opcionales se tratan como
+Para los tipos, estados y reglas de advertencia del registro de evidencia, ver la sección «Control de preguntas
+justificadas por evidencia» más abajo.
+Además de los campos indicados, el contrato admite `evidence_register`: cada hallazgo tiene `id`, `topic`, `status`
+(`explicit`, `partial`, `absent`, `unreadable`, `contradictory`, `unconfirmed`), `value`, `source`, `location`,
+`owner` (`client`, `anka`, `contractor`, `unknown`) y `blocking`. `question_audit` conserva sus campos base
+`question`, `reason_missing`, `reviewed_sources` y opcionalmente `question_id`, `target_finding_ids`, `disposition`
+(`ask_client`, `internal_review`, `do_not_ask`) y `unresolved`. En el contrato v2, las preguntas a cliente deben
+apuntar a hallazgos pendientes; el puente informa referencias inexistentes/duplicadas, falta de objetivo bloqueante,
+preguntas sobre hallazgos explícitos y traslado de límites de lectura al cliente. Son advertencias para revisión
+humana y no bloquean la importación. Payloads anteriores sin `evidence_register` siguen siendo válidos.
+El puente agrega `draft_reply` y `draft_id`. Los valores `null` en campos opcionales se tratan como
 ausentes; los campos desconocidos se toleran.
+
+`activities[].quantity` admite texto o número JSON; el importador normaliza las cantidades numéricas a texto antes
+de guardarlas en el dashboard.
 
 La cobertura se declara según el contenido realmente accesible en la tarea de ChatGPT Work. Work no ejecuta los
 extractores Python del modo local/API; por eso no se presupone que pueda abrir o interpretar todos los formatos que
@@ -43,6 +56,22 @@ el extractor local admite. La tarea y la skill detallan una inspección por tipo
 para componentes que Gmail/conector no exponga, páginas u hojas no revisadas, OCR dudoso, diagramas sin interpretar,
 KMZ cuyo KML interno no se pudo inspeccionar, planes de vuelo no decodificados y CAD. No se solicita al cliente
 reenviar archivos solo para compensar una limitación del conector sin que una persona lo determine.
+
+## Tipos de campos adicionales
+`activities[].quantity` admite texto o número JSON; el importador normaliza cantidades numéricas a texto antes de
+guardarlas en el dashboard.
+
+## Control de preguntas justificadas por evidencia
+`evidence_register` y los campos extendidos de `question_audit` son opcionales para conservar compatibilidad con
+borradores ya existentes. Si `evidence_register` está presente, el puente revisa consistencia mecánica, sin pretender
+determinar semánticamente si una pregunta es apropiada: los ids deben ser únicos, las referencias deben existir y
+las preguntas con `disposition=ask_client` deben tener un hallazgo objetivo pendiente, bloqueante y atribuible al
+cliente o contratista. Un hallazgo `unreadable` debe permanecer en revisión interna. Las advertencias aparecen en el
+caso para que la persona revise el análisis y edite el borrador antes de enviarlo; la herramienta nunca lo envía por
+esta validación.
+
+`activities[].quantity` admite texto o número JSON; el importador normaliza cantidades numéricas a texto antes de
+guardarlas en el dashboard.
 
 ## Estado
 `status` es una de las etiquetas oficiales del esquema; **se acepta sin tildes ni mayÃºsculas** y se normaliza. El estado

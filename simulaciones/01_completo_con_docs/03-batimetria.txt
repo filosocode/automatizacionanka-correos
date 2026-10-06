@@ -1,0 +1,13 @@
+De: Marcela Duarte <mduarte@hidroandina-ejemplo.com>
+Asunto: Cotización batimetría embalse - estudio de sedimentación
+Adjuntos (anexar a mano): Shapefile/KMZ del embalse; informe anterior de batimetría 2019 (PDF)
+------------------------------------------------------------
+Hola,
+
+Necesitamos una batimetría completa del embalse La Esperanza (aprox. 310 ha, municipio de Guatapé, Antioquia) para actualizar la curva área-volumen y evaluar sedimentación.
+
+Se requiere ecosonda multihaz o monohaz con líneas cada 25 m, modelo digital del fondo, curvas batimétricas cada 1 m y comparación con la batimetría 2019 (adjunta). Nivel de embalse operativo actual: 1.890 msnm.
+Fecha deseada: antes de fin de año. Adjunto KMZ del vaso y el informe previo.
+
+Gracias,
+Marcela Duarte - Jefe de Ingeniería, HidroAndina

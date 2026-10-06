@@ -1,4 +1,4 @@
-"""Un correo pertenece a un solo caso: confirmarlo en uno lo cierra en los demás (requisito T-18, decisión D-31)."""
+"""Un correo pertenece a un solo caso; también se pueden descartar vínculos y aislar pruebas."""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
@@ -26,7 +26,7 @@ def add_link(db, thread, message, state="pending", reason="sender"):
     store.add_dashboard_notification(db, thread, "possible_update", message, "Posible actualización", "Ana escribió")
 
 
-# Cubre: T-18
+# Cubre: T-18, T-20
 class OneEmailOneCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -94,6 +94,24 @@ class OneEmailOneCase(unittest.TestCase):
     def test_dismissing_in_one_case_does_not_close_the_others(self):
         quotes.resolve_link("t-a", self.link_id("t-a"), accept=False)
         self.assertEqual(self.states(), {"t-a": "dismissed", "t-b": "pending", "t-c": "pending"})
+
+    def test_bulk_dismiss_resolves_selected_links_without_merging_or_deleting_cases(self):
+        ids = [self.link_id("t-a", "correo-1"), self.link_id("t-a", "correo-2")]
+        result = quotes.dismiss_pending_links("t-a", ids)
+        self.assertIn("Descartaste 2", result)
+        self.assertEqual(self.states("correo-1"), {"t-a": "dismissed", "t-b": "pending", "t-c": "pending"})
+        self.assertEqual(self.states("correo-2"), {"t-a": "dismissed"})
+        self.assertEqual(self.repo.obtener("t-a").status, QuoteStatus.WAITING)
+        self.assertEqual(self.repo.obtener("t-b").status, QuoteStatus.WAITING)
+
+    def test_bulk_dismiss_requires_selection(self):
+        self.assertIn("Selecciona al menos una", quotes.dismiss_pending_links("t-a", []))
+
+    def test_bulk_dismiss_can_resolve_suggestions_across_cases(self):
+        refs = [("t-a", self.link_id("t-a")), ("t-b", self.link_id("t-b"))]
+        result = quotes.dismiss_pending_links_many(refs)
+        self.assertIn("Descartaste 2", result)
+        self.assertEqual(self.states(), {"t-a": "dismissed", "t-b": "dismissed", "t-c": "pending"})
 
     def test_a_notice_already_closed_elsewhere_is_not_reopened_or_recounted(self):
         db = store.open_db(self.folder)

@@ -7,7 +7,7 @@
 | [`FLUJO_FASE1.md`](FLUJO_FASE1.md) | Todos | El flujo de la Fase 1, paso a paso |
 | [`MODO_OPERACION.md`](MODO_OPERACION.md) | Quien opera | Los tres modos (Ollama, API, Work) y cómo cambiar |
 | [`PILOTO_ACEPTACION.md`](PILOTO_ACEPTACION.md) | Quien prueba | Checklist de la prueba de aceptación en Work |
-| [`PROMPT_WORK_ANKA.txt`](PROMPT_WORK_ANKA.txt) | Quien configura Work | Prompt completo vigente para copiar y pegar en la tarea de ChatGPT |
+| [`PROMPT_WORK_ANKA_RIGUROSO_V2.txt`](PROMPT_WORK_ANKA_RIGUROSO_V2.txt) | Quien configura Work | Prompt vigente con contrato de evidencia y preguntas auditables para copiar en la tarea |
 | [`INSTRUCCIONES.txt`](INSTRUCCIONES.txt) | Quien opera el puente | Sincronización entre Gmail y el dashboard, prueba y limitaciones |
 | [`ESTANDAR_CAMBIOS.md`](ESTANDAR_CAMBIOS.md) | Quien desarrolla | Cómo se cambia el comportamiento sin separar los tres modos |
 | [`POLITICA_CONTEXTO_COMERCIAL.md`](POLITICA_CONTEXTO_COMERCIAL.md) | Quien desarrolla | Qué contexto interno puede (y no puede) aparecer en correos |

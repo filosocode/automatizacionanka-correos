@@ -25,6 +25,7 @@ class Configuracion(TypedDict, total=False):
     active_mode: str                  # local | api | chatgpt_work
     gmail_query: str                  # qué correos revisa el piloto de Python
     own_addresses: list[str]          # cuenta principal y aliases desde los que responde Anka
+    test_sender_addresses: list[str]  # remitentes controlados de correos de prueba
     forwarded_reply_policy: str       # internal_reviewer | original_sender
     llm: ConfigLlm
     required_fields: list[str]        # datos indispensables para cotizar (los pide al cliente si faltan)

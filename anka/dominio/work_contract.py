@@ -11,6 +11,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+import re
 
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "spec" / "contrato_work.schema.json"
 
@@ -60,3 +61,99 @@ def validate(instance: Any, schema: dict | None = None, path: str = "") -> list[
         for index, item in enumerate(instance):
             errors.extend(validate(item, schema["items"], f"{where}[{index}]"))
     return errors
+
+
+def _validate_question_evidence(payload: dict) -> list[str]:
+    """Calcula advertencias mecánicas sobre el soporte de preguntas del contrato v2."""
+    errors: list[str] = []
+    by_id = _evidence_findings(payload.get("evidence_register") or [], errors)
+    for index, audit in enumerate(payload.get("question_audit") or []):
+        if isinstance(audit, dict):
+            errors.extend(_audit_question(index, audit, by_id, payload))
+    return errors
+
+
+def _evidence_findings(findings: list, errors: list[str]) -> dict[str, dict]:
+    """Indexa hallazgos y registra ids repetidos."""
+    by_id: dict[str, dict] = {}
+    for index, finding in enumerate(findings):
+        if not isinstance(finding, dict):
+            continue
+        finding_id = str(finding.get("id") or "").strip()
+        if finding_id in by_id:
+            errors.append(f"evidence_register[{index}].id está duplicado: {finding_id}.")
+        elif finding_id:
+            by_id[finding_id] = finding
+    return by_id
+
+
+def _audit_question(index: int, audit: dict, by_id: dict[str, dict], payload: dict) -> list[str]:
+    """Valida referencias y soporte verificable de una pregunta."""
+    errors: list[str] = []
+    disposition = audit.get("disposition")
+    if disposition not in {"ask_client", "internal_review", "do_not_ask"}:
+        return [f"question_audit[{index}] debe indicar disposition para el contrato v2."]
+    refs = audit.get("target_finding_ids") or []
+    if len(refs) != len(set(refs)):
+        errors.append(f"question_audit[{index}] repite un target_finding_id.")
+    targets = []
+    for ref in refs:
+        finding = by_id.get(ref)
+        if finding is None:
+            errors.append(f"question_audit[{index}] referencia un hallazgo inexistente: {ref}.")
+        else:
+            targets.append(finding)
+    if disposition == "ask_client":
+        errors.extend(_ask_client_warnings(index, audit, targets, payload))
+    return errors
+
+
+def _ask_client_warnings(index: int, audit: dict, targets: list[dict], payload: dict) -> list[str]:
+    """Comprueba que una pregunta al cliente tenga evidencia de un faltante suyo."""
+    if not targets:
+        return [f"question_audit[{index}] pregunta al cliente sin hallazgo objetivo."]
+    errors: list[str] = []
+    if not str(audit.get("unresolved") or "").strip():
+        errors.append(f"question_audit[{index}] debe precisar qué subdato sigue sin resolver.")
+    eligible_status = {"partial", "absent", "contradictory", "unconfirmed"}
+    eligible = [item for item in targets if item.get("status") in eligible_status
+                and item.get("owner") in {"client", "contractor"} and item.get("blocking") is True]
+    if not eligible:
+        errors.append(
+            f"question_audit[{index}] pregunta al cliente sin evidencia bloqueante pendiente atribuible "
+            "al cliente/contratista."
+        )
+    if any(item.get("status") == "unreadable" for item in targets):
+        errors.append(
+            f"question_audit[{index}] no debe pedir al cliente resolver una limitación de lectura; "
+            "use internal_review."
+        )
+    errors.extend(_unreadable_attachment_warning(index, audit, payload))
+    return errors
+
+
+def _unreadable_attachment_warning(index: int, audit: dict, payload: dict) -> list[str]:
+    """Advierte si la pregunta traslada al cliente un límite de lectura de archivo."""
+    question = str(audit.get("question") or "").casefold()
+    unreadable_types = {
+        str(item.get("filename") or "").rsplit(".", 1)[-1].casefold()
+        for item in (payload.get("attachments") or [])
+        if isinstance(item, dict)
+        and (item.get("coverage") == "no_legible"
+             or str(item.get("status") or "").casefold() in {"no_legible", "unreadable", "ilegible"})
+        and "." in str(item.get("filename") or "")
+    }
+    mentioned = sorted(ext for ext in unreadable_types
+                       if re.search(rf"(?<![a-z0-9]){re.escape(ext)}(?![a-z0-9])", question))
+    if not mentioned:
+        return []
+    extensions = ", .".join(mentioned)
+    return [f"question_audit[{index}] pregunta sobre contenido de un adjunto .{extensions} no legible; "
+            "primero requiere revisión interna."]
+
+
+def question_evidence_warnings(payload: dict) -> list[str]:
+    """Advertencias accionables; no rechaza análisis ni hace desaparecer borradores."""
+    if not isinstance(payload, dict) or "evidence_register" not in payload:
+        return []
+    return _validate_question_evidence(payload)

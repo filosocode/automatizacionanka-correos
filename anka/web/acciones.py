@@ -31,7 +31,7 @@ from anka.servicios.change_control import (
     assign_code, promote_to_te, resolve_change,
 )
 from anka.servicios.quotes import (
-    mark_notifications_read, rescue_discarded,
+    dismiss_pending_links, dismiss_pending_links_many, mark_notifications_read, rescue_discarded,
     resolve_link, resolve_model_proposal, resolve_technical_review, save_quote_metadata,
 )
 from anka.servicios.ediciones import save_activities
@@ -174,6 +174,28 @@ def _post_link(form: Form) -> str:
     return _to_case(thread_id, message)
 
 
+def _post_links_dismiss(form: Form) -> str:
+    thread_id = field(form, "thread_id")
+    ids: list[int] = []
+    for value in form.get("link_id", []):
+        try:
+            ids.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    return _to_case(thread_id, dismiss_pending_links(thread_id, ids))
+
+
+def _post_links_dismiss_all(form: Form) -> str:
+    references: list[tuple[str, int]] = []
+    for value in form.get("link_ref", []):
+        try:
+            thread_id, link_id = value.rsplit(":", 1)
+            references.append((thread_id, int(link_id)))
+        except (ValueError, TypeError):
+            continue
+    return _to("/requests", dismiss_pending_links_many(references))
+
+
 def _post_proposal(form: Form) -> str:
     thread_id = field(form, "thread_id")
     message = _guidance(lambda: resolve_model_proposal(
@@ -221,6 +243,8 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/code-approve": _post_code_approve,
     "/change": _post_change,
     "/link": _post_link,
+    "/links-dismiss": _post_links_dismiss,
+    "/links-dismiss-all": _post_links_dismiss_all,
     "/proposal": _post_proposal,
     "/delete": _post_delete,
     "/hoja": _post_sheet,

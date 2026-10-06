@@ -24,6 +24,7 @@ from anka.servicios.change_control import apply_guard
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.quotes import save_quote_metadata
 from anka.dominio.caso import CLIENT_TYPES, SECTORS
+from anka.dominio.work_contract import question_evidence_warnings
 
 log = get_logger(__name__)
 
@@ -67,8 +68,19 @@ def _work_activities(payload: dict) -> list:
     """Tabla de actividades del borrador, aceptando también un texto suelto o filas que son solo texto."""
     activities = payload.get("activities", [])
     if isinstance(activities, list):
-        activities = [{**item, "estado": normalize_estado(item["estado"])}
-                      if isinstance(item, dict) and "estado" in item else item for item in activities]
+        normalized = []
+        for item in activities:
+            if not isinstance(item, dict):
+                normalized.append(item)
+                continue
+            item = dict(item)
+            quantity = item.get("quantity")
+            if isinstance(quantity, (int, float)) and not isinstance(quantity, bool):
+                item["quantity"] = str(quantity)
+            if "estado" in item:
+                item["estado"] = normalize_estado(item["estado"])
+            normalized.append(item)
+        activities = normalized
     if isinstance(activities, str):
         return [{
             "activity": activities,
@@ -104,6 +116,7 @@ def _work_analysis(payload: dict) -> Analisis:
     """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
     source = payload.get("source", "")
     reply_text = str(payload.get("draft_reply") or "").strip()
+    warnings = question_evidence_warnings(payload)
     return {
         "is_quote_request": payload["status"] != "Descartada",
         "project_name": payload["project_name"],
@@ -111,6 +124,8 @@ def _work_analysis(payload: dict) -> Analisis:
         "activities": _work_activities(payload),
         "fields": payload.get("fields", []),
         "question_audit": payload.get("question_audit", []),
+        "evidence_register": payload.get("evidence_register", []),
+        "question_quality_warnings": warnings,
         "other_questions": _list_or_wrapped(payload.get("missing_data", []), lambda text: text),
         "scope_dependencies": _list_or_wrapped(payload.get("scope_dependencies", []), lambda text: {
             "description": text, "source": source, "status": "pendiente"}),

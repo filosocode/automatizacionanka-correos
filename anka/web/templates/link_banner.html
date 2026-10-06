@@ -1,17 +1,61 @@
-<div class="next-step warn">
+<section class="next-step warn" aria-label="Posibles actualizaciones">
   <div>
-    <strong>Llegó un correo de {{ who }} en otro hilo</strong>
-    <span>«{{ link.subject }}» · {{ reason }}.{% if link.snippet %} Dice: «{{ link.snippet }}»{% endif %}</span>
-    <span>¿Es sobre este caso?{% if more %} (hay {{ more }} aviso(s) más){% endif %}</span>
-    <span class="meta">Responder al cliente en este hilo:
-      <a href="/case?thread_id={{ thread_id | urlquote }}&template=ack#respuesta">confirmar recibido</a>{% if show_verify %} ·
-      <a href="/case?thread_id={{ thread_id | urlquote }}&template=verify#respuesta">validar el cambio de persona</a>{% endif %}
-      (se prepara el texto; tú lo revisas y lo envías)</span>
+    <strong>{{ links|length }} posible(s) actualización(es) en otros hilos</strong>
+    <span>Marca los mensajes que no pertenecen a este caso y descártalos en lote. Descartar solo oculta la sugerencia en este caso; no borra el correo ni el otro caso.</span>
   </div>
-  <form method="post" action="/link" class="toolbar">
+  <form method="post" action="/links-dismiss" class="link-bulk-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
-    <input type="hidden" name="link_id" value="{{ link.id }}">
-    <button type="submit" name="decision" value="yes">Es de este caso</button>
-    <button type="submit" class="secondary" name="decision" value="no">No es de este caso</button>
+    <div class="link-bulk-toolbar">
+      <label><input type="checkbox" data-select-all-links> Seleccionar todas</label>
+      <button type="submit" class="secondary">Descartar seleccionadas</button>
+    </div>
+    {% for item in links %}
+      <input type="checkbox" name="link_id" value="{{ item.link.id }}" data-link-checkbox hidden>
+    {% endfor %}
   </form>
-</div>
+  <div class="link-list">
+    {% for item in links %}
+    <article class="link-item">
+      <label class="link-select">
+        <input type="checkbox" data-link-id="{{ item.link.id }}">
+        <span><strong>{{ item.who }}</strong> · {{ item.link.subject }} · {{ item.reason }}</span>
+      </label>
+      {% if item.link.snippet %}<span class="meta">«{{ item.link.snippet }}»</span>{% endif %}
+      <span class="meta">¿Es sobre este caso?</span>
+      <div class="link-actions">
+        <form method="post" action="/link" class="inline-form">
+          <input type="hidden" name="thread_id" value="{{ thread_id }}">
+          <input type="hidden" name="link_id" value="{{ item.link.id }}">
+          <button type="submit" name="decision" value="yes">Es de este caso</button>
+        </form>
+        <span>·</span>
+        <a href="/case?thread_id={{ thread_id | urlquote }}&template=ack#respuesta">Preparar respuesta</a>
+        {% if item.show_verify %} · <a href="/case?thread_id={{ thread_id | urlquote }}&template=verify#respuesta">Validar contacto</a>{% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+<script>
+(() => {
+  const root = document.currentScript.previousElementSibling;
+  const toggle = root && root.querySelector('[data-select-all-links]');
+  if (!toggle) return;
+  const sync = () => root.querySelectorAll('[data-link-checkbox]').forEach(hidden => {
+    const visible = root.querySelector(`[data-link-id="${hidden.value}"]`);
+    hidden.checked = Boolean(visible && visible.checked);
+  });
+  root.querySelectorAll('[data-link-id]').forEach(box => box.addEventListener('change', sync));
+  toggle.addEventListener('change', () => {
+    root.querySelectorAll('[data-link-id]').forEach(box => { box.checked = toggle.checked; });
+    sync();
+  });
+  root.querySelector('.link-bulk-form').addEventListener('submit', event => {
+    sync();
+    if (!root.querySelector('[data-link-checkbox]:checked')) {
+      event.preventDefault();
+      alert('Selecciona al menos una posible actualización.');
+    }
+  });
+})();
+</script>

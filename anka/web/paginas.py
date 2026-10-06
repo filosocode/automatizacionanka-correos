@@ -9,6 +9,8 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 import os
 from markupsafe import Markup
 from anka.dominio.errores import ErrorDeAnka
@@ -106,6 +108,10 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
     """Fila de la lista de solicitudes: proyecto, cliente, etapa y siguiente paso."""
     project = quote["analysis"].get("project_name") or "Solicitud sin nombre"
     services = ", ".join(quote["services"]) or "Servicio por clasificar"
+    received_at = quote.get("first_seen_at") or ""
+    if len(received_at) < 16 or received_at[10] not in ("T", " "):
+        received_at = quote["analysis"].get("received_at") or received_at
+    date = _received_datetime_label(received_at)
     return render(
         "quote_row.html",
         project=project, services=services, is_new=is_new, selectable=selectable,
@@ -114,20 +120,48 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
         client_name=quote["client_name"], sector=quote["sector"],
         badge_class="warn" if case_stage(quote)[1] else "info",
         status_label=case_stage(quote)[0],
-        date=(quote["updated_at"] or quote["first_seen_at"] or "Sin fecha")[:10],
+        date=date,
         thread_id=quote["thread_id"], reply_pending=bool(quote.get("reply_pending", "")),
         code=code_label(quote["quote_code"], quote.get("code_stage") or "T") if quote.get("quote_code") else "",
     )
+
+
+def _received_datetime_label(value: str) -> str:
+    """Muestra fecha y hora originales de recepción, nunca la fecha de última actualización."""
+    if not value:
+        return "Recibido: Sin fecha"
+    parsed = None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            parsed = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            pass
+    if parsed is not None:
+        return f"Recibido: {parsed.strftime('%Y-%m-%d %H:%M')}"
+    # Compatibilidad con los registros históricos guardados como YYYY-MM-DD HH:MM.
+    if len(value) >= 16 and value[10] in ("T", " "):
+        return f"Recibido: {value[:16].replace('T', ' ')}"
+    return f"Recibido: {value[:10]} (hora no disponible)"
 
 
 def render_requests(message: str = "") -> str:
     """Lista de todas las solicitudes, las urgentes primero."""
     quotes = all_quotes()
     unread_threads = {item["thread_id"] for item in unread_notifications(100)}
+    pending_links = [
+        {"thread_id": quote["thread_id"],
+         "project_name": quote["analysis"].get("project_name") or "Solicitud sin nombre",
+         "link": link, "who": link["sender_name"] or link["sender_email"],
+         "reason": link["reason"]}
+        for quote in quotes for link in quote.get("links", [])
+    ]
     body = render(
         "requests.html",
         rows=[quote_row(quote, quote["thread_id"] in unread_threads, selectable=True)
               for quote in sorted(quotes, key=lambda q: not case_stage(q)[1])],  # primero lo que pide acción
+        pending_links=pending_links,
         status_options=list(STATUS_LABELS.items()),
         type_options=CLIENT_TYPES,
     )

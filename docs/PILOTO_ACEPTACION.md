@@ -3,11 +3,11 @@
 Prueba guiada de punta a punta con un caso real (p. ej. Llanos 8). Es también la **prueba manual en Work**
 que exige `ESTANDAR_CAMBIOS.md`. Anota fecha y resultado de cada paso.
 
-Fecha: __________  Versión de las reglas: **7**  Caso: __________
+Fecha: __________  Versión del prompt: **Riguroso V2**  Caso: __________
 
 ## 0. Antes de empezar
 - [ ] Anka está corriendo (`Iniciar Anka.bat` o autoarranque) y la etiqueta del encabezado dice **Puente activo**.
-- [ ] En la tarea de ChatGPT Work pegaste el prompt completo de `PROMPT_WORK_ANKA.txt`, con `requested_by_email`, `requested_by_name`, `cited_codes`, el protocolo de lectura y la regla de la T.
+- [ ] En la tarea de ChatGPT Work pegaste el prompt completo de `PROMPT_WORK_ANKA_RIGUROSO_V2.txt`, con el registro de evidencia y preguntas auditables.
 - [ ] Tienes dos correos de prueba: el del **contacto registrado** (quien escribió primero) y **otro** distinto.
 
 ## 1. Aceptar el proyecto

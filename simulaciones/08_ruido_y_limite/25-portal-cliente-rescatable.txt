@@ -1,0 +1,11 @@
+De: Portal Proveedores <notificaciones@portal-cliente-ejemplo.com>
+Asunto: Nueva solicitud de cotización #RFQ-48211 publicada
+Adjuntos (anexar a mano): (sin adjuntos)
+------------------------------------------------------------
+Se ha publicado una nueva solicitud de cotización en su portal de proveedores.
+
+Objeto: Levantamiento topográfico y fotogrametría de 25 ha en locación Cusiana, Casanare.
+Fecha de cierre: 15/11/2026.
+Ingrese al portal para descargar los documentos de la solicitud.
+
+Este mensaje fue generado automáticamente.

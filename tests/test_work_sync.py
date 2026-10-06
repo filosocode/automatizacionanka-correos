@@ -287,7 +287,7 @@ class NextStepTests(unittest.TestCase):
         self.assertEqual(kinds.count("proposal"), 2)
 
 
-# Cubre: F1-06, T-03
+# Cubre: F1-06, T-03, T-21
 class RelatedThreadTests(unittest.TestCase):
     """Correos de la misma persona o empresa en otro hilo: se proponen, no se unen solos."""
 
@@ -297,6 +297,13 @@ class RelatedThreadTests(unittest.TestCase):
         patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
         patcher.start()
         self.addCleanup(patcher.stop)
+        self.config_path = self.temp.name
+        (Path(self.temp.name) / "config.json").write_text(json.dumps({
+            "active_mode": "chatgpt_work", "required_fields": [],
+            "own_addresses": ["ankacomercialia@gmail.com"],
+            "test_sender_addresses": ["91andresmunoz@gmail.com"],
+            "llm": {"provider": "openai"},
+        }), encoding="utf-8")
         work_import.dashboard_upsert(b64(json.dumps(payload(
             client_email="ana@acme.com", client_name="Ana", project_name="Llanos 8",
             received_at="2026-10-01T10:00:00-05:00"))))
@@ -339,6 +346,41 @@ class RelatedThreadTests(unittest.TestCase):
         self.assertEqual(result["related"], 0)
         self.assertEqual(gmail.gets, 0)
 
+    def test_anka_account_is_not_the_designated_test_sender(self):
+        self.assertFalse(gmail_followup._is_test_email(
+            "ankacomercialia@gmail.com", "PRUEBA 11 - Mantenimiento GRB/GRC Nuevo"))
+
+    def test_test_sender_is_not_assumed_when_configuration_is_missing(self):
+        (Path(self.temp.name) / "config.json").write_text(json.dumps({
+            "active_mode": "chatgpt_work", "required_fields": [],
+            "own_addresses": ["ankacomercialia@gmail.com"],
+            "llm": {"provider": "openai"},
+        }), encoding="utf-8")
+        self.assertFalse(gmail_followup._is_test_email(
+            "91andresmunoz@gmail.com", "PRUEBA 11 - Mantenimiento GRB/GRC Nuevo"))
+
+    def test_own_sender_without_explicit_test_marker_still_creates_normal_prompt(self):
+        message = mail("real-new", False, self.t0 + 3600, "Ana <ana@acme.com>")
+        message["payload"]["headers"].append({"name": "Subject", "value": "Solicitud GRB/GRC"})
+        result, _ = self.run_sync({"n1": message})
+        self.assertEqual(result["related"], 1)
+
+    def test_own_sender_with_new_marker_is_treated_as_an_independent_test(self):
+        work_import.dashboard_upsert(b64(json.dumps(payload(
+            thread="T2", message="m2", client_email="91andresmunoz@gmail.com",
+            received_at="2026-10-01T10:00:00-05:00"))))
+        message = mail("own-new", False, self.t0 + 3600, "Andrés <91andresmunoz@gmail.com>")
+        message["payload"]["headers"].append({"name": "Subject", "value": "Mantenimiento GRB/GRC Nuevo"})
+        result, _ = self.run_sync({"n1": message})
+        self.assertEqual(result["related"], 0)
+        self.assertEqual(quotes.get_quote("T2")["links"], [])
+
+    def test_external_sender_with_test_marker_still_creates_normal_prompt(self):
+        message = mail("external-test", False, self.t0 + 3600, "Ana <ana@acme.com>")
+        message["payload"]["headers"].append({"name": "Subject", "value": "PRUEBA 12 - Cotización"})
+        result, _ = self.run_sync({"n1": message})
+        self.assertEqual(result["related"], 1)
+
     def test_second_pass_does_not_duplicate_the_proposal(self):
         messages = {"n1": mail("NUEVO", False, self.t0 + 3600, "ana@acme.com")}
         self.run_sync(messages)
@@ -372,8 +414,8 @@ class RelatedThreadTests(unittest.TestCase):
             page = pantalla_caso.render_case("T1")
             verify = pantalla_caso.render_case("T1", template="verify")
         self.assertIn("en otro hilo", page)
-        self.assertIn("confirmar recibido", page)
-        self.assertIn("validar el cambio de persona", page)
+        self.assertIn("Preparar respuesta", page)
+        self.assertIn("Validar contacto", page)
         self.assertIn("Enviar ahora", page)                  # un caso cerrado con aviso admite respuesta
         self.assertIn("autorizado(a) para solicitar cambios", verify)
 
