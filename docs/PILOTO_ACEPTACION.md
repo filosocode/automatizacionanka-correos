@@ -38,6 +38,12 @@ Espera 1–2 minutos entre cada uno y mira el aviso arriba del caso.
 - [ ] `requested_by_email` = quien escribió el mensaje analizado.
 - [ ] `cited_codes` = los códigos tal como aparecen (vacío si no cita).
 - [ ] Work **no** escribió el código en ningún borrador dirigido a otra persona.
+- [ ] Antes de preguntar, Work inventarió remitente, destinatario, fecha, asunto, cuerpo accesible y todos los adjuntos del mensaje.
+- [ ] Cada adjunto aparece por separado, con `coverage`, partes revisadas, límites y evidencia con localizador real; no marca completo un archivo solo por estar adjunto.
+- [ ] Para un caso con correo y varios formatos, revisa un dato que esté en el asunto/cuerpo, otro dentro de un documento y otro en una tabla o archivo geoespacial. Work cita dónde encontró cada uno y **no vuelve a preguntarlos**.
+- [ ] Cada pregunta que sí propone tiene en `question_audit` el faltante concreto, por qué importa y las fuentes revisadas; se confirma que ninguna de ellas contenga ya la respuesta.
+- [ ] Si no pudo abrir un archivo, ver páginas/hojas o interpretar un plano/diagrama, lo marca parcial/no legible y deja revisión interna; no presenta el faltante de lectura como pregunta al cliente.
+- [ ] Mensajes previos del cliente se consideran para no pedir de nuevo información ya entregada, pero no se mezclan con cambios nuevos ni con propuestas de Anka.
 
 ## 4. Edición del comercial (no debe enviar nada)
 1. Edita una fila de la tabla, elige un motivo y guarda.

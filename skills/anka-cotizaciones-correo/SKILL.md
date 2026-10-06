@@ -25,6 +25,27 @@ Es la skill operativa. Las reglas generales de criterio (no inventar datos, sepa
 - Distingue requisitos ya fijados por el documento, alternativas que el cliente debe elegir y vacíos propios de esta solicitud. Una especificación general para varias sedes no implica volver a preguntar la cobertura general; pregunta la sede o unidad de cada orden solo si no aparece.
 - Informa cobertura por archivo: completa, parcial o no legible; enumera páginas, hojas, diapositivas o secciones revisadas y límites. Extraer texto no demuestra que se hayan interpretado diagramas, fotos o contenido escaneado.
 
+## Lectura exhaustiva en ChatGPT Work
+
+Work no ejecuta los extractores Python del modo local/API. Su acceso depende de lo que Gmail/conector y las herramientas disponibles en esa tarea entreguen. Nunca afirmes que un archivo fue inspeccionado por el solo hecho de verlo listado o conocer su extensión. Si no puedes abrirlo o verificar qué contenido se expuso, declara cobertura parcial/no legible y envía el caso a revisión interna.
+
+Antes de proponer cualquier pregunta:
+
+1. Haz inventario del mensaje actual y los adjuntos que Gmail muestra: remitente, destinatario, fecha, asunto, cuerpo completo accesible, texto citado pertinente e imágenes insertadas. Revisa mensajes anteriores del hilo para no volver a pedir información que el cliente ya entregó. Distingue esa información histórica de las nuevas instrucciones del mensaje actual; no conviertas respuestas o propuestas de Anka en datos confirmados por el cliente.
+2. Revisa cada adjunto por separado y registra nombre, tipo, contenido realmente accesible y cobertura. Construye una matriz de requisitos (ubicación/sede, objeto, área/longitud/cantidad, objetivo/servicio, método, precisión/escala/resolución, entregables/formatos, plazo, permisos/acceso/seguridad y referencia espacial cuando aplique) contra correo y archivos. Busca sinónimos, abreviaturas y equivalentes, no solo coincidencias literales.
+3. Inspecciona el contenido disponible según su tipo:
+   - PDF: todas las páginas accesibles, texto, tablas, notas, anexos, formularios, planos, diagramas e imágenes. Señala páginas escaneadas, borrosas, recortadas o cuya imagen no se pudo interpretar.
+   - Word/ODT: títulos, cuerpo, listas, tablas, encabezados/pies, anexos e imágenes insertadas accesibles.
+   - Excel/ODS/CSV: todas las hojas/rangos expuestos, encabezados, filas, unidades, notas y fórmulas/resultados visibles; anota hojas o rangos no disponibles.
+   - KML/KMZ, GeoJSON, GPX y shapefiles: nombres, carpetas, geometrías, descripciones, datos extendidos, coordenadas explícitas y archivos internos que la herramienta logre abrir. En KMZ comprueba si se accedió al KML interno; no infieras lectura por la extensión.
+   - Planes de vuelo, incluidos QGroundControl (.plan/.waypoints) y DJI WPML: registra únicamente propiedades que hayas podido leer (misión, waypoints, alturas, velocidades, solapes, sensor/cámara, límites y coordenadas). Si el conector no expone la estructura, marca revisión manual.
+   - Otros archivos, incluidos imágenes, ZIP, PPT y CAD: enumera componentes efectivamente abiertos. Protegido, corrupto, no soportado o no expuesto significa parcial/no legible; para CAD pide revisión/exportación interna.
+4. Compara evidencia entre correo, mensajes del hilo y cada archivo. Cita página, sección, tabla/fila, hoja/celda, imagen/rótulo, geometría/elemento o encabezado que realmente hayas visto. Registra discrepancias con los dos localizadores; no decidas cuál prevalece por intuición. No infieras área, longitud cotizable, precisión, datum ni sistema de referencia desde una geometría o su apariencia.
+5. Solo después completa `missing_data` y `question_audit`. Para cada pregunta indica el requisito ausente, por qué bloquea la siguiente etapa y todas las fuentes revisadas. Haz una comprobación final de cada pregunta contra el asunto, cuerpo, mensajes pertinentes y todos los adjuntos accesibles. Si una fuente ya responde, elimina la pregunta y cita el dato. No pidas al cliente que resuelva una limitación de lectura: deja el adjunto para revisión manual; solicita reenvío solo si una persona lo considera indispensable.
+6. Usa `coverage="completa"` solo si inspeccionaste todo el contenido relevante accesible; `parcial` si quedó contenido sin ver/leer/interpretar; `no_legible` si no hay información fiable. `reviewed_sections` enumera solo lo realmente revisado y `blocked_fields` los datos que podrían estar en lo que falta. Una extracción de texto no cuenta como inspección de figuras o planos.
+
+Si la cobertura es parcial, hay contenido visual no interpretado o una contradicción relevante, deja el caso en revisión interna/técnica y evita presentar como exhaustivo el resumen o la lista de faltantes. Nunca pidas otra vez información que sí está en el mensaje, en un mensaje previo del cliente o en cualquiera de los documentos inspeccionados.
+
 ## Flujo
 
 1. Identifica si el mensaje es una solicitud de cotizacion o una respuesta a una solicitud previa.

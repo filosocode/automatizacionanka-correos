@@ -37,6 +37,13 @@ la responde, la pregunta se elimina.
 `cited_codes`. El puente agrega `draft_reply` y `draft_id`. Los valores `null` en campos opcionales se tratan como
 ausentes; los campos desconocidos se toleran.
 
+La cobertura se declara según el contenido realmente accesible en la tarea de ChatGPT Work. Work no ejecuta los
+extractores Python del modo local/API; por eso no se presupone que pueda abrir o interpretar todos los formatos que
+el extractor local admite. La tarea y la skill detallan una inspección por tipo de archivo y exigen revisión interna
+para componentes que Gmail/conector no exponga, páginas u hojas no revisadas, OCR dudoso, diagramas sin interpretar,
+KMZ cuyo KML interno no se pudo inspeccionar, planes de vuelo no decodificados y CAD. No se solicita al cliente
+reenviar archivos solo para compensar una limitación del conector sin que una persona lo determine.
+
 ## Estado
 `status` es una de las etiquetas oficiales del esquema; **se acepta sin tildes ni mayÃºsculas** y se normaliza. El estado
 de cada actividad sigue R12.
