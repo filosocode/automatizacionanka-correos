@@ -12,6 +12,7 @@ from pathlib import Path
 from anka.dominio import work_contract
 from anka.cli import work_sync as sync
 from anka.dominio.status import WORK_STATUS_LABELS
+from anka.servicios.work_import import _work_analysis
 from tests.test_work_sync import draft_message, payload
 
 SCHEMA = work_contract.load_schema()
@@ -56,6 +57,14 @@ class SchemaTests(unittest.TestCase):
 
     def test_activities_may_be_text_rows(self):
         self.assertEqual(work_contract.validate(payload(activities=["Levantamiento de 5 ha", {"activity": "b"}])), [])
+
+    def test_missing_data_accepts_work_name_type_objects(self):
+        data = payload(missing_data=[{"name": "Datum", "type": "Crítico"}])
+        self.assertEqual(work_contract.validate(data), [])
+        self.assertEqual(_work_analysis(data)["other_questions"], ["Datum (Crítico)"])
+
+    def test_missing_data_object_requires_name(self):
+        self.assertTrue(work_contract.validate(payload(missing_data=[{"type": "Crítico"}])))
 
     def test_unknown_extra_fields_are_allowed(self):
         self.assertEqual(work_contract.validate(payload(campo_nuevo="x")), [])
@@ -153,6 +162,42 @@ class EvidenceWarningsTests(unittest.TestCase):
         warnings = work_contract.question_evidence_warnings(data)
         self.assertTrue(any("no debe pedir" in warning for warning in warnings))
         self.assertTrue(any("adjunto .dwg no legible" in warning for warning in warnings))
+
+    def test_question_mixing_explicit_and_missing_findings_is_warned(self):
+        explicit = self.finding("F0", status="explicit", blocking=False)
+        missing = self.finding("F1", status="absent", blocking=True)
+        data = payload(
+            evidence_register=[explicit, missing],
+            question_audit=[{"question": "Confirme ubicación y municipio", "reason_missing": "Falta municipio",
+                             "reviewed_sources": ["correo, párrafo 1"], "disposition": "ask_client",
+                             "target_finding_ids": ["F0", "F1"], "unresolved": "municipio"}],
+        )
+        warnings = work_contract.question_evidence_warnings(data)
+        self.assertTrue(any("incluye un hallazgo explícito" in warning for warning in warnings))
+
+    def test_repeated_client_questions_are_warned_even_with_accent_variants(self):
+        audit = [
+            {"question": "¿Cuál es el municipio?", "reason_missing": "Falta", "reviewed_sources": ["correo"],
+             "disposition": "ask_client", "target_finding_ids": ["F1"], "unresolved": "municipio"},
+            {"question": "Cual es el municipio!", "reason_missing": "Falta", "reviewed_sources": ["correo"],
+             "disposition": "ask_client", "target_finding_ids": ["F1"], "unresolved": "municipio"},
+        ]
+        warnings = work_contract.question_evidence_warnings(
+            payload(evidence_register=[self.finding()], question_audit=audit)
+        )
+        self.assertTrue(any("repite la pregunta" in warning for warning in warnings))
+
+    def test_same_finding_and_unresolved_slot_with_different_wording_is_warned(self):
+        audit = [
+            {"question": "¿Cuál es el municipio?", "reason_missing": "Falta", "reviewed_sources": ["correo"],
+             "disposition": "ask_client", "target_finding_ids": ["F1"], "unresolved": "municipio"},
+            {"question": "¿En qué municipio queda?", "reason_missing": "Falta", "reviewed_sources": ["correo"],
+             "disposition": "ask_client", "target_finding_ids": ["F1"], "unresolved": "municipio"},
+        ]
+        warnings = work_contract.question_evidence_warnings(
+            payload(evidence_register=[self.finding()], question_audit=audit)
+        )
+        self.assertTrue(any("vuelve a preguntar por los mismos hallazgos" in warning for warning in warnings))
 
     def test_legacy_payload_without_evidence_remains_compatible(self):
         self.assertEqual(work_contract.question_evidence_warnings(payload()), [])

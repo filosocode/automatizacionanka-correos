@@ -73,6 +73,8 @@ El programa no cambia automáticamente de proveedor si falla el seleccionado. As
 
 `python app.py analyze-text --text "..." --required-field "ubicación del proyecto"`: prueba el proveedor seleccionado con un correo de ejemplo, imprime el JSON y las preguntas faltantes, y no se conecta a Gmail ni Drive. También acepta `--file ruta\correo.txt` y varios `--required-field`. Sirve para comparar `ollama` y `openai` cambiando `llm.provider` en `config.json`.
 
+`python app.py prepare-work-packet --attachment "ruta\especificacion.pdf" --attachment "ruta\alcance.xlsx" --output-dir "ruta\paquete-work"`: extrae localmente los adjuntos, genera un manifiesto con hash/cobertura/localizadores y divide el texto en segmentos. Adjunta `manifest.json`, `LEEME.md` y todos los segmentos `.txt` a la tarea de Work del mismo hilo. Este paso no accede a Gmail ni sube archivos. Límite actual: 30 archivos, 50 MiB por archivo, 250 MiB total; se mantienen topes internos de PDF, Excel y archivos comprimidos. La cobertura parcial queda indicada y exige revisión interna.
+
 `python app.py run`: hace una simulación; muestra clasificación, tabla y borrador de pregunta, sin enviar ni crear carpetas.
 
 `python app.py run --apply --review-only`: procesa el buzón con estado persistente y guarda cada respuesta propuesta en `review_queue`, sin enviar correos ni crear carpetas. Este es el modo recomendado para un piloto semiasistido.

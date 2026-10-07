@@ -20,6 +20,7 @@ Es la skill operativa. Las reglas generales de criterio (no inventar datos, sepa
 - Contrasta los datos del correo con cada adjunto. Registra discrepancias con ambos localizadores y no decidas cuál prevalece sin evidencia.
 - En KML/KMZ, GeoJSON y GPX informa elementos, geometrías, coordenadas, extensiones y estructura de rutas. Puedes calcular una longitud aproximada solo sobre líneas o rutas ordenadas explícitas; márcala como cálculo derivado, no como magnitud declarada ni aprobada para cotizar. No infieras área, escala, precisión ni sistema de referencia a partir del dibujo.
 - Si un archivo o parte está ilegible, protegido, recortado o excede lo que puedes inspeccionar, marca la lectura como parcial y especifica qué falta revisar.
+- Los extractores Python de Anka operan en los modos local/API; ChatGPT Work no los ejecuta ni recibe su resultado automáticamente. En Work, informa solo lo que el conector y las herramientas de esa tarea exponen de verdad. No declares como leído un adjunto basándote en que Python del otro modo sí soporta ese formato.
 - Conserva el hilo: cualquier borrador debe responder en el mismo hilo y permitir que comercial revise el correo original antes de enviar.
 - Antes de redactar preguntas, construye una matriz de cada dato necesario frente al correo y cada adjunto. Busca equivalentes en encabezados, tablas, notas, anexos, pies, figuras e imágenes. Si cualquier fuente ya responde, no vuelvas a preguntarlo; cita dónde aparece y pregunta solo lo que siga abierto.
 - Distingue requisitos ya fijados por el documento, alternativas que el cliente debe elegir y vacíos propios de esta solicitud. Una especificación general para varias sedes no implica volver a preguntar la cobertura general; pregunta la sede o unidad de cada orden solo si no aparece.
@@ -33,6 +34,8 @@ Es la skill operativa. Las reglas generales de criterio (no inventar datos, sepa
 ## Lectura exhaustiva en ChatGPT Work
 
 Work no ejecuta los extractores Python del modo local/API. Su acceso depende de lo que Gmail/conector y las herramientas disponibles en esa tarea entreguen. Nunca afirmes que un archivo fue inspeccionado por el solo hecho de verlo listado o conocer su extensión. Si no puedes abrirlo o verificar qué contenido se expuso, declara cobertura parcial/no legible y envía el caso a revisión interna.
+
+Si la persona adjunta un paquete local `anka-work-attachment-packet-v1` (`manifest.json`, `LEEME.md` y segmentos `.txt`), úsalo como extracción auxiliar vinculada al caso: asocia filename/source_id con los adjuntos del mensaje actual, lee todos los segmentos indicados por el manifiesto y conserva sus localizadores. El SHA-256 identifica los bytes procesados, pero no afirmes haberlo cotejado con el original si la herramienta no permite calcular/verificar ese hash. No combines paquetes de otro hilo ni los presentes como adjuntos originales. Respeta el estado/cobertura/motivo del manifiesto; una extracción textual no interpreta automáticamente tablas visuales, mapas o figuras. Un segmento ausente, archivo parcial o archivo no legible requiere revisión interna y no se convierte en pregunta al cliente.
 
 Antes de proponer cualquier pregunta:
 

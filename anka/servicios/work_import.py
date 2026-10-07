@@ -112,6 +112,25 @@ def _list_or_wrapped(value: Any, wrap: Callable[[str], Any]) -> Any:
     return value
 
 
+def _work_missing_data(value: Any) -> list[str]:
+    """Normaliza faltantes legacy (texto) y el formato de Work ({name, type})."""
+    items = _list_or_wrapped(value, lambda text: text)
+    if not isinstance(items, list):
+        return []
+    normalized = []
+    for item in items:
+        if isinstance(item, dict):
+            name = str(item.get("name") or "").strip()
+            kind = str(item.get("type") or "").strip()
+            if name:
+                normalized.append(f"{name} ({kind})" if kind else name)
+        elif item is not None:
+            text = str(item).strip()
+            if text:
+                normalized.append(text)
+    return normalized
+
+
 def _work_analysis(payload: dict) -> Analisis:
     """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
     source = payload.get("source", "")
@@ -126,7 +145,7 @@ def _work_analysis(payload: dict) -> Analisis:
         "question_audit": payload.get("question_audit", []),
         "evidence_register": payload.get("evidence_register", []),
         "question_quality_warnings": warnings,
-        "other_questions": _list_or_wrapped(payload.get("missing_data", []), lambda text: text),
+        "other_questions": _work_missing_data(payload.get("missing_data", [])),
         "scope_dependencies": _list_or_wrapped(payload.get("scope_dependencies", []), lambda text: {
             "description": text, "source": source, "status": "pendiente"}),
         "contradictions": _list_or_wrapped(payload.get("contradictions", []), lambda text: {

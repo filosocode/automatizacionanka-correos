@@ -23,9 +23,14 @@ Resume cada solicitud en una tabla de actividades que una persona puede editar y
 versión del modelo y cada edición queda como versión nueva, con sus diferencias y un motivo opcional.
 Los hechos extraídos de adjuntos conservan el nombre del archivo y un localizador verificable (página, párrafo,
 tabla/fila, hoja/celda o elemento KML/KMZ); los archivos o secciones no leídos se identifican como parciales o
-pendientes de revisión. Se extraen formatos de texto, PDF, DOC/DOCX, XLS/XLSX/XLSM, PPT/PPTX, ODT/ODS/ODP, RTF, HTML, imágenes, KMZ/KML, GeoJSON, GPX, planes de vuelo QGroundControl (.plan/.waypoints), DJI WPML en KMZ y documentos compatibles dentro de ZIP. El OCR local cubre imágenes sueltas, páginas PDF escaneadas y recursos de imagen incrustados; baja confianza, gráficos estructurados omitidos, límites de cobertura y archivos no convertibles se marcan para revisión. Shapefiles se leen cuando se entregan con sus archivos laterales dentro de ZIP. DWG y DXF permanecen en revisión manual.
+pendientes de revisión. Se extraen formatos de texto, PDF, DOC/DOCX, XLS/XLSX/XLSM, PPT/PPTX, ODT/ODS/ODP, RTF, HTML, imágenes, KMZ/KML, GeoJSON, GPX, planes de vuelo QGroundControl (.plan/.waypoints), DJI WPML en KMZ y documentos compatibles dentro de ZIP. El OCR local cubre imágenes sueltas, páginas PDF escaneadas y recursos de imagen incrustados; baja confianza, gráficos estructurados omitidos, límites de cobertura y archivos no convertibles se marcan para revisión. Shapefiles se leen cuando se entregan con sus archivos laterales dentro de ZIP; si falta `.prj`, se declara la referencia espacial no indicada y la lectura queda parcial. DWG y DXF permanecen en revisión manual.
 El modo Work sigue el mismo contrato de evidencia y registra, para cada pregunta, las fuentes ya verificadas;
-una pregunta que ya esté contestada en cualquier archivo se elimina.
+una pregunta que ya esté contestada en cualquier archivo se elimina. El inventario de I:\\T&E y los límites actuales
+del lector por formato/tamaño se documentan en [INVENTARIO_FORMATOS_HISTORICO_TE.md](../docs/INVENTARIO_FORMATOS_HISTORICO_TE.md).
+El modo local/API puede preparar un paquete local con manifiesto, cobertura y texto extraído segmentado por adjunto para
+que una persona lo agregue a la tarea de Work. El paquete conserva hashes/localizadores, no se sube automáticamente y
+no convierte una extracción parcial o no legible en un dato ausente. Work sigue siendo el responsable de interpretar
+el alcance y proponer preguntas; el validador Python comprueba la estructura y referencias mecánicas del resultado.
 
 ### F1-04 · Detectar datos faltantes
 Determina qué datos faltan para la etapa de cotización, distinguiendo lo crítico de lo recomendable, y los convierte
@@ -137,10 +142,10 @@ habían quedado repetidos se limpian al actualizar la base.
 
 ### T-19 · Preguntas justificadas por evidencia
 El contrato de Work admite hallazgos atómicos (`evidence_register`) y enlaces de cada pregunta a sus hallazgos
-(`question_audit`). El puente advierte referencias duplicadas o inexistentes, preguntas sin objetivo bloqueante
-pendiente atribuible al cliente/contratista, preguntas sobre datos explícitos y límites de lectura trasladados al
-cliente. La advertencia es informativa: conserva el análisis y el borrador para revisión humana; payloads anteriores
-sin esos campos siguen siendo válidos.
+(`question_audit`). El puente advierte referencias duplicadas o inexistentes, preguntas repetidas por texto o por
+el mismo hallazgo/dato pendiente, preguntas sin objetivo bloqueante atribuible al cliente/contratista, preguntas que
+incluyen hallazgos explícitos y límites de lectura trasladados al cliente. La advertencia es informativa: conserva el
+análisis y el borrador para revisión humana; payloads anteriores sin esos campos siguen siendo válidos.
 
 ### T-20 · Descarte por lote de posibles vínculos
 Una persona puede seleccionar varias sugerencias de vínculo en un caso o en la lista global y descartarlas en una

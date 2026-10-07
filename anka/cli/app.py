@@ -25,6 +25,7 @@ from anka.infra.logging_setup import configure_logging
 from anka.infra.settings import ACTIVE_MODES, load_config, unknown_config_keys
 from anka.servicios.quotes import list_reviews
 from anka.servicios.work_import import dashboard_upsert
+from anka.servicios.work_attachment_packet import prepare_work_attachment_packet
 from anka.servicios.case_actions import approve_review
 from anka.servicios.estado_de_revision import watch
 from anka.servicios.pipeline import run
@@ -281,7 +282,7 @@ def warn_unknown_config_keys() -> None:
 
 COMMANDS_ORDER = (
     "auth", "drive-tree", "mode", "run", "reviews", "approve", "review-ui",
-    "set-mode", "analyze-text", "dashboard-upsert",
+    "set-mode", "analyze-text", "dashboard-upsert", "prepare-work-packet",
 )
 
 
@@ -349,11 +350,25 @@ def _add_setup_options(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_packet_options(parser: argparse.ArgumentParser) -> None:
+    """Opciones para preparar textos de adjuntos y evidencia que se adjuntan a Work."""
+    parser.add_argument(
+        "--attachment", action="append", default=[],
+        help="Ruta local de un adjunto descargado; repite la opción para varios archivos.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        help="Carpeta nueva donde guardar manifiesto y textos segmentados.",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Los comandos y opciones de la línea de comandos."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=list(COMMANDS_ORDER))
-    for add_options in (_add_run_options, _add_text_options, _add_case_options, _add_setup_options):
+    for add_options in (
+        _add_run_options, _add_text_options, _add_case_options, _add_setup_options, _add_packet_options,
+    ):
         add_options(parser)
     return parser
 
@@ -363,6 +378,15 @@ def _cmd_dashboard_upsert(args: argparse.Namespace, parser: argparse.ArgumentPar
         parser.error("dashboard-upsert requiere --payload-base64.")
     dashboard_upsert(args.payload_base64)
     print("Registro del dashboard actualizado.")
+
+
+def _cmd_prepare_work_packet(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.attachment:
+        parser.error("prepare-work-packet requiere al menos un --attachment.")
+    if not args.output_dir:
+        parser.error("prepare-work-packet requiere --output-dir.")
+    result = prepare_work_attachment_packet(args.attachment, args.output_dir)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 def _cmd_analyze_text(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -438,6 +462,7 @@ COMMANDS = {
     "set-mode": _cmd_set_mode,
     "analyze-text": _cmd_analyze_text,
     "dashboard-upsert": _cmd_dashboard_upsert,
+    "prepare-work-packet": _cmd_prepare_work_packet,
 }
 
 

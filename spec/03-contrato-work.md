@@ -25,6 +25,8 @@ Hola, â€¦ (el correo limpio para el cliente)
 Obligatorios: `thread_id`, `message_id`, `client_email`, `project_name`, `status` y `engine` (= `chatgpt_work`).
 Recomendados: `client_name`, `summary`, `received_at`, `gmail_url`, `activities`, `fields`, `missing_data`,
 `attachments`, `contradictions`, `scope_dependencies`. `fields` contiene objetos `name`, `value` y `source`.
+`missing_data` acepta textos por compatibilidad y objetos `{ "name": "dato pendiente", "type": "critical"|"recommended" }`;
+el importador los normaliza a etiquetas legibles para el dashboard.
 Cada `activities[].fuente` y `fields[].source` debe identificar el correo o archivo y, para adjuntos, el localizador
 concreto. Cada adjunto puede incluir `evidence`: objetos `topic`, `value`, `location` y `excerpt` con hallazgos
 explÃ­citos y citas breves. Work debe revisar cada archivo por separado y contrastarlo con el correo y los demÃ¡s
@@ -44,6 +46,8 @@ Además de los campos indicados, el contrato admite `evidence_register`: cada ha
 apuntar a hallazgos pendientes; el puente informa referencias inexistentes/duplicadas, falta de objetivo bloqueante,
 preguntas sobre hallazgos explícitos y traslado de límites de lectura al cliente. Son advertencias para revisión
 humana y no bloquean la importación. Payloads anteriores sin `evidence_register` siguen siendo válidos.
+También avisa si dos preguntas al cliente son duplicadas por texto normalizado o apuntan al mismo hallazgo y
+subdato pendiente; si una pregunta mezcla hallazgos explícitos y faltantes, pide separar el dato ya confirmado.
 El puente agrega `draft_reply` y `draft_id`. Los valores `null` en campos opcionales se tratan como
 ausentes; los campos desconocidos se toleran.
 
@@ -51,11 +55,20 @@ ausentes; los campos desconocidos se toleran.
 de guardarlas en el dashboard.
 
 La cobertura se declara según el contenido realmente accesible en la tarea de ChatGPT Work. Work no ejecuta los
-extractores Python del modo local/API; por eso no se presupone que pueda abrir o interpretar todos los formatos que
-el extractor local admite. La tarea y la skill detallan una inspección por tipo de archivo y exigen revisión interna
+extractores Python del modo local/API ni recibe automáticamente sus resultados; por eso no se presupone que pueda abrir o interpretar todos los formatos que
+el extractor local admite. En local/API, los extractores sí se ejecutan al descargar el adjunto; en Work, solo se usan si una integración explícita comparte su informe. La tarea y la skill detallan una inspección por tipo de archivo y exigen revisión interna
 para componentes que Gmail/conector no exponga, páginas u hojas no revisadas, OCR dudoso, diagramas sin interpretar,
 KMZ cuyo KML interno no se pudo inspeccionar, planes de vuelo no decodificados y CAD. No se solicita al cliente
 reenviar archivos solo para compensar una limitación del conector sin que una persona lo determine.
+
+Como puente manual asistido, `python app.py prepare-work-packet` crea localmente `manifest.json`, `LEEME.md` y archivos
+de texto segmentados por adjunto. Una persona adjunta esos archivos a la tarea de Work correspondiente; no hay
+transferencia automática Gmail→Work ni subida automática del paquete. Work debe asociar `filename`/`source_id` con los
+adjuntos del hilo, usar solo los segmentos del mismo caso, citar los localizadores conservados y respetar
+`coverage`, `reason` y `reviewed_sections`. Cada texto es una extracción, no evidencia de que tablas/figuras se
+interpretaron correctamente. El SHA-256 identifica los bytes procesados; Work no afirmará haberlo cotejado con el
+original salvo que la herramienta disponible permita verificarlo. Los límites por tamaño, páginas, celdas y archivos comprimidos se registran; toda
+lectura parcial/no legible mantiene revisión interna.
 
 ## Tipos de campos adicionales
 `activities[].quantity` admite texto o número JSON; el importador normaliza cantidades numéricas a texto antes de

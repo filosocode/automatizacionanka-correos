@@ -236,7 +236,7 @@ El JSON debe incluir:
 - cited_codes: códigos citados en el mensaje analizado, o [].
 - activities: lista de objetos con activity, servicio_tecnica, ubicacion, quantity, unit, entregable, plazo_restriccion, fuente, estado y notes. `quantity` puede ser texto o número JSON; conserva como texto los rangos, aproximaciones o expresiones con unidad (por ejemplo, "10-12" o "aprox. 4 ha").
 - fields: lista de objetos con name, value y source para datos explícitos relevantes.
-- missing_data: lista de faltantes distinguiendo críticos y recomendables.
+- missing_data: lista de faltantes distinguiendo críticos y recomendables. Cada elemento puede ser texto o un objeto {"name": "dato pendiente", "type": "critical"|"recommended"}; usa preferiblemente el objeto para conservar la clasificación.
 - evidence_register: lista de hallazgos atómicos con id, topic, status, value, source, location, owner y blocking.
 - question_audit: lista de objetos con question, reason_missing, reviewed_sources, question_id, target_finding_ids, disposition y unresolved.
 - attachments: una entrada por archivo con filename, status, reason, coverage, reviewed_sections, blocked_fields y evidence. Cada evidence debe contener topic, value, location y excerpt.

@@ -20,6 +20,7 @@ from xml.etree import ElementTree
 
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 MAX_ATTACHMENT_TEXT = 60000
+MAX_WORK_PACKET_ATTACHMENT_BYTES = 50 * 1024 * 1024
 MAX_EVIDENCE_ITEMS = 60
 MAX_EVIDENCE_CHARS = 700
 MAX_ARCHIVE_FILES = 200
@@ -859,6 +860,8 @@ def _shapefile_zip_text(content: bytes) -> str:
             if ".prj" in files:
                 projection = archive.read(files[".prj"]).decode("utf-8", errors="replace")
                 fragments.append("Sistema de coordenadas (PRJ): " + projection)
+            else:
+                fragments.append("SISTEMA DE COORDENADAS NO DECLARADO: el shapefile no incluye archivo .prj")
             reader.close()
         if not fragments:
             raise _Unreadable("ZIP sin shapefile completo; se requieren archivos .shp, .shx y .dbf")
@@ -1460,4 +1463,47 @@ def extract_attachment_text(filename: str, mime_type: str, content: bytes) -> tu
         )
     if "LECTURA PARCIAL DEL ZIP" in text:
         reason = "lectura parcial: uno o más archivos dentro del ZIP no se pudieron extraer por completo"
+    if "SISTEMA DE COORDENADAS NO DECLARADO" in text:
+        reason = "lectura parcial: shapefile sin .prj; revisar referencia espacial antes de interpretar coordenadas"
     return text, reason
+
+
+def extract_attachment_text_for_work_packet(filename: str, mime_type: str, content: bytes) -> tuple[str, str]:
+    """Extrae el texto completo disponible para un paquete local que se adjunta a Work.
+
+    Usa los mismos lectores por formato, pero permite archivos mayores y no recorta a
+    MAX_ATTACHMENT_TEXT. Los límites propios de cada lector (páginas, celdas y ZIP)
+    siguen vigentes y se devuelven como motivo de lectura parcial.
+    """
+    if len(content) > MAX_WORK_PACKET_ATTACHMENT_BYTES:
+        return "", (
+            "supera el límite del paquete local de "
+            f"{MAX_WORK_PACKET_ATTACHMENT_BYTES // (1024 * 1024)} MiB"
+        )
+    if not _readable(filename, mime_type):
+        extension = Path(filename).suffix.casefold()
+        if extension in {".dwg", ".dxf"}:
+            return "", "plano CAD requiere revisión manual"
+        return "", f"formato no soportado ({extension or mime_type or 'desconocido'})"
+    try:
+        text = _read_by_format(filename, mime_type, content).strip()
+    except _Unreadable as exc:
+        return "", str(exc)
+    except Exception as exc:
+        return "", f"no se pudo leer ({type(exc).__name__})"
+    if not text:
+        return "", "el archivo no contiene texto extraíble"
+
+    reasons = []
+    blank_pages = re.findall(r"\[Página (\d+); sin texto extraíble", text)
+    if blank_pages:
+        reasons.append("páginas sin texto extraíble: " + ", ".join(blank_pages))
+    if any(marker in text for marker in (
+        "LECTURA PARCIAL", "CONTENIDO VISUAL NO INSPECCIONADO", "CONTENIDO GRÁFICO",
+        "sin texto alternativo; requiere inspección visual", "CONTENIDO DE GRÁFICOS NO EXTRAÍDO",
+        "COBERTURA VISUAL PARCIAL", "COBERTURA PARCIAL:", "CAMBIOS RASTREADOS:",
+    )):
+        reasons.append("hay contenido, gráficos o secciones que requieren inspección visual/manual")
+    if "SISTEMA DE COORDENADAS NO DECLARADO" in text:
+        reasons.append("shapefile sin .prj; revisar referencia espacial antes de interpretar coordenadas")
+    return text, "; ".join(dict.fromkeys(reasons))

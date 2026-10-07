@@ -401,6 +401,65 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertIn("-75.8, 2.4, -75.6, 2.5", text)
         self.assertEqual(reason, "")
 
+    def test_shapefile_without_projection_is_flagged_for_review(self):
+        import shapefile
+
+        archive_data = io.BytesIO()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base = Path(temp_dir) / "limite"
+            writer = shapefile.Writer(str(base), shapeType=shapefile.POINT)
+            writer.field("nombre", "C")
+            writer.point(-75.6, 2.4)
+            writer.record("mojon")
+            writer.close()
+            with zipfile.ZipFile(archive_data, "w") as archive:
+                for suffix in ("shp", "shx", "dbf"):
+                    archive.write(f"{base}.{suffix}", f"limite.{suffix}")
+
+        text, reason = extract_attachment_text("limite.zip", "application/zip", archive_data.getvalue())
+        self.assertIn("SISTEMA DE COORDENADAS NO DECLARADO", text)
+        self.assertIn("sin .prj", reason)
+
+    def test_shapefile_with_projection_reports_declared_reference(self):
+        import shapefile
+
+        archive_data = io.BytesIO()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base = Path(temp_dir) / "limite"
+            writer = shapefile.Writer(str(base), shapeType=shapefile.POINT)
+            writer.field("nombre", "C")
+            writer.point(-75.6, 2.4)
+            writer.record("mojon")
+            writer.close()
+            with open(f"{base}.prj", "w", encoding="utf-8") as projection:
+                projection.write('GEOGCS["WGS 84"]')
+            with zipfile.ZipFile(archive_data, "w") as archive:
+                for suffix in ("shp", "shx", "dbf", "prj"):
+                    archive.write(f"{base}.{suffix}", f"limite.{suffix}")
+
+        text, reason = extract_attachment_text("limite.zip", "application/zip", archive_data.getvalue())
+        self.assertIn('Sistema de coordenadas (PRJ): GEOGCS["WGS 84"]', text)
+        self.assertEqual(reason, "")
+
+    def test_extracts_all_kmz_elements_and_uses_element_localizers(self):
+        from anka.dominio.attachments import attachment_reviewed_sections, build_attachment_evidence
+
+        content = io.BytesIO()
+        with zipfile.ZipFile(content, "w") as archive:
+            archive.writestr(
+                "doc.kml",
+                "<kml><Document><Placemark><name>Mojon 1</name><Point><coordinates>-75.6,2.4</coordinates>"
+                "</Point></Placemark><Placemark><name>Limite</name><LineString><coordinates>"
+                "-75.6,2.4 -75.5,2.5</coordinates></LineString></Placemark></Document></kml>",
+            )
+        text, reason = extract_attachment_text("plano.kmz", "application/vnd.google-earth.kmz", content.getvalue())
+        self.assertEqual(reason, "")
+        sections = attachment_reviewed_sections(text)
+        self.assertIn("Archivo KML: doc.kml", sections)
+        evidence = build_attachment_evidence(text)
+        self.assertTrue(any("Mojon 1" in row["excerpt"] for row in evidence))
+        self.assertTrue(any("Limite" in row["excerpt"] for row in evidence))
+
     def test_inline_signature_image_is_ignored(self):
         message = encoded_message(
             "client", "cliente@example.com", "Solicito cotización", 1,

@@ -43,6 +43,10 @@ Espera 1–2 minutos entre cada uno y mira el aviso arriba del caso.
 - [ ] Para un caso con correo y varios formatos, revisa un dato que esté en el asunto/cuerpo, otro dentro de un documento y otro en una tabla o archivo geoespacial. Work cita dónde encontró cada uno y **no vuelve a preguntarlos**.
 - [ ] Cada pregunta que sí propone tiene en `question_audit` el faltante concreto, por qué importa y las fuentes revisadas; se confirma que ninguna de ellas contenga ya la respuesta.
 - [ ] Si no pudo abrir un archivo, ver páginas/hojas o interpretar un plano/diagrama, lo marca parcial/no legible y deja revisión interna; no presenta el faltante de lectura como pregunta al cliente.
+- [ ] Para Excel, confirma todas las hojas y anota hojas ocultas, fórmulas sin valor guardado, gráficos/imágenes, pivots o rangos truncados. Para KML/KMZ y shapefile, confirma KML internos, elementos/capas, atributos, componentes y `.prj`; no infiere CRS.
+- [ ] Incluye al menos un adjunto mayor a 10 MiB del corpus piloto. Si el límite de extracción impide revisarlo, registra el nombre/tamaño, campos potencialmente afectados y revisión interna; no lo marca como “sin información”.
+- [ ] Los formatos especializados del histórico (DWG/DXF, RAR/7Z, ECW, GDB y proyectos nativos GMW/QMD) se detectan explícitamente y no se presentan como inspeccionados. Usa la matriz de [inventario de formatos T&E](INVENTARIO_FORMATOS_HISTORICO_TE.md) para elegir muestras.
+- [ ] Si se usa `prepare-work-packet`, se adjuntan a la tarea correcta `manifest.json`, `LEEME.md` y todos los segmentos; Work no mezcla archivos de otros hilos, respeta cobertura y cita los localizadores. Comprueba que un texto extraído no se presenta como interpretación de una figura.
 - [ ] Mensajes previos del cliente se consideran para no pedir de nuevo información ya entregada, pero no se mezclan con cambios nuevos ni con propuestas de Anka.
 
 ## 4. Edición del comercial (no debe enviar nada)

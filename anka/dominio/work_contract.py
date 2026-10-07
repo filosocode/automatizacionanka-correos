@@ -12,6 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 import re
+import unicodedata
 
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "spec" / "contrato_work.schema.json"
 
@@ -67,10 +68,41 @@ def _validate_question_evidence(payload: dict) -> list[str]:
     """Calcula advertencias mecánicas sobre el soporte de preguntas del contrato v2."""
     errors: list[str] = []
     by_id = _evidence_findings(payload.get("evidence_register") or [], errors)
+    seen_questions: dict[str, int] = {}
+    seen_targets: dict[tuple[tuple[str, ...], str], tuple[int, str]] = {}
     for index, audit in enumerate(payload.get("question_audit") or []):
         if isinstance(audit, dict):
             errors.extend(_audit_question(index, audit, by_id, payload))
+            if audit.get("disposition") == "ask_client":
+                question_key = _question_key(audit.get("question"))
+                if question_key:
+                    if question_key in seen_questions:
+                        errors.append(
+                            f"question_audit[{index}] repite la pregunta de question_audit["
+                            f"{seen_questions[question_key]}] (ignorando mayúsculas, tildes y puntuación)."
+                        )
+                    else:
+                        seen_questions[question_key] = index
+                refs = audit.get("target_finding_ids") or []
+                unresolved = _question_key(audit.get("unresolved"))
+                target_key = (tuple(sorted(set(refs))), unresolved) if isinstance(refs, list) else ((), "")
+                if target_key[0] and unresolved:
+                    if target_key in seen_targets and question_key != seen_targets[target_key][1]:
+                        errors.append(
+                            f"question_audit[{index}] vuelve a preguntar por los mismos hallazgos y dato pendiente "
+                            f"de question_audit[{seen_targets[target_key][0]}]."
+                        )
+                    else:
+                        seen_targets.setdefault(target_key, (index, question_key))
     return errors
+
+
+def _question_key(value: Any) -> str:
+    """Normaliza una pregunta para detectar duplicados textuales sin comparación semántica."""
+    text = str(value or "").casefold()
+    text = "".join(char for char in unicodedata.normalize("NFD", text)
+                   if unicodedata.category(char) != "Mn")
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
 def _evidence_findings(findings: list, errors: list[str]) -> dict[str, dict]:
@@ -123,6 +155,12 @@ def _ask_client_warnings(index: int, audit: dict, targets: list[dict], payload: 
             f"question_audit[{index}] pregunta al cliente sin evidencia bloqueante pendiente atribuible "
             "al cliente/contratista."
         )
+    if any(item.get("status") == "explicit" for item in targets):
+        errors.append(
+            f"question_audit[{index}] incluye un hallazgo explícito; separa ese dato de lo que realmente falta."
+        )
+    if not audit.get("reviewed_sources"):
+        errors.append(f"question_audit[{index}] debe registrar las fuentes revisadas antes de preguntar.")
     if any(item.get("status") == "unreadable" for item in targets):
         errors.append(
             f"question_audit[{index}] no debe pedir al cliente resolver una limitación de lectura; "

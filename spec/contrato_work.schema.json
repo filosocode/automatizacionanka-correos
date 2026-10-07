@@ -57,7 +57,18 @@
         }
       }
     },
-    "missing_data": {"type": "array", "items": {"type": "string"}},
+    "missing_data": {
+      "type": "array",
+      "$comment": "Acepta strings legacy u objetos name/type que Work usa para distinguir faltantes críticos y recomendables.",
+      "items": {
+        "type": ["string", "object"],
+        "required": ["name"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "type": {"type": "string"}
+        }
+      }
+    },
     "evidence_register": {
       "type": "array",
       "$comment": "Inventario atómico de datos relevantes y estado de evidencia. Referenciado por question_audit en el contrato v2.",

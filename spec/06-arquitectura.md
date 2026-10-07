@@ -76,6 +76,7 @@ La descripción es la primera frase de su docstring.
 | `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
 | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
 | `work_import` | Importación del borrador de ChatGPT Work al dashboard (`dashboard_upsert`). |
+| `work_attachment_packet` | Prepara localmente manifiesto de evidencia y textos de adjuntos segmentados para que una persona los aporte a la tarea de Work. |
 
 ### `anka/web/`
 
