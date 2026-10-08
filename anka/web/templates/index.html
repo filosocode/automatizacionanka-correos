@@ -2,6 +2,7 @@
   <div><h1>Qué hacer hoy</h1><p>{% if todo %}Atiende primero el 1. Tienes {{ action_count }} caso(s) por atender, del más urgente al menos.{% else %}No hay nada pendiente de tu parte.{% endif %}</p></div>
   <a class="button secondary" href="/requests">Ver todas las solicitudes</a>
 </div>
+{{ work_rejected }}
 {{ notifications }}
 <section>
   {% if todo %}<ol class="queue">{% for row in todo %}{{ row }}{% endfor %}</ol>

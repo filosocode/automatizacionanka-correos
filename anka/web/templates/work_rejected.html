@@ -1,0 +1,9 @@
+<section class="section work-rejected" id="borradores-rechazados">
+  <h2>Borradores de Work que no se importaron</h2>
+  <p class="meta">El puente está activo, pero {{ items | length }} borrador(es) de Work no cumplen el contrato, así que ese caso no llega al dashboard. Pídele a Work que lo vuelva a generar (o corrígelo en Gmail): se revisa solo cuando el borrador cambie.</p>
+  <ul class="review-task-list">
+    {% for item in items %}<li><strong>Borrador {{ item.draft }}</strong>{% if item.case_href %} · <a href="{{ item.case_href }}">ver el caso</a>{% elif item.thread %} · hilo {{ item.thread }} (aún sin caso){% endif %}
+      <div class="meta">Motivo: {{ item.reason }}</div></li>
+    {% endfor %}
+  </ul>
+</section>

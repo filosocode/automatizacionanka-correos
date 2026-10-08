@@ -49,6 +49,9 @@ preguntas sobre hallazgos explícitos y traslado de límites de lectura al clien
 humana y no bloquean la importación. Payloads anteriores sin `evidence_register` siguen siendo válidos.
 También avisa si dos preguntas al cliente son duplicadas por texto normalizado o apuntan al mismo hallazgo y
 subdato pendiente; si una pregunta mezcla hallazgos explícitos y faltantes, pide separar el dato ya confirmado.
+`unresolved` debe ser un texto con el subdato exacto que falta; si Work lo escribe como booleano el puente lo trata como
+vacío (la pregunta queda con la advertencia correspondiente). Un borrador que incumple el contrato se rechaza una sola vez
+mientras no cambie y se lista en el Resumen (T-26).
 El puente agrega `draft_reply` y `draft_id`. Los valores `null` en campos opcionales se tratan como
 ausentes; los campos desconocidos se toleran.
 

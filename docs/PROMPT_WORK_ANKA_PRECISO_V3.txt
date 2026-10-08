@@ -155,7 +155,7 @@ Campos JSON:
 - `fields`: objetos `name`, `value`, `source` para datos explícitos relevantes.
 - `missing_data`: faltantes críticos/recomendables; acepta texto legacy o `{ "name": "dato pendiente", "type": "critical"|"recommended" }`. Prefiere objetos para conservar la categoría.
 - `evidence_register`: hallazgos atómicos `id`, `topic`, `status`, `value`, `source`, `location`, `owner`, `blocking`.
-- `question_audit`: objetos `question`, `reason_missing`, `reviewed_sources`, `question_id`, `target_finding_ids`, `disposition`, `unresolved`. `disposition` es `ask_client`, `internal_review` o `do_not_ask`. Cada pregunta al cliente debe apuntar a hallazgos pendientes/contradictorios/no confirmados atribuibles al cliente/contratante y explicar por qué bloquean la etapa actual. Cada fuente revisada lleva localizador. Las limitaciones de lectura son `internal_review`.
+- `question_audit`: objetos `question`, `reason_missing`, `reviewed_sources`, `question_id`, `target_finding_ids`, `disposition`, `unresolved` (texto con el subdato exacto que falta; nunca true/false). `disposition` es `ask_client`, `internal_review` o `do_not_ask`. Cada pregunta al cliente debe apuntar a hallazgos pendientes/contradictorios/no confirmados atribuibles al cliente/contratante y explicar por qué bloquean la etapa actual. Cada fuente revisada lleva localizador. Las limitaciones de lectura son `internal_review`.
 - `attachments`: una entrada por archivo con `filename`, `status`, `reason`, `coverage`, `reviewed_sections`, `blocked_fields`, `evidence`. Cada evidencia lleva `topic`, `value`, `location`, `excerpt`.
 - `contradictions`: objetos `topic`, `details`, `sources`, `status`.
 - `scope_dependencies`: objetos `description`, `source`, `status`.

@@ -84,7 +84,7 @@ def _puente_work(modo: str) -> tuple[str, str]:
     if modo != "chatgpt_work":
         return NO_APLICA, "Solo se usa en el modo ChatGPT Work."
     estado, texto = bridge_state()
-    return (OK if estado == "ok" else ERROR), texto
+    return (OK if estado in ("ok", "attention") else ERROR), texto
 
 
 def _autorizacion_google(profundo: bool) -> tuple[str, str]:

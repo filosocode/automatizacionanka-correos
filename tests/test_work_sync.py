@@ -106,11 +106,44 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(self.run_sync(gmail, cache)["updated"], 1)
         self.assertEqual(gmail.gets, 2)
 
-    def test_invalid_draft_counts_as_failure_and_is_not_marked_processed(self):
+    def test_invalid_draft_is_rejected_not_a_failure_and_is_not_marked_processed(self):
+        # Cubre: T-26
         bad = draft_message(payload(thread="OTRO"))  # thread_id no coincide con el hilo
         result = self.run_sync(FakeGmail({"d1": bad}))
-        self.assertEqual((result["updated"], result["failures"]), (0, 1))
+        self.assertEqual((result["updated"], result["failures"], len(result["rejected"])), (0, 0, 1))
+        self.assertIn("thread_id", result["rejected"][0]["reason"])
+        self.assertEqual(result["rejected"][0]["draft"], "d1")
         self.assertEqual(quotes.all_quotes(), [])
+
+    def test_rejected_draft_is_downloaded_once_and_reviewed_again_only_when_it_changes(self):
+        # Cubre: T-26
+        gmail = FakeGmail({"d1": draft_message(payload(thread="OTRO"))})
+        cache = {}
+        for _ in range(3):
+            result = self.run_sync(gmail, cache)
+            self.assertEqual(len(result["rejected"]), 1)           # se sigue listando, pero no se vuelve a bajar
+        self.assertEqual(gmail.gets, 1)
+        gmail.items["d1"] = draft_message(payload(), message_id="gm2")   # alguien lo corrigió: mensaje nuevo
+        result = self.run_sync(gmail, cache)
+        self.assertEqual((gmail.gets, len(result["rejected"]), result["updated"]), (2, 0, 1))
+        self.assertEqual(len(quotes.all_quotes()), 1)
+
+    def test_a_draft_with_broken_json_is_rejected_without_stopping_the_others(self):
+        # Cubre: T-26
+        broken = draft_message(payload(), thread="T2", message_id="gm9")
+        texto = "[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]\n" + sync.START + "\n{no es json\n" + sync.END
+        broken["payload"]["body"]["data"] = b64(texto)
+        result = self.run_sync(FakeGmail({"d1": draft_message(payload()), "d2": broken}))
+        self.assertEqual((result["updated"], result["failures"], len(result["rejected"])), (1, 0, 1))
+
+    def test_unresolved_written_as_boolean_is_imported_as_empty(self):
+        # Cubre: T-26
+        audit = [{"question": "¿Método?", "reason_missing": "no figura", "reviewed_sources": ["correo"],
+                  "question_id": "q1", "disposition": "internal_review", "unresolved": True}]
+        result = self.run_sync(FakeGmail({"d1": draft_message(payload(question_audit=audit))}))
+        self.assertEqual((result["updated"], result["failures"], len(result["rejected"])), (1, 0, 0))
+        saved = quotes.all_quotes()[0]["analysis"]["question_audit"]
+        self.assertEqual(saved[0]["unresolved"], "")
 
     def test_upsert_does_not_move_closed_case_back_or_erase_human_data(self):
         work_import.dashboard_upsert(b64(json.dumps(payload())))
@@ -453,9 +486,49 @@ class HeartbeatTests(unittest.TestCase):
         self.beat(600)
         self.assertEqual(work_heartbeat.bridge_state()[0], "stopped")
 
+    def test_rejected_drafts_give_their_own_state_not_an_error(self):
+        # Cubre: T-26
+        self.beat(20, rejected=[{"draft": "d1", "thread": "t1", "reason": "x debe ser de tipo string."}])
+        state, text = work_heartbeat.bridge_state()
+        self.assertEqual(state, "attention")
+        self.assertIn("1 borrador(es) de Work no cumplen el contrato", text)
+        self.assertEqual(work_heartbeat.rejected_drafts()[0]["draft"], "d1")
+        self.beat(20, failures=1, rejected=[{"draft": "d1", "thread": "t1", "reason": "x"}])
+        self.assertEqual(work_heartbeat.bridge_state()[0], "error")      # un fallo real manda sobre el rechazo
+        self.beat(600, rejected=[{"draft": "d1", "thread": "t1", "reason": "x"}])
+        self.assertEqual(work_heartbeat.bridge_state()[0], "stopped")    # y un puente detenido también
+        self.beat(20)
+        self.assertEqual(work_heartbeat.bridge_state()[0], "ok")
+        self.assertEqual(work_heartbeat.rejected_drafts(), [])
+
+    def test_the_summary_lists_each_rejected_draft_with_its_reason_and_what_to_do(self):
+        # Cubre: T-26
+        from anka.web import paginas
+        self.assertEqual(str(paginas._work_rejected_panel()), "")        # sin rechazados, no hay panel
+        self.beat(20, rejected=[{"draft": "r-123", "thread": "hilo-sin-caso",
+                                 "reason": "question_audit[0].unresolved debe ser de tipo string."}])
+        panel = str(paginas._work_rejected_panel())
+        self.assertIn("Borradores de Work que no se importaron", panel)
+        self.assertIn("Borrador r-123", panel)
+        self.assertIn("hilo hilo-sin-caso (aún sin caso)", panel)
+        self.assertIn("question_audit[0].unresolved debe ser de tipo string.", panel)
+        self.assertIn("se revisa solo cuando el borrador cambie", panel)
+
+    def test_the_chip_and_health_check_treat_the_attention_state_as_a_live_bridge(self):
+        # Cubre: T-26
+        from anka.servicios import salud
+        base = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
+        layout = (base / "layout.html").read_text(encoding="utf-8")
+        self.assertIn("attention: 'Puente activo · borrador por revisar'", layout)
+        self.assertIn('.bridge-chip[data-state="attention"]', (base / "style.css").read_text(encoding="utf-8"))
+        with patch("anka.servicios.salud.bridge_state", return_value=("attention", "activo, con un borrador")):
+            self.assertEqual(salud._puente_work("chatgpt_work")[0], salud.OK)
+
     def test_write_then_read_roundtrip(self):
         work_heartbeat.write_heartbeat(60, drafts=2, updated=1)
         self.assertEqual(work_heartbeat.read_heartbeat()["drafts"], 2)
+        work_heartbeat.write_heartbeat(60, rejected=[{"draft": "d", "thread": "t", "reason": "r"}] * 15)
+        self.assertEqual(len(work_heartbeat.rejected_drafts()), 10)      # tope: el latido no crece sin límite
         self.assertFalse(work_heartbeat.other_bridge_running())  # es el propio proceso
 
 

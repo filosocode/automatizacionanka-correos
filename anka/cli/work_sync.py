@@ -8,6 +8,7 @@ import json
 import re
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -17,6 +18,16 @@ from anka.infra.logging_setup import configure_logging, get_logger
 from anka.dominio.status import canonical_work_status
 from anka.dominio.work_contract import validate
 from anka.infra.work_heartbeat import other_bridge_running, write_heartbeat
+
+MOTIVO_MAX = 300
+
+
+@dataclass(frozen=True)
+class Rechazado:
+    """Un borrador cuyo contenido incumple el contrato: no se arregla reintentando, así que se recuerda por mensaje."""
+
+    motivo: str
+
 
 START = "[ANKA_DASHBOARD_JSON_V1]"
 END = "[/ANKA_DASHBOARD_JSON_V1]"
@@ -53,6 +64,10 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
         payload = json.loads(raw)
         if not isinstance(payload, dict):
             raise ValueError("El JSON debe ser un objeto.")
+        for audit in payload.get("question_audit") or []:
+            if isinstance(audit, dict) and isinstance(audit.get("unresolved"), bool):
+                # Work lo escribió como sí/no: sin texto; la advertencia de la pregunta lo hace visible.
+                audit["unresolved"] = ""
         status = canonical_work_status(payload.get("status"))
         if status is not None:
             payload["status"] = status  # la etiqueta oficial, aunque Work la escriba sin tildes
@@ -91,6 +106,7 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
         del cache[stale]
     candidates: dict[str, tuple[int, tuple[dict, str]]] = {}
     failures = 0
+    rejected: list[dict] = []
     for draft in drafts:
         try:
             message_id = draft.get("message", {}).get("id")
@@ -99,11 +115,21 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
                 _, stamp, found = cached
             else:
                 message = gmail.users().drafts().get(userId="me", id=draft["id"], format="full").execute()["message"]
-                found = extract(message, draft["id"])
                 stamp = int(message.get("internalDate", "0"))
+                try:
+                    found = extract(message, draft["id"])
+                except ValueError as exc:
+                    # Contenido que incumple el contrato: reintentar no lo arregla. Se rechaza una vez por mensaje y se
+                    # vuelve a revisar solo cuando Gmail da un mensaje nuevo (la persona o Work lo corrigieron).
+                    found = Rechazado(str(exc)[:MOTIVO_MAX])
+                    log.warning("Borrador %s: rechazado (%s)", draft["id"], type(exc).__name__, exc_info=True)
+                    print(f"Borrador {draft['id']}: rechazado ({exc}).", flush=True)
                 if message_id:
                     cache[draft["id"]] = (message_id, stamp, found)
-            if found:
+            if isinstance(found, Rechazado):
+                rejected.append({"draft": draft["id"], "thread": draft.get("message", {}).get("threadId", ""),
+                                 "reason": found.motivo})
+            elif found:
                 thread = found[0]["thread_id"]
                 if thread not in candidates or stamp > candidates[thread][0]:
                     candidates[thread] = (stamp, found)
@@ -130,8 +156,9 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
             failures += 1
             log.warning("Hilo %s: importación fallida (%s); se reintentará", thread, type(exc).__name__, exc_info=True)
             print(f"Hilo {thread}: importación fallida ({type(exc).__name__}). Se reintentará.", flush=True)
-    print(f"Revisión: {len(drafts)} borradores; {updated} actualizados; {failures} errores.", flush=True)
-    return {"drafts": len(drafts), "updated": updated, "failures": failures}
+    print(f"Revisión: {len(drafts)} borradores; {updated} actualizados; {failures} errores; "
+          f"{len(rejected)} rechazados.", flush=True)
+    return {"drafts": len(drafts), "updated": updated, "failures": failures, "rejected": rejected}
 
 
 def fatal(message: str) -> NoReturn:
@@ -166,7 +193,7 @@ def main() -> None:
     while True:
         if load_config().get("active_mode") != "chatgpt_work":
             fatal("Sincronización detenida por cambio de modo.")
-        result = {"drafts": 0, "updated": 0, "failures": 0, "events": 0}
+        result: dict[str, Any] = {"drafts": 0, "updated": 0, "failures": 0, "events": 0, "rejected": []}
         error = ""
         try:
             if gmail is None:

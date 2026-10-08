@@ -323,6 +323,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 
 .bridge-chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--ink); cursor: help; }
 .bridge-chip[data-state="ok"] { background: var(--ok-bg); color: var(--ok-ink); }
+.bridge-chip[data-state="attention"] { background: var(--info-bg); color: var(--info-ink); }
 .bridge-chip[data-state="error"] { background: var(--caution-bg); color: var(--caution-ink); }
 .bridge-chip[data-state="stopped"], .bridge-chip[data-state="never"] { background: var(--bad-bg); color: var(--bad-ink); }
 [hidden] { display: none !important; }
@@ -383,3 +384,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .project-suggestion > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; }
 .project-candidate { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 10px 12px; }
 @media (max-width: 720px) { .project-candidate { grid-template-columns: 1fr; } }
+.work-rejected { margin-bottom: 18px; border-color: var(--info-line); }
+.work-rejected li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.work-rejected li:last-child { border-bottom: 0; }

@@ -323,3 +323,13 @@ descartar; queda anotado quién lo decidió y cuándo en los dos casos. Solo se 
 oferta, con carpeta, con respuesta enviada o ya descartado no se puede unir, y el aviso lo explica (sigue pudiendo separarse).
 «No es el mismo proyecto» se guarda y esos dos hilos no vuelven a agruparse ni a sugerirse, en la lista ni en el caso.
 Nada se une solo (D-09).
+
+### T-26 · Un borrador de Work inválido no deja el puente «con avisos» para siempre
+El puente distingue dos cosas. Un **fallo** es transitorio (red, Gmail, importación) y se reintenta en el siguiente ciclo; deja el
+puente «con avisos» mientras dure. Un **borrador rechazado** es un problema del contenido (el JSON no cumple el contrato de
+Work): no se arregla reintentando, así que se descarga y se rechaza **una sola vez** mientras su contenido no cambie (se vuelve
+a revisar solo cuando Gmail da un mensaje nuevo para ese borrador), se anota una vez en el registro y no cuenta como fallo.
+Con borradores rechazados y sin fallos el puente está «activo» con un estado propio («con un borrador por revisar»), no en
+error: sigue importando el resto. El Resumen lista cada borrador rechazado con su hilo (si existe), el motivo (campos del
+contrato, nunca contenido del cliente) y qué hacer. En `question_audit`, un `unresolved` booleano (Work lo escribe como sí/no)
+se trata como vacío y se importa: la advertencia de la pregunta («debe precisar qué subdato sigue sin resolver») lo hace visible.

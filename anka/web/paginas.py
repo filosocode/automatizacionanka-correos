@@ -24,6 +24,7 @@ from anka.dominio.status import (
 )
 from anka.infra.logging_setup import get_logger
 from anka.infra.settings import load_config
+from anka.infra.work_heartbeat import rejected_drafts
 from anka.web.templating import render
 
 from anka.servicios.estado_de_revision import sync_status_text
@@ -32,7 +33,9 @@ from anka.servicios.change_control import (
     code_label, required_messages,
 )
 from anka.dominio.registros import Cambio
-from anka.servicios.quotes import discarded_quotes, all_quotes, separated_project_pairs, unread_notifications
+from anka.servicios.quotes import (
+    all_quotes, discarded_quotes, get_quote, separated_project_pairs, unread_notifications,
+)
 from anka.dominio.caso import CLIENT_TYPES
 from anka.servicios.proyectos_repetidos import Grupo, agrupar as agrupar_solicitudes
 
@@ -137,6 +140,16 @@ def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False, mis
         href=f"/case?thread_id={url_quote(quote['thread_id'])}{anchor}")
 
 
+def _work_rejected_panel() -> Markup:
+    """Los borradores de Work que el puente no pudo importar, con su motivo y el caso si ya existe."""
+    items = []
+    for item in rejected_drafts():
+        thread = str(item.get("thread") or "")
+        items.append({"draft": item.get("draft", ""), "thread": thread, "reason": item.get("reason", ""),
+                      "case_href": ("/case?thread_id=" + url_quote(thread)) if thread and get_quote(thread) else ""})
+    return render("work_rejected.html", items=items) if items else Markup("")
+
+
 def render_index(message: str = "") -> str:
     """Resumen: «qué hacer hoy», novedades y las métricas de las solicitudes."""
     quotes = all_quotes()
@@ -155,6 +168,7 @@ def render_index(message: str = "") -> str:
     body = render(
         "index.html",
         sync_text=sync_status_text(),
+        work_rejected=_work_rejected_panel(),
         notifications=_notifications_panel(notifications, plegar=bool(notifications) and all(
             item["thread_id"] in en_cola for item in notifications)),
         total=len(quotes),
