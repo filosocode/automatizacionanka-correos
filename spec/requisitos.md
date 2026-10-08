@@ -222,7 +222,12 @@ ventana del modelo (`num_ctx_max` en Ollama, `context_tokens` en API) se analiza
    los adjuntos pequeños se conservan tal cual, y la evidencia por adjunto se calcula sobre el texto completo;
 5. los hallazgos de un tramo se guardan en una caché con tope (clave: texto del tramo, modelo y versión del prompt) para no
    repetir llamadas al reanalizar un hilo;
-6. un tramo que falla tras un reintento detiene el análisis del hilo con un aviso: jamás se completa con tramos faltantes;
+6. un tramo que el modelo no responde se divide en dos y se reintenta (hasta 2 veces); si ya no se puede dividir se hace
+   un último intento que castiga la repetición; si tampoco, se detiene el análisis del hilo con un aviso: jamás se completa
+   con tramos faltantes;
+   antes de dividir se colapsan las líneas largas repetidas (encabezados y pies de página): se leen una vez; cada tramo
+   recibe el último marcador de página u hoja visto, para que el localizador no se invente; y los hallazgos vacíos con que
+   un modelo pequeño rellena el esquema se descartan;
 7. el análisis registra `lectura_por_tramos` (adjunto, tramos, hallazgos, niveles) y la nota de revisión lo muestra.
 Con ChatGPT Work el paquete local entrega todo el texto en segmentos ordenados (`segment=i/n`) y el contrato advierte cuando
 Work declara, por adjunto, una cobertura incoherente (completa sin secciones revisadas, parcial o ilegible sin motivo).
