@@ -29,7 +29,8 @@ una pregunta que ya esté contestada en cualquier archivo se elimina. El inventa
 del lector por formato/tamaño se documentan en [INVENTARIO_FORMATOS_HISTORICO_TE.md](../docs/INVENTARIO_FORMATOS_HISTORICO_TE.md).
 El modo local/API puede preparar un paquete local con manifiesto, cobertura y texto extraído segmentado por adjunto para
 que una persona lo agregue a la tarea de Work. El paquete conserva hashes/localizadores, no se sube automáticamente y
-no convierte una extracción parcial o no legible en un dato ausente. Work sigue siendo el responsable de interpretar
+no convierte una extracción parcial o no legible en un dato ausente. Los documentos Office/OpenDocument y los ZIP se rechazan para revisión manual si su tamaño
+expandido o su número de entradas superan el tope (protección contra bombas de descompresión), antes de descomprimirlos. Work sigue siendo el responsable de interpretar
 el alcance y proponer preguntas; el validador Python comprueba la estructura y referencias mecánicas del resultado.
 
 ### F1-04 · Detectar datos faltantes

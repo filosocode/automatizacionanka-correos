@@ -40,6 +40,20 @@ from anka.dominio.lectores_geograficos import (
 from anka.infra.lectores_imagen import ocr_image, ocr_pil_image, image_text, office_legacy_text
 
 
+def _zip_acotado(content: bytes) -> zipfile.ZipFile:
+    """Abre un ZIP (o un documento Office/OpenDocument, que lo es) rechazando bombas de descompresión.
+
+    Los tamaños se leen del directorio central sin descomprimir nada; `zipfile` no lee más de lo declarado,
+    así que el tope vale aunque la cabecera mienta. Sin esto, un adjunto de 10 MB podría expandirse a gigabytes.
+    """
+    archive = zipfile.ZipFile(BytesIO(content))
+    entries = [item for item in archive.infolist() if not item.is_dir()]
+    if len(entries) > MAX_ARCHIVE_FILES or sum(item.file_size for item in entries) > MAX_ARCHIVE_EXPANDED_BYTES:
+        archive.close()
+        raise Unreadable("el archivo excede el límite de entradas o de tamaño expandido; requiere revisión manual")
+    return archive
+
+
 def _xls_text(content: bytes) -> str:
     try:
         import xlrd
@@ -75,7 +89,7 @@ def _shapefile_zip_text(content: bytes) -> str:
         import shapefile
     except ImportError:
         raise Unreadable("falta instalar pyshp para leer shapefiles") from None
-    with zipfile.ZipFile(BytesIO(content)) as archive:
+    with _zip_acotado(content) as archive:
         groups: dict[str, dict[str, str]] = {}
         for name in archive.namelist():
             suffix = Path(name).suffix.casefold()
@@ -117,7 +131,7 @@ def _shapefile_zip_text(content: bytes) -> str:
 
 
 def _pptx_text(content: bytes) -> str:
-    with zipfile.ZipFile(BytesIO(content)) as presentation:
+    with _zip_acotado(content) as presentation:
         slide_names = sorted(
             (name for name in presentation.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", name)),
             key=lambda name: int(Path(name).stem.removeprefix("slide")),
@@ -165,7 +179,7 @@ def _pptx_text(content: bytes) -> str:
 
 
 def _odt_text(content: bytes) -> str:
-    with zipfile.ZipFile(BytesIO(content)) as document:
+    with _zip_acotado(content) as document:
         root = ElementTree.fromstring(document.read("content.xml"))
     lines = []
     for node in root.iter():
@@ -173,14 +187,14 @@ def _odt_text(content: bytes) -> str:
             text = " ".join("".join(node.itertext()).split())
             if text:
                 lines.append(text)
-    with zipfile.ZipFile(BytesIO(content)) as document:
+    with _zip_acotado(content) as document:
         images = [name for name in document.namelist() if name.startswith("Pictures/")]
         _append_archive_image_ocr(document, images, lines)
     return plain_text("\n".join(lines).encode("utf-8"))
 
 
 def _ods_text(content: bytes) -> str:
-    with zipfile.ZipFile(BytesIO(content)) as document:
+    with _zip_acotado(content) as document:
         root = ElementTree.fromstring(document.read("content.xml"))
     lines = []
     for table_number, table in enumerate((n for n in root.iter() if local_name(n.tag) == "table"), 1):
@@ -214,7 +228,7 @@ def _ods_text(content: bytes) -> str:
 
 
 def _odp_text(content: bytes) -> str:
-    with zipfile.ZipFile(BytesIO(content)) as document:
+    with _zip_acotado(content) as document:
         root = ElementTree.fromstring(document.read("content.xml"))
     lines = []
     pages = [node for node in root.iter() if local_name(node.tag) == "page"]
@@ -226,7 +240,7 @@ def _odp_text(content: bytes) -> str:
                 if value:
                     values.append(value)
         lines.append(f"[Diapositiva {number}]\n" + "\n".join(values))
-    with zipfile.ZipFile(BytesIO(content)) as document:
+    with _zip_acotado(content) as document:
         images = [name for name in document.namelist() if name.startswith(("Pictures/", "ObjectReplacements/"))]
         _append_archive_image_ocr(document, images, lines)
     return "\n".join(lines)
@@ -378,7 +392,7 @@ def _docx_paragraph_text(paragraph: ElementTree.Element) -> str:
 
 
 def _docx_text(content: bytes) -> str:
-    with zipfile.ZipFile(BytesIO(content)) as document:
+    with _zip_acotado(content) as document:
         root = ElementTree.fromstring(document.read("word/document.xml"))
     body = next((node for node in root.iter() if local_name(node.tag) == "body"), root)
     lines = []
@@ -393,7 +407,7 @@ def _docx_text(content: bytes) -> str:
         elif kind == "tbl":
             table_number += 1
             _docx_table(block, table_number, lines)
-    with zipfile.ZipFile(BytesIO(content)) as document:
+    with _zip_acotado(content) as document:
         names = document.namelist()
         for name in names:
             if re.fullmatch(r"word/(header|footer)\d+\.xml", name):
@@ -433,6 +447,7 @@ def _xlsx_text(content: bytes) -> str:
         from openpyxl import load_workbook
     except ImportError:
         raise Unreadable("falta instalar openpyxl para leer Excel") from None
+    _zip_acotado(content).close()
     workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
     formulas = load_workbook(BytesIO(content), read_only=True, data_only=False)
     rows = []
@@ -461,7 +476,7 @@ def _xlsx_text(content: bytes) -> str:
                     values.append(f"{cell.coordinate}={value}")
             if values:
                 rows.append(" | ".join(values))
-        with zipfile.ZipFile(BytesIO(content)) as archive:
+        with _zip_acotado(content) as archive:
             images = [name for name in archive.namelist() if name.startswith("xl/media/")]
             _append_archive_image_ocr(archive, images, rows)
             charts = [name for name in archive.namelist() if re.fullmatch(r"xl/charts/chart\d+\.xml", name)]
