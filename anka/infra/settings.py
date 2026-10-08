@@ -97,6 +97,11 @@ def _engine_problems(engine: dict, mode: str) -> list[str]:
         timeout = engine["timeout_seconds"]
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
             problems.append("llm.timeout_seconds debe ser un número mayor que cero.")
+    for key, minimum in (("chunk_chars", 1000), ("context_tokens", 8192)):
+        if key in engine:
+            value = engine[key]
+            if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+                problems.append(f"llm.{key} debe ser un entero de al menos {minimum}.")
     for key in ("num_ctx", "num_ctx_max"):
         if key in engine:
             context = engine[key]

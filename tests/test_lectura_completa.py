@@ -57,6 +57,14 @@ class VentanaDeContextoTests(unittest.TestCase):
         self.assertEqual(window % 1024, 0)
         self.assertLessEqual(window, llm.DEFAULT_NUM_CTX_MAX)
 
+    def test_the_window_never_exceeds_the_model_maximum_when_the_prompt_fits(self):
+        # un máximo menor que el contexto base (16384) no debe rechazar un prompt que sí cabe
+        self.assertEqual(llm.ventana_de_contexto("x" * 2000, {"num_ctx_max": 9000}), 9000)
+        justo = "x" * int((9000 - llm.OUTPUT_RESERVE_TOKENS) * llm.CHARS_PER_TOKEN - 10)
+        self.assertEqual(llm.ventana_de_contexto(justo, {"num_ctx_max": 9000}), 9000)  # el redondeo no lo rechaza
+        with self.assertRaises(ContextoInsuficiente):
+            llm.ventana_de_contexto(justo + "x" * 200, {"num_ctx_max": 9000})
+
     def test_a_prompt_that_does_not_fit_the_model_is_refused_instead_of_cut(self):
         with self.assertRaises(ContextoInsuficiente) as caught:
             llm.ventana_de_contexto("x" * 200_000, {})

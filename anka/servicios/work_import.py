@@ -24,7 +24,7 @@ from anka.servicios.change_control import apply_guard
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.quotes import save_quote_metadata
 from anka.dominio.caso import CLIENT_TYPES, SECTORS
-from anka.dominio.work_contract import question_evidence_warnings
+from anka.dominio.work_contract import attachment_coverage_warnings, question_evidence_warnings
 
 log = get_logger(__name__)
 
@@ -136,7 +136,7 @@ def _work_analysis(payload: dict) -> Analisis:
     """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
     source = payload.get("source", "")
     reply_text = str(payload.get("draft_reply") or "").strip()
-    warnings = question_evidence_warnings(payload)
+    warnings = question_evidence_warnings(payload) + attachment_coverage_warnings(payload)
     return {
         "is_quote_request": payload["status"] != "Descartada",
         "project_name": payload["project_name"],

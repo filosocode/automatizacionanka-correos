@@ -32,6 +32,7 @@ La descripción es la primera frase de su docstring.
 | `analisis` | La forma del análisis de una solicitud: lo que el modelo (o Work) devuelve y el dashboard guarda como JSON. |
 | `attachments` | Límites y evidencia de adjuntos en memoria. |
 | `lectores_texto` | Lectura en memoria de texto, HTML y RTF. |
+| `tramos` | Dividir un texto largo sin perder nada y condensar los hallazgos de cada tramo (T-25). |
 | `lectores_geograficos` | Geometrías, misiones y tablas geográficas en memoria. |
 | `caso` | `Caso`: la vista de una solicitud de cotización tal como la ven el dashboard y las acciones. |
 | `configuracion` | La forma de `config.json` (vive fuera del repositorio, en la carpeta de datos): sus claves y sus tipos. |
@@ -52,6 +53,7 @@ La descripción es la primera frase de su docstring.
 | `lectores_zip` | ZIP: apertura acotada (`zip_acotado`, base de todo Office/OpenDocument), OCR incrustado y shapefiles. |
 | `lectores_office` | Word, Excel (`.xlsx`, `.xls`), PowerPoint y OpenDocument. |
 | `lectores_pdf` | PDF: texto nativo y OCR por página. |
+| `cache_hallazgos` | Caché en disco, con tope, de los hallazgos extraídos por tramo. |
 | `lectores_imagen` | OCR y conversión externa de documentos antiguos. |
 
 | Módulo | Para qué sirve |
@@ -71,6 +73,7 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `envios` | Reserva persistente y reconciliación de envíos del dashboard. |
+| `lectura_por_tramos` | Análisis de un hilo con lectura completa aunque no quepa en el modelo (T-25). |
 
 | Módulo | Para qué sirve |
 |---|---|

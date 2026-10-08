@@ -210,6 +210,23 @@ cobertura. Si el análisis completo no cabe en la ventana del modelo no se recor
 `llm.num_ctx_max` (32768 por defecto) y, si aun así no cabe, el hilo se informa para revisión manual con el motivo.
 La cantidad de una actividad no repite su unidad (`544.5` + `ha`, no `544.5 ha` + `ha`).
 
+### T-25 · Lectura por tramos de los documentos que no caben en el modelo
+Un documento largo se lee **entero**, nunca recortado, en el modo local y en el de API. Si el correo y sus adjuntos caben en la
+ventana del modelo (`num_ctx_max` en Ollama, `context_tokens` en API) se analizan de una vez, como siempre. Si no caben:
+1. cada adjunto largo se divide en tramos de a lo sumo `llm.chunk_chars` caracteres (12 000 con Ollama y 30 000 con API por defecto), cortando en saltos
+   estructurales (página, hoja, párrafo, línea) y con un pequeño solapamiento, de modo que todo el texto pasa por el modelo;
+2. de cada tramo el modelo extrae **hallazgos** (tema, actividad, dato, valor, localizador y cita textual corta), sin inventar;
+3. los hallazgos se unen sin duplicados en un compendio con sus localizadores; si el compendio aún no cabe, se consolida
+   (hasta 3 niveles); si ni así cabe, `ContextoInsuficiente` y el hilo se informa para revisión manual;
+4. el análisis final (el de siempre: reglas, preguntas justificadas, contradicciones) se hace sobre el correo y los compendios;
+   los adjuntos pequeños se conservan tal cual, y la evidencia por adjunto se calcula sobre el texto completo;
+5. los hallazgos de un tramo se guardan en una caché con tope (clave: texto del tramo, modelo y versión del prompt) para no
+   repetir llamadas al reanalizar un hilo;
+6. un tramo que falla tras un reintento detiene el análisis del hilo con un aviso: jamás se completa con tramos faltantes;
+7. el análisis registra `lectura_por_tramos` (adjunto, tramos, hallazgos, niveles) y la nota de revisión lo muestra.
+Con ChatGPT Work el paquete local entrega todo el texto en segmentos ordenados (`segment=i/n`) y el contrato advierte cuando
+Work declara, por adjunto, una cobertura incoherente (completa sin secciones revisadas, parcial o ilegible sin motivo).
+
 ### U-06 · Estados veraces
 El estado que se ve en la lista, en el detalle y en los avisos no se contradice y refleja lo ocurrido.
 

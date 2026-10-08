@@ -318,14 +318,14 @@ class ChangeRuleR11(unittest.TestCase):
         drive = FakeDriveTree({"Minera Sur": {}})
         with patch("anka.servicios.pipeline.load_config", return_value=test_config()), patch(
                 "anka.servicios.pipeline.services", return_value=(gmail, drive)), patch(
-                "anka.servicios.pipeline.analyze", return_value=complete_analysis(location="")):
+                "anka.servicios.pipeline.analizar_hilo", return_value=complete_analysis(location="")):
             self.seed("t-1", "26145")
             db = store.connect()
             db.execute("UPDATE quotes SET contact_email='ana@empresa.co', last_inbound_id='old', "
                        "status='waiting', code_assigned_at='2000-01-01T00:00:00-05:00' WHERE thread_id='t-1'")
             db.commit()
             db.close()
-            with patch("anka.servicios.pipeline.analyze", return_value=complete_analysis(location="")):
+            with patch("anka.servicios.pipeline.analizar_hilo", return_value=complete_analysis(location="")):
                 pipeline.run(True, review_only=True)
         activities, pending = self.table("t-1")
         self.assertEqual(activities, self.OLD)          # el cliente de la prueba no es Ana: no cambia

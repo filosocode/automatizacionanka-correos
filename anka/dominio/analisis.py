@@ -10,7 +10,7 @@ luego el piloto añade el enrutamiento, los adjuntos y las decisiones de una per
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 
 class Actividad(TypedDict, total=False):
@@ -137,5 +137,6 @@ class Analisis(TypedDict, total=False):
     gmail_url: str
     engine: str
     force_analysis: bool
+    lectura_por_tramos: dict[str, Any]   # {adjuntos: [{adjunto, tramos, hallazgos}], niveles}: leídos por tramos
     ignored_reason: str
     merged_into: str            # hilo del caso al que se unió este (descartado como «unido»)

@@ -719,7 +719,7 @@ class QuoteFlowIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("anka.servicios.pipeline.load_config", return_value=test_config()), patch(
             "anka.servicios.pipeline.services", return_value=(gmail, object())
-        ), patch("anka.servicios.pipeline.analyze", return_value=analysis) as analyze_mock:
+        ), patch("anka.servicios.pipeline.analizar_hilo", return_value=analysis) as analyze_mock:
             with redirect_stdout(io.StringIO()):
                 pipeline.run(True, review_only=review_only, gmail_drafts=gmail_drafts)
             db = sqlite3.connect(Path(temp_dir) / "quotes.sqlite3")

@@ -10,7 +10,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
-from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka
+from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka, ModoNoPermitido
 from anka.dominio.status import (
     QuoteStatus,
 )
@@ -39,7 +39,7 @@ from anka.dominio.reception import (
     attachment_report, automated_noise_reason, draft_body_with_review_note,
     mentions_commercial_terms,
 )
-from anka.infra.llm import analyze
+from anka.servicios.lectura_por_tramos import analizar_hilo
 from anka.infra.modes import (
     ensure_local_or_api_mode,
 )
@@ -115,9 +115,15 @@ class RevisorDeHilos:
                 continue
             try:
                 self.process_thread(thread_id, thread)
+            except ModoNoPermitido:
+                raise
             except ContextoInsuficiente as exc:
                 # No se analiza con documentos recortados; el hilo queda sin procesar y se informa (T-24).
                 log.warning("%s: %s", thread_id, exc)
+            except Exception:
+                # Un hilo que falla (modelo ocupado, respuesta inválida...) no debe frenar a los demás: se reintenta
+                # en el próximo ciclo y, gracias a la caché de hallazgos, sin repetir los tramos ya leídos.
+                log.exception("%s: no se pudo analizar el hilo; se reintentará en la próxima revisión", thread_id)
 
     def process_thread(self, thread_id: str, thread: dict) -> None:
         """Decide y aplica qué hacer con un hilo: descartar, pedir datos, dejar para revisión o crear la carpeta."""
@@ -153,7 +159,7 @@ class RevisorDeHilos:
             blocked = [item for item in attachments
                        if item.get("status") in {"bloqueado", "lectura_parcial"}]
             required = config["required_fields"]
-            analysis = analyze(inbound, required, config["llm"], attachments)
+            analysis = analizar_hilo(inbound, required, config["llm"], attachments)
             analysis["received_at"] = message_datetime(last)
             analysis["routing"] = routing
             analysis["email"] = email

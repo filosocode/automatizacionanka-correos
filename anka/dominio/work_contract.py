@@ -195,3 +195,37 @@ def question_evidence_warnings(payload: dict) -> list[str]:
     if not isinstance(payload, dict) or "evidence_register" not in payload:
         return []
     return _validate_question_evidence(payload)
+
+
+def _plain(value: object) -> str:
+    """Texto en minúsculas y sin tildes: Work escribe a veces los estados sin ellas."""
+    text = unicodedata.normalize("NFKD", str(value or "").casefold())
+    return "_".join("".join(char for char in text if not unicodedata.combining(char)).split())
+
+
+_COMPLETE = {"completa", "completo", "complete", "extraido"}
+_INCOMPLETE = {"parcial", "partial", "lectura_parcial", "no_legible", "ilegible", "unreadable", "bloqueado"}
+
+
+def attachment_coverage_warnings(payload: dict) -> list[str]:
+    """Advertencias cuando la cobertura que Work declara por adjunto no es coherente (T-25).
+
+    Una lectura «completa» debe dejar rastro de lo revisado (secciones o evidencia); una parcial o ilegible debe decir
+    por qué. Así una lectura superficial no pasa por exhaustiva. No rechaza el análisis: solo avisa.
+    """
+    warnings = []
+    for index, item in enumerate((payload.get("attachments") if isinstance(payload, dict) else None) or []):
+        if not isinstance(item, dict):
+            continue
+        name = item.get("filename") or f"adjunto {index + 1}"
+        declared = {_plain(item.get("coverage")), _plain(item.get("status"))}
+        if declared & _INCOMPLETE:
+            if not str(item.get("reason") or "").strip():
+                warnings.append(
+                    f"attachments[{index}] ({name}) declara lectura parcial o ilegible sin indicar el motivo."
+                )
+        elif declared & _COMPLETE and not item.get("reviewed_sections") and not item.get("evidence"):
+            warnings.append(
+                f"attachments[{index}] ({name}) declara lectura completa sin secciones revisadas ni evidencia."
+            )
+    return warnings

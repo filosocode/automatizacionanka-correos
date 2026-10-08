@@ -62,7 +62,7 @@ class OllamaTests(unittest.TestCase):
         self.assertEqual(captured["timeout"], 7)
         self.assertEqual(captured["body"]["model"], "m1")
         self.assertIs(captured["body"]["stream"], False)
-        self.assertEqual(captured["body"]["options"], {"temperature": 0, "num_ctx": llm.DEFAULT_NUM_CTX})
+        self.assertEqual(captured["body"]["options"], {"temperature": 0, "num_ctx": llm.DEFAULT_NUM_CTX, "num_predict": llm.OUTPUT_RESERVE_TOKENS})
         self.assertEqual(captured["body"]["format"], llm.ANALYSIS_SCHEMA)
 
     def test_context_window_is_configurable_and_larger_than_ollamas_default(self):

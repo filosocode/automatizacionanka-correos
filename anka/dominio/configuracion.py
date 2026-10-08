@@ -17,6 +17,8 @@ class ConfigLlm(TypedDict, total=False):
     model: str
     base_url: str          # solo Ollama
     timeout_seconds: float
+    context_tokens: int    # solo API: tokens de entrada que se aceptan por llamada (por defecto 100 000)
+    chunk_chars: int       # tamaño de un tramo al leer documentos largos (por defecto 30 000 caracteres)
     num_ctx_max: int       # solo Ollama: tope de la ventana que se puede pedir (lo que admite el modelo)
     num_ctx: int           # solo Ollama: tokens de contexto; Ollama usa 4096 por defecto y recorta el prompt
 

@@ -347,6 +347,13 @@ def review_note(analysis: Analisis, questions: list[str], source_message: dict |
             f"- Destinatario del borrador: {routing.get('selected_recipient') or 'no indicado'}\n"
             f"- Política: {routing.get('reply_policy') or 'internal_reviewer'}\n\n"
         )
+    reading_block = ""
+    por_tramos = analysis.get("lectura_por_tramos") or {}
+    if por_tramos.get("adjuntos"):
+        reading_block = "Lectura completa por tramos (no cabía en el modelo y se leyó entero):\n" + "".join(
+            f"- {item['adjunto']}: {item['tramos']} tramos, {item['hallazgos']} hallazgos con su localizador\n"
+            for item in por_tramos["adjuntos"]
+        ) + "\n"
     source_block = ""
     if source_message:
         payload = source_message.get("payload", {})
@@ -369,7 +376,7 @@ def review_note(analysis: Analisis, questions: list[str], source_message: dict |
         "Validar contra el correo original del cliente en este mismo hilo.\n"
         "Esta seccion es interna y no debe enviarse al cliente.\n\n"
         + source_block +
-        routing_block +
+        routing_block + reading_block +
         f"Resumen detectado: {analysis.get('summary') or 'no indicado'}\n\n"
         "Actividades detectadas:\n" + "\n".join(activity_lines) + "\n\n"
         "Datos/preguntas que motivan esta respuesta:\n" + "\n".join(question_lines) +
