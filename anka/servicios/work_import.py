@@ -7,6 +7,7 @@ cambios y guarda el caso sin hacer retroceder uno que ya avanzó en el dashboard
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime
 import json
 import sqlite3
 from collections.abc import Callable
@@ -180,6 +181,17 @@ def _internal_status(payload: dict, analysis: Analisis) -> str:
     return status
 
 
+def _demora_del_puente(payload: dict) -> str:
+    """Cuánto pasó entre que el borrador de Work apareció en Gmail y que llegó al dashboard (T-29); '' si no se sabe."""
+    try:
+        desde = datetime.fromisoformat(str(payload.get("draft_at") or ""))
+    except ValueError:
+        return ""
+    segundos = max(0, int((datetime.now().astimezone() - desde).total_seconds()))
+    log.info("%s: el borrador de Work tardó %d s en llegar al dashboard", payload.get("thread_id"), segundos)
+    return f" El borrador estaba en Gmail desde las {desde:%H:%M:%S}; llegó al dashboard {segundos} s después."
+
+
 def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analysis: Analisis) -> None:
     """Guarda el análisis de Work respetando el control de cambios y sin hacer retroceder un caso avanzado."""
     thread_id = payload["thread_id"]
@@ -205,7 +217,8 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
          payload.get("internal_sender") or payload["client_email"], analysis)
     version = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
     record_event(db, thread_id, "analysis", "work", version,
-                 f"Work analizó el caso: {payload['status']}.", payload.get("received_at", ""))
+                 f"Work analizó el caso: {payload['status']}.{_demora_del_puente(payload)}",
+                 payload.get("received_at", ""))
     db.commit()
 
 

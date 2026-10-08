@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import base64
+from datetime import datetime
 import hashlib
 import html
 import json
@@ -94,6 +95,14 @@ def _list_drafts(gmail: Any) -> list[dict]:
             return drafts
 
 
+def _hora_del_borrador(marca_ms: int) -> str:
+    """La hora local (ISO) en que Gmail guardó el borrador, o '' si la marca no es una fecha utilizable."""
+    try:
+        return datetime.fromtimestamp(marca_ms / 1000).astimezone().isoformat(timespec="seconds") if marca_ms else ""
+    except (OSError, OverflowError, ValueError):
+        return ""
+
+
 def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
               cache: dict | None = None) -> dict:
     """Una pasada. `cache` (draft_id -> (message_id, stamp, hallazgo)) evita bajar de nuevo
@@ -137,11 +146,17 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
             log.warning("Borrador %s: no importado (%s)", draft["id"], type(exc).__name__, exc_info=True)
             print(f"Borrador {draft['id']}: no importado ({type(exc).__name__}: {exc}).", flush=True)
     updated = 0
-    for thread, (_, (_payload, raw)) in candidates.items():
+    for thread, (stamp, (payload, raw)) in candidates.items():
         digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
         if state.get(thread) == digest:
             continue
         try:
+            # La hora en que el borrador apareció en Gmail viaja aparte del contenido (no entra en la huella `digest`):
+            # la importación la compara con su hora de llegada para medir la demora del puente (T-29).
+            hora = _hora_del_borrador(stamp)
+            if hora:
+                payload = {**payload, "draft_at": hora}
+                raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
             encoded = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
             upsert(encoded)
             state[thread] = digest
