@@ -100,7 +100,7 @@
           "question_id": {"type": "string"},
           "target_finding_ids": {"type": "array", "items": {"type": "string"}},
           "disposition": {"type": "string", "enum": ["ask_client", "internal_review", "do_not_ask"]},
-          "unresolved": {"type": "string"}
+          "unresolved": { "type": "string", "$comment": "Texto corto con el subdato concreto que sigue sin resolver; vacío si ninguno. Nunca true/false." }
         }
       }
     },

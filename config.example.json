@@ -13,7 +13,11 @@
     "provider": "ollama",
     "model": "qwen2.5:7b",
     "base_url": "http://127.0.0.1:11434",
-    "timeout_seconds": 180
+    "timeout_seconds": 180,
+    "num_ctx": 16384,
+    "num_ctx_max": 32768,
+    "chunk_chars": 12000,
+    "context_tokens": 100000
   },
   "required_fields": [],
   "commercial_filter_terms": [
