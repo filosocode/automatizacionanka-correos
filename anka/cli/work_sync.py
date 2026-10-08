@@ -16,7 +16,7 @@ from anka.servicios.gmail_followup import sync_thread_activity
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra.logging_setup import configure_logging, get_logger
 from anka.dominio.status import canonical_work_status
-from anka.dominio.work_contract import validate
+from anka.dominio.work_contract import corregir_descuidos_de_tipo, validate
 from anka.infra.work_heartbeat import other_bridge_running, write_heartbeat
 
 MOTIVO_MAX = 300
@@ -64,10 +64,9 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
         payload = json.loads(raw)
         if not isinstance(payload, dict):
             raise ValueError("El JSON debe ser un objeto.")
-        for audit in payload.get("question_audit") or []:
-            if isinstance(audit, dict) and isinstance(audit.get("unresolved"), bool):
-                # Work lo escribió como sí/no: sin texto; la advertencia de la pregunta lo hace visible.
-                audit["unresolved"] = ""
+        avisos = corregir_descuidos_de_tipo(payload)  # p. ej. `unresolved: true`: queda vacío y el caso lo advierte
+        if avisos:
+            payload["_avisos_del_puente"] = avisos
         status = canonical_work_status(payload.get("status"))
         if status is not None:
             payload["status"] = status  # la etiqueta oficial, aunque Work la escriba sin tildes

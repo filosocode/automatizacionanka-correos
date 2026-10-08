@@ -273,6 +273,12 @@ def _migration_13_project_dismissals(db: sqlite3.Connection) -> None:
         PRIMARY KEY (thread_id, other_thread_id), CHECK (thread_id < other_thread_id))''')
 
 
+def _migration_14_analysis_failures(db: sqlite3.Connection) -> None:
+    db.execute('''CREATE TABLE analysis_failures (
+        thread_id TEXT PRIMARY KEY, failures INTEGER NOT NULL, last_error TEXT NOT NULL,
+        first_at TEXT NOT NULL, last_at TEXT NOT NULL, next_retry_at TEXT NOT NULL)''')
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -289,6 +295,7 @@ MIGRATIONS = (
     _migration_11_one_case_per_message,
     _migration_12_mail_operations,
     _migration_13_project_dismissals,
+    _migration_14_analysis_failures,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

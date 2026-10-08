@@ -64,6 +64,9 @@ El ciclo de vida de un caso sigue `spec/transiciones.json`; cada fila se ejecuta
 ### T-02 · Contrato con Work
 El JSON que ChatGPT Work deja en el borrador cumple `spec/contrato_work.schema.json`; el puente lo valida y acepta el
 estado sin importar tildes ni mayúsculas.
+Un descuido de tipo evidente en un campo opcional (p. ej. `unresolved: true` donde va un texto) no hace perder el borrador:
+el puente lo corrige (queda vacío), lo importa y deja el motivo como advertencia visible en el caso. Un borrador que de
+verdad incumple el contrato se rechaza y se muestra en el Resumen según T-28.
 
 ### T-03 · Código de la oferta y control de cambios
 Cada caso aceptado recibe su T (que pasa a T&E al aprobarse). Desde la T, la tabla solo cambia por el contacto
@@ -222,10 +225,23 @@ ventana del modelo (`num_ctx_max` en Ollama, `context_tokens` en API) se analiza
    los adjuntos pequeños se conservan tal cual, y la evidencia por adjunto se calcula sobre el texto completo;
 5. los hallazgos de un tramo se guardan en una caché con tope (clave: texto del tramo, modelo y versión del prompt) para no
    repetir llamadas al reanalizar un hilo;
-6. un tramo que falla tras un reintento detiene el análisis del hilo con un aviso: jamás se completa con tramos faltantes;
+6. un tramo que el modelo no responde se divide en dos y se reintenta (hasta 2 veces); si ya no se puede dividir se hace
+   un último intento que castiga la repetición; si tampoco, se detiene el análisis del hilo con un aviso: jamás se completa
+   con tramos faltantes;
+   antes de dividir se colapsan las líneas largas repetidas (encabezados y pies de página): se leen una vez; cada tramo
+   recibe el último marcador de página u hoja visto, para que el localizador no se invente; y los hallazgos vacíos con que
+   un modelo pequeño rellena el esquema se descartan;
 7. el análisis registra `lectura_por_tramos` (adjunto, tramos, hallazgos, niveles) y la nota de revisión lo muestra.
 Con ChatGPT Work el paquete local entrega todo el texto en segmentos ordenados (`segment=i/n`) y el contrato advierte cuando
 Work declara, por adjunto, una cobertura incoherente (completa sin secciones revisadas, parcial o ilegible sin motivo).
+
+### T-26 · Un hilo que falla se reintenta con espera y se ve
+Un hilo que no se puede analizar (modelo ocupado, respuesta inválida, documentos que no caben) no se reintenta en cada
+ciclo: se registra el fallo y se espera 5 min, 15 min, 1 h, 4 h, 12 h y luego 24 h entre intentos; un hilo que falla no frena
+a los demás. Mientras no se logre, el hilo aparece en la lista de casos como «Requiere revisión técnica» con el motivo y
+la hora del próximo intento, para que una persona lo revise a mano sin esperar; si el análisis sale bien, ese caso se
+reemplaza por el real. El botón «Actualizar correo» ignora la espera (es una orden de una persona). Un hilo que ya tenía
+un análisis válido nunca se sobrescribe con el aviso de fallo. Los registros de fallos de más de 60 días se borran.
 
 ### U-06 · Estados veraces
 El estado que se ve en la lista, en el detalle y en los avisos no se contradice y refleja lo ocurrido.
@@ -326,7 +342,7 @@ oferta, con carpeta, con respuesta enviada o ya descartado no se puede unir, y e
 «No es el mismo proyecto» se guarda y esos dos hilos no vuelven a agruparse ni a sugerirse, en la lista ni en el caso.
 Nada se une solo (D-09).
 
-### T-26 · Un borrador de Work inválido no deja el puente «con avisos» para siempre
+### T-28 · Un borrador de Work inválido no deja el puente «con avisos» para siempre
 El puente distingue dos cosas. Un **fallo** es transitorio (red, Gmail, importación) y se reintenta en el siguiente ciclo; deja el
 puente «con avisos» mientras dure. Un **borrador rechazado** es un problema del contenido (el JSON no cumple el contrato de
 Work): no se arregla reintentando, así que se descarga y se rechaza **una sola vez** mientras su contenido no cambie (se vuelve

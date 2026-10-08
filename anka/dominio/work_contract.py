@@ -229,3 +229,20 @@ def attachment_coverage_warnings(payload: dict) -> list[str]:
                 f"attachments[{index}] ({name}) declara lectura completa sin secciones revisadas ni evidencia."
             )
     return warnings
+
+
+def corregir_descuidos_de_tipo(payload: dict) -> list[str]:
+    """Corrige en el sitio los descuidos de tipo evidentes de Work y devuelve un aviso por cada uno (T-02).
+
+    Hoy: `question_audit[n].unresolved` escrito como booleano (`true`) donde va un texto con el subdato pendiente. No
+    hay forma de recuperar ese texto, pero perder el borrador entero por eso es peor: queda vacío y el aviso lo cuenta.
+    """
+    avisos = []
+    for indice, item in enumerate((payload.get("question_audit") if isinstance(payload, dict) else None) or []):
+        if isinstance(item, dict) and isinstance(item.get("unresolved"), bool):
+            valor = "true" if item["unresolved"] else "false"
+            avisos.append(
+                f"question_audit[{indice}].unresolved llegó como {valor} y no como texto; se trató como vacío."
+            )
+            item["unresolved"] = ""
+    return avisos

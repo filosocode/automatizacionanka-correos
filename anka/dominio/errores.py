@@ -16,6 +16,10 @@ class ModoNoPermitido(ErrorDeAnka):
     """El modo activo (chatgpt_work) no permite que el bot local lea Gmail: dos orquestadores duplicarían el trabajo."""
 
 
+class SalidaDesbordada(ErrorDeAnka):
+    """El modelo llegó al tope de salida sin terminar su JSON: suele ser un bucle de repetición."""
+
+
 class ContextoInsuficiente(ErrorDeAnka):
     """El correo y sus adjuntos completos no caben en la ventana del modelo; no se analiza recortado (T-24)."""
 

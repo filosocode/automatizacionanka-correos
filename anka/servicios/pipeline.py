@@ -39,6 +39,8 @@ from anka.dominio.reception import (
     attachment_report, automated_noise_reason, draft_body_with_review_note,
     mentions_commercial_terms,
 )
+from anka.dominio.reintentos import analisis_de_fallo, motivo_legible
+from anka.servicios import reintentos
 from anka.servicios.lectura_por_tramos import analizar_hilo
 from anka.infra.modes import (
     ensure_local_or_api_mode,
@@ -67,7 +69,7 @@ class RevisorDeHilos:
 
     def __init__(self, config: Configuracion, gmail: Any, drive: Any, db: sqlite3.Connection | None,
                  account_addresses: set[str], review_only: bool, gmail_drafts: bool,
-                 comprobar_modo: Callable[[], None] | None = None) -> None:
+                 comprobar_modo: Callable[[], None] | None = None, respetar_espera: bool = True) -> None:
         self.config = config
         self.gmail = gmail
         self.drive = drive
@@ -77,6 +79,8 @@ class RevisorDeHilos:
         self.gmail_drafts = gmail_drafts
         # Se llama antes de cada hilo: si el modo cambió a Work a mitad de una pasada, se detiene en el acto.
         self.comprobar_modo = comprobar_modo
+        # False cuando una persona pide la revisión (botón «Actualizar correo»): se reintenta todo, sin esperas (T-26).
+        self.respetar_espera = respetar_espera
 
     def pending_thread_ids(self) -> set[str]:
         """Hilos a revisar: los que coinciden con la búsqueda de Gmail y los que quedaron pendientes en la base."""
@@ -102,6 +106,10 @@ class RevisorDeHilos:
         for thread_id in sorted(self.pending_thread_ids()):
             if self.comprobar_modo:
                 self.comprobar_modo()
+            proximo = reintentos.proximo_intento(self.db, thread_id) if self.db and self.respetar_espera else None
+            if proximo:  # falló hace poco: se espera su turno (backoff) para no gastar modelo y Gmail en cada ciclo
+                log.debug("%s: en espera tras un fallo; se reintenta a partir de %s", thread_id, f"{proximo:%H:%M}")
+                continue
             try:
                 thread = self.gmail.users().threads().get(
                     userId="me", id=thread_id, format="full"
@@ -115,15 +123,47 @@ class RevisorDeHilos:
                 continue
             try:
                 self.process_thread(thread_id, thread)
+                if self.db:
+                    reintentos.limpiar(self.db, thread_id)
             except ModoNoPermitido:
                 raise
             except ContextoInsuficiente as exc:
                 # No se analiza con documentos recortados; el hilo queda sin procesar y se informa (T-24).
                 log.warning("%s: %s", thread_id, exc)
-            except Exception:
-                # Un hilo que falla (modelo ocupado, respuesta inválida...) no debe frenar a los demás: se reintenta
-                # en el próximo ciclo y, gracias a la caché de hallazgos, sin repetir los tramos ya leídos.
-                log.exception("%s: no se pudo analizar el hilo; se reintentará en la próxima revisión", thread_id)
+                self._registrar_fallo(thread_id, thread, exc)
+            except Exception as exc:
+                # Un hilo que falla (modelo ocupado, respuesta inválida...) no debe frenar a los demás. Se reintenta
+                # con espera creciente y, gracias a la caché de hallazgos, sin repetir los tramos ya leídos (T-26).
+                log.exception("%s: no se pudo analizar el hilo", thread_id)
+                self._registrar_fallo(thread_id, thread, exc)
+
+    def _registrar_fallo(self, thread_id: str, thread: dict, error: Exception) -> None:
+        """Anota el fallo con su espera y deja el hilo visible como caso de revisión técnica (T-26).
+
+        Un hilo que ya tiene un análisis válido no se sobrescribe: el fallo queda solo en el registro de reintentos.
+        """
+        db = self.db
+        if not db:
+            return
+        motivo = motivo_legible(error)
+        fallos, proximo = reintentos.registrar_fallo(db, thread_id, motivo)
+        log.warning("%s: intento %d fallido; se reintenta a partir de %s", thread_id, fallos, f"{proximo:%H:%M}")
+        fila = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        if fila and "analysis_failure" not in (fila["analysis_json"] or ""):
+            return
+        inbound = inbound_messages(thread, self.account_addresses)
+        if not inbound:
+            return
+        last = inbound[-1]
+        routing = forwarded_routing(last, self.config)
+        if not routing["selected_recipient"]:
+            return
+        analysis = analisis_de_fallo(
+            header(last, "Subject"), header(last, "From"), message_datetime(last), routing, motivo, fallos, proximo,
+        )
+        # last_inbound_id vacío: al vencer la espera el hilo se vuelve a analizar aunque no haya mensajes nuevos
+        save(db, thread_id, "", QuoteStatus.REVIEW, routing["selected_recipient"], analysis)
+        db.commit()
 
     def process_thread(self, thread_id: str, thread: dict) -> None:
         """Decide y aplica qué hacer con un hilo: descartar, pedir datos, dejar para revisión o crear la carpeta."""
@@ -322,7 +362,7 @@ def _rescued(row: Sequence[Any] | None) -> bool:
         return False
 
 
-def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> None:
+def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False, respetar_espera: bool = True) -> None:
     """Revisa Gmail una vez: simula o, con `apply`, guarda para revisión (y envía o crea carpetas sin `review_only`)."""
     config = load_config()
     ensure_local_or_api_mode(config)
@@ -339,7 +379,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
     try:
         RevisorDeHilos(
             config, gmail, drive, db, own_addresses(config, gmail), review_only, gmail_drafts,
-            comprobar_modo=lambda: ensure_local_or_api_mode(load_config()),
+            comprobar_modo=lambda: ensure_local_or_api_mode(load_config()), respetar_espera=respetar_espera,
         ).run()
     finally:
         if db:

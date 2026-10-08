@@ -107,7 +107,7 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(gmail.gets, 2)
 
     def test_invalid_draft_is_rejected_not_a_failure_and_is_not_marked_processed(self):
-        # Cubre: T-26
+        # Cubre: T-28
         bad = draft_message(payload(thread="OTRO"))  # thread_id no coincide con el hilo
         result = self.run_sync(FakeGmail({"d1": bad}))
         self.assertEqual((result["updated"], result["failures"], len(result["rejected"])), (0, 0, 1))
@@ -116,7 +116,7 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(quotes.all_quotes(), [])
 
     def test_rejected_draft_is_downloaded_once_and_reviewed_again_only_when_it_changes(self):
-        # Cubre: T-26
+        # Cubre: T-28
         gmail = FakeGmail({"d1": draft_message(payload(thread="OTRO"))})
         cache = {}
         for _ in range(3):
@@ -129,7 +129,7 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(len(quotes.all_quotes()), 1)
 
     def test_a_draft_with_broken_json_is_rejected_without_stopping_the_others(self):
-        # Cubre: T-26
+        # Cubre: T-28
         broken = draft_message(payload(), thread="T2", message_id="gm9")
         texto = "[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]\n" + sync.START + "\n{no es json\n" + sync.END
         broken["payload"]["body"]["data"] = b64(texto)
@@ -137,7 +137,7 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual((result["updated"], result["failures"], len(result["rejected"])), (1, 0, 1))
 
     def test_unresolved_written_as_boolean_is_imported_as_empty(self):
-        # Cubre: T-26
+        # Cubre: T-28
         audit = [{"question": "¿Método?", "reason_missing": "no figura", "reviewed_sources": ["correo"],
                   "question_id": "q1", "disposition": "internal_review", "unresolved": True}]
         result = self.run_sync(FakeGmail({"d1": draft_message(payload(question_audit=audit))}))
@@ -487,7 +487,7 @@ class HeartbeatTests(unittest.TestCase):
         self.assertEqual(work_heartbeat.bridge_state()[0], "stopped")
 
     def test_rejected_drafts_give_their_own_state_not_an_error(self):
-        # Cubre: T-26
+        # Cubre: T-28
         self.beat(20, rejected=[{"draft": "d1", "thread": "t1", "reason": "x debe ser de tipo string."}])
         state, text = work_heartbeat.bridge_state()
         self.assertEqual(state, "attention")
@@ -502,7 +502,7 @@ class HeartbeatTests(unittest.TestCase):
         self.assertEqual(work_heartbeat.rejected_drafts(), [])
 
     def test_the_summary_lists_each_rejected_draft_with_its_reason_and_what_to_do(self):
-        # Cubre: T-26
+        # Cubre: T-28
         from anka.web import paginas
         self.assertEqual(str(paginas._work_rejected_panel()), "")        # sin rechazados, no hay panel
         self.beat(20, rejected=[{"draft": "r-123", "thread": "hilo-sin-caso",
@@ -515,7 +515,7 @@ class HeartbeatTests(unittest.TestCase):
         self.assertIn("se revisa solo cuando el borrador cambie", panel)
 
     def test_the_chip_and_health_check_treat_the_attention_state_as_a_live_bridge(self):
-        # Cubre: T-26
+        # Cubre: T-28
         from anka.servicios import salud
         base = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
         layout = (base / "layout.html").read_text(encoding="utf-8")
