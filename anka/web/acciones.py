@@ -32,7 +32,8 @@ from anka.servicios.change_control import (
 )
 from anka.servicios.quotes import (
     dismiss_pending_links, dismiss_pending_links_many, mark_notifications_read, rescue_discarded,
-    resolve_link, resolve_model_proposal, resolve_technical_review, save_quote_metadata,
+    merge_project_thread, resolve_link, resolve_model_proposal, resolve_technical_review, save_quote_metadata,
+    separate_project_thread,
 )
 from anka.servicios.ediciones import save_activities
 
@@ -130,8 +131,21 @@ def _post_rescue(form: Form) -> str:
 
 def _post_review_decision(form: Form) -> str:
     thread_id = field(form, "thread_id")
-    message = _guidance(lambda: resolve_technical_review(
-        thread_id, field(form, "decision"), field(form, "questions")), ValueError)
+    decision = field(form, "decision")
+    message = _guidance(lambda: resolve_technical_review(thread_id, decision, field(form, "questions")), ValueError)
+    # Tras decidir, directo al paso que sigue: el correo, o la emisión de la T.
+    return _to_case(thread_id, message, "#respuesta" if decision == "ask_client" else "#emitir-t")
+
+
+def _post_project_merge(form: Form) -> str:
+    thread_id = field(form, "thread_id")
+    message = _guidance(lambda: merge_project_thread(thread_id, field(form, "other_thread_id")), ValueError)
+    return _to_case(thread_id, message)
+
+
+def _post_project_separate(form: Form) -> str:
+    thread_id = field(form, "thread_id")
+    message = _guidance(lambda: separate_project_thread(thread_id, field(form, "other_thread_id")), ValueError)
     return _to_case(thread_id, message)
 
 
@@ -238,6 +252,8 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/rescue": _post_rescue,
     "/review-decision": _post_review_decision,
     "/followup": _post_followup,
+    "/project-merge": _post_project_merge,
+    "/project-separate": _post_project_separate,
     "/code": _post_code,
     "/code-issue": _post_code_issue,
     "/code-approve": _post_code_approve,

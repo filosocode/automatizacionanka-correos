@@ -119,7 +119,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self._send_html(paginas.render_index(field(query, "message")))
 
     def _get_requests(self, query: dict[str, list[str]]) -> None:
-        self._send_html(paginas.render_requests(field(query, "message")))
+        agrupar = field(query, "agrupar", "1") != "0"
+        self._send_html(paginas.render_requests(field(query, "message"), agrupar_hilos=agrupar))
 
     def _get_discarded(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.render_discarded(field(query, "message")))

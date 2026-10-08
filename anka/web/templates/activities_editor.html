@@ -1,30 +1,84 @@
 <style>
   .act-table textarea, .act-table select { width: 100%; min-width: 120px; font: inherit; font-size: 13px; }
   .act-table td { padding: 4px; vertical-align: top; }
-  .act-table textarea.vacio { background: #f0f2f3; color: #63717b; }
-  .act-table select.estado-confirmado { background: #d9ead3; }
-  .act-table select.estado-pendiente { background: #fff2cc; }
-  .act-table select.estado-contradictorio { background: #f4cccc; }
+  .act-table textarea.vacio { background: var(--surface-2); color: var(--muted); }
+  .act-table select.estado-confirmado { background: var(--ok-bg); color: var(--ok-ink); }
+  .act-table select.estado-pendiente { background: var(--caution-bg); color: var(--caution-ink); }
+  .act-table select.estado-contradictorio { background: var(--bad-bg); color: var(--bad-ink); }
   .act-table tr.nueva td { border-top: 2px dashed var(--line); }
   .act-table .del { white-space: nowrap; font-size: 12px; color: var(--muted); }
+  /* Cuadrícula: las cinco columnas miden lo mismo y todas las cajas de una fila tienen la misma altura, la que pida el texto
+     más largo (field-sizing: content). Por defecto no hace falta desplazarse; si arrastras la esquina de una caja, toda su
+     fila toma esa altura (lo hace el script de la página) y la caja se desplaza por dentro cuando el texto no cabe. */
+  .act-table { display: block; min-width: 760px; }
+  .act-table thead, .act-table tbody { display: block; }
+  .act-table .act-head, .act-table .act-main { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) 84px; gap: 8px; }
+  .act-table th { display: block; text-align: left; padding: 4px 2px; }
+  .act-table .act-main > td { display: flex; flex-direction: column; padding: 0; min-width: 0; }
+  .act-table textarea { flex: 1 1 auto; min-width: 0; min-height: 76px; height: auto; padding: 8px 10px; resize: vertical;
+    overflow: auto; field-sizing: content; line-height: 1.4; }
+  .act-table select { flex: 1 1 auto; min-width: 0; min-height: 76px; height: auto; padding: 8px 10px; }
+  .act-table .cant-par { display: flex; flex: 1 1 auto; gap: 6px; }
+  .act-table .cant-par textarea:last-child { flex: 0 0 40%; }
+  .act-table .del { justify-content: flex-start; padding-top: 8px; }
+  .act-table .del label { display: flex; flex-direction: row; align-items: center; gap: 6px; }
+  .act-table .del input { flex: 0 0 auto; width: 18px; min-width: 0; height: 18px; margin: 0; }
+  @supports not (field-sizing: content) { .act-table textarea { height: 76px; } }
+  .act-table tbody.act-row { border-bottom: 1px solid var(--line); }
+  .act-table tr.act-more { display: block; }
+  .act-table tr.act-more td { display: block; padding: 0 0 10px; }
+  .act-table tr.act-more summary { cursor: pointer; color: var(--muted); font-size: 13px; min-height: 32px; }
+  .act-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+  .act-grid label { display: flex; flex-direction: column; }
+  .act-grid textarea { font-weight: 400; }
+  /* Quitar: la fila se ve marcada hasta que se guarde. */
+  .act-table .del { white-space: normal; }
+  .act-table .del label { align-items: flex-start; }
+  .act-table .q-on { display: none; color: var(--bad-ink); font-size: 11px; line-height: 1.3; }
+  .act-table .del input:checked ~ .q-off { display: none; }
+  .act-table .del input:checked ~ .q-on { display: inline; }
+  .act-row.por-quitar .act-main textarea, .act-row.por-quitar .act-main select { opacity: .5; text-decoration: line-through; }
+  /* Barra de guardado: dice qué cambió; el motivo solo se pide cuando hay cambios. */
+  .save-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; padding: 10px 12px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+  .save-bar.con-cambios { border-color: var(--warn-line); background: var(--warn-bg); }
+  .save-status { flex: 1 1 260px; font-size: 14px; color: var(--muted); }
+  .save-bar.con-cambios .save-status { color: var(--warn-ink); font-weight: 600; }
+  .save-bar .reason { margin-left: 0; }
+  #guardar-tabla:disabled { opacity: .5; cursor: not-allowed; }
+  .sheet-box > .toolbar { margin-bottom: 6px; }
 </style>
 <form method="post" action="/activities">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   <input type="hidden" name="row_count" value="{{ row_count }}">
-  <p class="meta">Guía: <strong>pendiente</strong> = falta confirmar un dato; <strong>contradictorio</strong> = las fuentes discrepan. En Notas indica qué falta o qué valores difieren, cita sus fuentes/localizadores y deja el siguiente paso y quién debe resolverlo (cliente/contratante o equipo Anka). No asignes nombres si no están definidos.</p>
-  <div style="overflow-x:auto"><table class="act-table"><thead><tr>{% for label in headers %}<th>{{ label }}</th>{% endfor %}<th></th></tr></thead>
-  <tbody>{% for row in rows %}<tr{% if row.is_new %} class='nueva'{% endif %}>{% for cell in row.cells %}{% if cell.key == 'estado' %}<td><select name='a{{ row.index }}_estado' class='estado-{{ cell.value or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == cell.value %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>{% else %}<td><textarea name='a{{ row.index }}_{{ cell.key }}' rows='2'{% if not cell.value or cell.value == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ cell.value }}</textarea></td>{% endif %}{% endfor %}{% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'> Quitar</label></td>{% endif %}</tr>{% endfor %}</tbody></table></div>
-  <div class="toolbar" style="margin-top:12px">
-    <button type="submit">Guardar tabla</button>
-    <label class="reason">Motivo (opcional)
+  <p class="meta">Estado: <strong>confirmado</strong> = el dato está completo; <strong>pendiente</strong> = falta confirmar algo; <strong>contradictorio</strong> = las fuentes no coinciden. En Notas escribe qué falta o qué valores chocan, de dónde salen y quién lo resuelve (el cliente o el equipo de Anka). Abre «Más datos» para ver ubicación, entregable, plazo y fuente. Las cajas se ajustan a su texto; arrastra la esquina de una para cambiar la altura de su fila (si el texto no cabe, la caja se desplaza por dentro).
+  <button type="button" class="secondary" id="ajustar-cajas">Ajustar cajas al texto</button></p>
+{% macro campo(row, key, label, filas=2) %}<textarea name='a{{ row.index }}_{{ key }}' rows='{{ filas }}' aria-label='{{ label }}'{% if not row.by[key] or row.by[key] == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ row.by[key] }}</textarea>{% endmacro %}
+  <div style="overflow-x:auto"><table class="act-table" role="table"><thead><tr class="act-head" role="row"><th>Actividad</th><th>Servicio/técnica</th><th>Cantidad y unidad</th><th>Estado</th><th>Notas</th><th></th></tr></thead>
+  {% for row in rows %}<tbody class="act-row"><tr class="act-main{% if row.is_new %} nueva{% endif %}" role="row">
+    <td>{{ campo(row, 'activity', 'Actividad') }}</td>
+    <td>{{ campo(row, 'servicio_tecnica', 'Servicio o técnica') }}</td>
+    <td class="cant"><div class="cant-par">{{ campo(row, 'quantity', 'Cantidad', 1) }}{{ campo(row, 'unit', 'Unidad', 1) }}</div></td>
+    <td><select name='a{{ row.index }}_estado' aria-label='Estado' class='estado-{{ row.by.estado or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == row.by.estado %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>
+    <td>{{ campo(row, 'notes', 'Notas') }}</td>
+    {% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'><span class="q-off">Quitar</span><span class="q-on">Se quitará al guardar. Deshacer</span></label></td>{% endif %}</tr>
+    <tr class="act-more"><td colspan="6"><details><summary>Más datos: ubicación, entregable, plazo y fuente</summary>
+      <div class="act-grid"><label>Ubicación{{ campo(row, 'ubicacion', 'Ubicación') }}</label><label>Entregable{{ campo(row, 'entregable', 'Entregable') }}</label><label>Plazo o restricción{{ campo(row, 'plazo_restriccion', 'Plazo o restricción') }}</label><label>Fuente{{ campo(row, 'fuente', 'Fuente') }}</label></div>
+    </details></td></tr></tbody>{% endfor %}
+  </table></div>
+  <div class="save-bar" id="barra-guardado">
+    <span class="save-status" id="estado-cambios" role="status" aria-live="polite" data-sin-cambios="{{ sin_cambios }}">{{ sin_cambios }}</span>
+    <label class="reason" id="caja-motivo">Motivo (opcional)
       <select name="reason">{% for value, label in reasons %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
-    <a class="button secondary" href="/export.xlsx?thread_id={{ thread_id | urlquote }}">Descargar Excel</a>
+    <button type="submit" id="guardar-tabla">Guardar tabla</button>
+    <a class="button secondary" href="/acta?thread_id={{ thread_id | urlquote }}">Ver historial de cambios</a>
   </div>
-  <p class="meta">Tus ediciones solo quedan en el historial (versión, qué cambió y cuándo); no se envía nada al cliente. Una fila nueva se guarda solo si tiene datos.</p>
+  <p class="meta">Queda en el historial (versión, qué cambió y cuándo); no se envía nada al cliente. Una fila nueva se guarda solo si tiene datos.</p>
 </form>
 <div class="sheet-box" id="hoja-google">
   <div class="toolbar">
-    <strong>Hoja de Google Sheets</strong>
+    <strong>Exportar la tabla</strong>
+    <a class="button secondary" href="/export.xlsx?thread_id={{ thread_id | urlquote }}">Descargar Excel</a>
     {% if hoja.url %}<a class="button secondary" href="{{ hoja.url }}" target="_blank" rel="noopener noreferrer">Abrir en Google Sheets</a>{% endif %}
     {% if hoja.tiene_carpeta %}<form method="post" action="/hoja" style="display:inline">
       <input type="hidden" name="thread_id" value="{{ thread_id }}">
@@ -35,5 +89,7 @@
   {% elif hoja.tiene_carpeta %}<p class="meta">Todavía no hay hoja de Google para este caso: créala y desde entonces se actualiza sola.</p>
   {% else %}<p class="meta">La hoja de Google se crea en la carpeta del proyecto, que se crea al emitir la T. Mientras tanto puedes descargar el Excel.</p>{% endif %}
   {% if hoja.error %}<div class="notice">⚠ {{ hoja.error }}</div>{% endif %}
+  <details class="more"><summary>Cómo funciona la hoja de Google</summary>
   <p class="meta">Edita la tabla aquí, en el dashboard: lo que se escriba directamente en la hoja se sobrescribe en la próxima actualización (Google guarda las versiones anteriores en Archivo &gt; Historial de versiones). La hoja incluye también la solicitud inicial y el historial de cambios.</p>
+  </details>
 </div>

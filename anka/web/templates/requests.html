@@ -18,34 +18,77 @@
 {% endif %}
 <div class="filters">
   <label>Buscar<input id="search" type="search" placeholder="Proyecto, cliente o servicio"></label>
-  <label>Estado<select id="status"><option value="">Todos</option>{% for key, label in status_options %}<option value='{{ key }}'>{{ label }}</option>{% endfor %}</select></label>
+  <label>Ordenar por<select id="orden"><option value="reciente" selected>Más recientes primero</option><option value="antigua">Más antiguas primero</option><option value="urgencia">Más urgentes primero</option></select></label>
   <label>Tipo de cliente<select id="client-type"><option value="">Todos</option>{% for value in type_options %}<option value='{{ value }}'>{{ value }}</option>{% endfor %}</select></label>
 </div>
+{% if hay_grupos %}<p class="meta">{% if agrupado %}Los hilos que parecen el mismo proyecto van juntos. <a href="/requests?agrupar=0">Ver cada hilo por separado</a>{% else %}Cada hilo se muestra por separado. <a href="/requests">Agrupar por proyecto</a>{% endif %}.</p>{% endif %}
+<div class="chips" role="group" aria-label="Filtrar por etapa">
+  <button type="button" class="chip-filter" data-etapa="" aria-pressed="true">Todas</button>
+  {% for key, label, count in etapas %}<button type="button" class="chip-filter" data-etapa="{{ key }}" aria-pressed="false">{{ label }} <b>{{ count }}</b></button>
+  {% endfor %}
+</div>
+<details class="more bulk-menu"><summary>Acciones</summary>
 <form id="bulk-delete" method="post" action="/delete" class="bulk-bar">
   <label class="check-all"><input id="select-all" type="checkbox"> Seleccionar todas las visibles</label>
   <span id="selected-count" class="meta">0 seleccionadas</span>
   <button id="delete-btn" class="danger" type="submit" disabled data-confirm="¿Eliminar los hilos seleccionados, completos? Se borran del dashboard y, si ya tienen carpeta de proyecto, esa carpeta se mueve a la papelera de Drive (recuperable ~30 días). No se toca Gmail ni las carpetas de cliente.">Eliminar seleccionadas</button>
 </form>
+</details>
 <div id="requests" class="grid">{% if rows %}{% for row in rows %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todavía no hay solicitudes registradas.</div>{% endif %}</div>
 <div id="no-results" class="empty" hidden>No hay solicitudes con esos filtros.</div>
 <script>
 const search = document.querySelector('#search');
-const statusFilter = document.querySelector('#status');
+let etapaActual = '';
 const typeFilter = document.querySelector('#client-type');
 const rows = [...document.querySelectorAll('.case-row')];
 function filterRows() {
   const term = search.value.trim().toLocaleLowerCase('es');
+  const filtrando = Boolean(term || etapaActual || typeFilter.value);
   let visible = 0;
   rows.forEach(row => {
     const show = (!term || row.dataset.search.includes(term)) &&
-      (!statusFilter.value || row.dataset.status === statusFilter.value) &&
+      (!etapaActual || row.dataset.etapa === etapaActual) &&
       (!typeFilter.value || row.dataset.type === typeFilter.value);
     row.hidden = !show;
     if (show) visible += 1;
   });
   document.querySelector('#no-results').hidden = visible !== 0;
+  document.querySelectorAll('.grupo').forEach(grupo => {
+    const coinciden = [...grupo.querySelectorAll('.case-row')].filter(row => !row.hidden).length;
+    grupo.hidden = coinciden === 0;
+    if (filtrando) abrirGrupo(grupo, true);          // con un filtro se ven los hilos que coinciden, no solo el primero
+  });
 }
-[search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', filterRows));
+function abrirGrupo(grupo, abrir) {
+  const boton = grupo.querySelector('.grupo-toggle');
+  grupo.querySelector('.grupo-resto').hidden = !abrir;
+  boton.setAttribute('aria-expanded', String(abrir));
+  boton.textContent = abrir ? 'Ocultar' : 'Ver los ' + boton.dataset.n;
+}
+document.querySelectorAll('.grupo-toggle').forEach(boton => boton.addEventListener('click', () => {
+  abrirGrupo(boton.closest('.grupo'), boton.getAttribute('aria-expanded') !== 'true');
+}));
+[search, typeFilter].forEach(input => input.addEventListener('input', filterRows));
+document.querySelectorAll('.chip-filter').forEach(chip => chip.addEventListener('click', () => {
+  etapaActual = chip.dataset.etapa;
+  document.querySelectorAll('.chip-filter').forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
+  filterRows();
+  clearHiddenSelection();
+}));
+const listado = document.querySelector('#requests');
+const orden = document.querySelector('#orden');
+function fechaDe(row) { return Number(row.dataset.fecha) || 0; }
+function ordenar() {
+  // Sin fecha (0) queda al final en cualquier orden por fecha; la página ya llega ordenada del servidor.
+  const masReciente = (a, b) => (fechaDe(b) || -Infinity) - (fechaDe(a) || -Infinity) || 0;
+  const masAntigua = (a, b) => (fechaDe(a) || Infinity) - (fechaDe(b) || Infinity) || 0;
+  const masUrgente = (a, b) => (Number(a.dataset.urgencia) - Number(b.dataset.urgencia)) || masReciente(a, b);
+  const comparar = {reciente: masReciente, antigua: masAntigua, urgencia: masUrgente}[orden.value] || masReciente;
+  // Se ordenan las filas sueltas y los grupos (un grupo cuenta con su hilo más reciente o más urgente).
+  const unidades = [...listado.children].filter(el => el.classList.contains('case-row') || el.classList.contains('grupo'));
+  unidades.sort(comparar).forEach(unidad => listado.appendChild(unidad));
+}
+orden.addEventListener('input', ordenar);
 const checks = [...document.querySelectorAll('.row-check')];
 const selectAll = document.querySelector('#select-all');
 const deleteBtn = document.querySelector('#delete-btn');
@@ -74,9 +117,10 @@ if (selectAllLinks) selectAllLinks.addEventListener('change', () => {
 });
 linkChecks.forEach(c => c.addEventListener('change', updateLinkSelection));
 // una casilla oculta por el filtro no debe borrarse sin que se vea
-[search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', () => {
+function clearHiddenSelection() {
   checks.forEach(c => { if (c.closest('.case-row').hidden) c.checked = false; });
   selectAll.checked = false;
   updateSelection();
-}));
+}
+[search, typeFilter].forEach(input => input.addEventListener('input', clearHiddenSelection));
 </script>

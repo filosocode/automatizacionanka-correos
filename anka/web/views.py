@@ -10,6 +10,7 @@ from typing import Any
 from markupsafe import Markup
 
 from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS
+from anka.dominio.attachments import compactar_paginas
 from anka.web.templating import render
 
 MODE_LABELS = {
@@ -55,6 +56,17 @@ def _activities_table(activities: list[dict]) -> Markup:
     return render("activities_table.html", rows=rows)
 
 
+_PALABRAS = {
+    "extraido": "Leído", "completa": "Completa", "parcial": "Parcial", "lectura_parcial": "Lectura parcial",
+    "no_legible": "No se pudo leer", "unreadable": "No se pudo leer", "bloqueado": "Bloqueado: lo revisa una persona",
+}
+
+
+def _palabra(codigo: str) -> str:
+    """Un código interno de lectura, dicho como lo diría una persona; lo desconocido pasa igual."""
+    return _PALABRAS.get(codigo.strip().casefold().replace(" ", "_"), codigo)
+
+
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
     """Tabla de adjuntos con estado, datos bloqueados y citas verificables."""
     rows = []
@@ -73,8 +85,8 @@ def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
             evidence.append(" · ".join(parts))
         rows.append((
             str(item.get("filename") or ""),
-            str(item.get("status") or ""),
-            str(item.get("coverage") or "sin detalle"),
+            _palabra(str(item.get("status") or "")),
+            _palabra(str(item.get("coverage") or "sin detalle")),
             str(item.get("reason") or "") or "lectura correcta",
             ", ".join(str(value) for value in (item.get("blocked_fields") or [])) or "ninguno",
             evidence,
@@ -195,8 +207,12 @@ def review_tasks_panel(
     dependencies: Sequence[Mapping[str, Any]] = (),
     contradictions: Sequence[Mapping[str, Any]] = (),
     waiting_for_client: bool = False,
+    questions_in_decision: bool = False,
 ) -> Markup:
-    """Resume revisiones y dependencias desde las fuentes disponibles, incluidos payloads antiguos."""
+    """Resume revisiones y dependencias desde las fuentes disponibles, incluidos payloads antiguos.
+
+    Con `questions_in_decision` las preguntas para el cliente se editan en la decisión: aquí solo se cuentan.
+    """
     audit_text = _audit_search_text(audit)
     internal_text = _internal_review_search_text(audit)
     candidates = (
@@ -216,8 +232,12 @@ def review_tasks_panel(
         key = re.sub(r"\W+", " ", task.casefold()).strip()
         if key and key not in keys:
             keys.add(key)
-            rows.append((status, task, reason))
-    return render("review_tasks.html", rows=rows)
+            rows.append((status, task, compactar_paginas(reason)))
+    moved = 0
+    if questions_in_decision:
+        moved = sum(status == "Pregunta sugerida al cliente" for status, _, _ in rows)
+        rows = [row for row in rows if row[0] != "Pregunta sugerida al cliente"]
+    return render("review_tasks.html", rows=rows, moved_questions=moved)
 
 
 def question_quality_panel(warnings: Sequence[str]) -> Markup:
@@ -243,22 +263,33 @@ def reception_assessment_panel(assessment: dict) -> Markup:
     )
 
 
+def _sin_cambios(ultima: Mapping[str, Any] | None) -> str:
+    """El texto de la barra de guardado cuando no hay nada por guardar: la última versión que guardó una persona."""
+    if not ultima:
+        return "Sin cambios por guardar"
+    cuando = str(ultima["created_at"])[:16].replace("T", " ")
+    return f"Sin cambios por guardar · última versión: {ultima['version']} ({cuando})"
+
+
 def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
-                      reasons: list[tuple[str, str]] | None = None, hoja: Mapping[str, Any] | None = None) -> Markup:
+                      reasons: list[tuple[str, str]] | None = None, hoja: Mapping[str, Any] | None = None,
+                      ultima: Mapping[str, Any] | None = None) -> Markup:
     """Tabla editable: colores por estado, celdas vacias en gris y una fila nueva al final."""
     def cells(item: Mapping[str, Any]) -> list[dict]:
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
 
     rows = [
-        {"index": index, "is_new": False, "cells": cells(item)}
+        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)}}
         for index, item in enumerate(activities)
     ]
     new_row = {key: "" for key, _ in ACTIVITY_COLUMNS} | {"estado": "pendiente"}
-    rows.append({"index": len(activities), "is_new": True, "cells": cells(new_row)})
+    rows.append({"index": len(activities), "is_new": True, "cells": cells(new_row),
+                 "by": {c["key"]: c["value"] for c in cells(new_row)}})
     return render(
         "activities_editor.html",
         thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS,
         reasons=reasons or [],
+        sin_cambios=_sin_cambios(ultima),
         hoja={"url": "", "error": "", "tiene_carpeta": False, "actualizada": ""} | dict(hoja or {}),
         headers=[label for _, label in ACTIVITY_COLUMNS],
     )

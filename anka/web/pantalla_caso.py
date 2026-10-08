@@ -41,14 +41,15 @@ from anka.servicios.change_control import (
 )
 from anka.servicios.gmail_followup import case_contacts
 from anka.dominio.registros import Cambio, Evento
+from anka.servicios.proyectos_repetidos import agrupar, motivo_entre
 from anka.servicios.quotes import (
-    ago_text, case_change_log, case_conversation, case_has_links, case_people, chain_status, get_quote,
-    minutes_since, reason_label, thread_events,
+    ago_text, all_quotes, case_change_log, case_conversation, case_has_links, case_people, chain_status, get_quote,
+    merge_blocker, minutes_since, reason_label, separated_project_pairs, thread_events,
 )
 from anka.dominio.caso import CLIENT_TYPES, REPLY_OVERDUE_MINUTES, SECTORS
 from anka.servicios.ediciones import EDIT_REASONS, last_manual_version, table_versions
 
-from anka.web.paginas import REPLY_LABEL, case_stage, page
+from anka.web.paginas import REPLY_LABEL, case_stage, etiqueta_de_recepcion, page
 
 log = get_logger(__name__)
 
@@ -309,6 +310,27 @@ def _code_panel(review: Caso) -> Markup:
         received_text=received_email_text(project, code_label(suggestion, "T"), contact) if suggestion else "")
 
 
+def _project_panel(thread_id: str) -> Markup:
+    """«Parece el mismo proyecto»: los hilos parecidos a este, con «Unir a este caso» y «No es el mismo proyecto»."""
+    quotes = all_quotes()
+    mine = next((q for q in quotes if q["thread_id"] == thread_id), None)
+    group = next((g for g in agrupar(quotes, separated_project_pairs())
+                  if any(q["thread_id"] == thread_id for q in g.miembros)), None)
+    if mine is None or group is None or len(group.miembros) < 2:
+        return Markup("")
+    candidates = []
+    for other in group.miembros:
+        if other["thread_id"] == thread_id:
+            continue
+        reason = motivo_entre(mine, other) or group.motivo
+        candidates.append({
+            "thread_id": other["thread_id"], "project": other["analysis"].get("project_name") or "Solicitud sin nombre",
+            "who": other["client_name"] or other["recipient"], "when": etiqueta_de_recepcion(other),
+            "stage": case_stage(other)[0], "reason": reason, "verify": reason == "nombre parecido",
+            "blocker": merge_blocker(other)})
+    return render("project_suggestion.html", thread_id=thread_id, candidates=candidates)
+
+
 def _next_step_banner(review: Caso, work_mode: bool) -> Markup:
     """Un solo aviso arriba del caso: lo más importante que sigue, con su botón si lo hay."""
     if any(c["state"] == "pending" for c in review.get("changes", [])):
@@ -345,6 +367,11 @@ def _next_step_banner(review: Caso, work_mode: bool) -> Markup:
             "next_step.html", tone="warn", title="El cliente no ha respondido",
             text="Lleva 3 días hábiles esperando. Envía un recordatorio o activa el seguimiento automático.",
             action_href="#seguimiento", action_label="Ver seguimiento")
+    if review["status"] in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
+        return render(
+            "next_step.html", tone="info", title="Revisa el correo y envíalo",
+            text="Nada sale al cliente hasta que pulses «Enviar ahora».",
+            action_href="#respuesta", action_label="Ir al correo")
     if review["status"] == QuoteStatus.REVIEW:
         return render(
             "next_step.html", tone="warn", title="Falta tu decisión de revisión técnica",
@@ -355,6 +382,26 @@ def _next_step_banner(review: Caso, work_mode: bool) -> Markup:
             "next_step.html", tone="info", title="Información validada: puedes emitir la T",
             text="Damos por recibido el proyecto y empezamos a cotizar.",
             action_href="#emitir-t", action_label="Emitir la T")
+    code = review.get("quote_code", "")
+    if code:
+        stage = review.get("code_stage") or "T"
+        title = f"{code_label(code, stage)} · " + ("oferta aprobada" if stage == "TE" else "cotizando")
+        folder = review.get("folder_id")
+        if folder:
+            return render(
+                "next_step.html", tone="info", title=title,
+                text="La T está emitida y la carpeta del proyecto ya existe en Drive.",
+                action_href="https://drive.google.com/drive/folders/" + urllib.parse.quote(folder),
+                action_label="Abrir carpeta en Drive")
+        return render(
+            "next_step.html", tone="warn", title=title,
+            text="La T está emitida, pero la carpeta del proyecto aún no existe en Drive.",
+            action_href="#carpeta", action_label="Ir a la carpeta")
+    if label.startswith("Esperando al cliente"):
+        return render(
+            "next_step.html", tone="info", title="Esperando al cliente",
+            text=f"{label}. Si no responde, el seguimiento prepara un recordatorio que tú revisas antes de enviarlo.",
+            action_href="#seguimiento", action_label="Ver seguimiento")
     return Markup("")
 
 
@@ -508,7 +555,8 @@ def _code_text(review: Mapping[str, Any]) -> str:
 
 
 def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: dict, config: Configuracion,
-                 events: list[Evento], integrity_ok: bool, event_count: int) -> dict[str, Any]:
+                 events: list[Evento], integrity_ok: bool, event_count: int,
+                 questions_in_decision: bool = False) -> dict[str, Any]:
     """Los paneles de la pantalla del caso, cada uno ya renderizado."""
     proposal = review.get("proposal", [])
     return {
@@ -517,7 +565,8 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "activities_editor": activities_editor(
             thread_id, analysis.get("activities", []), list(EDIT_REASONS.items()),
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
-                  "actualizada": review.sheet_synced_at[:16].replace("T", " ")}),
+                  "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
+            ultima=last_manual_version(thread_id)),
         "attachments_table": attachments_table(analysis.get("attachments", [])),
         "review_tasks": review_tasks_panel(
             analysis.get("question_audit", []),
@@ -526,6 +575,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             dependencies=analysis.get("scope_dependencies", []),
             contradictions=analysis.get("contradictions", []),
             waiting_for_client=review["status"] == QuoteStatus.RESPONSE_SENT,
+            questions_in_decision=questions_in_decision,
         ),
         "question_audit": question_audit_panel(analysis.get("question_audit", [])),
         "question_quality": question_quality_panel(analysis.get("question_quality_warnings", [])),
@@ -537,6 +587,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "code_panel": _code_panel(review),
         "code_text": _code_text(review),
         "next_step": _next_step_banner(review, config.get("active_mode") == "chatgpt_work"),
+        "project_panel": _project_panel(thread_id),
         "proposal_panel": render("proposal.html", changes=proposal, thread_id=thread_id) if proposal else Markup(""),
         "timeline": _timeline_panel(thread_id, review, analysis, events, integrity_ok, event_count),
     }
@@ -564,6 +615,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     # «Enviada» se cumple venga el envío del dashboard, de Gmail o de Work.
     sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT or any(
         event["kind"] == "sent" for event in events)
+    prefill_questions = _suggested_questions(analysis, assessment) if technical else ""
     body = render(
         "case.html",
         review=review, thread_id=thread_id,
@@ -572,6 +624,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         service_family=assessment.get("service_family", "Por clasificar"),
         suggestion_complete=review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING},
         draft_complete=bool(review["draft_id"] or sent_complete),
+        plegar_respuesta=bool(review.get("quote_code")) or (
+            review.informacion_validada and review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING}),
         sent_complete=sent_complete, no_reply_needed=review["status"] in {QuoteStatus.READY, QuoteStatus.IGNORED},
         client_types=CLIENT_TYPES, sectors=SECTORS,
         routing_summary=_routing_summary(analysis), issues_summary=issues_summary,
@@ -579,11 +633,12 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         sufficient=assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=review["status"] == QuoteStatus.REVIEW,
-        prefill_questions=_suggested_questions(analysis, assessment) if technical else "",
+        prefill_questions=prefill_questions,
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),
-        **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count),
+        **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count,
+                       questions_in_decision=bool(prefill_questions) and review["status"] == QuoteStatus.REVIEW),
     )
     return page("Revisar caso", body, message)
 

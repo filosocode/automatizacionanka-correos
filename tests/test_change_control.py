@@ -361,7 +361,7 @@ class TechnicalReviewFlowTests(Base):
         self.upsert_with_dependency()
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T9")
-        self.assertIn("Decisión de la revisión técnica", page)
+        self.assertIn("¿Cómo seguimos?", page)
         self.assertNotIn('formaction="/send"', page)                 # primero decide una persona
         quotes.resolve_technical_review("T9", "ask_client", "¿Qué precisión requieren?")
         self.assertEqual(quotes.get_quote("T9")["status"], QuoteStatus.REVIEW_PENDING)
@@ -682,7 +682,8 @@ class UxFixesTests(Base):
             page = paginas.render_requests()
         self.assertIn("Esperando al cliente", page)
         self.assertIn("Por aclarar con el cliente", page)
-        self.assertLess(page.index("Por aclarar con el cliente"), page.index("Esperando al cliente"))
+        lista = page[page.index('id="requests"'):]                  # sin contar los botones del filtro de etapa
+        self.assertLess(lista.index("Por aclarar con el cliente"), lista.index("Esperando al cliente"))
 
     # 2. textos al día
     def test_no_stale_prompts_once_the_t_exists(self):
@@ -696,6 +697,57 @@ class UxFixesTests(Base):
         self.assertIn("Completado", page)
         box = page.split('name="body"')[1].split("</textarea>")[0]
         self.assertEqual(box.split(">", 1)[1].strip(), "")                # respuesta libre, en blanco
+
+    def _pagina(self):
+        with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
+            return pantalla_caso.render_case("T1")
+
+    def _aviso(self):
+        return str(pantalla_caso._next_step_banner(quotes.get_quote("T1"), False))
+
+    def test_hay_aviso_de_siguiente_paso_esperando_y_cotizando(self):
+        # Cubre: U-17
+        self.set_status(QuoteStatus.RESPONSE_SENT)
+        esperando = self._aviso()
+        self.assertIn("Esperando al cliente", esperando)
+        self.assertIn('href="#seguimiento"', esperando)
+        self.assertIn("Ver seguimiento", esperando)
+        self.assign()
+        sin_carpeta = self._aviso()
+        self.assertIn("T26145 · cotizando", sin_carpeta)
+        self.assertIn('href="#carpeta"', sin_carpeta)
+        db = connect()
+        db.execute("UPDATE quotes SET folder_id='carpeta-1' WHERE thread_id='T1'")
+        db.commit()
+        db.close()
+        con_carpeta = self._aviso()
+        self.assertIn("https://drive.google.com/drive/folders/carpeta-1", con_carpeta)
+        self.assertIn("Abrir carpeta en Drive", con_carpeta)
+        change_control.promote_to_te("T1")
+        self.assertIn("T&amp;E26145 · oferta aprobada", self._aviso())
+
+    def test_el_aviso_se_pega_bajo_el_encabezado_y_la_medida_viene_del_encabezado(self):
+        # Cubre: U-17
+        base = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
+        css = (base / "style.css").read_text(encoding="utf-8")
+        regla = next(linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea)
+        self.assertIn("top: calc(var(--header-h, 0px) + 8px)", regla)
+        layout = (base / "layout.html").read_text(encoding="utf-8")
+        self.assertIn("'--header-h'", layout)
+        self.assertIn("addEventListener('resize', medirEncabezado)", layout)
+
+    def test_la_respuesta_se_pliega_con_la_informacion_validada_o_con_t(self):
+        # Cubre: U-18
+        self.set_status(QuoteStatus.REVIEW_PENDING)
+        self.assertIn('<section class="section" id="respuesta">', self._pagina())      # sin validar: a la vista
+        self.set_status(QuoteStatus.READY)
+        validada = self._pagina()
+        self.assertIn('<details class="more respuesta-plegada" id="respuesta">', validada)
+        self.assertIn("Respuesta al cliente (opcional)", validada)
+        self.assertIn("Ningún correo se envía sin pulsar", validada)                   # el contenido sigue ahí, plegado
+        self.assign()
+        self.assertIn('<details class="more respuesta-plegada" id="respuesta">', self._pagina())
+        self.assertIn("destino.open = true", (Path(__file__).resolve().parents[1] / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8"))
 
     # 3. historial citado plegado
     def test_quoted_history_is_split_from_the_new_message(self):

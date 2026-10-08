@@ -237,3 +237,100 @@ Un caso ya avanzado ofrece la caja de respuesta en blanco, sin textos sugeridos 
 Un caso con código T ofrece siempre, en la caja de respuesta, preparar el correo de «proyecto recibido» (con el
 código) y, cuando la oferta pasa a T&E, el de «oferta aprobada». Al aprobar la oferta se prepara ese correo, pero
 nada se envía sin que una persona pulse «Enviar ahora» (R8).
+
+### U-09 · El siguiente paso no se pierde al desplazarse
+El aviso de «siguiente paso» del caso queda a la vista mientras se recorre la pantalla (fijo arriba), con su botón que lleva
+al paso. En un caso listo para cotizar, la acción principal es emitir la T con el correo y la carpeta; la variante «solo
+emitir la T» queda plegada en «Otras opciones», de modo que a la vez solo hay una acción primaria de emisión visible.
+
+### U-10 · Fuentes compactas
+Las páginas citadas como fuente de una revisión pendiente se muestran como rangos («págs. 3, 5–7, 10–15») y no repetidas
+una por una, sin perder ninguna página. Con el mismo contenido el caso es más corto y legible.
+
+### U-11 · Resumen como cola priorizada
+El Resumen muestra los casos que esperan una acción de una persona como una cola ordenada por urgencia, de a lo más cinco,
+y cada uno con un solo botón con verbo que lleva a su paso. El orden es: el cliente respondió; cambios, propuestas o
+actualizaciones por revisar; borrador o envío por revisar; listo para emitir la T; decisión técnica o aclaración; seguimiento sin
+respuesta. A igual urgencia va primero la más reciente. Si hay más de cinco, el Resumen lo dice y ofrece un botón a Solicitudes,
+donde siguen todos. Las novedades que repiten a casos ya mostrados en la cola quedan plegadas, con su botón de marcarlas
+como revisadas.
+
+### U-12 · Decidir y preguntar en un solo paso
+En revisión técnica, la pantalla ofrece una sola sección, «¿Cómo seguimos?», con las dos salidas y lo que ocurre después de
+cada una. Las preguntas para el cliente se editan ahí y no se repiten como tareas: «Qué falta resolver» solo cuenta cuántas
+hay. Mientras la respuesta está en pausa no aparece la sección «Respuesta al cliente». Al decidir, la persona llega directo
+al correo (si pregunta) o a la emisión de la T (si la información basta), y el aviso de arriba le dice que revise y envíe.
+Ningún correo sale sin «Enviar ahora» (R8).
+
+### U-13 · Solicitudes: lista ordenada, con verbo y filtrada por etapa
+La lista de Solicitudes va, por defecto, de la más reciente a la más antigua (U-16). Cada fila lleva el botón con el verbo de su
+paso («Decidir», «Emitir la T», «Revisar borrador»…) y, si no espera nada de una persona, «Abrir». Se filtra por etapa (Por
+atender, Esperando al cliente, Listas para la T, En cotización) con la cantidad de cada una, y por tipo de cliente. «Eliminar
+seleccionadas» queda dentro de un menú «Acciones» y conserva su confirmación: no está a la vista junto a las acciones normales.
+
+### U-14 · Tabla legible y lenguaje claro
+La tabla de actividades muestra cinco columnas (Actividad, Servicio/técnica, Cantidad con su unidad, Estado y Notas); ubicación,
+entregable, plazo y fuente van en «Más datos» de cada fila y se guardan igual. Las cinco columnas miden lo mismo y todas las cajas de una
+fila tienen la misma altura (la que pida el texto más largo), de modo que por defecto no hace falta desplazarse; cantidad y
+unidad van juntas en una caja. Se puede cambiar la altura arrastrando la esquina de una caja (toda su fila toma esa altura y
+la caja se desplaza por dentro si el texto no cabe) y un botón «Ajustar cajas al texto» vuelve al tamaño automático. La guía de la tabla habla al comercial (qué
+significa cada estado y qué escribir en Notas). La tabla de adjuntos usa palabras de persona («No se pudo leer», «Falta
+revisar», «Dónde se leyó») y no códigos internos. El foco del teclado es siempre visible y los botones y campos miden al
+menos 44 px de alto.
+
+### U-15 · Tema claro y oscuro
+El dashboard tiene tema claro y oscuro con la misma paleta verde azulada. Sigue el tema del sistema por defecto y un botón
+«Tema» de la barra superior alterna sistema, claro y oscuro; la elección se recuerda en el navegador y se aplica antes de
+pintar la página, sin parpadeo. Todos los colores salen de variables definidas para ambos temas: no quedan colores literales
+fuera de ellas (salvo la marca y el texto blanco de los botones de peligro). El foco y el contraste del texto se mantienen
+legibles en los dos.
+
+### U-16 · Solicitudes ordenadas por fecha
+La lista de Solicitudes se puede ordenar por «Más recientes primero», «Más antiguas primero» y «Más urgentes primero». Al abrir
+la página sale por defecto la más reciente primero. La fecha es la de recepción del correo (la que muestra cada fila), no la
+de la última actualización; las solicitudes sin fecha quedan al final en cualquier orden por fecha. A igual fecha se conserva
+el orden de la lista. «Más urgentes primero» usa el orden de la cola del Resumen y, a igual urgencia, la más reciente primero.
+El orden se aplica en el servidor (la página ya llega ordenada) y se puede cambiar sin recargar.
+
+### U-17 · Siguiente paso en todas las etapas, bajo el encabezado
+El aviso de «siguiente paso» está en las cuatro etapas: además de la decisión y la emisión de la T, un caso que espera al cliente dice
+cuánto lleva esperando y lleva al seguimiento, y un caso con T dice su código y lleva a la carpeta del proyecto (o a crearla). El
+aviso se queda fijo justo debajo del encabezado, sin taparlo ni cubrir la navegación, en cualquier alto de encabezado.
+
+### U-18 · La respuesta no compite con la emisión de la T
+Cuando la información está validada o el caso ya tiene T, «Respuesta al cliente» queda plegada («opcional») y no aparece junto a la
+emisión; un enlace a ella (`#respuesta`) la abre. Sigue estando disponible para el acuse y los correos con el código (U-08).
+Con la información sin validar, la respuesta sigue a la vista como siempre.
+
+### U-19 · Hilos del mismo proyecto, agrupados a la vista
+Solicitudes y el Resumen muestran juntos los hilos que parecen el mismo proyecto, sin unir ni cambiar nada. Dos hilos parecen
+el mismo proyecto si comparten un documento adjunto (mismo nombre y la misma cantidad de texto leído; las
+imágenes no cuentan, por las firmas de correo, ni un archivo que no se pudo leer) o si el nombre del
+proyecto es parecido, con el mismo criterio que las carpetas de Drive (sin tildes ni sufijos; uno contenido en el otro o 85 %
+iguales) y los números iguales («Calle 170» no es «Calle 171»), siempre que el cliente sea el mismo o no esté identificado. El
+mismo remitente no basta, dos clientes distintos no se agrupan (ni por el nombre ni por un archivo) y dos casos con T distinta
+nunca se agrupan.
+En Solicitudes el grupo es una fila: el hilo más reciente, con «N hilos del mismo proyecto», el motivo (y «verifica» si solo el
+nombre se parece) y un botón para desplegar los demás; el orden por fecha usa el hilo más reciente del grupo, y el orden por
+urgencia el más urgente. Se puede ver cada hilo por separado (`agrupar=0`). En el Resumen un proyecto ocupa una sola entrada
+de la cola, que abre su hilo más urgente y reciente y dice cuántos más hay. Unir de verdad los hilos es una
+acción aparte con confirmación de una persona (U-20).
+
+### U-20 · Unir o separar un hilo del mismo proyecto, con confirmación
+La pantalla de un caso avisa «Parece el mismo proyecto» cuando otros hilos se parecen a él (U-19) y, de cada uno, dice quién lo
+mandó, cuándo, en qué etapa está y por qué se parece (con «verifica» si solo es el nombre). De cada hilo se ofrece
+«Unir a este caso» y «No es el mismo proyecto». Unir pide confirmación y usa la unión que ya existe: el hilo pasa a Descartadas
+como «unido» (se puede rescatar), su historial se conserva y lo que traía para la tabla llega como propuesta para adoptar o
+descartar; queda anotado quién lo decidió y cuándo en los dos casos. Solo se unen hilos que no avanzaron: uno con código de
+oferta, con carpeta, con respuesta enviada o ya descartado no se puede unir, y el aviso lo explica (sigue pudiendo separarse).
+«No es el mismo proyecto» se guarda y esos dos hilos no vuelven a agruparse ni a sugerirse, en la lista ni en el caso.
+Nada se une solo (D-09).
+
+### U-21 · Guardar la tabla con control: cambios visibles, motivo solo si hay cambios y exportar aparte
+Debajo de la tabla de actividades hay una barra de guardado. Dice si hay cambios sin guardar y cuáles («2 filas editadas, 1 por
+quitar, 1 nueva») o, si no hay, la última versión guardada; «Guardar tabla» solo se puede pulsar cuando hay algo que guardar. El
+motivo (opcional) aparece solo cuando se edita, se quita o se añade algo, junto a «Guardar tabla», y no se muestra cerca de la
+exportación. Quitar una fila la marca a la vista (atenuada y tachada, «se quitará al guardar», con opción de deshacer) y guardar
+con filas quitadas pide confirmar cuántas. Un enlace «Ver historial de cambios» lleva al acta del caso. La exportación (Excel y
+hoja de Google) es una zona aparte, «Exportar la tabla», con una sola explicación corta y el detalle plegado. Nada de esto
+cambia lo que se guarda ni cómo.

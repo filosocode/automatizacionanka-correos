@@ -110,3 +110,28 @@ def build_attachment_evidence(text: str) -> list[EvidenciaAdjunto]:
             excerpt.append(content)
     flush()
     return evidence
+
+
+_PAGINAS = re.compile(r"P[áa]gina \d+(?:\s*[,;]\s*P[áa]gina \d+)+")
+
+
+def _rangos(paginas: list[int]) -> str:
+    """3, 5, 6, 7, 10 → «3, 5–7, 10»: las páginas consecutivas se agrupan en un rango."""
+    partes: list[str] = []
+    inicio = anterior = paginas[0]
+    for numero in paginas[1:] + [0]:
+        if numero == anterior + 1:
+            anterior = numero
+            continue
+        partes.append(str(inicio) if inicio == anterior else
+                      f"{inicio}, {anterior}" if anterior == inicio + 1 else f"{inicio}–{anterior}")
+        inicio = anterior = numero
+    return ", ".join(partes)
+
+
+def compactar_paginas(texto: str) -> str:
+    """Muestra una lista de «Página N, Página M…» como «págs. N, M–P»; no pierde ninguna página."""
+    def reemplazo(coincidencia: re.Match[str]) -> str:
+        paginas = sorted({int(n) for n in re.findall(r"\d+", coincidencia.group(0))})
+        return f"págs. {_rangos(paginas)}"
+    return _PAGINAS.sub(reemplazo, texto)

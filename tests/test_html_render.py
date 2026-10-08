@@ -260,8 +260,9 @@ class InjectionTests(Pages):
         safe = [canonical(self.pages[name]) for name in baseline_pages]
         allowed_tags = set().union(*(p.tags for p in safe)) | {"pre", "ol", "ul", "li", "small"}
         allowed_attrs = set().union(*(p.attrs for p in safe))
-        # Scripts propios: el de confirmación en toda página y el de filtros en /requests.
-        legit_scripts = {name: 2 if name == "requests" else 1 for name in self.pages}
+        # Scripts propios: el del tema (en el encabezado, antes de pintar), el de confirmación en toda página
+        # y el de filtros en /requests.
+        legit_scripts = {name: 3 if name == "requests" else 2 for name in self.pages}
         for name, page in self.pages.items():
             parsed = canonical(page)
             with self.subTest(page=name):
@@ -277,12 +278,13 @@ class InjectionTests(Pages):
                 )
                 # data-confirm, required y pattern son atributos propios del código, nunca de datos
                 # (pattern valida el número de la T, que solo aparece con la información validada).
-                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "pattern"})
+                # `open` lo pone el código en el aviso plegable «Parece el mismo proyecto»; nunca viene de datos.
+                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "pattern", "open"})
                 self.assertEqual(parsed.scripts, legit_scripts[name])
 
     def test_hostile_page_does_not_add_scripts_beyond_the_legitimate_ones(self):
         for name in ("case_t-hostile", "case_t-hostile-scope"):
-            self.assertEqual(canonical(self.pages[name]).scripts, 1)
+            self.assertEqual(canonical(self.pages[name]).scripts, 2)
 
     def test_hostile_text_is_present_but_only_as_escaped_text(self):
         page = self.pages["case_t-hostile"]

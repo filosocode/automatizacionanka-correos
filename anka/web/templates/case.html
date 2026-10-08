@@ -1,5 +1,6 @@
 <div class="page-head"><div><h1>{{ project_name }}</h1><p>{{ summary }}</p></div><a class="button secondary" href="/requests">Volver</a></div>
 {{ next_step }}
+{{ project_panel }}
 <div class="layout">
   {{ stepper }}
   {{ conversation }}
@@ -20,21 +21,27 @@
   {% if manual_review %}<div class="notice">{{ manual_review }}</div>{% endif %}
   {% if can_resolve %}
   <section class="section" id="decision">
-    <h2>Decisión de la revisión técnica</h2>
-    <p class="meta">Cuando termines de revisar (por ejemplo, abriste el plano CAD), elige cómo seguir. Esta decisión no envía nada al cliente. Si llega un mensaje nuevo en el hilo, el caso se vuelve a evaluar.</p>
+    <h2>¿Cómo seguimos?</h2>
+    <p class="meta">Cuando termines de revisar (por ejemplo, abriste el plano CAD), elige una de las dos salidas. Ninguna envía nada al cliente. Si llega un mensaje nuevo en el hilo, el caso se vuelve a evaluar.</p>
     <form method="post" action="/review-decision">
       <input type="hidden" name="thread_id" value="{{ thread_id }}">
+      <h3>La información es suficiente</h3>
+      <p class="meta">Pasa a «Información validada» y podrás emitir la T y crear la carpeta del proyecto en Drive.</p>
       <div class="toolbar"><button type="submit" name="decision" value="sufficient"
         data-confirm="El caso pasará a «información suficiente» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Ya lo revisé: información suficiente (crear carpeta en Drive)</button></div>
-      <label style="margin-top:16px">Preguntas para el cliente (una por línea)
+      <h3 style="margin-top:20px">Falta información: preguntar al cliente</h3>
+      <p class="meta">Se prepara un correo con estas preguntas. Lo revisas y decides si lo envías.</p>
+      <label>Preguntas para el cliente (una por línea)
         <textarea name="questions" style="min-height:110px" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">{{ prefill_questions }}</textarea>
       </label>
       {% if prefill_questions %}<p class="meta">Son las preguntas que dejó el análisis; edítalas, quita las que no apliquen o añade las tuyas.</p>{% endif %}
-      <div class="toolbar" style="margin-top:12px"><button type="submit" class="secondary" name="decision" value="ask_client">Preguntar al cliente</button></div>
+      <div class="toolbar" style="margin-top:12px"><button type="submit" class="secondary" name="decision" value="ask_client">Preparar el correo con estas preguntas</button></div>
     </form>
   </section>
   {% endif %}
-  <section class="section" id="respuesta">
+  {% if email != 'technical' %}
+  {% if plegar_respuesta %}<details class="more respuesta-plegada" id="respuesta"><summary>Respuesta al cliente (opcional)</summary>{% endif %}
+  <section class="section"{% if not plegar_respuesta %} id="respuesta"{% endif %}>
     <h2>Respuesta al cliente</h2>
     <p class="meta">Revisa el destinatario y el contenido. Ningún correo se envía sin pulsar “Enviar ahora”.{% if blank_reply %} Está en blanco para que escribas lo que quieras; si prefieres, <a href="/case?thread_id={{ thread_id | urlquote }}&template=acuse#respuesta">usa un acuse de recibo sugerido</a>.{% endif %}
       {% if review.quote_code %}Correos con el código: <a href="/case?thread_id={{ thread_id | urlquote }}&template=received#respuesta">proyecto recibido</a>{% if review.code_stage == 'TE' %} · <a href="/case?thread_id={{ thread_id | urlquote }}&template=te_aprobada#respuesta">oferta aprobada (T&amp;E)</a>{% endif %}.{% endif %}</p>
@@ -62,7 +69,7 @@
     {% elif email == 'sent' %}
 <div class='notice'>Respuesta enviada el {{ review.sent_at or 'sin fecha registrada' }}.</div><pre>{{ review.draft_body }}</pre>
     {% elif email == 'recipient_error' %}
-<div class='notice' style='border-color:#e2b8b3;background:#faecea'>{{ recipient_error }}</div>
+<div class='notice error'>{{ recipient_error }}</div>
     {% elif email == 'technical' %}
 <div class='notice'><strong>Respuesta en pausa.</strong> El equipo de Anka debe revisar el caso antes de solicitar información al cliente.</div>
     {% else %}
@@ -70,9 +77,11 @@
     {% endif %}
     <div style="margin-top:14px">{% if sufficient and not review.get('quote_code') %}<div class='notice'><strong>Recepción completa.</strong> La información puede pasar a revisión interna. Este dashboard todavía no prepara precios ni cotizaciones.</div>{% endif %}</div>
   </section>
+  {% if plegar_respuesta %}</details>{% endif %}
+  {% endif %}
   {{ code_panel }}
   {% if review.status == 'ready_review' %}
-  <section class="section">
+  <section class="section" id="carpeta">
     <h2>Carpeta del proyecto en Drive</h2>
     <p class="meta">Se crea sola al enviar la respuesta al cliente, con el cliente de «Información comercial». Se reutiliza la carpeta del cliente si existe; el cliente nuevo se crea solo si no hay una igual ni parecida, y si hay una solicitud parecida (nombre o mismo archivo) no se duplica. Si algo de eso lo impide, aquí puedes decidir a mano.</p>
     {% if drive_pending %}<div class='notice'>{{ drive_pending }}</div>{% endif %}
@@ -85,7 +94,7 @@
     </form>
   </section>
   {% elif review.status == 'ready' and review.folder_id %}
-  <section class="section">
+  <section class="section" id="carpeta">
     <h2>Carpeta del proyecto en Drive</h2>
     <p><a class="button secondary" href="https://drive.google.com/drive/folders/{{ review.folder_id | urlquote }}">Abrir carpeta en Drive</a></p>
   </section>

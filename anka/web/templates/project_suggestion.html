@@ -1,0 +1,26 @@
+<details class="section project-suggestion" id="mismo-proyecto"{% if candidates | length <= 2 %} open{% endif %}>
+  <summary><strong>Parece el mismo proyecto</strong> <span class="meta">· {{ candidates | length }} hilo(s) parecido(s)</span></summary>
+  <p class="meta">Estos hilos se parecen a este caso. Si son el mismo proyecto, únelos y dejas un solo caso; si no, dilo y no se vuelven a sugerir. No se une nada sin que lo confirmes.</p>
+  <div class="grid">
+  {% for c in candidates %}
+  <article class="case project-candidate">
+    <div><strong>{{ c.project }}</strong><div class="meta">{{ c.who }} · {{ c.when }} · {{ c.stage }}</div>
+      <div class="meta">Se parece por: {{ c.reason }}{% if c.verify %} · verifica que sea el mismo proyecto{% endif %}</div></div>
+    <div class="toolbar">
+      <a class="button secondary" href="/case?thread_id={{ c.thread_id | urlquote }}">Abrir ese hilo</a>
+      {% if c.blocker %}<span class="meta">No se puede unir: {{ c.blocker }}.</span>
+      {% else %}<form method="post" action="/project-merge">
+        <input type="hidden" name="thread_id" value="{{ thread_id }}">
+        <input type="hidden" name="other_thread_id" value="{{ c.thread_id }}">
+        <button type="submit" data-confirm="«{{ c.project }}» se unirá a este caso y pasará a Descartadas (podrás rescatarlo). Lo que traiga para la tabla llegará como propuesta. ¿Confirmas que es el mismo proyecto?">Unir a este caso</button>
+      </form>{% endif %}
+      <form method="post" action="/project-separate">
+        <input type="hidden" name="thread_id" value="{{ thread_id }}">
+        <input type="hidden" name="other_thread_id" value="{{ c.thread_id }}">
+        <button type="submit" class="secondary">No es el mismo proyecto</button>
+      </form>
+    </div>
+  </article>
+  {% endfor %}
+  </div>
+</details>
