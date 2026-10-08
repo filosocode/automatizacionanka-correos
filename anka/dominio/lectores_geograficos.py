@@ -110,73 +110,97 @@ def kml_text_file(name: str, content: bytes) -> str:
     root = ElementTree.fromstring(content)
     placemarks = [node for node in root.iter() if local_name(node.tag) == "Placemark"]
     lines = [f"Archivo KML: {name}", f"Elementos geográficos: {len(placemarks)}"]
+    lines.extend(_kml_overlay_lines(root))
     all_coordinates: list[tuple[float, float]] = []
-    overlay_kinds = {"GroundOverlay", "ScreenOverlay", "NetworkLink"}
-    overlays = [node for node in root.iter() if local_name(node.tag) in overlay_kinds]
-    if overlays:
-        lines.append(
-            "COBERTURA PARCIAL: overlays o vínculos KML requieren análisis especializado: "
-            + ", ".join(local_name(node.tag) for node in overlays)
-        )
     for number, placemark in enumerate(placemarks, 1):
-        label = child_text(placemark, "name") or f"Elemento {number}"
-        lines.append(f"Elemento: {label}")
-        description = child_text(placemark, "description")
-        if description:
-            clean = html.unescape(re.sub(r"<[^>]+>", " ", description))
-            lines.append(f"Descripción: {' '.join(clean.split())[:500]}")
-        attributes = _kml_attributes(placemark)
-        if attributes:
-            lines.append("Datos asociados: " + "; ".join(attributes)[:1000])
-        geometries = [
-            node
-            for node in placemark.iter()
-            if local_name(node.tag) in KML_GEOMETRIES
-            and not any(local_name(child.tag) in KML_GEOMETRIES for child in node)
-        ]
-        if not geometries:
-            geometries = [placemark]
-        for geometry in geometries:
-            kind = local_name(geometry.tag)
-            geometry_rows = coordinate_rows(geometry)
-            coordinates = [(lon, lat) for lon, lat, _ in geometry_rows]
-            all_coordinates.extend(coordinates)
-            lines.append(f"Geometría: {kind}; coordenadas: {len(coordinates)}")
-            if coordinates:
-                samples = "; ".join(f"{lon:.8f},{lat:.8f}" for lon, lat in coordinates[:8])
-                lines.append(f"Muestras (longitud, latitud): {samples}")
-                altitudes = [altitude for _, _, altitude in geometry_rows if altitude is not None]
-                if altitudes:
-                    lines.append(
-                        "Altitud registrada en coordenadas (sin normalizar modo vertical): "
-                        f"mín. {min(altitudes):.3f}, máx. {max(altitudes):.3f}"
-                    )
-                if (
-                    kind in {"LineString", "Track"}
-                    and len(coordinates) > 1
-                    and all(valid_lonlat(lon, lat) for lon, lat in coordinates)
-                ):
-                    lines.append(
-                        "Longitud geodésica aproximada calculada desde coordenadas (sin elevación): "
-                        f"{geodesic_length_m(coordinates):.1f} m"
-                    )
-    if all_coordinates:
-        west = min(point[0] for point in all_coordinates)
-        south = min(point[1] for point in all_coordinates)
-        east = max(point[0] for point in all_coordinates)
-        north = max(point[1] for point in all_coordinates)
-        lines.append(
-            "Extensión geográfica KML, oeste/sur/este/norte (longitud/latitud): "
-            f"{west:.8f}, {south:.8f}, {east:.8f}, {north:.8f}"
-        )
-        if any(abs(lon) > 180 or abs(lat) > 90 for lon, lat in all_coordinates):
-            lines.append("Advertencia: hay coordenadas fuera de los rangos usuales de longitud/latitud.")
+        lines.extend(_kml_placemark_lines(placemark, number, all_coordinates))
+    lines.extend(_kml_extent_lines(all_coordinates))
     times = [
         " ".join((node.text or "").split()) for node in root.iter() if local_name(node.tag) == "when" and node.text
     ]
     if times:
         lines.append(f"Marcas de tiempo KML: {len(times)}; rango {min(times)} a {max(times)}")
     return "\n".join(lines)
+
+
+def _extent_text(coordinates: list[tuple[float, float]]) -> str:
+    """Extensión mín X, mín Y, máx X, máx Y con la precisión con que se reporta en todos los formatos."""
+    xs = [x for x, _ in coordinates]
+    ys = [y for _, y in coordinates]
+    return f"{min(xs):.8f}, {min(ys):.8f}, {max(xs):.8f}, {max(ys):.8f}"
+
+
+def _kml_overlay_lines(root: ElementTree.Element) -> list[str]:
+    """Avisa de overlays y vínculos de red, que este lector no interpreta."""
+    overlay_kinds = {"GroundOverlay", "ScreenOverlay", "NetworkLink"}
+    overlays = [node for node in root.iter() if local_name(node.tag) in overlay_kinds]
+    if not overlays:
+        return []
+    return [
+        "COBERTURA PARCIAL: overlays o vínculos KML requieren análisis especializado: "
+        + ", ".join(local_name(node.tag) for node in overlays)
+    ]
+
+
+def _kml_placemark_lines(
+    placemark: ElementTree.Element, number: int, all_coordinates: list[tuple[float, float]]
+) -> list[str]:
+    """Etiqueta, descripción, datos asociados y geometrías de un Placemark; acumula sus coordenadas."""
+    label = child_text(placemark, "name") or f"Elemento {number}"
+    lines = [f"Elemento: {label}"]
+    description = child_text(placemark, "description")
+    if description:
+        clean = html.unescape(re.sub(r"<[^>]+>", " ", description))
+        lines.append(f"Descripción: {' '.join(clean.split())[:500]}")
+    attributes = _kml_attributes(placemark)
+    if attributes:
+        lines.append("Datos asociados: " + "; ".join(attributes)[:1000])
+    geometries = [
+        node
+        for node in placemark.iter()
+        if local_name(node.tag) in KML_GEOMETRIES and not any(local_name(child.tag) in KML_GEOMETRIES for child in node)
+    ]
+    for geometry in geometries or [placemark]:
+        lines.extend(_kml_geometry_lines(geometry, all_coordinates))
+    return lines
+
+
+def _kml_geometry_lines(geometry: ElementTree.Element, all_coordinates: list[tuple[float, float]]) -> list[str]:
+    """Tipo, muestras, altitudes y longitud geodésica de una geometría KML."""
+    kind = local_name(geometry.tag)
+    geometry_rows = coordinate_rows(geometry)
+    coordinates = [(lon, lat) for lon, lat, _ in geometry_rows]
+    all_coordinates.extend(coordinates)
+    lines = [f"Geometría: {kind}; coordenadas: {len(coordinates)}"]
+    if not coordinates:
+        return lines
+    samples = "; ".join(f"{lon:.8f},{lat:.8f}" for lon, lat in coordinates[:8])
+    lines.append(f"Muestras (longitud, latitud): {samples}")
+    altitudes = [altitude for _, _, altitude in geometry_rows if altitude is not None]
+    if altitudes:
+        lines.append(
+            "Altitud registrada en coordenadas (sin normalizar modo vertical): "
+            f"mín. {min(altitudes):.3f}, máx. {max(altitudes):.3f}"
+        )
+    is_line = kind in {"LineString", "Track"} and len(coordinates) > 1
+    if is_line and all(valid_lonlat(lon, lat) for lon, lat in coordinates):
+        lines.append(
+            "Longitud geodésica aproximada calculada desde coordenadas (sin elevación): "
+            f"{geodesic_length_m(coordinates):.1f} m"
+        )
+    return lines
+
+
+def _kml_extent_lines(all_coordinates: list[tuple[float, float]]) -> list[str]:
+    """Extensión de todo el archivo, con advertencia si hay coordenadas fuera de lon/lat."""
+    if not all_coordinates:
+        return []
+    lines = [
+        "Extensión geográfica KML, oeste/sur/este/norte (longitud/latitud): " + _extent_text(all_coordinates)
+    ]
+    if any(abs(lon) > 180 or abs(lat) > 90 for lon, lat in all_coordinates):
+        lines.append("Advertencia: hay coordenadas fuera de los rangos usuales de longitud/latitud.")
+    return lines
 
 
 def wpml_text(name: str, content: bytes) -> str:
@@ -245,45 +269,54 @@ def gpx_text(content: bytes) -> str:
     route_count = track_count = 0
     for route in (node for node in root if local_name(node.tag) == "rte"):
         route_count += 1
-        route_name = child_text(route, "name") or f"Ruta {route_count}"
-        rows = _gpx_point_rows(lines, (n for n in route if local_name(n.tag) == "rtept"), "route", route_name)
-        points_all.extend(rows)
-        coords = [(lon, lat) for lon, lat, _, _ in rows]
-        lines.append(f"Ruta {route_name}: {len(rows)} puntos; longitud calculada {geodesic_length_m(coords):.1f} m")
-        for index, (lon, lat, altitude, _) in enumerate(rows[:8], 1):
-            suffix = f"; altitud={altitude:g} m" if altitude is not None else ""
-            lines.append(f"  Punto ruta {index}: lat={lat:.8f}, lon={lon:.8f}{suffix}")
+        points_all.extend(_gpx_route_rows(route, route_count, lines))
     for track in (node for node in root if local_name(node.tag) == "trk"):
         track_count += 1
-        track_name = child_text(track, "name") or f"Track {track_count}"
-        segment_lengths = []
-        track_rows = []
-        for segment_number, segment in enumerate((n for n in track if local_name(n.tag) == "trkseg"), 1):
-            rows = _gpx_point_rows(lines, (n for n in segment if local_name(n.tag) == "trkpt"), "track", track_name)
-            track_rows.extend(rows)
-            segment_coordinates = [(lon, lat) for lon, lat, _, _ in rows]
-            segment_lengths.append(geodesic_length_m(segment_coordinates))
-            lines.append(f"  Segmento {segment_number}: {len(rows)} puntos; {segment_lengths[-1]:.1f} m")
-        points_all.extend(track_rows)
-        lines.append(
-            f"Track {track_name}: {len(track_rows)} puntos; {len(segment_lengths)} segmentos; "
-            f"longitud calculada {sum(segment_lengths):.1f} m"
-        )
-        timestamps = [when for _, _, _, when in track_rows if when]
-        if timestamps:
-            lines.append(f"  Rango temporal registrado: {min(timestamps)} a {max(timestamps)}")
-        elevations = [elev for _, _, elev, _ in track_rows if elev is not None]
-        if elevations:
-            lines.append(f"  Rango de elevación registrado: {min(elevations):.2f} a {max(elevations):.2f} m")
+        points_all.extend(_gpx_track_rows(track, track_count, lines))
     lines.append(f"Rutas: {route_count}; tracks: {track_count}")
     coords_all = [(lon, lat) for lon, lat, _, _ in points_all]
     if coords_all:
-        lines.append(
-            "Extensión calculada lon/lat: "
-            f"{min(x for x, _ in coords_all):.8f}, {min(y for _, y in coords_all):.8f}, "
-            f"{max(x for x, _ in coords_all):.8f}, {max(y for _, y in coords_all):.8f}"
-        )
+        lines.append("Extensión calculada lon/lat: " + _extent_text(coords_all))
     return "\n".join(lines)
+
+
+def _gpx_route_rows(
+    route: ElementTree.Element, number: int, lines: list[str]
+) -> list[tuple[float, float, float | None, str]]:
+    """Puntos de una ruta y sus líneas de resumen (longitud y primeros puntos)."""
+    route_name = child_text(route, "name") or f"Ruta {number}"
+    rows = _gpx_point_rows(lines, (n for n in route if local_name(n.tag) == "rtept"), "route", route_name)
+    coords = [(lon, lat) for lon, lat, _, _ in rows]
+    lines.append(f"Ruta {route_name}: {len(rows)} puntos; longitud calculada {geodesic_length_m(coords):.1f} m")
+    for index, (lon, lat, altitude, _) in enumerate(rows[:8], 1):
+        suffix = f"; altitud={altitude:g} m" if altitude is not None else ""
+        lines.append(f"  Punto ruta {index}: lat={lat:.8f}, lon={lon:.8f}{suffix}")
+    return rows
+
+
+def _gpx_track_rows(
+    track: ElementTree.Element, number: int, lines: list[str]
+) -> list[tuple[float, float, float | None, str]]:
+    """Puntos de un track por segmentos y sus líneas de resumen (longitud, tiempo y elevación)."""
+    track_name = child_text(track, "name") or f"Track {number}"
+    segment_lengths = []
+    track_rows = []
+    for segment_number, segment in enumerate((n for n in track if local_name(n.tag) == "trkseg"), 1):
+        rows = _gpx_point_rows(lines, (n for n in segment if local_name(n.tag) == "trkpt"), "track", track_name)
+        track_rows.extend(rows)
+        segment_lengths.append(geodesic_length_m([(lon, lat) for lon, lat, _, _ in rows]))
+        lines.append(f"  Segmento {segment_number}: {len(rows)} puntos; {segment_lengths[-1]:.1f} m")
+    lines.append(
+        f"Track {track_name}: {len(track_rows)} puntos; {len(segment_lengths)} segmentos; "
+        f"longitud calculada {sum(segment_lengths):.1f} m"
+    )
+    timestamps = [when for _, _, _, when in track_rows if when]
+    if timestamps:
+        lines.append(f"  Rango temporal registrado: {min(timestamps)} a {max(timestamps)}")
+    elevations = [elev for _, _, elev, _ in track_rows if elev is not None]
+    if elevations:
+        lines.append(f"  Rango de elevación registrado: {min(elevations):.2f} a {max(elevations):.2f} m")
+    return track_rows
 
 
 def qgc_waypoints_text(content: bytes) -> str:
@@ -405,53 +438,64 @@ def geojson_text(content: bytes) -> str:
         raise Unreadable("GeoJSON sin lista de features")
     output = [f"GeoJSON {document.get('type', 'objeto')}; features: {len(features)}"]
     all_coords: list[tuple[float, float]] = []
-
     for index, feature in enumerate(features, 1):
-        if not isinstance(feature, dict):
+        if isinstance(feature, dict):
+            output.extend(_geojson_feature_lines(index, feature, all_coords))
+        else:
             output.append(f"Feature {index}: estructura no reconocida")
-            continue
-        geometry = feature.get("geometry") or {}
-        coordinates = geometry.get("coordinates") if isinstance(geometry, dict) else None
-        before = len(all_coords)
-        _visit_coordinates(all_coords, coordinates)
-        if isinstance(geometry, dict) and geometry.get("type") == "GeometryCollection":
-            for child_geometry in geometry.get("geometries", []):
-                child_coords = child_geometry.get("coordinates") if isinstance(child_geometry, dict) else None
-                _visit_coordinates(all_coords, child_coords)
-        properties = feature.get("properties") or {}
-        prop_text = (
-            "; ".join(f"{key}={value}" for key, value in properties.items())
-            if isinstance(properties, dict)
-            else str(properties)
-        )
-        output.append(
-            f"Feature {index}: geometría={geometry.get('type', 'no indicada')}; "
-            f"coordenadas={len(all_coords) - before}; propiedades={prop_text[:1000]}"
-        )
-        if coordinates is not None and len(all_coords) - before == 0:
-            output.append(f"LECTURA PARCIAL: coordenadas de feature {index} no reconocidas")
-        lines = _geometry_lines(geometry)
-        if lines and all(valid_lonlat(lon, lat) for line in lines for lon, lat in line):
-            lengths = [geodesic_length_m(line) for line in lines]
-            output.append(
-                f"Longitud geodésica aproximada calculada de líneas en feature {index}: "
-                f"{sum(lengths):.1f} m (no equivale a longitud declarada por el remitente)"
-            )
-        elif lines:
-            output.append(
-                f"COBERTURA PARCIAL: feature {index} sale del rango lon/lat; "
-                "revisar el CRS antes de calcular longitudes"
-            )
     if all_coords:
         output.append(f"Vértices con lon/lat interpretables: {len(all_coords)}")
         if any(not valid_lonlat(lon, lat) for lon, lat in all_coords):
             output.append("COBERTURA PARCIAL: coordenadas fuera de rangos lon/lat usuales; posible CRS proyectado")
         output.append(
-            "Extensión numérica de coordenadas (se asumen lon/lat GeoJSON): "
-            f"{min(x for x, _ in all_coords):.8f}, {min(y for _, y in all_coords):.8f}, "
-            f"{max(x for x, _ in all_coords):.8f}, {max(y for _, y in all_coords):.8f}"
+            "Extensión numérica de coordenadas (se asumen lon/lat GeoJSON): " + _extent_text(all_coords)
         )
     return "\n".join(output)
+
+
+def _geojson_feature_lines(index: int, feature: dict, all_coords: list[tuple[float, float]]) -> list[str]:
+    """Geometría, propiedades y longitud de un Feature; acumula sus vértices en `all_coords`."""
+    geometry = feature.get("geometry") or {}
+    coordinates = geometry.get("coordinates") if isinstance(geometry, dict) else None
+    before = len(all_coords)
+    _visit_coordinates(all_coords, coordinates)
+    if isinstance(geometry, dict) and geometry.get("type") == "GeometryCollection":
+        for child_geometry in geometry.get("geometries", []):
+            child_coords = child_geometry.get("coordinates") if isinstance(child_geometry, dict) else None
+            _visit_coordinates(all_coords, child_coords)
+    properties = feature.get("properties") or {}
+    prop_text = (
+        "; ".join(f"{key}={value}" for key, value in properties.items())
+        if isinstance(properties, dict)
+        else str(properties)
+    )
+    output = [
+        f"Feature {index}: geometría={geometry.get('type', 'no indicada')}; "
+        f"coordenadas={len(all_coords) - before}; propiedades={prop_text[:1000]}"
+    ]
+    if coordinates is not None and len(all_coords) - before == 0:
+        output.append(f"LECTURA PARCIAL: coordenadas de feature {index} no reconocidas")
+    lines = _geometry_lines(geometry)
+    if lines and all(valid_lonlat(lon, lat) for line in lines for lon, lat in line):
+        lengths = [geodesic_length_m(line) for line in lines]
+        output.append(
+            f"Longitud geodésica aproximada calculada de líneas en feature {index}: "
+            f"{sum(lengths):.1f} m (no equivale a longitud declarada por el remitente)"
+        )
+    elif lines:
+        output.append(
+            f"COBERTURA PARCIAL: feature {index} sale del rango lon/lat; "
+            "revisar el CRS antes de calcular longitudes"
+        )
+    return output
+
+
+_CSV_ALIASES = {
+    "lat": {"lat", "latitude", "latitud", "latituddeg", "latitudgrados"},
+    "lon": {"lon", "lng", "long", "longitude", "longitud", "longituddeg"},
+    "seq": {"seq", "sequence", "waypoint", "waypointnumber", "order", "orden"},
+    "alt": {"alt", "altitude", "elevation", "elev", "height", "altura"},
+}
 
 
 def csv_text(content: bytes) -> str:
@@ -470,70 +514,70 @@ def csv_text(content: bytes) -> str:
         return ""
     header = [cell.strip() for cell in rows[0]]
     normalized = [re.sub(r"[^a-z0-9]+", "", cell.casefold()) for cell in header]
-    aliases = {
-        "lat": {"lat", "latitude", "latitud", "latituddeg", "latitudgrados"},
-        "lon": {"lon", "lng", "long", "longitude", "longitud", "longituddeg"},
-        "seq": {"seq", "sequence", "waypoint", "waypointnumber", "order", "orden"},
-        "alt": {"alt", "altitude", "elevation", "elev", "height", "altura"},
-    }
     indices = {
         key: next((i for i, name in enumerate(normalized) if name in accepted), None)
-        for key, accepted in aliases.items()
+        for key, accepted in _CSV_ALIASES.items()
     }
-    is_coordinate_table = indices["lat"] is not None and indices["lon"] is not None
     output = [f"CSV tabular; separador {delimiter!r}; columnas: {len(header)}"]
-    data_rows = rows[1:]
-    if is_coordinate_table:
-        output.append("Tabla de coordenadas/waypoints con latitud y longitud explícitas.")
-        points = []
-        points = _csv_coordinates(data_rows, indices, output)
-        if indices["seq"] is not None:
-
-            def order_key(item: tuple[str, float, float, float | None, list[str]]) -> tuple[int, Any]:
-                try:
-                    return (0, float(item[0]))
-                except ValueError:
-                    return (1, item[0].casefold())
-
-            points.sort(key=order_key)
-        output.append(f"Waypoints con coordenadas válidas: {len(points)}")
-        for sequence, longitude, latitude, _altitude, row in points:
-            values = "; ".join(
-                f"{header[index] if index < len(header) else f'columna {index + 1}'}={value}"
-                for index, value in enumerate(row)
-                if value
-            )
-            output.append(f"Waypoint {sequence}: lat={latitude:.8f}; lon={longitude:.8f}; {values}")
-        if points:
-            output.append(
-                "Extensión calculada lon/lat: "
-                f"{min(point[1] for point in points):.8f}, {min(point[2] for point in points):.8f}, "
-                f"{max(point[1] for point in points):.8f}, {max(point[2] for point in points):.8f}"
-            )
-            if indices["seq"] is not None:
-                path = [(point[1], point[2]) for point in points]
-                output.append(f"Longitud geodésica aproximada de secuencia: {geodesic_length_m(path):.1f} m")
-            elevations = [point[3] for point in points if point[3] is not None]
-            if elevations:
-                output.append(
-                    f"Rango de valores de altitud/elevación en columna: {min(elevations):g} a {max(elevations):g}"
-                )
+    if indices["lat"] is not None and indices["lon"] is not None:
+        output.extend(_csv_waypoint_lines(header, rows[1:], indices))
     else:
-        output.append("Fila 1 (encabezados): " + " | ".join(header))
-        cells_seen = len(header)
-        for row_number, row in enumerate(data_rows, 2):
-            cells_seen += len(row)
-            if cells_seen > MAX_SPREADSHEET_CELLS:
-                output.append(f"LECTURA PARCIAL: se superó el límite de {MAX_SPREADSHEET_CELLS} celdas CSV")
-                break
-            row_values = [
-                f"{header[index] if index < len(header) else f'columna {index + 1}'}={value}"
-                for index, value in enumerate(row)
-                if value
-            ]
-            if row_values:
-                output.append(f"Fila {row_number}: " + " | ".join(row_values))
+        output.extend(_csv_table_lines(header, rows[1:]))
     return "\n".join(output)
+
+
+def _csv_cell_labels(header: list[str], row: list[str]) -> list[str]:
+    """`encabezado=valor` de las celdas con contenido (o `columna N` si la fila excede el encabezado)."""
+    return [
+        f"{header[index] if index < len(header) else f'columna {index + 1}'}={value}"
+        for index, value in enumerate(row)
+        if value
+    ]
+
+
+def _csv_waypoint_lines(header: list[str], data_rows: list[list[str]], indices: dict[str, int | None]) -> list[str]:
+    """Tabla con latitud y longitud explícitas: waypoints ordenados, extensión, longitud y altitudes."""
+    output = ["Tabla de coordenadas/waypoints con latitud y longitud explícitas."]
+    points = _csv_coordinates(data_rows, indices, output)
+    if indices["seq"] is not None:
+
+        def order_key(item: tuple[str, float, float, float | None, list[str]]) -> tuple[int, Any]:
+            try:
+                return (0, float(item[0]))
+            except ValueError:
+                return (1, item[0].casefold())
+
+        points.sort(key=order_key)
+    output.append(f"Waypoints con coordenadas válidas: {len(points)}")
+    for sequence, longitude, latitude, _altitude, row in points:
+        values = "; ".join(_csv_cell_labels(header, row))
+        output.append(f"Waypoint {sequence}: lat={latitude:.8f}; lon={longitude:.8f}; {values}")
+    if points:
+        output.append("Extensión calculada lon/lat: " + _extent_text([(point[1], point[2]) for point in points]))
+        if indices["seq"] is not None:
+            path = [(point[1], point[2]) for point in points]
+            output.append(f"Longitud geodésica aproximada de secuencia: {geodesic_length_m(path):.1f} m")
+        elevations = [point[3] for point in points if point[3] is not None]
+        if elevations:
+            output.append(
+                f"Rango de valores de altitud/elevación en columna: {min(elevations):g} a {max(elevations):g}"
+            )
+    return output
+
+
+def _csv_table_lines(header: list[str], data_rows: list[list[str]]) -> list[str]:
+    """CSV sin coordenadas explícitas: se conservan encabezados y filas, con tope de celdas."""
+    output = ["Fila 1 (encabezados): " + " | ".join(header)]
+    cells_seen = len(header)
+    for row_number, row in enumerate(data_rows, 2):
+        cells_seen += len(row)
+        if cells_seen > MAX_SPREADSHEET_CELLS:
+            output.append(f"LECTURA PARCIAL: se superó el límite de {MAX_SPREADSHEET_CELLS} celdas CSV")
+            break
+        row_values = _csv_cell_labels(header, row)
+        if row_values:
+            output.append(f"Fila {row_number}: " + " | ".join(row_values))
+    return output
 
 
 def _kml_attributes(placemark: ElementTree.Element) -> list[str]:
