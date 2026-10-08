@@ -198,6 +198,16 @@ La evaluación distingue pruebas determinísticas de resultados observados con m
 del prompt, modelo, fecha, corpus anonimizado y resultados por caso. Una muestra sin etiquetar no produce una
 calificación de precisión. La trazabilidad identifica métodos de prueba ejecutables y no solo archivos etiquetados.
 
+### T-24 · Lectura completa de los adjuntos legibles
+La lectura exhaustiva de los adjuntos es lo que sostiene una cotización correcta, y vale igual en los tres modos. Todo adjunto
+de un formato legible (hasta 50 MiB, más que el máximo de Gmail) se lee completo: ningún recorte por longitud al texto que
+recibe el modelo ni al cuerpo del correo. `lectura_parcial` se reserva para contenido legible que de verdad no se pudo
+extraer (páginas o imágenes sin texto, celdas o entradas más allá del tope de recursos, gráficos o dibujos no extraídos); un
+OCR ejecutado cuenta como lectura completa, y su aviso sobre relaciones de tabla o figura queda en el texto sin degradar la
+cobertura. Si el análisis completo no cabe en la ventana del modelo no se recorta en silencio: Ollama amplía su ventana hasta
+`llm.num_ctx_max` (32768 por defecto) y, si aun así no cabe, el hilo se informa para revisión manual con el motivo.
+La cantidad de una actividad no repite su unidad (`544.5` + `ha`, no `544.5 ha` + `ha`).
+
 ### U-06 · Estados veraces
 El estado que se ve en la lista, en el detalle y en los avisos no se contradice y refleja lo ocurrido.
 

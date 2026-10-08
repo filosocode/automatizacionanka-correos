@@ -12,7 +12,6 @@ from io import BytesIO
 from pathlib import Path
 from anka.dominio.attachments import (
     MAX_ATTACHMENT_BYTES,
-    MAX_ATTACHMENT_TEXT,
     MAX_WORK_PACKET_ATTACHMENT_BYTES,
     MAX_ARCHIVE_FILES,
     MAX_ARCHIVE_EXPANDED_BYTES,
@@ -183,100 +182,65 @@ def _readable(filename: str, mime_type: str) -> bool:
     )
 
 
-def extract_attachment_text(filename: str, mime_type: str, content: bytes) -> tuple[str, str]:
-    """Devuelve texto y motivo; el texto mantiene referencias a páginas, filas o elementos."""
-    if len(content) > MAX_ATTACHMENT_BYTES:
-        return "", f"supera el límite de {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MB"
-    if not _readable(filename, mime_type):
-        extension = Path(filename).suffix.casefold()
-        if extension in {".dwg", ".dxf"}:
-            return "", "plano CAD requiere revisión manual"
-        return "", f"formato no soportado ({extension or mime_type or 'desconocido'})"
-    reason = ""
-    try:
-        text = _read_by_format(filename, mime_type, content).strip()
-    except Unreadable as exc:
-        return "", str(exc)
-    except Exception as exc:
-        return "", f"no se pudo leer: {exc}"
-    if not text:
-        return "", "el archivo no contiene texto extraíble"
-    blank_pages = re.findall(r"\[Página (\d+); sin texto extraíble", text)
-    if blank_pages:
-        reason = "lectura parcial: páginas sin texto extraíble (posible escaneo u hoja vacía): " + ", ".join(
-            blank_pages
-        )
-    visual_limit = (
-        "contiene imágenes no interpretadas por OCR" in text
-        or "CONTENIDO GRÁFICO" in text
-        or "LECTURA PARCIAL" in text
-        or "sin texto alternativo; requiere inspección visual" in text
-        or "[Imagen:" in text
-        or "CONTENIDO VISUAL NO INSPECCIONADO" in text
-        or "CONTENIDO DE GRÁFICOS NO EXTRAÍDO" in text
-        or "COBERTURA VISUAL PARCIAL" in text
-        or "COBERTURA PARCIAL:" in text
-        or "CAMBIOS RASTREADOS:" in text
-    )
-    if visual_limit:
-        reason = (
-            "lectura parcial: hay imágenes, gráficos, comentarios o secciones que requieren inspección visual/manual"
-        )
-    if len(text) > MAX_ATTACHMENT_TEXT:
-        return text[:MAX_ATTACHMENT_TEXT], (
-            f"lectura parcial: se recortó a {MAX_ATTACHMENT_TEXT:,} caracteres "
-            f"de {len(text):,}; revise el archivo completo"
-        )
-    if "LECTURA PARCIAL DEL ZIP" in text:
-        reason = "lectura parcial: uno o más archivos dentro del ZIP no se pudieron extraer por completo"
-    if "SISTEMA DE COORDENADAS NO DECLARADO" in text:
-        reason = "lectura parcial: shapefile sin .prj; revisar referencia espacial antes de interpretar coordenadas"
-    return text, reason
+# Marcas que dejan los lectores en el texto cuando una parte legible del archivo NO se pudo extraer. «COBERTURA VISUAL
+# PARCIAL» no está aquí a propósito: significa que el OCR se ejecutó y su texto ya está en el resultado (T-24).
+_MARCAS_DE_LECTURA_PARCIAL = (
+    "LECTURA PARCIAL",
+    "CONTENIDO VISUAL NO INSPECCIONADO",
+    "CONTENIDO GRÁFICO",
+    "sin texto alternativo; requiere inspección visual",
+    "[Imagen:",
+    "contiene imágenes no interpretadas por OCR",
+    "CONTENIDO DE GRÁFICOS NO EXTRAÍDO",
+    "COBERTURA PARCIAL:",
+    "CAMBIOS RASTREADOS:",
+)
 
 
-def extract_attachment_text_for_work_packet(filename: str, mime_type: str, content: bytes) -> tuple[str, str]:
-    """Extrae el texto completo disponible para un paquete local que se adjunta a Work.
-
-    Usa los mismos lectores por formato, pero permite archivos mayores y no recorta a
-    MAX_ATTACHMENT_TEXT. Los límites propios de cada lector (páginas, celdas y ZIP)
-    siguen vigentes y se devuelven como motivo de lectura parcial.
-    """
-    if len(content) > MAX_WORK_PACKET_ATTACHMENT_BYTES:
-        return "", (f"supera el límite del paquete local de {MAX_WORK_PACKET_ATTACHMENT_BYTES // (1024 * 1024)} MiB")
-    if not _readable(filename, mime_type):
-        extension = Path(filename).suffix.casefold()
-        if extension in {".dwg", ".dxf"}:
-            return "", "plano CAD requiere revisión manual"
-        return "", f"formato no soportado ({extension or mime_type or 'desconocido'})"
-    try:
-        text = _read_by_format(filename, mime_type, content).strip()
-    except Unreadable as exc:
-        return "", str(exc)
-    except Exception as exc:
-        return "", f"no se pudo leer ({type(exc).__name__})"
-    if not text:
-        return "", "el archivo no contiene texto extraíble"
-
+def _motivos_de_lectura_parcial(text: str) -> list[str]:
+    """Por qué la lectura de un archivo legible quedó incompleta; vacío si se leyó por completo."""
     reasons = []
     blank_pages = re.findall(r"\[Página (\d+); sin texto extraíble", text)
     if blank_pages:
-        reasons.append("páginas sin texto extraíble: " + ", ".join(blank_pages))
-    if any(
-        marker in text
-        for marker in (
-            "LECTURA PARCIAL",
-            "CONTENIDO VISUAL NO INSPECCIONADO",
-            "CONTENIDO GRÁFICO",
-            "sin texto alternativo; requiere inspección visual",
-            "CONTENIDO DE GRÁFICOS NO EXTRAÍDO",
-            "COBERTURA VISUAL PARCIAL",
-            "COBERTURA PARCIAL:",
-            "CAMBIOS RASTREADOS:",
-        )
-    ):
-        reasons.append("hay contenido, gráficos o secciones que requieren inspección visual/manual")
+        reasons.append("páginas sin texto extraíble (posible escaneo u hoja vacía): " + ", ".join(blank_pages))
+    if any(marker in text for marker in _MARCAS_DE_LECTURA_PARCIAL):
+        reasons.append("hay imágenes, gráficos, comentarios o secciones que requieren inspección visual/manual")
+    if "LECTURA PARCIAL DEL ZIP" in text:
+        reasons.append("uno o más archivos dentro del ZIP no se pudieron extraer por completo")
     if "SISTEMA DE COORDENADAS NO DECLARADO" in text:
         reasons.append("shapefile sin .prj; revisar referencia espacial antes de interpretar coordenadas")
-    return text, "; ".join(dict.fromkeys(reasons))
+    return reasons
+
+
+def _leer_adjunto(filename: str, mime_type: str, content: bytes, max_bytes: int, detalle_del_error: bool,
+                  ) -> tuple[str, str]:
+    """Texto completo y motivo de lectura parcial. `detalle_del_error=False` no repite el texto de la excepción."""
+    if len(content) > max_bytes:
+        return "", f"supera el límite de {max_bytes // (1024 * 1024)} MiB"
+    if not _readable(filename, mime_type):
+        extension = Path(filename).suffix.casefold()
+        if extension in {".dwg", ".dxf"}:
+            return "", "plano CAD requiere revisión manual"
+        return "", f"formato no soportado ({extension or mime_type or 'desconocido'})"
+    try:
+        text = _read_by_format(filename, mime_type, content).strip()
+    except Unreadable as exc:
+        return "", str(exc)
+    except Exception as exc:
+        return "", f"no se pudo leer: {exc}" if detalle_del_error else f"no se pudo leer ({type(exc).__name__})"
+    if not text:
+        return "", "el archivo no contiene texto extraíble"
+    reasons = _motivos_de_lectura_parcial(text)
+    return text, ("lectura parcial: " + "; ".join(reasons)) if reasons else ""
+
+
+def extract_attachment_text(filename: str, mime_type: str, content: bytes) -> tuple[str, str]:
+    """Devuelve el texto completo y el motivo si quedó algo sin leer; el texto mantiene páginas, filas o elementos."""
+    return _leer_adjunto(filename, mime_type, content, MAX_ATTACHMENT_BYTES, detalle_del_error=True)
+
+
+def extract_attachment_text_for_work_packet(filename: str, mime_type: str, content: bytes) -> tuple[str, str]:
+    """Igual que `extract_attachment_text` para el paquete que se adjunta a Work (sin repetir contenido en errores)."""
+    return _leer_adjunto(filename, mime_type, content, MAX_WORK_PACKET_ATTACHMENT_BYTES, detalle_del_error=False)
 
 

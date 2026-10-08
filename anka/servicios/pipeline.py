@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka
 from anka.dominio.status import (
     QuoteStatus,
 )
@@ -44,7 +44,7 @@ from anka.infra.modes import (
     ensure_local_or_api_mode,
 )
 from anka.infra.settings import load_config
-from anka.dominio.activities import normalize_estado
+from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
 from anka.servicios.change_control import apply_guard, find_codes
 from email.utils import parseaddr
 from anka.infra.store import connect, save
@@ -108,7 +108,11 @@ class RevisorDeHilos:
                         status=QuoteStatus.MISSING)
                     self.db.commit()
                 continue
-            self.process_thread(thread_id, thread)
+            try:
+                self.process_thread(thread_id, thread)
+            except ContextoInsuficiente as exc:
+                # No se analiza con documentos recortados; el hilo queda sin procesar y se informa (T-24).
+                log.warning("%s: %s", thread_id, exc)
 
     def process_thread(self, thread_id: str, thread: dict) -> None:
         """Decide y aplica qué hacer con un hilo: descartar, pedir datos, dejar para revisión o crear la carpeta."""
@@ -150,6 +154,8 @@ class RevisorDeHilos:
             analysis["email"] = email
             analysis["attachments"] = attachment_report(attachments, analysis, required)
             for row in analysis.get("activities", []):
+                if isinstance(row, dict):
+                    limpiar_cantidad_y_unidad(row)
                 if isinstance(row, dict) and "estado" in row:
                     row["estado"] = normalize_estado(row["estado"])  # R12
             if self.db:

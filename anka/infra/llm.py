@@ -13,13 +13,34 @@ from typing import Any
 
 from anka.dominio.configuracion import ConfigLlm
 from anka.dominio.analisis import Analisis, Adjunto
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka
 from anka.dominio.correo import header, message_datetime, message_text
 
 # Ollama carga los modelos con 4096 tokens de contexto salvo que se indique otra cosa, y recorta el prompt en
 # silencio: un adjunto de decenas de miles de caracteres quedaba fuera del análisis. 16384 cubre el prompt con
 # adjuntos largos (≈ +1 GB de memoria con un modelo de 7B); se cambia con `llm.num_ctx` en config.json.
 DEFAULT_NUM_CTX = 16384
+DEFAULT_NUM_CTX_MAX = 32768   # lo que admite qwen2.5; otro modelo con más contexto lo sube en `llm.num_ctx_max`
+CHARS_PER_TOKEN = 2.5         # estimación prudente para español técnico (con números y símbolos)
+OUTPUT_RESERVE_TOKENS = 4096  # espacio para la respuesta JSON del análisis
+
+
+def ventana_de_contexto(prompt: str, llm: ConfigLlm) -> int:
+    """Tokens de contexto que hay que pedirle a Ollama para que el prompt completo y la respuesta quepan.
+
+    Nunca baja de `llm.num_ctx`. Si ni el máximo del modelo alcanza, lanza `ContextoInsuficiente`: Ollama recortaría el
+    prompt sin avisar y el análisis se haría con documentos incompletos, que es peor que pedir una revisión manual.
+    """
+    base = llm.get("num_ctx", DEFAULT_NUM_CTX)
+    needed = int(len(prompt) / CHARS_PER_TOKEN) + OUTPUT_RESERVE_TOKENS
+    window = max(base, -(-needed // 1024) * 1024)
+    limit = llm.get("num_ctx_max", DEFAULT_NUM_CTX_MAX)
+    if window > limit:
+        raise ContextoInsuficiente(
+            f"Los documentos de este hilo (≈ {needed:,} tokens) no caben en la ventana del modelo ({limit:,}). "
+            "No se analizó para no perder contenido: requiere revisión manual o un modelo con más contexto."
+        )
+    return window
 
 
 ANALYSIS_SCHEMA: dict[str, Any] = {
@@ -146,7 +167,7 @@ def analysis_prompt(
             f"Fuente: correo {message.get('id', 'no-indicado')} del {message_datetime(message)}\n"
             f"De: {header(message, 'From')}\n"
             f"Asunto: {header(message, 'Subject')}\n"
-            f"Texto: {message_text(message.get('payload', {}))[:20000]}"
+            f"Texto: {message_text(message.get('payload', {}))}"
         )
     for attachment in attachments or []:
         # Un adjunto con lectura parcial conserva texto útil; su estado y cobertura viajan en el encabezado de la
@@ -289,7 +310,7 @@ def analyze_ollama(prompt: str, llm: ConfigLlm) -> Analisis:
         "prompt": prompt,
         "stream": False,
         "format": ANALYSIS_SCHEMA,
-        "options": {"temperature": 0, "num_ctx": llm.get("num_ctx", DEFAULT_NUM_CTX)},
+        "options": {"temperature": 0, "num_ctx": ventana_de_contexto(prompt, llm)},
     }).encode("utf-8")
     request = urllib.request.Request(
         f"{llm['base_url'].rstrip('/')}/api/generate",

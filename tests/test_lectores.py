@@ -174,13 +174,14 @@ class DocumentEvidence(unittest.TestCase):
         self.assertIn("drawing.dwg", text)
         self.assertIn("parcial", reason)
 
-    def test_work_packet_keeps_long_text_and_standard_extraction_marks_truncation(self):
-        content = ("dato comprobado\n" * 5000).encode()
+    def test_long_text_is_read_completely_in_every_mode(self):
+        # Cubre: T-24
+        content = ("dato comprobado\n" * 20000).encode()
         text, reason = extract_attachment_text("scope.txt", "text/plain", content)
         full, packet_reason = extract_attachment_text_for_work_packet("scope.txt", "text/plain", content)
-        self.assertGreater(len(full), len(text))
-        self.assertIn("recortó", reason)
-        self.assertEqual(packet_reason, "")
+        self.assertEqual(text, full)
+        self.assertGreater(len(text), 60_000)
+        self.assertEqual((reason, packet_reason), ("", ""))
 
     def test_legacy_converter_unavailable_is_an_explicit_limitation(self):
         with patch.object(lectores_imagen.shutil, "which", return_value=None):

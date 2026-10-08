@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from anka.dominio.analisis import Actividad
 
 from collections.abc import Mapping, Sequence
@@ -35,6 +37,24 @@ def normalize_estado(value: object) -> str:
     if any(mark in text for mark in ("pendiente", "revisi", "requiere", "aclar", "falta", "no indicad")):
         return "pendiente"
     return "confirmado" if text.startswith("confirmado") else "pendiente"
+def limpiar_cantidad_y_unidad(row: dict) -> None:
+    """Evita que la unidad aparezca dos veces: el modelo suele escribir «544.5 ha» en la cantidad y «ha» en la unidad.
+
+    Si la cantidad es solo «número + unidad», se queda con el número; si ya menciona todas las unidades (varias
+    magnitudes en un texto), se vacía la unidad. Una cantidad sin la unidad no se toca.
+    """
+    quantity, unit = str(row.get("quantity") or "").strip(), str(row.get("unit") or "").strip()
+    if not quantity or not unit:
+        return
+    plain = re.fullmatch(rf"([\d.,]+)\s*{re.escape(unit)}\.?", quantity, re.IGNORECASE)
+    if plain:
+        row["quantity"] = plain.group(1)
+        return
+    tokens = [token for token in re.split(r"\s*(?:[,;/]|\sy\s)\s*", unit) if token]
+    if tokens and all(re.search(rf"(?<!\w){re.escape(token)}(?!\w)", quantity, re.IGNORECASE) for token in tokens):
+        row["unit"] = ""
+
+
 MAX_ROWS = 200      # tope de filas que se acepta de un formulario: una tabla desmesurada no se guarda
 MAX_CELL = 2000      # tope de caracteres por celda, por la misma razón
 

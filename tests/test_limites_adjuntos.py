@@ -1,4 +1,4 @@
-"""Límites de los lectores de adjuntos: bombas de descompresión, archivos rotos y topes. Cubre: F1-03, R12"""
+"""Límites de los lectores de adjuntos: bombas de descompresión, archivos rotos y topes. Cubre: F1-03, R12, T-24"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
@@ -92,6 +92,10 @@ class BrokenFileTests(unittest.TestCase):
 
 
 class SizeAndPageCapTests(unittest.TestCase):
+    def test_gmail_sized_attachments_are_within_the_limit(self):
+        self.assertGreaterEqual(attachments.MAX_ATTACHMENT_BYTES, 25 * 1024 * 1024)
+        self.assertEqual(attachments.MAX_ATTACHMENT_BYTES, attachments.MAX_WORK_PACKET_ATTACHMENT_BYTES)
+
     def test_files_over_the_size_limit_are_not_read(self):
         with patch.object(attachments, "MAX_ATTACHMENT_BYTES", 10):
             text, reason = extract_attachment_text("a.txt", "text/plain", b"x" * 11)
@@ -101,18 +105,6 @@ class SizeAndPageCapTests(unittest.TestCase):
             text, reason = extract_attachment_text_for_work_packet("a.txt", "text/plain", b"x" * 11)
         self.assertEqual(text, "")
         self.assertIn("supera el límite", reason)
-
-    def test_long_text_is_truncated_for_the_model_and_flagged_as_partial(self):
-        with patch.object(attachments, "MAX_ATTACHMENT_TEXT", 100):
-            text, reason = extract_attachment_text("a.txt", "text/plain", ("línea de alcance\n" * 50).encode())
-        self.assertLessEqual(len(text), 100)
-        self.assertIn("lectura parcial", reason)
-
-    def test_the_work_packet_keeps_the_full_text(self):
-        with patch.object(attachments, "MAX_ATTACHMENT_TEXT", 100):
-            text, _reason = extract_attachment_text_for_work_packet(
-                "a.txt", "text/plain", ("línea de alcance\n" * 50).encode())
-        self.assertGreater(len(text), 100)
 
     def test_pdf_over_the_page_limit_requires_manual_review(self):
         from pypdf import PdfWriter
@@ -140,6 +132,47 @@ class SizeAndPageCapTests(unittest.TestCase):
             text, reason = extract_attachment_text("grande.xlsx", "", buffer.getvalue())
         self.assertIn("LECTURA PARCIAL", text)
         self.assertIn("parcial", reason)
+
+
+class CompleteReadingTests(unittest.TestCase):
+    """T-24: un archivo legible se lee completo; «parcial» solo si de verdad quedó contenido sin extraer."""
+
+    OCR_PAGE = (
+        "[Página 1]\n[OCR visual adicional]\nÁrea: 12 ha\n"
+        "COBERTURA VISUAL PARCIAL: OCR de la página ejecutado; relaciones de tabla/figura requieren "
+        "interpretación visual"
+    )
+
+    def classify(self, text):
+        return attachments._motivos_de_lectura_parcial(text)
+
+    def test_ocr_that_ran_does_not_downgrade_the_coverage(self):
+        self.assertEqual(self.classify(self.OCR_PAGE), [])
+
+    def test_content_that_could_not_be_extracted_is_still_partial(self):
+        casos = [
+            "[Página 3; sin texto extraíble (posible escaneo)]",
+            "CONTENIDO GRÁFICO NO INSPECCIONADO (img1.png): sin OCR",
+            "LECTURA PARCIAL: hoja Datos supera 50000 celdas inspeccionadas",
+            "CONTENIDO DE GRÁFICOS NO EXTRAÍDO: ppt/charts/chart1.xml",
+            "LECTURA PARCIAL DEL ZIP; elementos que requieren revisión: a.pdf",
+            "SISTEMA DE COORDENADAS NO DECLARADO: sin .prj",
+        ]
+        for text in casos:
+            with self.subTest(text=text[:40]):
+                self.assertTrue(self.classify(text))
+
+    def test_a_scanned_pdf_read_with_ocr_is_complete_in_every_mode(self):
+        with patch.object(attachments, "_read_by_format", return_value=self.OCR_PAGE):
+            for reader in (extract_attachment_text, extract_attachment_text_for_work_packet):
+                text, reason = reader("e.pdf", "application/pdf", b"%PDF")
+                self.assertIn("Área: 12 ha", text)
+                self.assertEqual(reason, "")
+
+    def test_the_partial_reasons_are_the_same_in_every_mode(self):
+        with patch.object(attachments, "_read_by_format", return_value="[Página 3; sin texto extraíble]\nTexto"):
+            self.assertEqual(extract_attachment_text("e.pdf", "application/pdf", b"x")[1],
+                             extract_attachment_text_for_work_packet("e.pdf", "application/pdf", b"x")[1])
 
 
 if __name__ == "__main__":

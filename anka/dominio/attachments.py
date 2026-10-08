@@ -4,9 +4,9 @@ from __future__ import annotations
 from anka.dominio.analisis import EvidenciaAdjunto
 import re
 
-MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-MAX_ATTACHMENT_TEXT = 60000
-MAX_WORK_PACKET_ATTACHMENT_BYTES = 50 * 1024 * 1024
+# Gmail admite adjuntos de hasta 25 MB; 50 MiB deja cabida a cualquiera y es el mismo tope en los tres modos.
+MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
+MAX_WORK_PACKET_ATTACHMENT_BYTES = MAX_ATTACHMENT_BYTES
 MAX_EVIDENCE_ITEMS = 60
 MAX_EVIDENCE_CHARS = 700
 MAX_ARCHIVE_FILES = 200

@@ -14,7 +14,7 @@ from typing import Any
 
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
-from anka.dominio.activities import normalize_estado
+from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
 from anka.dominio.correo import decode_websafe
 from anka.dominio.reception import unresolved_scope_issues
 from anka.dominio.status import QuoteStatus, canonical_work_status
@@ -77,6 +77,7 @@ def _work_activities(payload: dict) -> list:
             quantity = item.get("quantity")
             if isinstance(quantity, (int, float)) and not isinstance(quantity, bool):
                 item["quantity"] = str(quantity)
+            limpiar_cantidad_y_unidad(item)
             if "estado" in item:
                 item["estado"] = normalize_estado(item["estado"])
             normalized.append(item)

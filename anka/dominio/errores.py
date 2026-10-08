@@ -12,6 +12,10 @@ class ErrorDeAnka(Exception):
     """Un problema con explicación para la persona; `str(error)` es el texto que se le muestra."""
 
 
+class ContextoInsuficiente(ErrorDeAnka):
+    """El correo y sus adjuntos completos no caben en la ventana del modelo; no se analiza recortado (T-24)."""
+
+
 class AutorizacionDeGoogle(ErrorDeAnka):
     """La autorización de Google falta, venció o fue revocada: hay que reautorizar (el dashboard ofrece el botón)."""
 
