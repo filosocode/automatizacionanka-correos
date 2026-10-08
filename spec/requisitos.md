@@ -355,6 +355,13 @@ error: sigue importando el resto. El Resumen lista cada borrador rechazado con s
 contrato, nunca contenido del cliente) y qué hacer. En `question_audit`, un `unresolved` booleano (Work lo escribe como sí/no)
 se trata como vacío y se importa: la advertencia de la pregunta («debe precisar qué subdato sigue sin resolver») lo hace visible.
 
+### T-29 · Medir cuánto tarda un borrador de Work en llegar al dashboard
+Para saber si una demora es de Work (que tarda en dejar el borrador en Gmail) o del puente (que tarda en importarlo), el puente
+anota la hora en que el borrador apareció en Gmail y la importación la compara con su hora de llegada. El historial del caso
+lo dice en el hecho «Work analizó el caso»: «El borrador estaba en Gmail desde las HH:MM:SS; llegó al dashboard N s después»,
+y el registro técnico guarda el mismo dato. Esa hora no forma parte de la huella del contenido: reguardar un borrador sin
+cambiarlo no lo reimporta. Si no se conoce la hora, el hecho queda como antes.
+
 ### T-27 · El lanzador se reinicia solo cuando cambia el código
 Cuando cambia el código (incluida una migración de la base), el lanzador no solo reinicia el dashboard y el puente: **se reinicia
 él mismo**, para no seguir corriendo con código anterior contra una base ya migrada (los recordatorios y la copia de seguridad

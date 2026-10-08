@@ -96,6 +96,36 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(len(quotes.all_quotes()), 1)
         self.assertEqual(self.run_sync(gmail)["updated"], 0)
 
+    def test_the_draft_time_in_gmail_is_measured_against_the_arrival_at_the_dashboard(self):
+        # Cubre: T-29
+        from anka.infra import store
+        mensaje = draft_message(payload())
+        mensaje["internalDate"] = str(int((datetime.now().timestamp() - 45) * 1000))     # el borrador tiene 45 s
+        self.run_sync(FakeGmail({"d1": mensaje}))
+        db = store.connect()
+        try:
+            resumen = db.execute("SELECT summary FROM case_events WHERE thread_id='T1' AND kind='analysis'").fetchone()[0]
+        finally:
+            db.close()
+        self.assertIn("El borrador estaba en Gmail desde las", resumen)
+        segundos = int(resumen.split("llegó al dashboard ")[1].split(" s")[0])
+        self.assertTrue(45 <= segundos <= 60, segundos)
+
+    def test_resaving_a_draft_without_changing_it_is_not_imported_again(self):
+        # Cubre: T-29
+        gmail = FakeGmail({"d1": draft_message(payload())})
+        cache = {}
+        self.assertEqual(self.run_sync(gmail, cache)["updated"], 1)
+        gmail.items["d1"] = draft_message(payload(), message_id="gm2")
+        gmail.items["d1"]["internalDate"] = "99999999"        # Gmail dio otra hora, el contenido es el mismo
+        self.assertEqual(self.run_sync(gmail, cache)["updated"], 0)
+
+    def test_without_the_draft_time_the_event_is_written_as_before(self):
+        # Cubre: T-29
+        from anka.servicios import work_import
+        self.assertEqual(work_import._demora_del_puente({"thread_id": "T1"}), "")
+        self.assertEqual(work_import._demora_del_puente({"draft_at": "no es una fecha"}), "")
+
     def test_cache_avoids_downloading_unchanged_drafts(self):
         gmail = FakeGmail({"d1": draft_message(payload())})
         cache = {}
