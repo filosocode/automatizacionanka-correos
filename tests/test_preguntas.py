@@ -14,7 +14,7 @@ from anka.dominio import reception
 from anka.dominio.status import QuoteStatus
 from anka.infra import settings, store
 from anka.servicios import case_actions, quotes
-from anka.web import pantalla_caso, seguridad
+from anka.web import paginas, pantalla_caso, seguridad
 from anka.web import server as web
 from tests.test_app import FakeGmail, complete_analysis, encoded_message, test_config
 
@@ -270,6 +270,46 @@ class CasoCompletoTests(unittest.TestCase):
     def test_the_old_one_line_per_question_form_still_works(self):
         quotes.resolve_technical_review("t-1", "ask_client", "¿Datum?\n¿Plazo?")
         self.assertEqual(self.caso()["analysis"]["manual_review"]["questions"], ["¿Datum?", "¿Plazo?"])
+
+    def hace_30_dias(self):
+        db = store.connect()
+        db.execute("UPDATE quotes SET sent_at='2026-09-08T10:00:00-05:00'")
+        db.commit()
+        db.close()
+
+    def test_a_case_that_got_only_an_acknowledgement_never_shows_waiting_days_or_call_alerts(self):
+        db = store.connect()
+        db.execute("UPDATE quotes SET status=?", (QuoteStatus.REVIEW_PENDING,))
+        db.commit()
+        db.close()
+        self.enviar(ACUSE)
+        self.hace_30_dias()                                            # mucho más que los días de aviso y de llamada
+        caso = self.caso()
+        self.assertEqual(caso["status"], QuoteStatus.RESPONSE_SENT)
+        self.assertEqual(caso["waiting_since"], "")
+        etapa, _ = paginas.case_stage(caso)
+        self.assertEqual(etapa, "Respuesta enviada · sin espera")
+        self.assertNotIn("Llamar", etapa)
+        self.assertNotIn("Sin respuesta", etapa)
+
+    def test_a_case_that_asked_questions_does_wait_and_ends_up_asking_to_call(self):
+        db = store.connect()
+        db.execute("UPDATE quotes SET status=?", (QuoteStatus.REVIEW_PENDING,))
+        db.commit()
+        db.close()
+        self.enviar("Hola,\n\n1. ¿Hay acceso al predio?\n\nSaludos")
+        self.assertTrue(self.caso()["waiting_since"])
+        self.hace_30_dias()
+        etapa, urgente = paginas.case_stage(self.caso())
+        self.assertEqual(etapa, "Llamar al cliente")
+        self.assertTrue(urgente)
+
+    def test_cases_from_before_this_change_keep_their_old_behaviour(self):
+        db = store.connect()
+        db.execute("UPDATE quotes SET status=?, sent_at='2026-10-01T10:00:00-05:00'", (QuoteStatus.RESPONSE_SENT,))
+        db.commit()
+        db.close()
+        self.assertTrue(self.caso()["waiting_since"])                    # sin el dato de preguntas, no se asume nada
 
     def peticion(self, cuerpo):
         handler = web.ReviewHandler.__new__(web.ReviewHandler)

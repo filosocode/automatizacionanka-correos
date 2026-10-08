@@ -383,5 +383,7 @@ borrador de Work (que sigue siendo el punto de partida cuando no se eligió ning
 pasar el caso a preguntas; las marcadas «Resolver internamente» aparecen en los pendientes de Anka. Cada decisión deja huella
 (quién, cuándo, qué). Si llega un mensaje nuevo en el hilo, el reanálisis las descarta, como la decisión de revisión técnica.
 El estado después de enviar depende de **lo que salió en el correo**, no de un clic anterior: con al menos una pregunta el caso
-queda en «Esperando cliente» (y el aviso dice cuántas); sin preguntas (un acuse) queda en «Respuesta enviada», sin espera ni
-recordatorios por silencio. El evento del envío y el aviso del caso lo dicen con esas palabras.
+queda en «Esperando cliente» (y el aviso dice cuántas); sin preguntas (un acuse) queda en «Respuesta enviada · sin espera»:
+no cuenta días de espera, ni avisa «sin respuesta» ni «llamar al cliente», ni recibe recordatorios por silencio. El evento del
+envío y el aviso del caso lo dicen con esas palabras. Un caso anterior a este cambio, sin el dato de las preguntas enviadas,
+conserva su comportamiento de antes.

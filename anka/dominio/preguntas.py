@@ -170,6 +170,12 @@ def internas(preguntas: Iterable[Pregunta]) -> list[str]:
     return [p["texto"] for p in preguntas if p.get("decision") == INTERNA]
 
 
+def era_un_acuse(analysis: Mapping[str, Any]) -> bool:
+    """¿El último correo enviado desde el dashboard no llevaba preguntas? Un caso antiguo, sin el dato, no lo es."""
+    enviadas = analysis.get("preguntas_enviadas")
+    return isinstance(enviadas, Mapping) and not enviadas.get("preguntas")
+
+
 def en_el_correo(cuerpo: str) -> list[str]:
     """Las preguntas que de verdad contiene un correo (enlaces aparte): de ellas depende que se espere respuesta."""
     sin_enlaces = _URL.sub("", cuerpo)
