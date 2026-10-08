@@ -41,14 +41,14 @@ El lector Python ya enruta PDF, DOC/DOCX, XLS/XLSX/XLSM, KMZ/KML, shapefiles den
 
 Límites operativos observados en código:
 
-- 10 MiB máximo por adjunto descargado; salida de extracción limitada a 60.000 caracteres.
+- 50 MiB máximo por adjunto descargado (el máximo de Gmail es 25 MB), igual en los tres modos. El texto extraído **no se recorta**: si el correo y sus adjuntos no caben en el modelo, el modo local y el de API leen el documento entero por tramos (T-25) y Work lo recibe en el paquete segmentado.
 - PDF: máximo 200 páginas; OCR depende de componentes locales instalados y no sustituye la interpretación de diagramas.
 - Hojas de cálculo: máximo 50.000 filas/celdas inspeccionadas por hoja; algunos gráficos, imágenes, pivots y fórmulas sin valor requieren revisión.
-- ZIP/KMZ: máximo 200 entradas y 40 MiB expandidos; ZIP puede marcar entradas internas no soportadas.
+- ZIP/KMZ y documentos Word, Excel, PowerPoint y OpenDocument (que son ZIP): máximo 200 entradas y 40 MiB expandidos, comprobado antes de descomprimir; si se superan, el archivo pasa a revisión manual. ZIP puede marcar entradas internas no soportadas.
 - Shapefile debe llegar completo. Sin `.prj`, coordenadas no deben tratarse como georreferenciadas con CRS conocido.
 - RAR/7Z, DWG/DXF, ECW, File Geodatabase y proyectos GMW/QMD requieren lector/conversor especializado o revisión humana; hoy no deben tratarse como contenido leído.
 
-En el histórico, superan 10 MiB: **88 PDF, 1.833 DOCX, 68 DWG, 104 ZIP, 53 RAR, 19 KMZ, 22 ECW y 4 XLSX/XLSM/XLS**. Por tanto, el límite de tamaño es una brecha material para una lectura exhaustiva; declarar parcial/revisión es correcto, pero no basta para encontrar la información que quedó dentro.
+En el histórico, superan 10 MiB (el antiguo límite): **88 PDF, 1.833 DOCX, 68 DWG, 104 ZIP, 53 RAR, 19 KMZ, 22 ECW y 4 XLSX/XLSM/XLS**. Con el límite actual de 50 MiB la mayoría ya se puede leer; los que lo superan se declaran bloqueados con su motivo y pasan a revisión interna. La brecha que queda para una lectura exhaustiva son los formatos sin lector (RAR/7Z, DWG/DXF, ECW, GDB, proyectos nativos), no el tamaño.
 
 ## Ruta recomendada para abarcar los formatos sin preguntar redundancias
 

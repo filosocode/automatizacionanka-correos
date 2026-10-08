@@ -93,7 +93,10 @@ en línea; los datos de clientes se escapan y no pueden crear etiquetas ni scrip
 Los registros no guardan contenido de correos ni datos de clientes; las direcciones de correo se enmascaran.
 
 ### T-09 · Configuración validada
-`config.json` se valida y los errores dicen qué corregir.
+`config.json` se valida y los errores dicen qué corregir. Las claves opcionales de `llm` y sus valores por defecto son:
+`num_ctx` 16384 y `num_ctx_max` 32768 (Ollama: ventana de contexto pedida y máxima del modelo), `context_tokens` 100000 (API:
+tokens de entrada por llamada), `chunk_chars` 12000 con Ollama y 30000 con API (tamaño de un tramo de lectura) y
+`timeout_seconds` 180 (por cada 8192 tokens del prompt). `config.example.json` las muestra todas.
 
 ### T-10 · Persistencia y migraciones
 La base SQLite se migra por pasos con copia previa y rechaza versiones más nuevas que el programa.
