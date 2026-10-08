@@ -7,7 +7,7 @@ import unittest
 import zipfile
 from unittest.mock import patch
 
-from anka.infra import attachments
+from anka.infra import attachments, lectores_office, lectores_pdf, lectores_zip
 from anka.infra.attachments import extract_attachment_text, extract_attachment_text_for_work_packet
 
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -45,7 +45,7 @@ class DecompressionBombTests(unittest.TestCase):
             ("a.ods", "content.xml"),
             ("a.odp", "content.xml"),
         ):
-            with self.subTest(name=name), patch.object(attachments, "MAX_ARCHIVE_EXPANDED_BYTES", 1024 * 1024):
+            with self.subTest(name=name), patch.object(lectores_zip, "MAX_ARCHIVE_EXPANDED_BYTES", 1024 * 1024):
                 content = self.bomb(member)
                 self.assertLess(len(content), 50_000)
                 for reader in (extract_attachment_text, extract_attachment_text_for_work_packet):
@@ -55,7 +55,7 @@ class DecompressionBombTests(unittest.TestCase):
 
     def test_office_documents_with_too_many_entries_are_refused(self):
         many = zipped({f"word/media/i{n}.txt": b"x" for n in range(5)}, zipfile.ZIP_DEFLATED)
-        with patch.object(attachments, "MAX_ARCHIVE_FILES", 3):
+        with patch.object(lectores_zip, "MAX_ARCHIVE_FILES", 3):
             text, reason = extract_attachment_text("a.docx", DOCX, many)
         self.assertEqual(text, "")
         self.assertIn("revisión manual", reason)
@@ -122,7 +122,7 @@ class SizeAndPageCapTests(unittest.TestCase):
             writer.add_blank_page(width=72, height=72)
         buffer = io.BytesIO()
         writer.write(buffer)
-        with patch.object(attachments, "MAX_OCR_PAGES", 3):
+        with patch.object(lectores_pdf, "MAX_OCR_PAGES", 3):
             text, reason = extract_attachment_text("grande.pdf", "application/pdf", buffer.getvalue())
         self.assertEqual(text, "")
         self.assertIn("límite de 3 páginas", reason)
@@ -136,7 +136,7 @@ class SizeAndPageCapTests(unittest.TestCase):
             sheet.append([f"A{row}", row, "x"])
         buffer = io.BytesIO()
         book.save(buffer)
-        with patch.object(attachments, "MAX_SPREADSHEET_CELLS", 10):
+        with patch.object(lectores_office, "MAX_SPREADSHEET_CELLS", 10):
             text, reason = extract_attachment_text("grande.xlsx", "", buffer.getvalue())
         self.assertIn("LECTURA PARCIAL", text)
         self.assertIn("parcial", reason)

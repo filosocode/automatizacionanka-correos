@@ -48,7 +48,10 @@ La descripción es la primera frase de su docstring.
 
 | Módulo | Para qué sirve |
 |---|---|
-| `attachments` | Lectores de documentos y coordinación de extracción. |
+| `attachments` | Coordinación de la extracción: elige el lector por formato, recorta y explica la cobertura. |
+| `lectores_zip` | ZIP: apertura acotada (`zip_acotado`, base de todo Office/OpenDocument), OCR incrustado y shapefiles. |
+| `lectores_office` | Word, Excel (`.xlsx`, `.xls`), PowerPoint y OpenDocument. |
+| `lectores_pdf` | PDF: texto nativo y OCR por página. |
 | `lectores_imagen` | OCR y conversión externa de documentos antiguos. |
 
 | Módulo | Para qué sirve |
