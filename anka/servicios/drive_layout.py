@@ -120,6 +120,16 @@ def _keys_similar(a: str, b: str) -> bool:
     return SequenceMatcher(None, a, b).ratio() >= 0.85
 
 
+def clave_de_proyecto(nombre: str) -> str:
+    """La clave con que se compara el nombre de un proyecto: sin tildes, sufijos ni el prefijo de la carpeta."""
+    return normalize_client_name(project_title(nombre))
+
+
+def claves_parecidas(a: str, b: str) -> bool:
+    """¿Dos claves de proyecto o de cliente parecen el mismo nombre? (el criterio de las carpetas de Drive)."""
+    return _keys_similar(a, b)
+
+
 def project_title(folder_name: str) -> str:
     """Nombre del proyecto dentro de `<prefijo> - <proyecto> - <id>`; el nombre entero si no encaja."""
     match = re.fullmatch(r"[^-]+ - (.+) - [0-9A-Za-z_]{6,12}", folder_name.strip())

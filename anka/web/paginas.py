@@ -34,6 +34,7 @@ from anka.servicios.change_control import (
 from anka.dominio.registros import Cambio
 from anka.servicios.quotes import discarded_quotes, all_quotes, unread_notifications
 from anka.dominio.caso import CLIENT_TYPES
+from anka.servicios.proyectos_repetidos import Grupo, agrupar as agrupar_solicitudes
 
 log = get_logger(__name__)
 
@@ -124,12 +125,12 @@ def grupo_de_etapa(quote: Mapping[str, Any]) -> str:
     return "cotizando" if quote.get("quote_code") else "otras"
 
 
-def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False) -> Markup:
+def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False, mismos: int = 0) -> Markup:
     """Fila de la cola de hoy: posición, proyecto, qué espera y un solo botón con verbo."""
     _, verb, anchor = accion_de_caso(quote)
     code = quote.get("quote_code")
     return render(
-        "queue_row.html", position=position, is_new=is_new,
+        "queue_row.html", position=position, is_new=is_new, mismos=mismos,
         project=quote["analysis"].get("project_name") or "Solicitud sin nombre",
         client_name=quote["client_name"], reason=case_stage(quote)[0], verb=verb,
         code=code_label(code, quote.get("code_stage") or "T") if code else "",
@@ -144,12 +145,18 @@ def render_index(message: str = "") -> str:
     services = Counter(service for quote in quotes for service in quote["services"])
     clients = Counter(q["client_name"] for q in quotes if q["client_name"])
     stages = {q["thread_id"]: case_stage(q) for q in quotes}
-    todo_cases = cola_de_hoy(quotes)
+    grupo_de = {q["thread_id"]: g for g in agrupar_solicitudes(quotes) for q in g.miembros}
+    cola: list[tuple[Mapping[str, Any], Grupo]] = []
+    for q in cola_de_hoy(quotes):                       # un proyecto ocupa una sola entrada: la de su hilo más urgente
+        if all(grupo_de[q["thread_id"]] is not g for _, g in cola):
+            cola.append((q, grupo_de[q["thread_id"]]))
+    todo_cases = [q for q, _ in cola]
+    en_cola = {m["thread_id"] for _, g in cola[:COLA_MAXIMA] for m in g.miembros}
     body = render(
         "index.html",
         sync_text=sync_status_text(),
         notifications=_notifications_panel(notifications, plegar=bool(notifications) and all(
-            item["thread_id"] in {q["thread_id"] for q in todo_cases[:COLA_MAXIMA]} for item in notifications)),
+            item["thread_id"] in en_cola for item in notifications)),
         total=len(quotes),
         unique_clients=len({q["client_email"].casefold() for q in quotes if q["client_email"]}),
         action_count=len(todo_cases),
@@ -160,7 +167,8 @@ def render_index(message: str = "") -> str:
         statuses=metric_rows(Counter(stages[q["thread_id"]][0] for q in quotes), "blue"),
         client_types=metric_rows(Counter(q["client_type"] for q in quotes)),
         insights=_dashboard_insights(quotes, services, clients),
-        todo=[queue_row(q, n, q["thread_id"] in unread_threads) for n, q in enumerate(todo_cases[:COLA_MAXIMA], 1)],
+        todo=[queue_row(q, n, q["thread_id"] in unread_threads, mismos=len(g.miembros) - 1)
+              for n, (q, g) in enumerate(cola[:COLA_MAXIMA], 1)],
         hidden_count=max(len(todo_cases) - COLA_MAXIMA, 0),
     )
     return page("Resumen comercial", body, message)
@@ -236,7 +244,19 @@ def _received_datetime_label(value: str) -> str:
     return f"Recibido: {value[:10]} (hora no disponible)"
 
 
-def render_requests(message: str = "") -> str:
+def _unidad_de_lista(grupo: Grupo, unread_threads: set[str]) -> Markup:
+    """Una fila de la lista: un hilo solo, o un grupo de hilos del mismo proyecto con el más reciente al frente."""
+    hilos = sorted(grupo.miembros, key=lambda q: -fecha_de_recepcion(q))      # estable: igual fecha, mismo orden
+    filas = [quote_row(q, q["thread_id"] in unread_threads, selectable=True) for q in hilos]
+    if len(hilos) == 1:
+        return filas[0]
+    return render(
+        "request_group.html", n=len(hilos), motivo=grupo.motivo, verificar=grupo.verificar,
+        principal=filas[0], resto=filas[1:], fecha=int(fecha_de_recepcion(hilos[0])),
+        urgencia=min(urgencia_de_caso(q) for q in hilos), proyecto=hilos[0]["analysis"].get("project_name") or "")
+
+
+def render_requests(message: str = "", agrupar_hilos: bool = True) -> str:
     """Lista de todas las solicitudes, la más reciente primero; en el navegador se puede reordenar."""
     quotes = all_quotes()
     unread_threads = {item["thread_id"] for item in unread_notifications(100)}
@@ -247,10 +267,14 @@ def render_requests(message: str = "") -> str:
          "reason": link["reason"]}
         for quote in quotes for link in quote.get("links", [])
     ]
+    grupos = agrupar_solicitudes(quotes)
+    hay_grupos = any(len(g.miembros) > 1 for g in grupos)
+    if not agrupar_hilos:
+        grupos = [Grupo((q,)) for q in quotes]
+    grupos = sorted(grupos, key=lambda g: -max(fecha_de_recepcion(q) for q in g.miembros))
     body = render(
         "requests.html",
-        rows=[quote_row(quote, quote["thread_id"] in unread_threads, selectable=True)
-              for quote in sorted(quotes, key=lambda q: -fecha_de_recepcion(q))],  # estable: igual fecha, mismo orden
+        rows=[_unidad_de_lista(g, unread_threads) for g in grupos], hay_grupos=hay_grupos, agrupado=agrupar_hilos,
         pending_links=pending_links,
         etapas=[(key, label, sum(grupo_de_etapa(q) == key for q in quotes)) for key, label in ETAPAS_FILTRO],
         type_options=CLIENT_TYPES,

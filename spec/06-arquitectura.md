@@ -90,6 +90,7 @@ La descripción es la primera frase de su docstring.
 | `hoja_de_calculo` | La hoja de Google Sheets de cada caso: se crea en la carpeta del proyecto y se mantiene al día sola (spec T-17). |
 | `internal_context` | Contexto comercial interno: solo lectura, nunca sale en correos. |
 | `pipeline` | Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica. |
+| `proyectos_repetidos` | Agrupar las solicitudes que parecen el mismo proyecto, solo para mostrarlas juntas (U-19). |
 | `quotes` | Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard. |
 | `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
 | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |

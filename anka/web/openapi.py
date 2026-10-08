@@ -127,7 +127,10 @@ OPERACIONES: tuple[Operacion, ...] = (
     Operacion("get", "/", "Páginas", "Resumen («qué hacer hoy»)",
               "Novedades, casos que esperan acción y métricas.", campos=(_MENSAJE,)),
     Operacion("get", "/requests", "Páginas", "Lista de solicitudes",
-              "Todas las solicitudes con su etapa; las urgentes van primero.", campos=(_MENSAJE,)),
+              "Todas las solicitudes con su etapa, la más reciente primero; los hilos del mismo proyecto van "
+              "agrupados.",
+              campos=(_MENSAJE, Campo("agrupar", "«1» (por defecto) agrupa los hilos del mismo proyecto; «0» "
+                                      "los muestra por separado.", opciones=("1", "0")))),
     Operacion("get", "/discarded", "Páginas", "Descartadas",
               "Hilos descartados con su motivo y el botón de rescatar.", campos=(_MENSAJE,)),
     Operacion("get", "/archive", "Páginas", "Archivo",

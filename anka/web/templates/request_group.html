@@ -1,0 +1,9 @@
+<section class="grupo" data-fecha="{{ fecha }}" data-urgencia="{{ urgencia }}">
+  <div class="grupo-head">
+    <div><strong>{{ n }} hilos del mismo proyecto</strong>
+      <span class="meta">{{ motivo }}{% if verificar %} · verifica que sea el mismo proyecto{% endif %}</span></div>
+    <button type="button" class="secondary grupo-toggle" aria-expanded="false" data-n="{{ n }}">Ver los {{ n }}</button>
+  </div>
+  {{ principal }}
+  <div class="grupo-resto" hidden>{% for fila in resto %}{{ fila }}{% endfor %}</div>
+</section>

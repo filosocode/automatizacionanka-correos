@@ -377,3 +377,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .notice.error { border-color: var(--bad-ink); background: var(--bad-bg); }
 .theme-toggle { min-width: 150px; justify-content: center; }
+.grupo { display: grid; gap: 8px; padding-left: 12px; border-left: 4px solid var(--accent); }
+.grupo-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.grupo-resto { display: grid; gap: 8px; margin-left: 14px; }

@@ -298,3 +298,17 @@ aviso se queda fijo justo debajo del encabezado, sin taparlo ni cubrir la navega
 Cuando la información está validada o el caso ya tiene T, «Respuesta al cliente» queda plegada («opcional») y no aparece junto a la
 emisión; un enlace a ella (`#respuesta`) la abre. Sigue estando disponible para el acuse y los correos con el código (U-08).
 Con la información sin validar, la respuesta sigue a la vista como siempre.
+
+### U-19 · Hilos del mismo proyecto, agrupados a la vista
+Solicitudes y el Resumen muestran juntos los hilos que parecen el mismo proyecto, sin unir ni cambiar nada. Dos hilos parecen
+el mismo proyecto si comparten un documento adjunto (mismo nombre y la misma cantidad de texto leído; las
+imágenes no cuentan, por las firmas de correo, ni un archivo que no se pudo leer) o si el nombre del
+proyecto es parecido, con el mismo criterio que las carpetas de Drive (sin tildes ni sufijos; uno contenido en el otro o 85 %
+iguales) y los números iguales («Calle 170» no es «Calle 171»), siempre que el cliente sea el mismo o no esté identificado. El
+mismo remitente no basta, dos clientes distintos no se agrupan (ni por el nombre ni por un archivo) y dos casos con T distinta
+nunca se agrupan.
+En Solicitudes el grupo es una fila: el hilo más reciente, con «N hilos del mismo proyecto», el motivo (y «verifica» si solo el
+nombre se parece) y un botón para desplegar los demás; el orden por fecha usa el hilo más reciente del grupo, y el orden por
+urgencia el más urgente. Se puede ver cada hilo por separado (`agrupar=0`). En el Resumen un proyecto ocupa una sola entrada
+de la cola, que abre su hilo más urgente y reciente y dice cuántos más hay. Unir de verdad los hilos queda para una fase
+posterior, con confirmación de una persona.

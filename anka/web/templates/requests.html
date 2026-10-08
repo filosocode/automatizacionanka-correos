@@ -21,6 +21,7 @@
   <label>Ordenar por<select id="orden"><option value="reciente" selected>Más recientes primero</option><option value="antigua">Más antiguas primero</option><option value="urgencia">Más urgentes primero</option></select></label>
   <label>Tipo de cliente<select id="client-type"><option value="">Todos</option>{% for value in type_options %}<option value='{{ value }}'>{{ value }}</option>{% endfor %}</select></label>
 </div>
+{% if hay_grupos %}<p class="meta">{% if agrupado %}Los hilos que parecen el mismo proyecto van juntos. <a href="/requests?agrupar=0">Ver cada hilo por separado</a>{% else %}Cada hilo se muestra por separado. <a href="/requests">Agrupar por proyecto</a>{% endif %}.</p>{% endif %}
 <div class="chips" role="group" aria-label="Filtrar por etapa">
   <button type="button" class="chip-filter" data-etapa="" aria-pressed="true">Todas</button>
   {% for key, label, count in etapas %}<button type="button" class="chip-filter" data-etapa="{{ key }}" aria-pressed="false">{{ label }} <b>{{ count }}</b></button>
@@ -42,6 +43,7 @@ const typeFilter = document.querySelector('#client-type');
 const rows = [...document.querySelectorAll('.case-row')];
 function filterRows() {
   const term = search.value.trim().toLocaleLowerCase('es');
+  const filtrando = Boolean(term || etapaActual || typeFilter.value);
   let visible = 0;
   rows.forEach(row => {
     const show = (!term || row.dataset.search.includes(term)) &&
@@ -51,7 +53,21 @@ function filterRows() {
     if (show) visible += 1;
   });
   document.querySelector('#no-results').hidden = visible !== 0;
+  document.querySelectorAll('.grupo').forEach(grupo => {
+    const coinciden = [...grupo.querySelectorAll('.case-row')].filter(row => !row.hidden).length;
+    grupo.hidden = coinciden === 0;
+    if (filtrando) abrirGrupo(grupo, true);          // con un filtro se ven los hilos que coinciden, no solo el primero
+  });
 }
+function abrirGrupo(grupo, abrir) {
+  const boton = grupo.querySelector('.grupo-toggle');
+  grupo.querySelector('.grupo-resto').hidden = !abrir;
+  boton.setAttribute('aria-expanded', String(abrir));
+  boton.textContent = abrir ? 'Ocultar' : 'Ver los ' + boton.dataset.n;
+}
+document.querySelectorAll('.grupo-toggle').forEach(boton => boton.addEventListener('click', () => {
+  abrirGrupo(boton.closest('.grupo'), boton.getAttribute('aria-expanded') !== 'true');
+}));
 [search, typeFilter].forEach(input => input.addEventListener('input', filterRows));
 document.querySelectorAll('.chip-filter').forEach(chip => chip.addEventListener('click', () => {
   etapaActual = chip.dataset.etapa;
@@ -68,7 +84,9 @@ function ordenar() {
   const masAntigua = (a, b) => (fechaDe(a) || Infinity) - (fechaDe(b) || Infinity) || 0;
   const masUrgente = (a, b) => (Number(a.dataset.urgencia) - Number(b.dataset.urgencia)) || masReciente(a, b);
   const comparar = {reciente: masReciente, antigua: masAntigua, urgencia: masUrgente}[orden.value] || masReciente;
-  [...rows].sort(comparar).forEach(row => listado.appendChild(row));
+  // Se ordenan las filas sueltas y los grupos (un grupo cuenta con su hilo más reciente o más urgente).
+  const unidades = [...listado.children].filter(el => el.classList.contains('case-row') || el.classList.contains('grupo'));
+  unidades.sort(comparar).forEach(unidad => listado.appendChild(unidad));
 }
 orden.addEventListener('input', ordenar);
 const checks = [...document.querySelectorAll('.row-check')];
