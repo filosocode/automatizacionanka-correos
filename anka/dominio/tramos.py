@@ -32,7 +32,7 @@ def estimar_tokens(texto: str, caracteres_por_token: float = 2.5) -> int:
     return int(len(texto) / caracteres_por_token) + 1
 
 
-_ENCABEZADO = re.compile(r"^(?:[[]\s*(?:Página|Diapositiva|Hoja)[^]]*[]]|Hoja:.*)$", re.IGNORECASE)
+_ENCABEZADO = re.compile(r"^(?:\[\s*(?:Página|Diapositiva|Hoja)[^\]]*\]|Hoja:.*)$", re.IGNORECASE)
 
 
 def ultimo_encabezado(texto: str) -> str:
