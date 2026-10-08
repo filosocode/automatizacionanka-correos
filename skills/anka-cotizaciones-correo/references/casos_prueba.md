@@ -30,7 +30,7 @@ Casos **sintéticos** para probar la skill. No son correos reales de clientes. S
 
 ## 7. Contradicción entre correo y adjunto
 **Correo:** «80 ha»; el KMZ adjunto encierra unas 120 ha.
-**Esperado:** actividad en estado `contradictorio`, con ambas fuentes; `revision_manual`; no crear carpeta.
+**Esperado:** actividad en estado `contradictorio`, con ambos valores y fuentes/localizadores en `notes`; la nota aclara qué parámetro discrepa, qué decisión falta y qué rol debe resolverla. Si la decisión es técnica interna, no se pregunta al cliente antes de revisión de Anka; `revision_manual`; no crear carpeta.
 
 ## 8. Reenvío interno
 **Correo:** un comercial de Anka reenvía la solicitud de un cliente.

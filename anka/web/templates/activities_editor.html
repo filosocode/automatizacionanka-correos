@@ -11,6 +11,7 @@
 <form method="post" action="/activities">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   <input type="hidden" name="row_count" value="{{ row_count }}">
+  <p class="meta">Guía: <strong>pendiente</strong> = falta confirmar un dato; <strong>contradictorio</strong> = las fuentes discrepan. En Notas indica qué falta o qué valores difieren, cita sus fuentes/localizadores y deja el siguiente paso y quién debe resolverlo (cliente/contratante o equipo Anka). No asignes nombres si no están definidos.</p>
   <div style="overflow-x:auto"><table class="act-table"><thead><tr>{% for label in headers %}<th>{{ label }}</th>{% endfor %}<th></th></tr></thead>
   <tbody>{% for row in rows %}<tr{% if row.is_new %} class='nueva'{% endif %}>{% for cell in row.cells %}{% if cell.key == 'estado' %}<td><select name='a{{ row.index }}_estado' class='estado-{{ cell.value or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == cell.value %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>{% else %}<td><textarea name='a{{ row.index }}_{{ cell.key }}' rows='2'{% if not cell.value or cell.value == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ cell.value }}</textarea></td>{% endif %}{% endfor %}{% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'> Quitar</label></td>{% endif %}</tr>{% endfor %}</tbody></table></div>
   <div class="toolbar" style="margin-top:12px">

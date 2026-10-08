@@ -40,7 +40,7 @@
           "plazo_restriccion": {"type": "string"},
           "fuente": {"type": "string"},
           "estado": {"type": "string", "$comment": "R12: confirmado, pendiente o contradictorio. Cualquier otro texto se normaliza en el dashboard."},
-          "notes": {"type": "string"}
+          "notes": {"type": "string", "$comment": "R12: accionable. En faltantes, indica dato, fuente revisada y siguiente paso. En contradicciones, indica parámetro, valores, fuentes/localizadores, decisión faltante y rol responsable; no inventa nombres ni traslada decisiones técnicas internas al cliente."}
         }
       }
     },

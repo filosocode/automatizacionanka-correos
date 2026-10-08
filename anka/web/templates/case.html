@@ -4,6 +4,13 @@
   {{ stepper }}
   {{ conversation }}
   {{ followup }}
+  <section class="section" id="attachments-review">
+    <h2>Archivos y revisiones pendientes</h2>
+    <p class="meta">Revisa los archivos y pendientes de Anka antes de validar el alcance o enviar preguntas al cliente.</p>
+    {{ attachments_table }}
+    <h3 style="margin-top:20px">Qué falta resolver</h3>
+    {{ review_tasks }}
+  </section>
   <section class="section">
     <h2>Actividades detectadas</h2>
     {{ proposal_panel }}
@@ -108,10 +115,6 @@
   <section class="section">
     <div class="section-head"><h2>Contexto comercial interno</h2><span class="badge info">Solo Anka</span></div>
     {{ internal_context }}
-  </section>
-  <section class="section">
-    <h2>Adjuntos</h2>
-    {{ attachments_table }}
   </section>
   <section class="section">
     <h2>Revisión de preguntas</h2>

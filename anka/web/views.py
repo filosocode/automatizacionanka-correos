@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import re
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
-from collections import Counter
 
 from markupsafe import Markup
 
@@ -93,6 +94,130 @@ def question_audit_panel(audit: Sequence[Mapping[str, Any]]) -> Markup:
         for item in audit if isinstance(item, Mapping)
     ]
     return render("question_audit.html", rows=rows)
+
+
+def _audit_review_rows(audit: Sequence[Mapping[str, Any]], waiting_for_client: bool) -> list[tuple[str, str, str]]:
+    rows = []
+    for item in audit:
+        if not isinstance(item, Mapping):
+            continue
+        disposition = str(item.get("disposition") or "")
+        if disposition == "internal_review":
+            status = "Revisión interna pendiente"
+            task = str(item.get("question") or item.get("unresolved") or "Verificar con el equipo de Anka")
+        elif disposition == "ask_client":
+            status = "Esperando respuesta del cliente" if waiting_for_client else "Pregunta sugerida al cliente"
+            task = str(item.get("unresolved") or item.get("question") or "Dato pendiente de confirmar")
+        else:
+            continue
+        rows.append((status, task, str(item.get("reason_missing") or "")))
+    return rows
+
+
+def _audit_search_text(audit: Sequence[Mapping[str, Any]]) -> str:
+    parts = []
+    for item in audit:
+        if not isinstance(item, Mapping):
+            continue
+        parts.extend(str(item.get(key) or "") for key in ("question", "unresolved", "reason_missing"))
+        parts.extend(str(source) for source in (item.get("reviewed_sources") or []))
+    return " ".join(parts).casefold()
+
+
+def _internal_review_search_text(audit: Sequence[Mapping[str, Any]]) -> str:
+    parts = []
+    for item in audit:
+        if not isinstance(item, Mapping) or item.get("disposition") != "internal_review":
+            continue
+        parts.extend(str(item.get(key) or "") for key in ("question", "unresolved", "reason_missing"))
+        parts.extend(str(source) for source in (item.get("reviewed_sources") or []))
+    return " ".join(parts).casefold()
+
+
+def _dependency_review_rows(
+    dependencies: Sequence[Mapping[str, Any]], audit_text: str,
+) -> list[tuple[str, str, str]]:
+    rows = []
+    for item in dependencies:
+        if not isinstance(item, Mapping) or item.get("status") != "pendiente":
+            continue
+        description = str(item.get("description") or "Dependencia de alcance pendiente")
+        if description.casefold() not in audit_text:
+            source = str(item.get("source") or "")
+            rows.append(("Revisión interna pendiente", description, f"Fuente: {source}" if source else ""))
+    return rows
+
+
+def _contradiction_review_rows(
+    contradictions: Sequence[Mapping[str, Any]], audit_text: str,
+) -> list[tuple[str, str, str]]:
+    rows = []
+    for item in contradictions:
+        if not isinstance(item, Mapping) or item.get("status") != "pendiente":
+            continue
+        topic = str(item.get("topic") or "dato técnico")
+        details = str(item.get("details") or "Fuentes con valores discrepantes")
+        sources = [str(source) for source in (item.get("sources") or []) if source]
+        if details.casefold() not in audit_text and not (sources and all(s.casefold() in audit_text for s in sources)):
+            rows.append(("Revisión interna pendiente", f"Resolver contradicción en {topic}: {details}",
+                         f"Fuentes: {'; '.join(sources)}" if sources else ""))
+    return rows
+
+
+def _attachment_review_rows(
+    attachments: Sequence[Mapping[str, Any]], audit_text: str,
+) -> list[tuple[str, str, str]]:
+    rows = []
+    unreadable = {"bloqueado", "lectura_parcial", "no_legible", "unreadable", "parcial", "partial"}
+    for item in attachments:
+        if not isinstance(item, Mapping):
+            continue
+        filename = str(item.get("filename") or "adjunto")
+        status = str(item.get("status") or "").casefold().replace(" ", "_")
+        coverage = str(item.get("coverage") or "").casefold().replace(" ", "_")
+        if status not in unreadable and coverage not in {"parcial", "no_legible", "unreadable"}:
+            continue
+        stem = filename.rsplit(".", 1)[0].casefold()
+        if filename.casefold() in audit_text or (stem and stem in audit_text):
+            continue
+        reason = str(item.get("reason") or "El contenido no se pudo revisar por completo.")
+        blocked = ", ".join(str(value) for value in (item.get("blocked_fields") or []) if value)
+        if blocked:
+            reason += f" Datos por verificar: {blocked}."
+        rows.append(("Revisión interna pendiente", f"Revisar el adjunto {filename}", reason))
+    return rows
+
+
+def review_tasks_panel(
+    audit: Sequence[Mapping[str, Any]],
+    other_questions: Sequence[str] = (),
+    attachments: Sequence[Mapping[str, Any]] = (),
+    dependencies: Sequence[Mapping[str, Any]] = (),
+    contradictions: Sequence[Mapping[str, Any]] = (),
+    waiting_for_client: bool = False,
+) -> Markup:
+    """Resume revisiones y dependencias desde las fuentes disponibles, incluidos payloads antiguos."""
+    audit_text = _audit_search_text(audit)
+    internal_text = _internal_review_search_text(audit)
+    candidates = (
+        _audit_review_rows(audit, waiting_for_client)
+        + [
+            ("Esperando respuesta del cliente" if waiting_for_client else "Pregunta sugerida al cliente",
+             str(question), "")
+            for question in other_questions if str(question).strip()
+        ]
+        + _dependency_review_rows(dependencies, audit_text)
+        + _contradiction_review_rows(contradictions, audit_text)
+        + _attachment_review_rows(attachments, internal_text)
+    )
+    rows = []
+    keys = set()
+    for status, task, reason in candidates:
+        key = re.sub(r"\W+", " ", task.casefold()).strip()
+        if key and key not in keys:
+            keys.add(key)
+            rows.append((status, task, reason))
+    return render("review_tasks.html", rows=rows)
 
 
 def question_quality_panel(warnings: Sequence[str]) -> Markup:

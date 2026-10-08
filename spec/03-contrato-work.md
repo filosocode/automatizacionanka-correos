@@ -33,6 +33,7 @@ explÃ­citos y citas breves. Work debe revisar cada archivo por separado y cont
 archivos. KML/KMZ, GeoJSON y GPX pueden registrar geometrías, coordenadas y extensiones. Las longitudes de rutas explícitas se pueden calcular como aproximaciones y deben rotularse como cálculos, nunca como cantidades declaradas o aprobadas para cotizar. No derivar áreas, precisión ni sistema de referencia. Una lectura parcial o no disponible debe indicar su lÃ­mite.
 Control de cambios (R11): `requested_by_email`, `requested_by_name`,
 `attachments[].coverage` indica `completa`, `parcial` o `no_legible`; `reviewed_sections` enumera las partes inspeccionadas.
+`activities[].notes` debe ser accionable: para un faltante, indica qué dato falta, qué fuente se revisó y el siguiente paso; para una contradicción, enumera valores y fuentes con localizadores, aclara qué parámetro está en conflicto, qué decisión falta y qué rol debe resolverla. No inventa responsables nominales ni traslada al cliente una decisión técnica interna.
 Antes de preguntar, Work cruza cada faltante con el correo y todos los adjuntos, incluidos tablas, notas, figuras e
 imágenes. `question_audit` registra la pregunta, por qué sigue abierta y las fuentes revisadas; si alguna fuente ya
 la responde, la pregunta se elimina.

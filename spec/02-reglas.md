@@ -17,7 +17,7 @@ El texto vigente de cada regla, con su versión y su bloque legible por máquina
 | R9 | Carpeta al enviar | El dashboard crea la carpeta al enviar la respuesta de un caso con información suficiente. |
 | R10 | Contenido de la carpeta | Se llena con los documentos del cliente y la hoja de actividades. |
 | R11 | Código y cambios | Con T, la tabla solo cambia por el contacto registrado citando el código. |
-| R12 | Estado de las actividades | `confirmado`, `pendiente` o `contradictorio`; confirmado solo con todos los datos esenciales. |
+| R12 | Estado de las actividades | `confirmado`, `pendiente` o `contradictorio`; confirmado solo con todos los datos esenciales. Las notas explican faltantes o parámetros discrepantes con fuentes/localizadores y siguiente paso/responsable por rol. |
 | R13 | Recordatorios | Tiempo de espera, llamada a los 7 días hábiles y hasta 2 recordatorios automáticos opcionales. |
 
 ## Procedimiento de cambio

@@ -3,7 +3,7 @@
 Prueba guiada de punta a punta con un caso real (p. ej. Llanos 8). Es también la **prueba manual en Work**
 que exige `ESTANDAR_CAMBIOS.md`. Anota fecha y resultado de cada paso.
 
-Fecha: __________  Versión del prompt: **Riguroso V2**  Caso: __________
+Fecha: __________  Versión del prompt: **Preciso V3**  Reglas: **8**  Caso: __________
 
 ## 0. Antes de empezar
 - [ ] Anka está corriendo (`Iniciar Anka.bat` o autoarranque) y la etiqueta del encabezado dice **Puente activo**.
@@ -43,6 +43,8 @@ Espera 1–2 minutos entre cada uno y mira el aviso arriba del caso.
 - [ ] Para un caso con correo y varios formatos, revisa un dato que esté en el asunto/cuerpo, otro dentro de un documento y otro en una tabla o archivo geoespacial. Work cita dónde encontró cada uno y **no vuelve a preguntarlos**.
 - [ ] Cada pregunta que sí propone tiene en `question_audit` el faltante concreto, por qué importa y las fuentes revisadas; se confirma que ninguna de ellas contenga ya la respuesta.
 - [ ] Si no pudo abrir un archivo, ver páginas/hojas o interpretar un plano/diagrama, lo marca parcial/no legible y deja revisión interna; no presenta el faltante de lectura como pregunta al cliente.
+- [ ] En la ficha, «Archivos y revisiones pendientes» aparece antes de la tabla y muestra adjuntos, dependencias, contradicciones y revisiones manuales pendientes.
+- [ ] Para una fila `contradictorio`, `notes` identifica el parámetro discrepante, cada valor con fuente/localizador, la decisión pendiente y el rol responsable; no implica que toda la actividad esté en conflicto ni pide al cliente resolver un criterio de Anka.
 - [ ] Para Excel, confirma todas las hojas y anota hojas ocultas, fórmulas sin valor guardado, gráficos/imágenes, pivots o rangos truncados. Para KML/KMZ y shapefile, confirma KML internos, elementos/capas, atributos, componentes y `.prj`; no infiere CRS.
 - [ ] Incluye al menos un adjunto mayor a 10 MiB del corpus piloto. Si el límite de extracción impide revisarlo, registra el nombre/tamaño, campos potencialmente afectados y revisión interna; no lo marca como “sin información”.
 - [ ] Los formatos especializados del histórico (DWG/DXF, RAR/7Z, ECW, GDB y proyectos nativos GMW/QMD) se detectan explícitamente y no se presentan como inspeccionados. Usa la matriz de [inventario de formatos T&E](INVENTARIO_FORMATOS_HISTORICO_TE.md) para elegir muestras.
@@ -60,5 +62,5 @@ Espera 1–2 minutos entre cada uno y mira el aviso arriba del caso.
 - [ ] Elimina un caso de prueba y confirma que su historial aparece en **Archivo**.
 
 ## Resultado
-- [ ] Todo conforme → las reglas versión 7 quedan validadas en Work.
+- [ ] Todo conforme → las reglas versión 8 quedan validadas en Work.
 - [ ] Fallas (descríbelas): ______________________________________________
