@@ -257,6 +257,14 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertNotIn("Planos, diseños preliminares", reply)
         self.assertNotIn("normas del contratante", reply)
 
+    def test_suggested_reply_never_repeats_a_question(self):
+        analysis = complete_analysis(location="")
+        analysis["attachments"] = []
+        question = "¿Cuál es el área total del proyecto?"
+        analysis["manual_review"] = {"questions": [question, question]}
+        reply = reception.suggested_reply(analysis, test_config()["required_fields"])
+        self.assertEqual(reply.count(question), 1)
+
     def test_extract_plain_text_from_multipart(self):
         body = base64.urlsafe_b64encode("Solicito cotización".encode()).decode()
         payload = {"parts": [

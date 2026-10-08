@@ -100,6 +100,9 @@ class ValidateConfigTests(unittest.TestCase):
             {**base, "timeout_seconds": "180"},
             {**base, "timeout_seconds": True},
             {**base, "model": ""},
+            {**base, "num_ctx": 512},
+            {**base, "num_ctx": "16384"},
+            {**base, "num_ctx": True},
             "ollama",
         ]
         for llm in bad_llms:

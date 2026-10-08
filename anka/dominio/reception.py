@@ -429,6 +429,7 @@ def suggested_reply(analysis: Analisis, required_fields: list[str] | None = None
     """Texto sugerido para responder al cliente: las preguntas pendientes o, si no hay, un acuse de recibo."""
     questions = reception_questions(analysis, required_fields or [])
     questions += (analysis.get("manual_review") or {}).get("questions", [])
+    questions = list(dict.fromkeys(questions))  # la misma pregunta puede venir de la recepción y de la revisión
     documents = suggested_supporting_documents(analysis)
     forwarded = analysis.get("routing", {}).get("is_forwarded", False)
     if questions:

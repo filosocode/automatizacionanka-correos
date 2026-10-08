@@ -16,6 +16,11 @@ from anka.dominio.analisis import Analisis, Adjunto
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.correo import header, message_datetime, message_text
 
+# Ollama carga los modelos con 4096 tokens de contexto salvo que se indique otra cosa, y recorta el prompt en
+# silencio: un adjunto de decenas de miles de caracteres quedaba fuera del análisis. 16384 cubre el prompt con
+# adjuntos largos (≈ +1 GB de memoria con un modelo de 7B); se cambia con `llm.num_ctx` en config.json.
+DEFAULT_NUM_CTX = 16384
+
 
 ANALYSIS_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -144,7 +149,9 @@ def analysis_prompt(
             f"Texto: {message_text(message.get('payload', {}))[:20000]}"
         )
     for attachment in attachments or []:
-        text = attachment.get("text", "") if attachment.get('status') == 'extraido' else ''
+        # Un adjunto con lectura parcial conserva texto útil; su estado y cobertura viajan en el encabezado de la
+        # fuente. Solo se omite el de un adjunto bloqueado o ilegible.
+        text = attachment.get("text", "") if attachment.get("status") in {"extraido", "lectura_parcial"} else ""
         coverage = attachment.get("coverage", "no informada")
         reason = attachment.get("reason", "")
         source = (
@@ -282,7 +289,7 @@ def analyze_ollama(prompt: str, llm: ConfigLlm) -> Analisis:
         "prompt": prompt,
         "stream": False,
         "format": ANALYSIS_SCHEMA,
-        "options": {"temperature": 0},
+        "options": {"temperature": 0, "num_ctx": llm.get("num_ctx", DEFAULT_NUM_CTX)},
     }).encode("utf-8")
     request = urllib.request.Request(
         f"{llm['base_url'].rstrip('/')}/api/generate",

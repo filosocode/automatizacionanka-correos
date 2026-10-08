@@ -24,6 +24,10 @@ versión del modelo y cada edición queda como versión nueva, con sus diferenci
 Los hechos extraídos de adjuntos conservan el nombre del archivo y un localizador verificable (página, párrafo,
 tabla/fila, hoja/celda o elemento KML/KMZ); los archivos o secciones no leídos se identifican como parciales o
 pendientes de revisión; el dashboard muestra los adjuntos y sus revisiones/tareas pendientes antes de la tabla de actividades, sin esconderlos dentro de trazabilidad. Las notas de filas `pendiente` o `contradictorio` explican el dato faltante o los parámetros discrepantes, citan fuentes/localizadores y dan el siguiente paso y rol responsable sin inventar nombres. Se extraen formatos de texto, PDF, DOC/DOCX, XLS/XLSX/XLSM, PPT/PPTX, ODT/ODS/ODP, RTF, HTML, imágenes, KMZ/KML, GeoJSON, GPX, planes de vuelo QGroundControl (.plan/.waypoints), DJI WPML en KMZ y documentos compatibles dentro de ZIP. El OCR local cubre imágenes sueltas, páginas PDF escaneadas y recursos de imagen incrustados; baja confianza, gráficos estructurados omitidos, límites de cobertura y archivos no convertibles se marcan para revisión. Shapefiles se leen cuando se entregan con sus archivos laterales dentro de ZIP; si falta `.prj`, se declara la referencia espacial no indicada y la lectura queda parcial. DWG y DXF permanecen en revisión manual.
+Al modelo (local o API) le llega el texto de todo adjunto con lectura completa **o parcial**, con su estado y cobertura en el encabezado
+de la fuente; solo se omite el de un adjunto bloqueado o ilegible. Ollama recibe además una ventana de contexto explícita
+(`llm.num_ctx`, 16384 por defecto) porque su valor por defecto (4096) recorta el prompt sin avisar. Una pregunta nunca aparece repetida
+en el correo sugerido.
 El modo Work sigue el mismo contrato de evidencia y registra, para cada pregunta, las fuentes ya verificadas;
 una pregunta que ya esté contestada en cualquier archivo se elimina. El inventario de I:\\T&E y los límites actuales
 del lector por formato/tamaño se documentan en [INVENTARIO_FORMATOS_HISTORICO_TE.md](../docs/INVENTARIO_FORMATOS_HISTORICO_TE.md).

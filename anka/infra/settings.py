@@ -97,6 +97,10 @@ def _engine_problems(engine: dict, mode: str) -> list[str]:
         timeout = engine["timeout_seconds"]
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
             problems.append("llm.timeout_seconds debe ser un número mayor que cero.")
+    if "num_ctx" in engine:
+        context = engine["num_ctx"]
+        if isinstance(context, bool) or not isinstance(context, int) or context < 2048:
+            problems.append("llm.num_ctx debe ser un entero de al menos 2048.")
     return problems
 
 

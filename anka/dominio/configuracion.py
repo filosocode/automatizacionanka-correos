@@ -17,6 +17,7 @@ class ConfigLlm(TypedDict, total=False):
     model: str
     base_url: str          # solo Ollama
     timeout_seconds: float
+    num_ctx: int           # solo Ollama: tokens de contexto; Ollama usa 4096 por defecto y recorta el prompt
 
 
 class Configuracion(TypedDict, total=False):

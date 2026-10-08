@@ -62,8 +62,20 @@ class OllamaTests(unittest.TestCase):
         self.assertEqual(captured["timeout"], 7)
         self.assertEqual(captured["body"]["model"], "m1")
         self.assertIs(captured["body"]["stream"], False)
-        self.assertEqual(captured["body"]["options"], {"temperature": 0})
+        self.assertEqual(captured["body"]["options"], {"temperature": 0, "num_ctx": llm.DEFAULT_NUM_CTX})
         self.assertEqual(captured["body"]["format"], llm.ANALYSIS_SCHEMA)
+
+    def test_context_window_is_configurable_and_larger_than_ollamas_default(self):
+        self.assertGreater(llm.DEFAULT_NUM_CTX, 4096)
+        captured = {}
+
+        def fake_urlopen(request, timeout):
+            captured["options"] = json.loads(request.data.decode("utf-8"))["options"]
+            return ollama_reply({})
+
+        with patch("urllib.request.urlopen", fake_urlopen):
+            llm.analyze_ollama("prompt", {**LLM_OLLAMA, "num_ctx": 8192})
+        self.assertEqual(captured["options"]["num_ctx"], 8192)
 
     def test_connection_error_becomes_a_readable_runtime_error(self):
         with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("rechazada")):
@@ -164,6 +176,19 @@ class PromptTests(unittest.TestCase):
         self.assertIn("ubicación,área", prompt)
         self.assertNotIn("NO DEBE APARECER", prompt)
         self.assertIn('"ubicación del proyecto"', prompt)
+
+    def test_partially_read_attachments_still_reach_the_model_with_their_coverage(self):
+        messages = [encoded_message("c-1", "cliente@example.com", "Ver especificaciones.", 1)]
+        attachments = [
+            {"status": "lectura_parcial", "coverage": "parcial", "reason": "hay imágenes sin inspección visual",
+             "filename": "ET.pdf", "source_message_id": "c-1", "text": "[Página 3] Área del parque: 12 ha"},
+            {"status": "bloqueado", "coverage": "no_legible", "filename": "plano.dwg",
+             "source_message_id": "c-1", "text": "NO DEBE APARECER"},
+        ]
+        prompt = llm.analysis_prompt(messages, [], attachments)
+        self.assertIn("Área del parque: 12 ha", prompt)
+        self.assertIn("lectura_parcial; cobertura: parcial", prompt)
+        self.assertNotIn("NO DEBE APARECER", prompt)
 
 
 class FakeDrive:
