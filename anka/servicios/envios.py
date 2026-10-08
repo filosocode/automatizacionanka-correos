@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
 from anka.infra.store import connect
+
+# Un envío ya confirmado solo sirve para rechazar repeticiones recientes; conservarlos para siempre haría crecer la
+# tabla sin beneficio. Los inciertos (`pending`) nunca se purgan: siguen bloqueando hasta reconciliarse.
+RETENCION_DIAS = 90
+
+
+def purgar_confirmados(db: Any, ahora: datetime | None = None) -> int:
+    """Borra los envíos confirmados con más de RETENCION_DIAS días; devuelve cuántos."""
+    limite = ((ahora or datetime.now().astimezone()) - timedelta(days=RETENCION_DIAS)).isoformat()
+    return db.execute("DELETE FROM mail_operations WHERE state='sent' AND created_at < ?", (limite,)).rowcount
 
 
 def reservar(hilo: str, destinatario: str, texto: str) -> tuple[str, str]:
@@ -16,6 +26,7 @@ def reservar(hilo: str, destinatario: str, texto: str) -> tuple[str, str]:
     db = connect()
     try:
         db.execute("BEGIN IMMEDIATE")
+        purgar_confirmados(db)
         previo = db.execute("SELECT * FROM mail_operations WHERE operation_key=?", (clave,)).fetchone()
         if previo:
             if previo["state"] == "sent":

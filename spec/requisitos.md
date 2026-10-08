@@ -182,6 +182,7 @@ de resultado incierto bloquea el reintento, incluso después de reiniciar. Antes
 reconcilia con Gmail mediante un identificador de mensaje estable; no se presupone que un timeout sea un fallo de envío.
 Si Gmail rechaza la petición con certeza (error 4xx, salvo 408), la reserva se libera para poder corregir y reintentar;
 ante un timeout, un corte de red o un 5xx la reserva se conserva, porque el mensaje pudo haber salido.
+Las reservas confirmadas se conservan 90 días (basta para rechazar repeticiones); las inciertas nunca se purgan.
 
 ### T-22 · Recuperación de evidencia
 El respaldo incluye los originales de `evidence/` junto con la base y los ajustes permitidos, nunca credenciales.

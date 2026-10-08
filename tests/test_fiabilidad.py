@@ -3,6 +3,7 @@
 from tests import _isolate  # noqa: F401
 import concurrent.futures
 import sqlite3
+from datetime import datetime, timedelta
 import tempfile
 import unittest
 import zipfile
@@ -191,3 +192,35 @@ class SendFailureTests(unittest.TestCase):
         envios.confirmar(key, "g1")
         envios.liberar(key)
         self.assertEqual(envios.pendiente("t-9", "a@example.com", "Hola")["state"], "sent")
+
+
+# Cubre: U-05
+class RetentionTests(unittest.TestCase):
+    """La tabla de envíos tiene tope: se purgan los confirmados viejos, nunca los inciertos."""
+
+    setUp = RecoveryTests.setUp
+
+    def seed(self, key, state, days_old):
+        created = (datetime.now().astimezone() - timedelta(days=days_old)).isoformat()
+        db = store.connect()
+        db.execute("INSERT INTO mail_operations VALUES (?, 't', 'a@x.com', ?, ?, 'g', ?, '')",
+                   (key, f"<{key}@anka.local>", state, created))
+        db.commit()
+        db.close()
+
+    def keys(self):
+        db = store.connect()
+        try:
+            return {row[0] for row in db.execute("SELECT operation_key FROM mail_operations")}
+        finally:
+            db.close()
+
+    def test_old_confirmed_sends_are_purged_but_uncertain_and_recent_ones_stay(self):
+        self.seed("viejo-enviado", "sent", envios.RETENCION_DIAS + 1)
+        self.seed("reciente-enviado", "sent", 5)
+        self.seed("viejo-incierto", "pending", envios.RETENCION_DIAS + 30)
+        envios.reservar("T9", "z@example.com", "Hola")
+        remaining = self.keys()
+        self.assertNotIn("viejo-enviado", remaining)
+        self.assertIn("reciente-enviado", remaining)
+        self.assertIn("viejo-incierto", remaining)
