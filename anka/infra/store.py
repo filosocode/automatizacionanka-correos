@@ -259,6 +259,13 @@ def _migration_11_one_case_per_message(db: sqlite3.Connection) -> None:
                         AND l.thread_id<>case_links.thread_id)""", (now,))
 
 
+def _migration_12_mail_operations(db: sqlite3.Connection) -> None:
+    db.execute('''CREATE TABLE mail_operations (
+        operation_key TEXT PRIMARY KEY, thread_id TEXT NOT NULL, recipient TEXT NOT NULL,
+        message_id TEXT NOT NULL UNIQUE, state TEXT NOT NULL CHECK(state IN ('pending', 'sent')),
+        gmail_id TEXT NOT NULL, created_at TEXT NOT NULL, error TEXT NOT NULL)''')
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -273,6 +280,7 @@ MIGRATIONS = (
     _migration_9_case_followup,
     _migration_10_sheet,
     _migration_11_one_case_per_message,
+    _migration_12_mail_operations,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

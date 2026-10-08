@@ -3,7 +3,7 @@
 Prueba guiada de punta a punta con un caso real (p. ej. Llanos 8). Es también la **prueba manual en Work**
 que exige `ESTANDAR_CAMBIOS.md`. Anota fecha y resultado de cada paso.
 
-Fecha: __________  Versión del prompt: **Preciso V3**  Reglas: **8**  Caso: __________
+Fecha: __________  Versión del prompt: **Riguroso V2**  Reglas: **8**  Caso: __________
 
 ## 0. Antes de empezar
 - [ ] Anka está corriendo (`Iniciar Anka.bat` o autoarranque) y la etiqueta del encabezado dice **Puente activo**.

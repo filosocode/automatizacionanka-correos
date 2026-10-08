@@ -7,6 +7,7 @@ seguimiento del caso. Los correos que resultan son siempre borradores que revisa
 """
 
 from __future__ import annotations
+from anka.servicios.repositorio import actualizar_caso
 
 import json
 import re
@@ -195,8 +196,11 @@ def assign_code(thread_id: str, number: str) -> str:
         if other:
             raise ValueError(f"El código {number} ya está asignado a otro caso.")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
-        db.execute("UPDATE quotes SET quote_code=?, code_stage='T', code_assigned_at=?, updated_at=? "
-                   "WHERE thread_id=?", (number, now, now, thread_id))
+        actualizar_caso(db, thread_id,
+            quote_code=number,
+            code_stage='T',
+            code_assigned_at=now,
+            updated_at=now)
         record_event(db, thread_id, "code_assigned", "dashboard", _action_ref(),
                      f"Se aceptó el proyecto y se asignó el código {code_label(number, 'T')}. "
                      "Desde aquí todo cambio debe citarlo.", now)
@@ -218,7 +222,9 @@ def promote_to_te(thread_id: str) -> str:
         if row["code_stage"] == "TE":
             return "La oferta ya figuraba como aprobada."
         now = datetime.now().astimezone().isoformat(timespec="seconds")
-        db.execute("UPDATE quotes SET code_stage='TE', updated_at=? WHERE thread_id=?", (now, thread_id))
+        actualizar_caso(db, thread_id,
+            code_stage='TE',
+            updated_at=now)
         record_event(db, thread_id, "code_approved", "dashboard", _action_ref(),
                      f"La oferta fue aprobada: {code_label(row['quote_code'], 'T')} pasa a "
                      f"{code_label(row['quote_code'], 'TE')}.", now)

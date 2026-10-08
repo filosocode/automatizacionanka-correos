@@ -5,6 +5,7 @@ que un reproceso del modelo no la pise (R11/R12 en spec/02-reglas.md).
 """
 
 from __future__ import annotations
+from anka.servicios.repositorio import actualizar_caso
 
 import json
 import re
@@ -135,10 +136,9 @@ def save_activities(thread_id: str, activities: list[Actividad], reason: str = "
         record_event(db, thread_id, "table_edit", "dashboard", f"v{version}-{uuid4().hex[:6]}",
                      f"Editaste la tabla (versión {version}): {summary}."
                      + (f" Motivo: {EDIT_REASONS[reason]}." if reason else ""), now)
-        db.execute(
-            "UPDATE quotes SET analysis_json=?, updated_at=? WHERE thread_id=?",
-            (json.dumps(analysis, ensure_ascii=False), now, thread_id),
-        )
+        actualizar_caso(db, thread_id,
+            analysis_json=json.dumps(analysis, ensure_ascii=False),
+            updated_at=now)
         db.commit()
     finally:
         db.close()

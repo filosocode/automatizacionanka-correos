@@ -19,7 +19,7 @@ select = ["E", "F", "W", "B", "UP", "C90", "D100", "D101", "D102", "D103"]
 max-complexity = 15
 
 [tool.coverage.run]
-source = ["anka", "app.py", "supervisor.py", "work_dashboard_sync.py", "check_spec.py"]
+source = ["anka", "check_spec"]
 omit = ["simulaciones/*", "tests/*", ".venv/*", ".uv-cache/*", ".github/*"]
 
 [tool.coverage.report]
@@ -28,7 +28,7 @@ fail_under = 82
 skip_covered = false
 
 [tool.mypy]
-python_version = "3.11"
+# Usa la versión del intérprete: CI comprueba 3.11 y 3.12 con sus dependencias respectivas.
 files = ["."]
 exclude = ['^simulaciones/', '^\.venv/', '^\.uv-cache/', '^tests/', '^archivo_local/']
 # Las librerías de Google no publican tipos completos.

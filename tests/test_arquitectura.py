@@ -32,10 +32,10 @@ def imports_of(path):
     tree = ast.parse(path.read_text(encoding="utf-8"))
     found = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("anka"):
+        if isinstance(node, ast.ImportFrom) and node.module:
             found.append((node.module, [a.name for a in node.names]))
         elif isinstance(node, ast.Import):
-            found.extend((a.name, []) for a in node.names if a.name.startswith("anka"))
+            found.extend((a.name, []) for a in node.names)
     return found
 
 

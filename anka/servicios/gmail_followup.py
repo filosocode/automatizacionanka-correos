@@ -6,6 +6,7 @@ empresa en OTRO hilo: no los une al caso por su cuenta, los propone para que una
 """
 
 from __future__ import annotations
+from anka.servicios.repositorio import actualizar_caso
 
 import base64
 import email
@@ -163,11 +164,12 @@ def _note_sent_message(db: Any, thread_id: str, message_id: str, headers: dict[s
                               f"Correo enviado desde Gmail a {to}: «{snippet}»", _iso(when)))
     new_status = AFTER_SENT.get(case["status"]) if when > analyzed else None
     if new_status:
-        db.execute(
-            """UPDATE quotes SET status=?, sent_message_id=?, draft_id=NULL,
-                                 sent_at=?, updated_at=? WHERE thread_id=?""",
-            (new_status, message_id, _iso(when),
-             datetime.now().astimezone().isoformat(timespec="seconds"), thread_id))
+        actualizar_caso(db, thread_id,
+            status=new_status,
+            sent_message_id=message_id,
+            draft_id=None,
+            sent_at=_iso(when),
+            updated_at=datetime.now().astimezone().isoformat(timespec='seconds'))
         log.info("%s: envío detectado en Gmail; el caso pasa a %s", thread_id, new_status)
     return events, new_status
 

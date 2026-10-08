@@ -11,7 +11,7 @@ from typing import Any
 
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Adjunto
-from anka.dominio.attachments import (
+from anka.infra.attachments import (
     attachment_reviewed_sections, build_attachment_evidence, extract_attachment_text,
 )
 from anka.dominio.correo import (

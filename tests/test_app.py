@@ -31,7 +31,7 @@ from anka.dominio import reception
 from anka.infra import settings
 from anka.infra import store
 from anka.web import views as dashboard_views
-from anka.dominio.attachments import extract_attachment_text
+from anka.infra.attachments import extract_attachment_text
 from anka.dominio.correo import (
     attachment_names,
     forwarded_routing,
@@ -194,6 +194,7 @@ def complete_analysis(location="Bogotá"):
             {"name": "área o longitud", "value": "10 ha"},
         ],
         "other_questions": [],
+        "question_audit": [],
         "scope_dependencies": [],
         "contradictions": [],
     }
@@ -347,7 +348,7 @@ class QuoteFlowTests(unittest.TestCase):
         text, reason = extract_attachment_text(
             "alcance.csv", "text/csv", b"actividad,area\nlevantamiento,10 ha"
         )
-        self.assertIn("levantamiento,10 ha", text)
+        self.assertIn("Fila 2: actividad=levantamiento | area=10 ha", text)
         self.assertEqual(reason, "")
 
     def test_extracts_docx_attachment(self):
@@ -379,7 +380,7 @@ class QuoteFlowTests(unittest.TestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             content.getvalue(),
         )
-        self.assertIn("Bogotá\t10 ha", text)
+        self.assertIn("A2=Bogotá | B2=10 ha", text)
         self.assertEqual(reason, "")
 
     def test_extracts_kmz_polygon_summary(self):
@@ -397,8 +398,8 @@ class QuoteFlowTests(unittest.TestCase):
             content.getvalue(),
         )
         self.assertIn("RIO PAEZ", text)
-        self.assertIn("Cantidad de coordenadas: 3", text)
-        self.assertIn("-75.8, 2.4, -75.6, 2.5", text)
+        self.assertIn("Geometría: Polygon; coordenadas: 3", text)
+        self.assertIn("-75.80000000, 2.40000000, -75.60000000, 2.50000000", text)
         self.assertEqual(reason, "")
 
     def test_shapefile_without_projection_is_flagged_for_review(self):
@@ -442,7 +443,7 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertEqual(reason, "")
 
     def test_extracts_all_kmz_elements_and_uses_element_localizers(self):
-        from anka.dominio.attachments import attachment_reviewed_sections, build_attachment_evidence
+        from anka.infra.attachments import attachment_reviewed_sections, build_attachment_evidence
 
         content = io.BytesIO()
         with zipfile.ZipFile(content, "w") as archive:
@@ -525,8 +526,8 @@ class QuoteFlowTests(unittest.TestCase):
         text, reason = extract_attachment_text(
             "plano.pdf", "application/pdf", content.getvalue()
         )
-        self.assertEqual(text, "")
-        self.assertIn("sin texto extraíble", reason)
+        self.assertIn("CONTENIDO VISUAL NO INSPECCIONADO", text)
+        self.assertIn("lectura parcial", reason)
 
     def test_folder_name_is_safe_and_stable(self):
         self.assertEqual(
@@ -732,7 +733,7 @@ class QuoteFlowIntegrationTests(unittest.TestCase):
         self.assertEqual(row[1], "ready_review")
         attachments = analyze_mock.call_args.args[3]
         self.assertEqual(attachments[0]["status"], "extraido")
-        self.assertIn("Bogotá,10 ha", attachments[0]["text"])
+        self.assertIn("Fila 2: ubicación=Bogotá | área=10 ha", attachments[0]["text"])
         self.assertIn('"status": "extraido"', packets[0])
 
     def test_unreadable_attachment_records_which_fields_are_blocked(self):

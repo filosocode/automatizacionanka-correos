@@ -207,7 +207,13 @@ class MergeOwnCase(OneEmailOneCase):
 class MigrationCleansWhatWasAlreadyRepeated(unittest.TestCase):
     def test_pending_notices_for_an_email_already_confirmed_elsewhere_are_closed(self):
         with tempfile.TemporaryDirectory() as d:
-            db = store.open_db(Path(d))
+            # Construye realmente el esquema 10; no rebaja la versión de una base más nueva.
+            db = sqlite3.connect(Path(d) / 'quotes.sqlite3')
+            db.row_factory = sqlite3.Row
+            for migration in store.MIGRATIONS[:10]:
+                migration(db)
+            db.execute('PRAGMA user_version = 10')
+            db.commit()
             for thread in ("t-a", "t-b"):
                 store.save(db, thread, f"m-{thread}", QuoteStatus.WAITING, "ana@acme.com", {})
                 add_link(db, thread, "correo-1", state="linked" if thread == "t-b" else "pending")

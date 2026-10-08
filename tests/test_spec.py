@@ -28,7 +28,7 @@ def make_repo(root: Path, requirements: str, tests: dict[str, str], rules: str =
     rules_path.write_text(rules, encoding="utf-8")
     (root / "tests").mkdir(exist_ok=True)
     for filename, body in tests.items():
-        (root / "tests" / filename).write_text(body, encoding="utf-8")
+        (root / "tests" / filename).write_text(body + "\ndef test_behavior():\n    assert True\n", encoding="utf-8")
 
 
 class RealRepository(unittest.TestCase):

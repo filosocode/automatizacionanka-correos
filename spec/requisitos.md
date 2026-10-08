@@ -176,6 +176,19 @@ hacer hoy».
 
 ### U-05 · Un clic, un correo
 El botón de enviar se bloquea tras el primer clic y el servidor rechaza repetir el mismo texto.
+La reserva de envío es persistente y atómica por hilo, destinatario real y texto. Un envío en curso o
+de resultado incierto bloquea el reintento, incluso después de reiniciar. Antes de reintentarlo se
+reconcilia con Gmail mediante un identificador de mensaje estable; no se presupone que un timeout sea un fallo de envío.
+
+### T-22 · Recuperación de evidencia
+El respaldo incluye los originales de `evidence/` junto con la base y los ajustes permitidos, nunca credenciales.
+La restauración valida el ZIP y la integridad SQLite antes de reemplazar datos, conserva una copia previa y
+rechaza rutas externas, enlaces y archivos ajenos a la lista permitida. Se prueba una recuperación con evidencia.
+
+### T-23 · Evaluación reproducible
+La evaluación distingue pruebas determinísticas de resultados observados con modelos reales. Registra versión
+del prompt, modelo, fecha, corpus anonimizado y resultados por caso. Una muestra sin etiquetar no produce una
+calificación de precisión. La trazabilidad identifica métodos de prueba ejecutables y no solo archivos etiquetados.
 
 ### U-06 · Estados veraces
 El estado que se ve en la lista, en el detalle y en los avisos no se contradice y refleja lo ocurrido.

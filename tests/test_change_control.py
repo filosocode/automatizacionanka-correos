@@ -452,7 +452,7 @@ class WorkDraftTests(Base):
         quote = quotes.get_quote("W1")
         context = (quote, Gmail(), {"id": "W1", "messages": []}, set())
         with patch.object(case_actions, "case_email_context", return_value=context), \
-                patch.object(case_actions, "reply_email", return_value=type("E", (), {"as_bytes": lambda self: b"x"})()):
+                patch.object(case_actions, "reply_email", return_value=__import__("email.message", fromlist=["EmailMessage"]).EmailMessage()):
             case_actions.send_dashboard_reply("W1", "Hola, texto final")
         self.assertEqual(calls, [("update", "D-work"), ("send", "D-work")])
         self.assertNotIn("work_reply", quotes.get_quote("W1")["analysis"])   # ya no se vuelve a proponer
@@ -484,7 +484,7 @@ class WorkDraftTests(Base):
 
         context = (quotes.get_quote("W1"), Gmail(), {"id": "W1", "messages": []}, set())
         with patch.object(case_actions, "case_email_context", return_value=context), \
-                patch.object(case_actions, "reply_email", return_value=type("E", (), {"as_bytes": lambda self: b"x"})()):
+                patch.object(case_actions, "reply_email", return_value=__import__("email.message", fromlist=["EmailMessage"]).EmailMessage()):
             self.assertIn("Correo enviado", case_actions.send_dashboard_reply("W1", "Hola"))
 
 
@@ -762,7 +762,7 @@ class DoubleSendTests(Base):
     def send(self, gmail, body="Hola, ¿datum?"):
         context = (quotes.get_quote("T1"), gmail, {"id": "T1", "messages": []}, set())
         with patch.object(case_actions, "case_email_context", return_value=context), \
-                patch.object(case_actions, "reply_email", return_value=type("E", (), {"as_bytes": lambda self: b"x"})()):
+                patch.object(case_actions, "reply_email", return_value=__import__("email.message", fromlist=["EmailMessage"]).EmailMessage()):
             return case_actions.send_dashboard_reply("T1", body)
 
     def test_the_same_text_is_not_sent_twice_in_a_row(self):
@@ -913,7 +913,7 @@ class ClientDelayFollowupTests(Base):
 
         from anka.dominio import correo
         with p2.object(case_actions, "case_email_context", return_value=context), \
-                p2.object(correo, "reply_email", return_value=type("E", (), {"as_bytes": lambda self: b"x"})()):
+                p2.object(correo, "reply_email", return_value=__import__("email.message", fromlist=["EmailMessage"]).EmailMessage()):
             fup.send_reminder("T1", 1)
         after = quotes.get_quote("T1")
         self.assertEqual((after["status"], after["sent_at"]), (QuoteStatus.WAITING, self.SENT))   # el reloj no se reinicia

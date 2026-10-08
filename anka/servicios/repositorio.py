@@ -1,7 +1,9 @@
-"""`RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite.
+"""Lectura de casos y actualizaciones de su fila centralizadas para los servicios.
 
 Una clase porque tiene estado (cómo abrir la base) y un conjunto de operaciones que viajan juntas. Quien la usa
-pide casos y datos del caso («obtener», «listar», «eventos»…) sin escribir SQL ni abrir ni cerrar conexiones.
+pide casos y datos del caso («obtener», «listar», «eventos»…) sin abrir ni cerrar conexiones.
+Los servicios aún gestionan transacciones y tablas auxiliares; sus cambios a la fila del caso pasan por
+`actualizar_caso`, que valida campos y parametriza valores. `infra.store` conserva migraciones y altas iniciales.
 
 Por defecto abre la base con `store.connect()`, así que dentro de una petición web comparte su conexión
 (`request_scope`); para probar basta pasarle otra forma de abrirla. Las funciones de `quotes.py` (`get_quote`,
@@ -15,7 +17,7 @@ import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import NamedTuple
+from typing import NamedTuple, Any
 from uuid import uuid4
 
 from anka.dominio.caso import (
@@ -28,6 +30,21 @@ from anka.infra.logging_setup import get_logger
 from anka.infra.store import case_events, connect, record_event, verify_chain
 
 log = get_logger(__name__)
+
+
+CASE_FIELDS = frozenset({
+    'recipient', 'analysis_json', 'updated_at', 'status', 'draft_id', 'draft_body',
+    'sent_message_id', 'sent_at', 'quote_code', 'code_stage', 'code_assigned_at',
+    'last_inbound_id', 'folder_id', 'sheet_id', 'sheet_modified', 'sheet_synced_at', 'sheet_error',
+})
+
+
+def actualizar_caso(db: sqlite3.Connection, thread_id: str, **campos: Any) -> None:
+    """Actualiza campos permitidos de un caso dentro de la transacción del caso de uso."""
+    if not campos or not campos.keys() <= CASE_FIELDS:
+        raise ValueError('Campos de caso no permitidos.')
+    assignments = ', '.join(f'{name}=?' for name in campos)
+    db.execute(f'UPDATE quotes SET {assignments} WHERE thread_id=?', (*campos.values(), thread_id))
 
 
 class _CaseRelations(NamedTuple):

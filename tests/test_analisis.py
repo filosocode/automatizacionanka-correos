@@ -21,7 +21,7 @@ class AnalysisShapeTests(unittest.TestCase):
         self.assertEqual(declared, set(ANALYSIS_SCHEMA["properties"]["activities"]["items"]["properties"]))
 
     def test_the_extracted_fields_have_name_and_value(self):
-        self.assertEqual(set(get_type_hints(Campo)), {"name", "value"})
+        self.assertEqual(set(get_type_hints(Campo)), {"name", "value", "source"})
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 """Acciones sobre un caso desde el dashboard: destinatario, borrador, envío, aprobación."""
 
 from __future__ import annotations
+from anka.servicios.repositorio import actualizar_caso
 
 import base64
 import json
@@ -37,6 +38,7 @@ from anka.servicios.change_control import (
     assign_code, code_label, known_addresses, mark_change_sent, normalize_number,
 )
 from anka.servicios.quotes import case_has_links, delete_quotes, get_quote, set_client_name
+from anka.servicios import envios
 
 log = get_logger(__name__)
 
@@ -63,11 +65,10 @@ def resolve_case_recipient(thread_id: str) -> dict:
     analysis["routing"] = routing
     db = connect()
     try:
-        db.execute("""UPDATE quotes SET recipient=?, analysis_json=?, updated_at=?
-                      WHERE thread_id=?""", (
-            recipient, json.dumps(analysis, ensure_ascii=False),
-            datetime.now().astimezone().isoformat(timespec="seconds"), thread_id,
-        ))
+        actualizar_caso(db, thread_id,
+            recipient=recipient,
+            analysis_json=json.dumps(analysis, ensure_ascii=False),
+            updated_at=datetime.now().astimezone().isoformat(timespec='seconds'))
         db.commit()
     finally:
         db.close()
@@ -122,11 +123,11 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     db = connect()
     try:
-        db.execute(
-            f"""UPDATE quotes SET status='{QuoteStatus.DRAFT_CREATED}', draft_id=?, draft_body=?,
-                                 updated_at=? WHERE thread_id=?""",
-            (draft_id, body, now, thread_id),
-        )
+        actualizar_caso(db, thread_id,
+            status=QuoteStatus.DRAFT_CREATED,
+            draft_id=draft_id,
+            draft_body=body,
+            updated_at=now)
         add_dashboard_notification(
             db, thread_id, "draft_saved", draft_id,
             "Borrador guardado en Gmail",
@@ -194,12 +195,14 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
     try:
         analysis = dict(quote["analysis"])
         analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
-        db.execute(
-            """UPDATE quotes SET status=?, sent_message_id=?, analysis_json=?,
-                                 draft_id=NULL, draft_body=?, sent_at=?, updated_at=?
-               WHERE thread_id=?""",
-            (new_status, message_id, json.dumps(analysis, ensure_ascii=False), body, now, now, thread_id),
-        )
+        actualizar_caso(db, thread_id,
+            status=new_status,
+            sent_message_id=message_id,
+            analysis_json=json.dumps(analysis, ensure_ascii=False),
+            draft_id=None,
+            draft_body=body,
+            sent_at=now,
+            updated_at=now)
         add_message(db, thread_id, message_id, "sent", "", "", body, now)
         record_event(db, thread_id, "sent", "dashboard", message_id,
                      f"Correo enviado desde el dashboard a {recipient}.", now)
@@ -225,13 +228,26 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
         raise ValueError("El correo no puede estar vacío.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
     recipient = _recipient(thread_id, quote, to)
+    previous = envios.pendiente(thread_id, recipient, body)
+    if previous:
+        message_id = envios.reconciliar(gmail, previous)
+        if message_id:
+            if quote.get('sent_message_id') != message_id:
+                _record_sent_reply(quote, thread_id, message_id, body, recipient,
+                                   _status_after_reply(quote['status']), previous['created_at'])
+            envios.confirmar(previous['operation_key'], message_id)
+            raise ValueError('Este mismo correo ya se envió. Se confirmó su registro; no se envió de nuevo.')
+        raise ValueError('Envío en curso o incierto: Gmail aún no confirma el mensaje. No se envió de nuevo.')
     duplicate = _already_sent(quote, body, recipient)
     if duplicate:
         raise ValueError(duplicate)
     email = reply_email(thread, recipient, body, account_addresses)
+    operation_key, stable_message_id = envios.reservar(thread_id, recipient, body)
+    email['Message-ID'] = stable_message_id
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
     draft_id = quote["draft_id"] or (quote["analysis"].get("work_reply") or {}).get("draft_id") or ""
     result = _send_through_gmail(gmail, thread_id, raw, draft_id)
+    envios.confirmar(operation_key, result['id'])
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     new_status = _status_after_reply(quote["status"])
     _record_sent_reply(quote, thread_id, result["id"], body, recipient, new_status, now)
@@ -346,8 +362,8 @@ def _note_drive_pending(thread_id: str, message: str) -> None:
         if row:
             analysis = json.loads(row["analysis_json"])
             analysis["drive"] = {"pending": message}
-            db.execute("UPDATE quotes SET analysis_json=? WHERE thread_id=?",
-                       (json.dumps(analysis, ensure_ascii=False), thread_id))
+            actualizar_caso(db, thread_id,
+                analysis_json=json.dumps(analysis, ensure_ascii=False))
             db.commit()
     finally:
         db.close()

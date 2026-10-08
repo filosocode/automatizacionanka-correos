@@ -9,7 +9,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from anka.dominio.attachments import (
+from anka.infra.attachments import (
     MAX_WORK_PACKET_ATTACHMENT_BYTES,
     attachment_reviewed_sections,
     build_attachment_evidence,

@@ -144,7 +144,7 @@ def analysis_prompt(
             f"Texto: {message_text(message.get('payload', {}))[:20000]}"
         )
     for attachment in attachments or []:
-        text = attachment.get("text", "")
+        text = attachment.get("text", "") if attachment.get('status') == 'extraido' else ''
         coverage = attachment.get("coverage", "no informada")
         reason = attachment.get("reason", "")
         source = (

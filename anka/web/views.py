@@ -115,7 +115,7 @@ def _audit_review_rows(audit: Sequence[Mapping[str, Any]], waiting_for_client: b
 
 
 def _audit_search_text(audit: Sequence[Mapping[str, Any]]) -> str:
-    parts = []
+    parts: list[str] = []
     for item in audit:
         if not isinstance(item, Mapping):
             continue
@@ -125,7 +125,7 @@ def _audit_search_text(audit: Sequence[Mapping[str, Any]]) -> str:
 
 
 def _internal_review_search_text(audit: Sequence[Mapping[str, Any]]) -> str:
-    parts = []
+    parts: list[str] = []
     for item in audit:
         if not isinstance(item, Mapping) or item.get("disposition") != "internal_review":
             continue

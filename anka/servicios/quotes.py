@@ -7,6 +7,7 @@ La edición de la tabla de actividades vive en `ediciones.py` y la importación 
 """
 
 from __future__ import annotations
+from anka.servicios.repositorio import actualizar_caso
 
 import sqlite3
 from uuid import uuid4
@@ -211,8 +212,9 @@ def _propose_activities(db: sqlite3.Connection, thread_id: str, analysis: Analis
     if not incoming or combined == current:
         return
     analysis["pending_model_activities"] = combined
-    db.execute("UPDATE quotes SET analysis_json=?, updated_at=? WHERE thread_id=?",
-               (json.dumps(analysis, ensure_ascii=False), now, thread_id))
+    actualizar_caso(db, thread_id,
+        analysis_json=json.dumps(analysis, ensure_ascii=False),
+        updated_at=now)
     record_event(db, thread_id, "table_proposed", "dashboard", f"merged-table-{now}",
                  f"El correo unido («{source_name}») trae cambios para la tabla: quedan como propuesta pendiente "
                  "para que la adoptes o la descartes.", now)
@@ -239,8 +241,10 @@ def _merge_own_case(db: sqlite3.Connection, thread_id: str, link: sqlite3.Row, n
     _propose_activities(db, thread_id, target_analysis, analysis.get("activities") or [], name, now)
     analysis["ignored_reason"] = f"Unido al caso «{target}» (confirmaste que el correo es de ese caso)."
     analysis["merged_into"] = thread_id
-    db.execute("UPDATE quotes SET status=?, analysis_json=?, updated_at=? WHERE thread_id=?",
-               (QuoteStatus.IGNORED, json.dumps(analysis, ensure_ascii=False), now, other))
+    actualizar_caso(db, other,
+        status=QuoteStatus.IGNORED,
+        analysis_json=json.dumps(analysis, ensure_ascii=False),
+        updated_at=now)
     db.execute("UPDATE dashboard_notifications SET read_at=? WHERE thread_id=? AND read_at IS NULL", (now, other))
     record_event(db, other, "merged", "dashboard", f"merged-{link['id']}",
                  f"Este caso se unió a «{target}» porque confirmaste que su correo pertenece a ese caso.", now)
@@ -403,8 +407,9 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
             summary = f"Adoptaste la tabla propuesta por el modelo ({len(proposed)} actividades)."
         else:
             summary = "Mantuviste tu tabla y descartaste la propuesta del modelo."
-        db.execute("UPDATE quotes SET analysis_json=?, updated_at=? WHERE thread_id=?",
-                   (json.dumps(analysis, ensure_ascii=False), now, thread_id))
+        actualizar_caso(db, thread_id,
+            analysis_json=json.dumps(analysis, ensure_ascii=False),
+            updated_at=now)
         record_event(db, thread_id, "proposal", "dashboard", f"{now}-{uuid4().hex[:6]}", summary, now)
         db.commit()
     finally:
@@ -482,10 +487,10 @@ def resolve_technical_review(thread_id: str, decision: str, questions_text: str 
             "decision": decision, "at": now, "questions": questions if decision == "ask_client" else [],
         }
         new_status = QuoteStatus.READY_REVIEW if decision == "sufficient" else QuoteStatus.REVIEW_PENDING
-        db.execute(
-            "UPDATE quotes SET status=?, analysis_json=?, updated_at=? WHERE thread_id=?",
-            (new_status, json.dumps(analysis, ensure_ascii=False), now, thread_id),
-        )
+        actualizar_caso(db, thread_id,
+            status=new_status,
+            analysis_json=json.dumps(analysis, ensure_ascii=False),
+            updated_at=now)
         record_event(db, thread_id, "review_decision", "dashboard", f"{now}-{uuid4().hex[:6]}",
                      "Decidiste que la información es suficiente." if decision == "sufficient"
                      else f"Decidiste preguntar al cliente ({len(questions)} pregunta(s)).", now)

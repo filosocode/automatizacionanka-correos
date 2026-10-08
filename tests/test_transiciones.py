@@ -108,7 +108,7 @@ class Transitions(unittest.TestCase):
         context = (quote, gmail, {"id": thread, "messages": []}, set())
         with patch.object(case_actions, "case_email_context", return_value=context), \
                 patch.object(case_actions, "reply_email",
-                             return_value=type("E", (), {"as_bytes": lambda self: b"x"})()):
+                             return_value=__import__("email.message", fromlist=["EmailMessage"]).EmailMessage()):
             return case_actions.send_dashboard_reply(thread, f"Texto para {thread}")
 
     def test_sending_from_the_dashboard(self):

@@ -121,6 +121,8 @@ class Analisis(TypedDict, total=False):
     fields: list[Campo]
     other_questions: list[str]
     question_audit: list[dict[str, object]]
+    evidence_register: list[dict[str, object]]
+    question_quality_warnings: list[str]
     scope_dependencies: list[Dependencia]
     contradictions: list[Contradiccion]
     attachments: list[Adjunto]

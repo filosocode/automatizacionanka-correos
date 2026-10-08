@@ -14,6 +14,7 @@ Las pruebas se etiquetan con un comentario o docstring `Cubre: F1-03, R12`. Uso:
 from __future__ import annotations
 
 import re
+import ast
 import sys
 from pathlib import Path
 
@@ -42,18 +43,40 @@ def requirement_ids(root: Path = ROOT) -> set[str]:
 
 
 def coverage(root: Path = ROOT) -> dict[str, list[str]]:
-    """id → archivos de prueba que lo cubren."""
+    """Id → métodos ejecutables asociados a etiquetas; no demuestra suficiencia semántica."""
     found: dict[str, list[str]] = {}
     for path in sorted((root / "tests").glob("test_*.py")):
         if path.name == "test_spec.py":
             continue                      # sus ejemplos de etiquetas son datos de prueba, no cobertura
-        for match in TAG.finditer(path.read_text(encoding="utf-8")):
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        for match in TAG.finditer(source):
+            tests = tests_for_tag(source, tree, match.start())
             for item in re.split(r"[,\s]+", match.group(1).strip()):
                 if re.fullmatch(r"[A-Z]+\d*(?:-\d+)?", item):
                     found.setdefault(item, [])
-                    if path.name not in found[item]:
-                        found[item].append(path.name)
+                    for test in tests:
+                        identity = f'{path.name}:{test.lineno}:{test.name}'
+                        if identity not in found[item]:
+                            found[item].append(identity)
     return found
+
+
+def tests_for_tag(source: str, tree: ast.Module, offset: int) -> list[ast.FunctionDef]:
+    """Asocia la etiqueta a su método/clase, o al módulo cuando está en la cabecera."""
+    line = source.count('\n', 0, offset) + 1
+    scopes = [node for node in ast.walk(tree) if isinstance(node, (ast.ClassDef, ast.FunctionDef))]
+    enclosing = [node for node in scopes if node.lineno <= line <= (node.end_lineno or node.lineno)]
+    scope: ast.AST = min(enclosing, key=lambda node: (node.end_lineno or 0) - node.lineno) if enclosing else tree
+    if not enclosing:
+        following = sorted((node for node in scopes if node.lineno > line), key=lambda node: node.lineno)
+        if following:
+            between = source.splitlines()[line:following[0].lineno-1]
+            if all(not text.strip() or text.lstrip().startswith(('#', '@')) for text in between):
+                scope = following[0]
+    return [node for node in ast.walk(scope) if isinstance(node, ast.FunctionDef)
+            and node.name.startswith('test_') and any(
+                isinstance(child, (ast.Assert, ast.Call)) for child in ast.walk(node))]
 
 
 def check(root: Path = ROOT) -> list[str]:
@@ -61,7 +84,7 @@ def check(root: Path = ROOT) -> list[str]:
     problems = [f"Falta {name}" for name in REQUIRED_FILES if not (root / name).exists()]
     required = requirement_ids(root)
     covered = coverage(root)
-    for missing in sorted(required - set(covered), key=_order):
+    for missing in sorted(required - {key for key, tests in covered.items() if tests}, key=_order):
         problems.append(f"El requisito {missing} no tiene ninguna prueba con «Cubre: {missing}».")
     for unknown in sorted(set(covered) - required, key=_order):
         problems.append(f"La etiqueta «Cubre: {unknown}» (en {', '.join(covered[unknown])}) no existe en la especificación.")
@@ -79,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     if "--resumen" in argv:
         covered = coverage()
         for identifier in sorted(requirement_ids(), key=_order):
-            print(f"{identifier:7} {len(covered.get(identifier, [])):2} archivo(s) de prueba")
+            print(f"{identifier:7} {len(covered.get(identifier, [])):2} método(s) asociado(s)")
     for problem in problems:
         print("ERROR:", problem)
     if not problems:

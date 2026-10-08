@@ -27,6 +27,7 @@ LLM_OLLAMA = {"provider": "ollama", "base_url": "http://ollama.local:11434/", "m
 
 def model_result(**extra):
     result = complete_analysis()
+    result["question_audit"] = []
     result.update(extra)
     return result
 

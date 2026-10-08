@@ -10,10 +10,13 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import shutil
+import stat
+from contextlib import closing
 import tempfile
 import zipfile
 from datetime import datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from anka.infra import settings
@@ -56,6 +59,10 @@ def create_backup() -> Path:
                 path = settings.DATA_DIR / name
                 if path.exists():
                     archive.write(path, name)
+            evidence = settings.DATA_DIR / 'evidence'
+            for path in sorted(evidence.rglob('*.eml')):
+                if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(evidence.resolve()):
+                    archive.write(path, path.relative_to(settings.DATA_DIR).as_posix())
     return target
 
 
@@ -142,15 +149,58 @@ def backup_due(now: datetime | None = None) -> bool:
 
 
 def restore(archive_path: Path) -> Path:
-    """Restaura quotes.sqlite3; la base actual se guarda aparte. Cierra el dashboard antes."""
-    with zipfile.ZipFile(archive_path) as archive:
-        if "quotes.sqlite3" not in archive.namelist():
-            raise ValueError("El archivo no contiene quotes.sqlite3.")
-        target = settings.DATA_DIR / "quotes.sqlite3"
-        if target.exists():
-            target.replace(target.with_name(f"quotes.sqlite3.before-restore-{datetime.now():%Y%m%d-%H%M%S}"))
-        archive.extract("quotes.sqlite3", settings.DATA_DIR)
-    return target
+    """Valida y restaura base, ajustes y evidencia; conserva originales y revierte un fallo. Cierra Anka antes."""
+    with tempfile.TemporaryDirectory() as temporary, zipfile.ZipFile(archive_path) as archive:
+        stage = Path(temporary)
+        names = _validate_archive(archive)
+        for name in names:
+            archive.extract(name, stage)
+        with closing(sqlite3.connect(stage / 'quotes.sqlite3')) as db:
+            if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+                raise ValueError('La base del respaldo no supera la comprobación de integridad.')
+        _install_restore(stage, names)
+    return settings.DATA_DIR / 'quotes.sqlite3'
+
+
+def _validate_archive(archive: zipfile.ZipFile) -> list[str]:
+    names = archive.namelist()
+    if 'quotes.sqlite3' not in names or len(names) != len(set(names)):
+        raise ValueError('Respaldo sin base de datos o con entradas repetidas.')
+    if sum(info.file_size for info in archive.infolist()) > 2 * 1024**3:
+        raise ValueError('El respaldo supera el límite de restauración de 2 GiB.')
+    for info in archive.infolist():
+        path = PurePosixPath(info.filename)
+        allowed = info.filename in ('quotes.sqlite3', *EXTRA_FILES) or (
+            len(path.parts) == 3 and path.parts[0] == 'evidence' and path.suffix == '.eml')
+        if (not allowed or path.is_absolute() or '..' in path.parts or '\\' in info.filename
+                or ':' in info.filename or stat.S_ISLNK(info.external_attr >> 16)):
+            raise ValueError('El respaldo contiene una ruta o archivo no permitido.')
+        target = (settings.DATA_DIR / info.filename).resolve()
+        if not target.is_relative_to(settings.DATA_DIR.resolve()):
+            raise ValueError('El destino del respaldo apunta fuera de la carpeta de datos.')
+    return names
+
+
+def _install_restore(stage: Path, names: list[str]) -> None:
+    stamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    installed: list[tuple[Path, Path | None]] = []
+    try:
+        # La base se instala al final, cuando su evidencia ya está disponible.
+        for name in sorted(names, key=lambda value: value == 'quotes.sqlite3'):
+            target = settings.DATA_DIR / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            previous = target.with_name(target.name + '.before-restore-' + stamp) if target.exists() else None
+            if previous:
+                shutil.copy2(target, previous)
+            installed.append((target, previous))
+            shutil.copy2(stage / name, target)
+    except Exception:
+        for target, previous in reversed(installed):
+            if previous:
+                shutil.copy2(previous, target)
+            elif target.exists():
+                target.unlink()
+        raise
 
 
 def main() -> None:

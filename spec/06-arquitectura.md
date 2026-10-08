@@ -8,7 +8,8 @@ metió una dependencia que el diseño no permite, y se corrige moviendo el códi
 cli ─┐
 web ─┴─▶ servicios ─▶ infra ─▶ dominio
 ```
-Una capa solo importa de las que tiene **debajo**. `web` y `cli` no se importan entre sí.
+Una capa solo importa de las que tiene **debajo**. `cli` puede iniciar el servidor web;
+`web` no importa comandos. El dominio no inicia procesos ni importa los clientes externos.
 
 | Capa (`anka/…`) | Qué contiene | Qué NO puede hacer |
 |---|---|---|
@@ -29,7 +30,9 @@ La descripción es la primera frase de su docstring.
 |---|---|
 | `activities` | Edicion y exportacion de la tabla de actividades (sin acceso a Gmail ni Drive). |
 | `analisis` | La forma del análisis de una solicitud: lo que el modelo (o Work) devuelve y el dashboard guarda como JSON. |
-| `attachments` | Extraccion local de texto desde adjuntos (sin llamar al modelo). |
+| `attachments` | Límites y evidencia de adjuntos en memoria. |
+| `lectores_texto` | Lectura en memoria de texto, HTML y RTF. |
+| `lectores_geograficos` | Geometrías, misiones y tablas geográficas en memoria. |
 | `caso` | `Caso`: la vista de una solicitud de cotización tal como la ven el dashboard y las acciones. |
 | `configuracion` | La forma de `config.json` (vive fuera del repositorio, en la carpeta de datos): sus claves y sus tipos. |
 | `correo` | El correo como dato: leer cabeceras, texto y adjuntos de un mensaje de Gmail y armar una respuesta. |
@@ -45,6 +48,11 @@ La descripción es la primera frase de su docstring.
 
 | Módulo | Para qué sirve |
 |---|---|
+| `attachments` | Lectores de documentos y coordinación de extracción. |
+| `lectores_imagen` | OCR y conversión externa de documentos antiguos. |
+
+| Módulo | Para qué sirve |
+|---|---|
 | `backup` | Copias de seguridad de la base del dashboard: local y en Drive (sin credenciales ni token). |
 | `google_services` | Cliente de Gmail y Drive: credenciales, servicios y carpetas. |
 | `llm` | Análisis del correo con el motor elegido (Ollama u OpenAI). |
@@ -56,6 +64,10 @@ La descripción es la primera frase de su docstring.
 | `work_heartbeat` | Latido del puente Gmail → dashboard (modo chatgpt_work): permite saber si está vivo. |
 
 ### `anka/servicios/`
+
+| Módulo | Para qué sirve |
+|---|---|
+| `envios` | Reserva persistente y reconciliación de envíos del dashboard. |
 
 | Módulo | Para qué sirve |
 |---|---|
