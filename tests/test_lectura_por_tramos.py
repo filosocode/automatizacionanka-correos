@@ -535,3 +535,18 @@ class CalidadDeHallazgosTests(unittest.TestCase):
     def test_the_prompt_asks_to_group_repetitive_series(self):
         prompt = llm.hallazgos_prompt("ctx", "a.pdf", "texto", "tramo 1 de 2")
         self.assertIn("agrupa en UNO las series repetitivas", prompt)
+
+
+class SinAdvertenciasTests(unittest.TestCase):
+    def test_the_chunking_module_emits_no_warnings_when_it_is_imported(self):
+        # Una expresión regular ambigua (`[[]`) daba un FutureWarning en cada arranque de la línea de comandos. Se prueba en
+        # un proceso nuevo: `re` guarda en caché los patrones ya compilados y recargar el módulo no los vuelve a compilar.
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        resultado = subprocess.run(
+            [sys.executable, "-W", "error", "-c", "import anka.dominio.tramos"],
+            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(resultado.returncode, 0, resultado.stderr[-400:])
