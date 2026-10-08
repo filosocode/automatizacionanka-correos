@@ -17,6 +17,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 from anka.dominio.analisis import Actividad, Analisis
+from anka.dominio.preguntas import DESCARTAR, candidatas, con_decisiones, decidir, internas, para_el_cliente
+from anka.dominio.reception import reception_assessment
 from anka.dominio.status import (
     REVIEW_QUEUE_STATUSES, QuoteStatus, sql_in,
 )
@@ -539,18 +541,23 @@ def delete_quotes(thread_ids: list[str]) -> str:
     return f"Se eliminaron {len(found)} solicitud(es) del dashboard."
 
 
-def resolve_technical_review(thread_id: str, decision: str, questions_text: str = "") -> str:
-    """Una persona cierra la revisión técnica: pasa a información suficiente o pregunta al cliente.
+def resolve_technical_review(
+    thread_id: str, decision: str, questions_text: str = "", *,
+    elecciones: Mapping[str, tuple[str, str]] | None = None, nuevas: str = "",
+) -> str:
+    """Una persona cierra la revisión técnica: información suficiente, preguntar al cliente o guardar sus decisiones.
 
-    Guarda la decisión en `analysis["manual_review"]` (quita el bloqueo técnico de la evaluación)
-    y mueve el estado. No envía nada. Si llega un mensaje nuevo en el hilo, el reanálisis
-    reemplaza el análisis y la decisión se descarta: lo nuevo se revisa otra vez.
+    Guarda la decisión en `analysis["manual_review"]` (quita el bloqueo técnico de la evaluación) y mueve el estado. No
+    envía nada. Con `elecciones` (id de pregunta → decisión y texto) cada pregunta se decide por separado (U-22): las
+    que se le harán al cliente van al correo, las internas quedan en los pendientes de Anka y las descartadas
+    desaparecen; `decision="internal_only"` guarda esas decisiones sin pasar el caso a preguntas. Sin `elecciones`,
+    `questions_text` (una pregunta por línea) sigue funcionando como antes. Si llega un mensaje nuevo en el hilo, el
+    reanálisis reemplaza el análisis y las decisiones se descartan: lo nuevo se revisa otra vez.
     """
-    if decision not in ("sufficient", "ask_client"):
+    if decision not in ("sufficient", "ask_client", "internal_only"):
         raise ValueError("Decisión no válida.")
-    questions = [line.strip()[:500] for line in questions_text.splitlines() if line.strip()][:10]
-    if decision == "ask_client" and not questions:
-        raise ValueError("Escribe al menos una pregunta para el cliente (una por línea).")
+    if decision == "internal_only" and elecciones is None:
+        raise ValueError("Elige qué hacer con cada pregunta antes de guardar.")
     db = connect()
     try:
         row = db.execute(
@@ -562,23 +569,44 @@ def resolve_technical_review(thread_id: str, decision: str, questions_text: str 
             raise ValueError("Solo se puede decidir sobre casos en revisión técnica interna.")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         analysis = load_analysis(row["analysis_json"])
-        analysis["manual_review"] = {
-            "decision": decision, "at": now, "questions": questions if decision == "ask_client" else [],
-        }
-        new_status = QuoteStatus.READY_REVIEW if decision == "sufficient" else QuoteStatus.REVIEW_PENDING
+        por_dentro = descartadas = 0
+        if elecciones is not None:
+            actuales = con_decisiones(candidatas(analysis, reception_assessment(analysis)), analysis.get("preguntas"))
+            decididas = decidir(actuales, elecciones, nuevas.splitlines(), "dashboard", now)
+            analysis["preguntas"] = decididas
+            questions = para_el_cliente(decididas)
+            por_dentro = len(internas(decididas))
+            descartadas = sum(1 for p in decididas if p.get("decision") == DESCARTAR)
+        else:
+            questions = [line.strip()[:500] for line in questions_text.splitlines() if line.strip()][:10]
+        if decision == "ask_client" and not questions:
+            raise ValueError("Elige al menos una pregunta para el cliente o escribe una propia.")
+        if decision == "internal_only":
+            new_status = QuoteStatus.REVIEW  # la revisión técnica sigue abierta: solo se guardaron decisiones
+            texto = (f"Decidiste cómo tratar las preguntas: {por_dentro} por resolver dentro de Anka, "
+                     f"{descartadas} descartada(s).")
+        else:
+            analysis["manual_review"] = {
+                "decision": decision, "at": now, "questions": questions if decision == "ask_client" else [],
+            }
+            new_status = QuoteStatus.READY_REVIEW if decision == "sufficient" else QuoteStatus.REVIEW_PENDING
+            aparte = (f"; {por_dentro} por resolver dentro de Anka" if por_dentro else "") + (
+                f"; {descartadas} descartada(s)" if descartadas else "")
+            texto = ("Decidiste que la información es suficiente." if decision == "sufficient"
+                     else f"Decidiste preguntar al cliente ({len(questions)} pregunta(s){aparte}).")
         actualizar_caso(db, thread_id,
             status=new_status,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
             updated_at=now)
-        record_event(db, thread_id, "review_decision", "dashboard", f"{now}-{uuid4().hex[:6]}",
-                     "Decidiste que la información es suficiente." if decision == "sufficient"
-                     else f"Decidiste preguntar al cliente ({len(questions)} pregunta(s)).", now)
+        record_event(db, thread_id, "review_decision", "dashboard", f"{now}-{uuid4().hex[:6]}", texto, now)
         db.commit()
     finally:
         db.close()
     log.info("%s: revisión técnica resuelta por una persona (%s)", thread_id, decision)
     if decision == "sufficient":
         return "Marcado como información suficiente. Ya puedes crear la carpeta del proyecto en Drive."
+    if decision == "internal_only":
+        return "Decisiones guardadas. Las preguntas internas quedaron en los pendientes de Anka."
     return "Listo: revisa y envía las preguntas en la sección Respuesta al cliente."
 
 

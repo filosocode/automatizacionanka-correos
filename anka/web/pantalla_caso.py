@@ -26,6 +26,7 @@ from anka.dominio.status import (
     QuoteStatus,
 )
 from anka.dominio.correo import reply_body_without_quoted_history, split_quoted_reply, valid_email_address
+from anka.dominio.preguntas import candidatas, con_decisiones, elegida
 from anka.dominio.reception import (
     reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
 )
@@ -64,20 +65,19 @@ def _edit_note(thread_id: str) -> Markup:
                   notified=latest["notified"])
 
 
-def _suggested_questions(analysis: Analisis, assessment: dict) -> str:
-    """Preguntas para el cliente que dejó el análisis (sin los puntos internos), una por línea."""
-    found: list[str] = []
-    for item in list(assessment.get("questions", [])) + list(analysis.get("other_questions", [])):
-        text = str(item).strip()
-        if not text or "interno" in text.casefold().split(":")[0]:
-            continue
-        for prefix in ("Crítico:", "Critico:", "Recomendable:"):
-            if text.startswith(prefix):
-                text = text[len(prefix):].strip()
-        text = text[:1].upper() + text[1:]
-        if text and text not in found:
-            found.append(text)
-    return "\n".join(found)
+_ORIGEN_DE_PREGUNTA = {"auditoría": "Auditoría de preguntas", "recepción": "Evaluación de recepción",
+                       "análisis": "Pendientes del análisis", "persona": "Escrita por una persona"}
+_SUGERENCIA = {"ask_client": "preguntar al cliente", "internal": "resolver internamente", "discard": "descartar"}
+
+
+def _preguntas_del_caso(analysis: Analisis, assessment: dict) -> list[dict[str, Any]]:
+    """Las preguntas candidatas para los selectores: texto, qué sugirió el análisis y qué está elegido (U-22)."""
+    return [
+        {**pregunta, "elegida": elegida(pregunta), "sugerencia": _SUGERENCIA[pregunta["sugerida"]],
+         "origen_texto": _ORIGEN_DE_PREGUNTA.get(pregunta["origen"], pregunta["origen"]),
+         "decidida": bool(pregunta.get("decision"))}
+        for pregunta in con_decisiones(candidatas(analysis, assessment), analysis.get("preguntas"))
+    ]
 
 
 def _link_banner(review: Mapping[str, Any]) -> Markup:
@@ -492,7 +492,10 @@ def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, temp
     if blank:
         return "form", "", True
     own_draft = review["draft_body"] if review["draft_id"] and review["draft_id"] != work_reply.get("draft_id") else ""
-    body = (own_draft or work_reply.get("text") or review["draft_body"]
+    # Las preguntas que una persona eligió (U-22) mandan sobre el borrador de Work: si no, el correo saldría sin ellas.
+    elegidas = bool(manual.get("decision") == "ask_client" and manual.get("questions"))
+    body = (own_draft or (suggested_reply(analysis, config["required_fields"]) if elegidas else "")
+            or work_reply.get("text") or review["draft_body"]
             or suggested_reply(analysis, config["required_fields"]))
     return "form", reply_body_without_quoted_history(body), False
 
@@ -576,6 +579,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             contradictions=analysis.get("contradictions", []),
             waiting_for_client=review["status"] == QuoteStatus.RESPONSE_SENT,
             questions_in_decision=questions_in_decision,
+            decisiones=analysis.get("preguntas") or (),
         ),
         "question_audit": question_audit_panel(analysis.get("question_audit", [])),
         "question_quality": question_quality_panel(analysis.get("question_quality_warnings", [])),
@@ -615,7 +619,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     # «Enviada» se cumple venga el envío del dashboard, de Gmail o de Work.
     sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT or any(
         event["kind"] == "sent" for event in events)
-    prefill_questions = _suggested_questions(analysis, assessment) if technical else ""
+    preguntas = _preguntas_del_caso(analysis, assessment) if technical else []
     body = render(
         "case.html",
         review=review, thread_id=thread_id,
@@ -633,12 +637,12 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         sufficient=assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=review["status"] == QuoteStatus.REVIEW,
-        prefill_questions=prefill_questions,
+        preguntas=preguntas, preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),
         **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count,
-                       questions_in_decision=bool(prefill_questions) and review["status"] == QuoteStatus.REVIEW),
+                       questions_in_decision=bool(preguntas) and review["status"] == QuoteStatus.REVIEW),
     )
     return page("Revisar caso", body, message)
 

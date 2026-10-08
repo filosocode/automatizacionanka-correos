@@ -33,6 +33,7 @@ La descripción es la primera frase de su docstring.
 | `attachments` | Límites y evidencia de adjuntos en memoria. |
 | `lectores_texto` | Lectura en memoria de texto, HTML y RTF. |
 | `tramos` | Dividir un texto largo sin perder nada y condensar los hallazgos de cada tramo (T-25). |
+| `preguntas` | Preguntas candidatas de un caso, decisión de una persona por pregunta y preguntas que lleva un correo (U-22). |
 | `reintentos` | Espera creciente entre intentos de un hilo que falla y el caso que lo muestra (T-26). |
 | `lectores_geograficos` | Geometrías, misiones y tablas geográficas en memoria. |
 | `caso` | `Caso`: la vista de una solicitud de cotización tal como la ven el dashboard y las acciones. |

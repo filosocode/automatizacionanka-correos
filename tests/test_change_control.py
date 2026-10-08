@@ -4,6 +4,7 @@ from tests import _isolate  # noqa: F401  (debe ir primero)
 
 import base64
 import json
+import re
 import tempfile
 import unittest
 from datetime import datetime
@@ -374,9 +375,10 @@ class TechnicalReviewFlowTests(Base):
                                                     "required_fields": ["ubicación"]}), patch("anka.web.pantalla_caso.load_config", return_value={"active_mode": "chatgpt_work",
                                                     "required_fields": ["ubicación"]}):
             page = pantalla_caso.render_case("T9")
-        box = page.split('name="questions"')[1].split("</textarea>")[0]
-        self.assertIn("ubicaci", box.casefold())                      # la pregunta viene escrita
-        self.assertIn("Son las preguntas que dejó el análisis", page)
+        box = page.split('name="q_text_')[1].split("</textarea>")[0]
+        self.assertIn("ubicaci", box.casefold())                      # la pregunta viene escrita, con su selector
+        self.assertIn('name="q_decision_', page)
+        self.assertIn("el análisis sugiere preguntar al cliente", page)
 
     def test_accepted_case_has_a_blank_reply_box_with_an_optional_acknowledgement(self):
         self.upsert_with_dependency()
@@ -418,15 +420,18 @@ class WorkDraftTests(Base):
         self.work_case(scope_dependencies=[{"description": "KML", "source": "a.kml", "status": "pendiente"}])
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("W1")
-        questions = page.split('name="questions"')[1].split("</textarea>")[0]
-        self.assertIn("Confirmar el datum.", questions)
-        self.assertIn("Confirmar fecha de inicio.", questions)
-        self.assertNotIn("KML", questions)                           # lo interno no se le pregunta al cliente
+        selectores = " | ".join(re.findall(r'name="q_text_[^"]+"[^>]*>([^<]*)</textarea>', page))
+        self.assertIn("Confirmar el datum.", selectores)
+        self.assertIn("Confirmar fecha de inicio.", selectores)
+        tarjetas = [b.split("</select>")[0] for b in page.split('<div class="pregunta">')[1:]]
+        tarjeta = next(b for b in tarjetas if "KML" in b)
+        self.assertIn('value="internal" selected', tarjeta)          # lo interno se ve, pero no se le pregunta al cliente
+        self.assertNotIn('value="ask_client" selected', tarjeta)
         quotes.resolve_technical_review("W1", "ask_client", "¿Datum?")
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("W1")
         box = page.split('name="body"')[1].split("</textarea>")[0]
-        self.assertIn("Podría confirmar el datum", box.replace("¿", ""))   # el borrador de Work
+        self.assertIn("Datum", box)   # lo que la persona eligió preguntar manda sobre el borrador de Work (U-22)
 
     def test_sending_consumes_the_work_draft_instead_of_leaving_it_orphaned(self):
         self.work_case()

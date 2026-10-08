@@ -8,6 +8,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 import sqlite3
+from collections.abc import Sequence
 from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
@@ -25,6 +26,7 @@ from anka.dominio.correo import (
     valid_email_address,
 )
 from anka.infra.mail import own_addresses, send_reply
+from anka.dominio.preguntas import en_el_correo
 from anka.dominio.reception import (
     question_email, reception_questions, safe_folder_name,
 )
@@ -177,24 +179,28 @@ def _send_through_gmail(gmail: Any, thread_id: str, raw: str, draft_id: str) -> 
     return gmail.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()
 
 
-def _status_after_reply(status: str) -> str:
-    """Estado del caso después de enviarle algo al cliente."""
+def _status_after_reply(status: str, preguntas: int = 0) -> str:
+    """Estado del caso después de enviarle algo al cliente, según lo que el correo llevaba (U-22).
+
+    Solo se espera respuesta si el correo hizo al menos una pregunta; un acuse queda como «respuesta enviada».
+    """
     # Un caso con información suficiente sigue abierto para crear su carpeta en Drive:
     # enviar un acuse o una aclaración no debe cerrarlo.
     if status in (QuoteStatus.READY_REVIEW, QuoteStatus.READY):
         return status
-    if status == QuoteStatus.REVIEW_PENDING:
-        return QuoteStatus.WAITING  # se preguntó al cliente: espera su respuesta (igual que approve_review)
-    return QuoteStatus.RESPONSE_SENT
+    return QuoteStatus.WAITING if preguntas else QuoteStatus.RESPONSE_SENT
 
 
 def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, recipient: str,
-                       new_status: str, now: str) -> None:
-    """Guarda el estado nuevo, el hecho del envío y la novedad para el dashboard."""
+                       new_status: str, now: str, preguntas: Sequence[str] = ()) -> None:
+    """Guarda el estado nuevo, el hecho del envío (con cuántas preguntas llevaba) y la novedad para el dashboard."""
     db = connect()
     try:
         analysis = dict(quote["analysis"])
         analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
+        analysis["preguntas_enviadas"] = {"en": now, "preguntas": list(preguntas)}
+        con_preguntas = (f"con {len(preguntas)} pregunta(s) para el cliente: se espera su respuesta" if preguntas
+                         else "sin preguntas: no se espera respuesta del cliente")
         actualizar_caso(db, thread_id,
             status=new_status,
             sent_message_id=message_id,
@@ -205,11 +211,11 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
             updated_at=now)
         add_message(db, thread_id, message_id, "sent", "", "", body, now)
         record_event(db, thread_id, "sent", "dashboard", message_id,
-                     f"Correo enviado desde el dashboard a {recipient}.", now)
+                     f"Correo enviado desde el dashboard a {recipient}, {con_preguntas}.", now)
         add_dashboard_notification(
             db, thread_id, QuoteStatus.RESPONSE_SENT, message_id,
             "Respuesta enviada",
-            f"El correo fue enviado a {recipient} en el mismo hilo.",
+            f"El correo fue enviado a {recipient} en el mismo hilo, {con_preguntas}.",
         )
         db.commit()
     finally:
@@ -233,8 +239,9 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
         message_id = envios.reconciliar(gmail, previous)
         if message_id:
             if quote.get('sent_message_id') != message_id:
+                hechas = en_el_correo(body)
                 _record_sent_reply(quote, thread_id, message_id, body, recipient,
-                                   _status_after_reply(quote['status']), previous['created_at'])
+                                   _status_after_reply(quote['status'], len(hechas)), previous['created_at'], hechas)
             envios.confirmar(previous['operation_key'], message_id)
             raise ValueError('Este mismo correo ya se envió. Se confirmó su registro; no se envió de nuevo.')
         raise ValueError('Envío en curso o incierto: Gmail aún no confirma el mensaje. No se envió de nuevo.')
@@ -255,8 +262,9 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
         raise
     envios.confirmar(operation_key, result['id'])
     now = datetime.now().astimezone().isoformat(timespec="seconds")
-    new_status = _status_after_reply(quote["status"])
-    _record_sent_reply(quote, thread_id, result["id"], body, recipient, new_status, now)
+    hechas = en_el_correo(body)
+    new_status = _status_after_reply(quote["status"], len(hechas))
+    _record_sent_reply(quote, thread_id, result["id"], body, recipient, new_status, now, hechas)
     log.info("%s: correo enviado desde el dashboard", thread_id)
     if change_id and purpose:
         mark_change_sent(thread_id, change_id, purpose, recipient)

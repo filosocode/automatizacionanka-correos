@@ -103,13 +103,13 @@ class Transitions(unittest.TestCase):
                         quotes.resolve_technical_review(thread, row["decision"], questions)
                         self.assertEqual(self.status(thread), row["hacia"])
 
-    def send(self, thread, gmail):
+    def send(self, thread, gmail, texto=""):
         quote = quotes.get_quote(thread)
         context = (quote, gmail, {"id": thread, "messages": []}, set())
         with patch.object(case_actions, "case_email_context", return_value=context), \
                 patch.object(case_actions, "reply_email",
                              return_value=__import__("email.message", fromlist=["EmailMessage"]).EmailMessage()):
-            return case_actions.send_dashboard_reply(thread, f"Texto para {thread}")
+            return case_actions.send_dashboard_reply(thread, texto or f"Texto para {thread}")
 
     def test_sending_from_the_dashboard(self):
         for row in self.rows("enviar_desde_dashboard"):
@@ -121,7 +121,8 @@ class Transitions(unittest.TestCase):
                         with self.assertRaises(ValueError):
                             case_actions.case_email_context(thread)
                     else:
-                        self.send(thread, FakeGmail())
+                        self.send(thread, FakeGmail(), "¿Cuál es el datum del levantamiento?"
+                                  if row.get("con_preguntas") else "")
                         expected = origin if row["hacia"] == "igual" else row["hacia"]
                         self.assertEqual(self.status(thread), expected)
 

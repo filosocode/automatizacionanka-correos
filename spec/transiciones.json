@@ -26,10 +26,10 @@
     {"id": "TR-11", "evento": "decidir_revision_tecnica", "decision": "ask_client", "desde": ["review"], "hacia": "review_pending"},
     {"id": "TR-12", "evento": "decidir_revision_tecnica", "decision": "sufficient", "desde": ["review_pending", "ready_review", "waiting", "draft_created", "response_sent", "ready", "ignored"], "hacia": "error", "nota": "Solo se decide sobre casos en revisión técnica."},
 
-    {"id": "TR-20", "evento": "enviar_desde_dashboard", "desde": ["review_pending"], "hacia": "waiting", "nota": "Se preguntó al cliente: espera su respuesta."},
+    {"id": "TR-20", "evento": "enviar_desde_dashboard", "con_preguntas": true, "desde": ["review_pending", "draft_created", "waiting"], "hacia": "waiting", "nota": "El correo hizo al menos una pregunta: se espera la respuesta del cliente (U-22)."},
     {"id": "TR-21", "evento": "enviar_desde_dashboard", "desde": ["ready_review"], "hacia": "igual", "nota": "Un caso con información suficiente sigue abierto para crear la carpeta."},
     {"id": "TR-22", "evento": "enviar_desde_dashboard", "con_codigo": true, "desde": ["ready"], "hacia": "igual", "nota": "Un caso ya avanzado con T puede escribir al cliente sin cambiar de estado."},
-    {"id": "TR-23", "evento": "enviar_desde_dashboard", "desde": ["draft_created", "waiting"], "hacia": "response_sent"},
+    {"id": "TR-23", "evento": "enviar_desde_dashboard", "con_preguntas": false, "desde": ["review_pending", "draft_created", "waiting"], "hacia": "response_sent", "nota": "Un correo sin preguntas (un acuse) no deja esperando al cliente (U-22)."},
     {"id": "TR-24", "evento": "enviar_desde_dashboard", "desde": ["response_sent", "ready", "ignored", "missing"], "hacia": "error", "nota": "Sin T ni avisos que lo reabran, un caso cerrado no admite respuesta."},
 
     {"id": "TR-30", "evento": "correo_enviado_desde_gmail", "desde": ["review_pending", "sending"], "hacia": "waiting"},

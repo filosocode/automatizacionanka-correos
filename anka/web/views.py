@@ -9,6 +9,7 @@ from typing import Any
 
 from markupsafe import Markup
 
+from anka.dominio.preguntas import INTERNA, identificador, limpiar
 from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS
 from anka.dominio.attachments import compactar_paginas
 from anka.web.templating import render
@@ -208,6 +209,7 @@ def review_tasks_panel(
     contradictions: Sequence[Mapping[str, Any]] = (),
     waiting_for_client: bool = False,
     questions_in_decision: bool = False,
+    decisiones: Sequence[Mapping[str, Any]] = (),
 ) -> Markup:
     """Resume revisiones y dependencias desde las fuentes disponibles, incluidos payloads antiguos.
 
@@ -215,12 +217,21 @@ def review_tasks_panel(
     """
     audit_text = _audit_search_text(audit)
     internal_text = _internal_review_search_text(audit)
+    # Lo que una persona ya decidió (U-22) se muestra según su decisión, no según la sugerencia del análisis.
+    decididas = {str(p.get("id")) for p in decisiones if p.get("decision")}
+
+    def sin_decidir(texto: object) -> bool:
+        return identificador(limpiar(texto)) not in decididas
+
     candidates = (
-        _audit_review_rows(audit, waiting_for_client)
+        [("Revisión interna pendiente", str(p.get("texto")), "Lo decidiste resolver dentro de Anka")
+         for p in decisiones if p.get("decision") == INTERNA]
+        + _audit_review_rows([i for i in audit if not isinstance(i, Mapping) or sin_decidir(i.get("question"))],
+                             waiting_for_client)
         + [
             ("Esperando respuesta del cliente" if waiting_for_client else "Pregunta sugerida al cliente",
              str(question), "")
-            for question in other_questions if str(question).strip()
+            for question in other_questions if str(question).strip() and sin_decidir(question)
         ]
         + _dependency_review_rows(dependencies, audit_text)
         + _contradiction_review_rows(contradictions, audit_text)
