@@ -66,8 +66,7 @@ El JSON que ChatGPT Work deja en el borrador cumple `spec/contrato_work.schema.j
 estado sin importar tildes ni mayúsculas.
 Un descuido de tipo evidente en un campo opcional (p. ej. `unresolved: true` donde va un texto) no hace perder el borrador:
 el puente lo corrige (queda vacío), lo importa y deja el motivo como advertencia visible en el caso. Un borrador que de
-verdad incumple el contrato se rechaza una sola vez por versión del borrador (no se vuelve a descargar cada minuto hasta que
-Work lo edite) y el aviso del puente dice cuál es, de qué correo y qué corregir.
+verdad incumple el contrato se rechaza y se muestra en el Resumen según T-28.
 
 ### T-03 · Código de la oferta y control de cambios
 Cada caso aceptado recibe su T (que pasa a T&E al aprobarse). Desde la T, la tabla solo cambia por el contacto
@@ -345,6 +344,24 @@ descartar; queda anotado quién lo decidió y cuándo en los dos casos. Solo se 
 oferta, con carpeta, con respuesta enviada o ya descartado no se puede unir, y el aviso lo explica (sigue pudiendo separarse).
 «No es el mismo proyecto» se guarda y esos dos hilos no vuelven a agruparse ni a sugerirse, en la lista ni en el caso.
 Nada se une solo (D-09).
+
+### T-28 · Un borrador de Work inválido no deja el puente «con avisos» para siempre
+El puente distingue dos cosas. Un **fallo** es transitorio (red, Gmail, importación) y se reintenta en el siguiente ciclo; deja el
+puente «con avisos» mientras dure. Un **borrador rechazado** es un problema del contenido (el JSON no cumple el contrato de
+Work): no se arregla reintentando, así que se descarga y se rechaza **una sola vez** mientras su contenido no cambie (se vuelve
+a revisar solo cuando Gmail da un mensaje nuevo para ese borrador), se anota una vez en el registro y no cuenta como fallo.
+Con borradores rechazados y sin fallos el puente está «activo» con un estado propio («con un borrador por revisar»), no en
+error: sigue importando el resto. El Resumen lista cada borrador rechazado con su hilo (si existe), el motivo (campos del
+contrato, nunca contenido del cliente) y qué hacer. En `question_audit`, un `unresolved` booleano (Work lo escribe como sí/no)
+se trata como vacío y se importa: la advertencia de la pregunta («debe precisar qué subdato sigue sin resolver») lo hace visible.
+
+### T-27 · El lanzador se reinicia solo cuando cambia el código
+Cuando cambia el código (incluida una migración de la base), el lanzador no solo reinicia el dashboard y el puente: **se reinicia
+él mismo**, para no seguir corriendo con código anterior contra una base ya migrada (los recordatorios y la copia de seguridad
+fallaban con «la base es de una versión más nueva»). Un guardián mínimo lanza el servicio del lanzador y lo vuelve a lanzar
+cada vez que este lo pide con el código de salida 75; con cualquier otra salida termina igual que él (Ctrl+C o parada normal).
+Al arrancar, el servicio cierra los lanzadores, dashboards y puentes anteriores **sin cerrar a su propio guardián** (sus
+procesos ascendentes). El guardián no ejecuta lógica del lanzador, así que no se queda desactualizado.
 
 ### U-21 · Guardar la tabla con control: cambios visibles, motivo solo si hay cambios y exportar aparte
 Debajo de la tabla de actividades hay una barra de guardado. Dice si hay cambios sin guardar y cuáles («2 filas editadas, 1 por

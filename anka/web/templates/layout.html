@@ -175,8 +175,9 @@
             chip.hidden = false;
             chip.dataset.state = s.bridge;
             chip.title = s.text;
-            chip.textContent = {ok: 'Puente activo', error: 'Puente con avisos',
-                                stopped: 'Puente detenido', never: 'Puente sin iniciar'}[s.bridge];
+            chip.textContent = {ok: 'Puente activo', attention: 'Puente activo · borrador por revisar',
+                                error: 'Puente con avisos', stopped: 'Puente detenido',
+                                never: 'Puente sin iniciar'}[s.bridge];
           } else { chip.hidden = true; }
           const g = s.google || {};
           const needsGoogle = g.estado === 'vencida' || g.estado === 'fallida';

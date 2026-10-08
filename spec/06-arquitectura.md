@@ -118,7 +118,7 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `app` | Línea de comandos de Anka: `python app.py <comando>`. |
-| `supervisor` | Lanzador único: arranca dashboard y puente, los reinicia si se caen o si cambia el código, y hace la copia de seguridad diaria. |
+| `supervisor` | Lanzador único: arranca dashboard y puente, los reinicia si se caen o si cambia el código (y se reinicia a sí mismo), y hace la copia de seguridad diaria. |
 | `work_sync` | Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. |
 
 ## Clases y funciones: cuándo cada una

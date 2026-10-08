@@ -18,12 +18,15 @@ def _now() -> datetime:
 
 
 def write_heartbeat(interval: int, drafts: int = 0, updated: int = 0, failures: int = 0,
-                    error: str = "", events: int = 0, detalles: list[str] | None = None) -> None:
-    """Escribe el estado del último ciclo. Nunca debe tumbar al puente."""
+                    error: str = "", events: int = 0, rejected: list[dict] | None = None) -> None:
+    """Escribe el estado del último ciclo. Nunca debe tumbar al puente.
+
+    `rejected` son los borradores de Work que incumplen el contrato (no es un fallo: se muestran aparte).
+    """
     data = {
         "at": _now().isoformat(timespec="seconds"), "pid": os.getpid(), "interval": interval,
         "drafts": drafts, "updated": updated, "failures": failures, "error": error, "events": events,
-        "detalles": detalles or [],
+        "rejected": (rejected or [])[:10],
     }
     try:
         settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -43,6 +46,13 @@ def read_heartbeat() -> dict | None:
         return data
     except (OSError, ValueError, KeyError, TypeError):
         return None
+
+
+def rejected_drafts() -> list[dict]:
+    """Los borradores de Work que el puente rechazó en su último ciclo (con `draft`, `thread` y `reason`)."""
+    beat = read_heartbeat()
+    items = (beat or {}).get("rejected") or []
+    return [item for item in items if isinstance(item, dict)]
 
 
 def pid_alive(pid: int) -> bool:
@@ -83,7 +93,7 @@ def _ago(seconds: float) -> str:
 
 
 def bridge_state() -> tuple[str, str]:
-    """(estado, texto): estado es 'ok', 'error', 'stopped' o 'never'."""
+    """(estado, texto): estado es 'ok', 'attention', 'error', 'stopped' o 'never'."""
     beat = read_heartbeat()
     if not beat:
         return "never", (
@@ -100,9 +110,12 @@ def bridge_state() -> tuple[str, str]:
         )
     if beat.get("error") or beat.get("failures"):
         detail = beat.get("error") or f"{beat['failures']} borrador(es) no importado(s)"
-        if not beat.get("error") and beat.get("detalles"):
-            detail += ": " + "; ".join(beat["detalles"])
         return "error", f"Puente Work activo con avisos a las {when}: {detail}."
+    rejected = beat.get("rejected") or []
+    if rejected:
+        return "attention", (
+            f"Puente Work activo (Gmail revisado a las {when}), pero {len(rejected)} borrador(es) de Work no "
+            "cumplen el contrato y no se importaron. El detalle y qué hacer están en el Resumen.")
     return "ok", (
         f"Puente Work activo: Gmail revisado a las {when} ({_ago(age)}), "
         f"{beat.get('drafts', 0)} borradores, {beat.get('updated', 0)} actualizados."

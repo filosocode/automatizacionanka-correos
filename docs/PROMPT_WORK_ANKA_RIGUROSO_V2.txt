@@ -108,7 +108,7 @@ Aplica estas reglas como una puerta de validación. Ninguna pregunta llega al bo
     - question: pregunta exacta y concreta.
     - reason_missing: dato específico que falta, por qué bloquea y por qué la evidencia citada no lo resuelve.
     - reviewed_sources: todos los correos y adjuntos revisados, con localizadores; no basta decir “se revisó el correo y el PDF”.
-    - question_id único, target_finding_ids que referencian hallazgos del evidence_register, disposition (ask_client/internal_review/do_not_ask) y unresolved con el subdato exacto que falta.
+    - question_id único, target_finding_ids que referencian hallazgos del evidence_register, disposition (ask_client/internal_review/do_not_ask) y unresolved con el subdato exacto que falta, escrito como TEXTO (nunca true/false).
     - Toda pregunta al cliente debe vincularse a un hallazgo bloqueante pendiente/contradictorio/no confirmado atribuible al cliente o contratante. No preguntes por hallazgos explicit. Las limitaciones de lectura van a internal_review. Si hay respuesta parcial, pregunta únicamente por el residuo.
     - Si una pregunta menciona un adjunto que no pudiste leer, no preguntes por el contenido ni el estado de sus elementos. Pasa primero a revisión interna para inspeccionarlo. Solo después de leerlo puedes consultar al cliente por un estado de aprobación que siga sin evidencia.
     - Los datos recomendables que no bloquean la oferta (por ejemplo, una denominación comercial pendiente cuando el remitente y el alcance están identificados) se registran como recomendables y no se preguntan en el borrador inicial.
