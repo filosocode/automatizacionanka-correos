@@ -262,7 +262,7 @@ al correo (si pregunta) o a la emisión de la T (si la información basta), y el
 Ningún correo sale sin «Enviar ahora» (R8).
 
 ### U-13 · Solicitudes: lista ordenada, con verbo y filtrada por etapa
-La lista de Solicitudes va ordenada por la misma urgencia que la cola del Resumen. Cada fila lleva el botón con el verbo de su
+La lista de Solicitudes va, por defecto, de la más reciente a la más antigua (U-16). Cada fila lleva el botón con el verbo de su
 paso («Decidir», «Emitir la T», «Revisar borrador»…) y, si no espera nada de una persona, «Abrir». Se filtra por etapa (Por
 atender, Esperando al cliente, Listas para la T, En cotización) con la cantidad de cada una, y por tipo de cliente. «Eliminar
 seleccionadas» queda dentro de un menú «Acciones» y conserva su confirmación: no está a la vista junto a las acciones normales.
@@ -280,3 +280,10 @@ El dashboard tiene tema claro y oscuro con la misma paleta verde azulada. Sigue 
 pintar la página, sin parpadeo. Todos los colores salen de variables definidas para ambos temas: no quedan colores literales
 fuera de ellas (salvo la marca y el texto blanco de los botones de peligro). El foco y el contraste del texto se mantienen
 legibles en los dos.
+
+### U-16 · Solicitudes ordenadas por fecha
+La lista de Solicitudes se puede ordenar por «Más recientes primero», «Más antiguas primero» y «Más urgentes primero». Al abrir
+la página sale por defecto la más reciente primero. La fecha es la de recepción del correo (la que muestra cada fila), no la
+de la última actualización; las solicitudes sin fecha quedan al final en cualquier orden por fecha. A igual fecha se conserva
+el orden de la lista. «Más urgentes primero» usa el orden de la cola del Resumen y, a igual urgencia, la más reciente primero.
+El orden se aplica en el servidor (la página ya llega ordenada) y se puede cambiar sin recargar.

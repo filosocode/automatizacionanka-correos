@@ -168,10 +168,7 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
     """Fila de la lista de solicitudes: proyecto, cliente, etapa y siguiente paso."""
     project = quote["analysis"].get("project_name") or "Solicitud sin nombre"
     services = ", ".join(quote["services"]) or "Servicio por clasificar"
-    received_at = quote.get("first_seen_at") or ""
-    if len(received_at) < 16 or received_at[10] not in ("T", " "):
-        received_at = quote["analysis"].get("received_at") or received_at
-    date = _received_datetime_label(received_at)
+    date = _received_datetime_label(_received_value(quote))
     _, verb, anchor = accion_de_caso(quote) if case_stage(quote)[1] else (0, "Abrir", "")
     return render(
         "quote_row.html",
@@ -182,24 +179,53 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
         badge_class="warn" if case_stage(quote)[1] else "info",
         etapa=grupo_de_etapa(quote), verb=verb, href=f"/case?thread_id={url_quote(quote['thread_id'])}{anchor}",
         status_label=case_stage(quote)[0],
-        date=date,
+        date=date, fecha=int(fecha_de_recepcion(quote)), urgencia=urgencia_de_caso(quote),
         thread_id=quote["thread_id"], reply_pending=bool(quote.get("reply_pending", "")),
         code=code_label(quote["quote_code"], quote.get("code_stage") or "T") if quote.get("quote_code") else "",
     )
+
+
+def _received_value(quote: Mapping[str, Any]) -> str:
+    """El texto de la fecha de recepción: la primera vez que se vio o, si no es una fecha completa, la del correo."""
+    received_at = quote.get("first_seen_at") or ""
+    if len(received_at) < 16 or received_at[10] not in ("T", " "):
+        received_at = quote["analysis"].get("received_at") or received_at
+    return str(received_at)
+
+
+def _parse_received(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            return parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+
+def fecha_de_recepcion(quote: Mapping[str, Any]) -> float:
+    """Segundos desde 1970 de cuando se recibió la solicitud; 0 si no hay fecha, para que quede al final."""
+    parsed = _parse_received(_received_value(quote))
+    if parsed is None:
+        return 0.0
+    try:
+        return parsed.timestamp()
+    except (OverflowError, OSError, ValueError):
+        return 0.0
+
+
+def urgencia_de_caso(quote: Mapping[str, Any]) -> int:
+    """El orden de la cola del Resumen para un caso; lo que no espera nada de una persona va después (10)."""
+    return accion_de_caso(quote)[0] if case_stage(quote)[1] else 10
 
 
 def _received_datetime_label(value: str) -> str:
     """Muestra fecha y hora originales de recepción, nunca la fecha de última actualización."""
     if not value:
         return "Recibido: Sin fecha"
-    parsed = None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        try:
-            parsed = parsedate_to_datetime(value)
-        except (TypeError, ValueError, OverflowError):
-            pass
+    parsed = _parse_received(value)
     if parsed is not None:
         return f"Recibido: {parsed.strftime('%Y-%m-%d %H:%M')}"
     # Compatibilidad con los registros históricos guardados como YYYY-MM-DD HH:MM.
@@ -209,7 +235,7 @@ def _received_datetime_label(value: str) -> str:
 
 
 def render_requests(message: str = "") -> str:
-    """Lista de todas las solicitudes, las urgentes primero."""
+    """Lista de todas las solicitudes, la más reciente primero; en el navegador se puede reordenar."""
     quotes = all_quotes()
     unread_threads = {item["thread_id"] for item in unread_notifications(100)}
     pending_links = [
@@ -222,7 +248,7 @@ def render_requests(message: str = "") -> str:
     body = render(
         "requests.html",
         rows=[quote_row(quote, quote["thread_id"] in unread_threads, selectable=True)
-              for quote in sorted(quotes, key=lambda q: accion_de_caso(q)[0] if case_stage(q)[1] else 10)],
+              for quote in sorted(quotes, key=lambda q: -fecha_de_recepcion(q))],  # estable: igual fecha, mismo orden
         pending_links=pending_links,
         etapas=[(key, label, sum(grupo_de_etapa(q) == key for q in quotes)) for key, label in ETAPAS_FILTRO],
         type_options=CLIENT_TYPES,

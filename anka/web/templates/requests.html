@@ -18,6 +18,7 @@
 {% endif %}
 <div class="filters">
   <label>Buscar<input id="search" type="search" placeholder="Proyecto, cliente o servicio"></label>
+  <label>Ordenar por<select id="orden"><option value="reciente" selected>Más recientes primero</option><option value="antigua">Más antiguas primero</option><option value="urgencia">Más urgentes primero</option></select></label>
   <label>Tipo de cliente<select id="client-type"><option value="">Todos</option>{% for value in type_options %}<option value='{{ value }}'>{{ value }}</option>{% endfor %}</select></label>
 </div>
 <div class="chips" role="group" aria-label="Filtrar por etapa">
@@ -58,6 +59,18 @@ document.querySelectorAll('.chip-filter').forEach(chip => chip.addEventListener(
   filterRows();
   clearHiddenSelection();
 }));
+const listado = document.querySelector('#requests');
+const orden = document.querySelector('#orden');
+function fechaDe(row) { return Number(row.dataset.fecha) || 0; }
+function ordenar() {
+  // Sin fecha (0) queda al final en cualquier orden por fecha; la página ya llega ordenada del servidor.
+  const masReciente = (a, b) => (fechaDe(b) || -Infinity) - (fechaDe(a) || -Infinity) || 0;
+  const masAntigua = (a, b) => (fechaDe(a) || Infinity) - (fechaDe(b) || Infinity) || 0;
+  const masUrgente = (a, b) => (Number(a.dataset.urgencia) - Number(b.dataset.urgencia)) || masReciente(a, b);
+  const comparar = {reciente: masReciente, antigua: masAntigua, urgencia: masUrgente}[orden.value] || masReciente;
+  [...rows].sort(comparar).forEach(row => listado.appendChild(row));
+}
+orden.addEventListener('input', ordenar);
 const checks = [...document.querySelectorAll('.row-check')];
 const selectAll = document.querySelector('#select-all');
 const deleteBtn = document.querySelector('#delete-btn');

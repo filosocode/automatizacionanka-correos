@@ -1,4 +1,4 @@
-"""Cubre: U-09, U-10, U-11, U-13, U-14, U-15 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
+"""Cubre: U-09, U-10, U-11, U-13, U-14, U-15, U-16 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
 from __future__ import annotations
 
 import re
@@ -116,21 +116,61 @@ class ListaDeSolicitudes(unittest.TestCase):
         quieta = str(paginas.quote_row(_caso("h2", QuoteStatus.IGNORED)))
         self.assertIn(">Abrir</a>", quieta)
 
-    def test_la_lista_va_por_urgencia_filtra_por_etapa_y_oculta_eliminar_en_acciones(self) -> None:
-        # Cubre: U-13
+    def _lista(self, casos: list[dict]) -> str:
         from unittest import mock
-        casos = [_caso("decidir", QuoteStatus.REVIEW), _caso("emitir", QuoteStatus.READY),
-                 _caso("respondio", QuoteStatus.WAITING, reply_pending="2026-10-08T06:00:00"),
-                 _caso("ignorada", QuoteStatus.IGNORED)]
         with mock.patch.object(paginas, "all_quotes", return_value=casos),                 mock.patch.object(paginas, "unread_notifications", return_value=[]),                 mock.patch.object(paginas, "page", side_effect=lambda titulo, cuerpo, mensaje="": str(cuerpo)):
-            html = paginas.render_requests()
-        orden = [html.index(f"thread_id={hilo}") for hilo in ("respondio", "emitir", "decidir", "ignorada")]
-        self.assertEqual(orden, sorted(orden))
+            return paginas.render_requests()
+
+    def test_filtra_por_etapa_y_oculta_eliminar_en_acciones(self) -> None:
+        # Cubre: U-13
+        html = self._lista([_caso("decidir", QuoteStatus.REVIEW), _caso("emitir", QuoteStatus.READY),
+                            _caso("ignorada", QuoteStatus.IGNORED)])
         for etiqueta in ("Por atender", "Esperando al cliente", "Listas para la T", "En cotización"):
             self.assertIn(etiqueta, html)
         self.assertIn('<details class="more bulk-menu"><summary>Acciones</summary>', html)
         self.assertLess(html.index("bulk-menu"), html.index('id="delete-btn"'))
         self.assertIn("data-confirm", html[html.index('id="delete-btn"'):html.index('id="delete-btn"') + 400])
+
+    def test_por_defecto_la_mas_reciente_primero(self) -> None:
+        # Cubre: U-16
+        casos = [_caso("vieja", QuoteStatus.REVIEW, first_seen_at="2026-09-01T09:00:00"),
+                 _caso("nueva", QuoteStatus.IGNORED, first_seen_at="2026-10-08T06:10:00"),
+                 _caso("media", QuoteStatus.READY, first_seen_at="2026-09-25T15:27:00")]
+        html = self._lista(casos)
+        orden = [html.index(f"thread_id={hilo}") for hilo in ("nueva", "media", "vieja")]
+        self.assertEqual(orden, sorted(orden))                 # la fecha manda, no la urgencia
+        self.assertIn('<option value="reciente" selected>Más recientes primero</option>', html)
+        for opcion in ("Más antiguas primero", "Más urgentes primero"):
+            self.assertIn(opcion, html)
+
+    def test_cada_fila_trae_su_fecha_y_urgencia_para_reordenar(self) -> None:
+        # Cubre: U-16
+        fila = str(paginas.quote_row(_caso("h", QuoteStatus.REVIEW, first_seen_at="2026-10-08T06:10:00")))
+        fecha = int(re.search(r'data-fecha="(\d+)"', fila).group(1))  # type: ignore[union-attr]
+        self.assertGreater(fecha, 0)
+        self.assertIn('data-urgencia="4"', fila)
+        quieta = str(paginas.quote_row(_caso("q", QuoteStatus.IGNORED)))
+        self.assertIn('data-fecha="0"', quieta)                # sin fecha: al final
+        self.assertIn('data-urgencia="10"', quieta)
+
+    def test_la_fecha_de_recepcion_acepta_iso_y_formato_de_correo_y_sin_fecha_es_cero(self) -> None:
+        # Cubre: U-16
+        iso = paginas.fecha_de_recepcion(_caso("a", QuoteStatus.REVIEW, first_seen_at="2026-10-08T06:10:00"))
+        correo = paginas.fecha_de_recepcion(_caso("b", QuoteStatus.REVIEW, first_seen_at="x"))
+        self.assertGreater(iso, 0)
+        self.assertEqual(correo, 0.0)
+        rfc = _caso("c", QuoteStatus.REVIEW, first_seen_at="")
+        rfc["analysis"]["received_at"] = "Wed, 08 Oct 2026 06:10:00 -0500"
+        self.assertGreater(paginas.fecha_de_recepcion(rfc), 0)
+        self.assertEqual(paginas.fecha_de_recepcion(_caso("d", QuoteStatus.REVIEW)), 0.0)
+
+    def test_el_orden_se_puede_cambiar_sin_recargar(self) -> None:
+        # Cubre: U-16
+        plantilla = (RAIZ / "anka" / "web" / "templates" / "requests.html").read_text(encoding="utf-8")
+        self.assertIn("function ordenar()", plantilla)
+        self.assertIn("orden.addEventListener('input', ordenar)", plantilla)
+        for criterio in ("reciente", "antigua", "urgencia"):
+            self.assertIn(criterio, plantilla)
 
 
 class TablaYLenguaje(unittest.TestCase):

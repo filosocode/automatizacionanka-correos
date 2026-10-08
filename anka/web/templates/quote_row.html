@@ -1,5 +1,5 @@
 <article class="case case-row" data-search="{{ search }}"
-         data-status="{{ status }}" data-etapa="{{ etapa }}" data-type="{{ client_type }}"{% if selectable %} data-selectable{% endif %}>
+         data-status="{{ status }}" data-etapa="{{ etapa }}" data-fecha="{{ fecha }}" data-urgencia="{{ urgencia }}" data-type="{{ client_type }}"{% if selectable %} data-selectable{% endif %}>
   {% if selectable %}<input class="row-check" type="checkbox" name="thread_id" value="{{ thread_id }}" form="bulk-delete" aria-label="Seleccionar {{ project }}">{% endif %}
   <div><h3>{{ project }}{% if is_new %} <span class='badge'>Nuevo</span>{% endif %}{% if reply_pending %} <span class='badge warn'>Respondió</span>{% endif %}</h3><div class="meta">{{ client_name }}{% if code %} · {{ code }}{% endif %}</div></div>
   <div><strong>{{ services }}</strong><div class="meta">{{ sector }}</div></div>

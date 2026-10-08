@@ -130,6 +130,20 @@ Buscar
 <input id="search" type="search" placeholder="Proyecto, cliente o servicio">
 </label>
 <label>
+Ordenar por
+<select id="orden">
+<option value="reciente" selected="">
+Más recientes primero
+</option>
+<option value="antigua">
+Más antiguas primero
+</option>
+<option value="urgencia">
+Más urgentes primero
+</option>
+</select>
+</label>
+<label>
 Tipo de cliente
 <select id="client-type">
 <option value="">
@@ -200,286 +214,7 @@ Eliminar seleccionadas
 </form>
 </details>
 <div id="requests" class="grid">
-<article class="case case-row" data-search="proyecto sur cliente sur topografía convencional, batimetría" data-status="draft_created" data-etapa="atender" data-type="Entidad pública" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-draft" form="bulk-delete" aria-label="Seleccionar Proyecto Sur">
-<div>
-<h3>
-Proyecto Sur
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-Cliente Sur
-</div>
-</div>
-<div>
-<strong>
-Topografía convencional, Batimetría
-</strong>
-<div class="meta">
-Infraestructura
-</div>
-</div>
-<span class="badge warn">
-Borrador por revisar
-</span>
-<div class="meta">
-Recibido: 2026-09-01 09:00
-</div>
-<a class="button secondary" href="/case?thread_id=t-draft#respuesta">
-Revisar borrador
-</a>
-</article>
-<article class="case case-row" data-search="proyecto listo cliente@example.com topografía convencional" data-status="ready_review" data-etapa="listo" data-type="No clasificado" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-ready" form="bulk-delete" aria-label="Seleccionar Proyecto Listo">
-<div>
-<h3>
-Proyecto Listo
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-cliente@example.com
-</div>
-</div>
-<div>
-<strong>
-Topografía convencional
-</strong>
-<div class="meta">
-No clasificado
-</div>
-</div>
-<span class="badge warn">
-Listo para emitir la T
-</span>
-<div class="meta">
-Recibido: 2026-09-01 09:00
-</div>
-<a class="button secondary" href="/case?thread_id=t-ready#emitir-t">
-Emitir la T
-</a>
-</article>
-<article class="case case-row" data-search="proyecto hostil "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> topografía convencional, batimetría" data-status="ready_review" data-etapa="listo" data-type="No clasificado" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-folder-hostile" form="bulk-delete" aria-label="Seleccionar Proyecto Hostil">
-<div>
-<h3>
-Proyecto Hostil
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</div>
-</div>
-<div>
-<strong>
-Topografía convencional, Batimetría
-</strong>
-<div class="meta">
-No clasificado
-</div>
-</div>
-<span class="badge warn">
-Listo para emitir la T
-</span>
-<div class="meta">
-Recibido: 2026-09-01 09:00
-</div>
-<a class="button secondary" href="/case?thread_id=t-folder-hostile#emitir-t">
-Emitir la T
-</a>
-</article>
-<article class="case case-row" data-search="proyecto retenido minera sur topografía convencional, batimetría" data-status="ready_review" data-etapa="listo" data-type="No clasificado" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-folder-held" form="bulk-delete" aria-label="Seleccionar Proyecto Retenido">
-<div>
-<h3>
-Proyecto Retenido
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-Minera Sur
-</div>
-</div>
-<div>
-<strong>
-Topografía convencional, Batimetría
-</strong>
-<div class="meta">
-No clasificado
-</div>
-</div>
-<span class="badge warn">
-Listo para emitir la T
-</span>
-<div class="meta">
-Recibido: 2026-09-01 09:00
-</div>
-<a class="button secondary" href="/case?thread_id=t-folder-held#emitir-t">
-Emitir la T
-</a>
-</article>
-<article class="case case-row" data-search="proyecto con carpeta minera sur topografía convencional, batimetría" data-status="ready" data-etapa="listo" data-type="No clasificado" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-folder-done" form="bulk-delete" aria-label="Seleccionar Proyecto con Carpeta">
-<div>
-<h3>
-Proyecto con Carpeta
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-Minera Sur
-</div>
-</div>
-<div>
-<strong>
-Topografía convencional, Batimetría
-</strong>
-<div class="meta">
-No clasificado
-</div>
-</div>
-<span class="badge warn">
-Listo para emitir la T
-</span>
-<div class="meta">
-Recibido: 2026-09-01 09:00
-</div>
-<a class="button secondary" href="/case?thread_id=t-folder-done#emitir-t">
-Emitir la T
-</a>
-</article>
-<article class="case case-row" data-search="proyecto técnico cliente@example.com servicio por clasificar" data-status="review" data-etapa="atender" data-type="No clasificado" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-review-tech" form="bulk-delete" aria-label="Seleccionar Proyecto Técnico">
-<div>
-<h3>
-Proyecto Técnico
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-cliente@example.com
-</div>
-</div>
-<div>
-<strong>
-Servicio por clasificar
-</strong>
-<div class="meta">
-No clasificado
-</div>
-</div>
-<span class="badge warn">
-Falta tu decisión técnica
-</span>
-<div class="meta">
-Recibido: 2026-09-01 09:00
-</div>
-<a class="button secondary" href="/case?thread_id=t-review-tech#decision">
-Decidir
-</a>
-</article>
-<article class="case case-row" data-search="proyecto norte energía norte topografía convencional, batimetría" data-status="review_pending" data-etapa="atender" data-type="Empresa privada" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-review" form="bulk-delete" aria-label="Seleccionar Proyecto Norte">
-<div>
-<h3>
-Proyecto Norte
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-Energía Norte
-</div>
-</div>
-<div>
-<strong>
-Topografía convencional, Batimetría
-</strong>
-<div class="meta">
-Energía
-</div>
-</div>
-<span class="badge warn">
-Por aclarar con el cliente
-</span>
-<div class="meta">
-Recibido: 2026-09-01 09:00
-</div>
-<a class="button secondary" href="/case?thread_id=t-review">
-Aclarar
-</a>
-</article>
-<article class="case case-row" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>" data-status="review" data-etapa="atender" data-type="No clasificado" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-hostile-scope" form="bulk-delete" aria-label="Seleccionar "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
-<div>
-<h3>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</div>
-</div>
-<div>
-<strong>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</strong>
-<div class="meta">
-No clasificado
-</div>
-</div>
-<span class="badge warn">
-Falta tu decisión técnica
-</span>
-<div class="meta">
-Recibido: 2026-09-01 09:00
-</div>
-<a class="button secondary" href="/case?thread_id=t-hostile-scope#decision">
-Decidir
-</a>
-</article>
-<article class="case case-row" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>" data-status="review_pending" data-etapa="atender" data-type=""><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-hostile" form="bulk-delete" aria-label="Seleccionar "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
-<div>
-<h3>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-<span class="badge">
-Nuevo
-</span>
-</h3>
-<div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</div>
-</div>
-<div>
-<strong>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</strong>
-<div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</div>
-</div>
-<span class="badge warn">
-Por aclarar con el cliente
-</span>
-<div class="meta">
-Recibido: 2026-09-01 09:00
-</div>
-<a class="button secondary" href="/case?thread_id=t-hostile">
-Aclarar
-</a>
-</article>
-<article class="case case-row" data-search="proyecto enviado cliente enviado topografía convencional, batimetría" data-status="response_sent" data-etapa="esperando" data-type="Empresa privada" data-selectable="">
+<article class="case case-row" data-search="proyecto enviado cliente enviado topografía convencional, batimetría" data-status="response_sent" data-etapa="esperando" data-fecha="1788271200" data-urgencia="5" data-type="Empresa privada" data-selectable="">
 <input class="row-check" type="checkbox" name="thread_id" value="t-sent" form="bulk-delete" aria-label="Seleccionar Proyecto Enviado">
 <div>
 <h3>
@@ -510,12 +245,291 @@ Recibido: 2026-09-01 09:00
 Ver seguimiento
 </a>
 </article>
+<article class="case case-row" data-search="proyecto técnico cliente@example.com servicio por clasificar" data-status="review" data-etapa="atender" data-fecha="1788271200" data-urgencia="4" data-type="No clasificado" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-review-tech" form="bulk-delete" aria-label="Seleccionar Proyecto Técnico">
+<div>
+<h3>
+Proyecto Técnico
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+cliente@example.com
+</div>
+</div>
+<div>
+<strong>
+Servicio por clasificar
+</strong>
+<div class="meta">
+No clasificado
+</div>
+</div>
+<span class="badge warn">
+Falta tu decisión técnica
+</span>
+<div class="meta">
+Recibido: 2026-09-01 09:00
+</div>
+<a class="button secondary" href="/case?thread_id=t-review-tech#decision">
+Decidir
+</a>
+</article>
+<article class="case case-row" data-search="proyecto norte energía norte topografía convencional, batimetría" data-status="review_pending" data-etapa="atender" data-fecha="1788271200" data-urgencia="4" data-type="Empresa privada" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-review" form="bulk-delete" aria-label="Seleccionar Proyecto Norte">
+<div>
+<h3>
+Proyecto Norte
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+Energía Norte
+</div>
+</div>
+<div>
+<strong>
+Topografía convencional, Batimetría
+</strong>
+<div class="meta">
+Energía
+</div>
+</div>
+<span class="badge warn">
+Por aclarar con el cliente
+</span>
+<div class="meta">
+Recibido: 2026-09-01 09:00
+</div>
+<a class="button secondary" href="/case?thread_id=t-review">
+Aclarar
+</a>
+</article>
+<article class="case case-row" data-search="proyecto listo cliente@example.com topografía convencional" data-status="ready_review" data-etapa="listo" data-fecha="1788271200" data-urgencia="3" data-type="No clasificado" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-ready" form="bulk-delete" aria-label="Seleccionar Proyecto Listo">
+<div>
+<h3>
+Proyecto Listo
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+cliente@example.com
+</div>
+</div>
+<div>
+<strong>
+Topografía convencional
+</strong>
+<div class="meta">
+No clasificado
+</div>
+</div>
+<span class="badge warn">
+Listo para emitir la T
+</span>
+<div class="meta">
+Recibido: 2026-09-01 09:00
+</div>
+<a class="button secondary" href="/case?thread_id=t-ready#emitir-t">
+Emitir la T
+</a>
+</article>
+<article class="case case-row" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>" data-status="review" data-etapa="atender" data-fecha="1788271200" data-urgencia="4" data-type="No clasificado" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-hostile-scope" form="bulk-delete" aria-label="Seleccionar "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
+<div>
+<h3>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</div>
+</div>
+<div>
+<strong>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</strong>
+<div class="meta">
+No clasificado
+</div>
+</div>
+<span class="badge warn">
+Falta tu decisión técnica
+</span>
+<div class="meta">
+Recibido: 2026-09-01 09:00
+</div>
+<a class="button secondary" href="/case?thread_id=t-hostile-scope#decision">
+Decidir
+</a>
+</article>
+<article class="case case-row" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>" data-status="review_pending" data-etapa="atender" data-fecha="1788271200" data-urgencia="4" data-type=""><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-hostile" form="bulk-delete" aria-label="Seleccionar "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
+<div>
+<h3>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</div>
+</div>
+<div>
+<strong>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</strong>
+<div class="meta">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</div>
+</div>
+<span class="badge warn">
+Por aclarar con el cliente
+</span>
+<div class="meta">
+Recibido: 2026-09-01 09:00
+</div>
+<a class="button secondary" href="/case?thread_id=t-hostile">
+Aclarar
+</a>
+</article>
+<article class="case case-row" data-search="proyecto hostil "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> topografía convencional, batimetría" data-status="ready_review" data-etapa="listo" data-fecha="1788271200" data-urgencia="3" data-type="No clasificado" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-folder-hostile" form="bulk-delete" aria-label="Seleccionar Proyecto Hostil">
+<div>
+<h3>
+Proyecto Hostil
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</div>
+</div>
+<div>
+<strong>
+Topografía convencional, Batimetría
+</strong>
+<div class="meta">
+No clasificado
+</div>
+</div>
+<span class="badge warn">
+Listo para emitir la T
+</span>
+<div class="meta">
+Recibido: 2026-09-01 09:00
+</div>
+<a class="button secondary" href="/case?thread_id=t-folder-hostile#emitir-t">
+Emitir la T
+</a>
+</article>
+<article class="case case-row" data-search="proyecto retenido minera sur topografía convencional, batimetría" data-status="ready_review" data-etapa="listo" data-fecha="1788271200" data-urgencia="3" data-type="No clasificado" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-folder-held" form="bulk-delete" aria-label="Seleccionar Proyecto Retenido">
+<div>
+<h3>
+Proyecto Retenido
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+Minera Sur
+</div>
+</div>
+<div>
+<strong>
+Topografía convencional, Batimetría
+</strong>
+<div class="meta">
+No clasificado
+</div>
+</div>
+<span class="badge warn">
+Listo para emitir la T
+</span>
+<div class="meta">
+Recibido: 2026-09-01 09:00
+</div>
+<a class="button secondary" href="/case?thread_id=t-folder-held#emitir-t">
+Emitir la T
+</a>
+</article>
+<article class="case case-row" data-search="proyecto con carpeta minera sur topografía convencional, batimetría" data-status="ready" data-etapa="listo" data-fecha="1788271200" data-urgencia="3" data-type="No clasificado" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-folder-done" form="bulk-delete" aria-label="Seleccionar Proyecto con Carpeta">
+<div>
+<h3>
+Proyecto con Carpeta
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+Minera Sur
+</div>
+</div>
+<div>
+<strong>
+Topografía convencional, Batimetría
+</strong>
+<div class="meta">
+No clasificado
+</div>
+</div>
+<span class="badge warn">
+Listo para emitir la T
+</span>
+<div class="meta">
+Recibido: 2026-09-01 09:00
+</div>
+<a class="button secondary" href="/case?thread_id=t-folder-done#emitir-t">
+Emitir la T
+</a>
+</article>
+<article class="case case-row" data-search="proyecto sur cliente sur topografía convencional, batimetría" data-status="draft_created" data-etapa="atender" data-fecha="1788271200" data-urgencia="2" data-type="Entidad pública" data-selectable="">
+<input class="row-check" type="checkbox" name="thread_id" value="t-draft" form="bulk-delete" aria-label="Seleccionar Proyecto Sur">
+<div>
+<h3>
+Proyecto Sur
+<span class="badge">
+Nuevo
+</span>
+</h3>
+<div class="meta">
+Cliente Sur
+</div>
+</div>
+<div>
+<strong>
+Topografía convencional, Batimetría
+</strong>
+<div class="meta">
+Infraestructura
+</div>
+</div>
+<span class="badge warn">
+Borrador por revisar
+</span>
+<div class="meta">
+Recibido: 2026-09-01 09:00
+</div>
+<a class="button secondary" href="/case?thread_id=t-draft#respuesta">
+Revisar borrador
+</a>
+</article>
 </div>
 <div id="no-results" class="empty" hidden="">
 No hay solicitudes con esos filtros.
 </div>
 <script>
-const search = document.querySelector('#search'); let etapaActual = ''; const typeFilter = document.querySelector('#client-type'); const rows = [...document.querySelectorAll('.case-row')]; function filterRows() { const term = search.value.trim().toLocaleLowerCase('es'); let visible = 0; rows.forEach(row => { const show = (!term || row.dataset.search.includes(term)) && (!etapaActual || row.dataset.etapa === etapaActual) && (!typeFilter.value || row.dataset.type === typeFilter.value); row.hidden = !show; if (show) visible += 1; }); document.querySelector('#no-results').hidden = visible !== 0; } [search, typeFilter].forEach(input => input.addEventListener('input', filterRows)); document.querySelectorAll('.chip-filter').forEach(chip => chip.addEventListener('click', () => { etapaActual = chip.dataset.etapa; document.querySelectorAll('.chip-filter').forEach(c => c.setAttribute('aria-pressed', String(c === chip))); filterRows(); clearHiddenSelection(); })); const checks = [...document.querySelectorAll('.row-check')]; const selectAll = document.querySelector('#select-all'); const deleteBtn = document.querySelector('#delete-btn'); function updateSelection() { const picked = checks.filter(c => c.checked).length; document.querySelector('#selected-count').textContent = picked + (picked === 1 ? ' seleccionada' : ' seleccionadas'); deleteBtn.disabled = picked === 0; } selectAll.addEventListener('change', () => { checks.forEach(c => { if (!c.closest('.case-row').hidden) c.checked = selectAll.checked; }); updateSelection(); }); checks.forEach(c => c.addEventListener('change', updateSelection)); const linkChecks = [...document.querySelectorAll('.link-row-check')]; const selectAllLinks = document.querySelector('#select-all-links'); const dismissLinks = document.querySelector('#dismiss-links-btn'); function updateLinkSelection() { if (!dismissLinks) return; const picked = linkChecks.filter(c => c.checked).length; document.querySelector('#links-selected-count').textContent = picked + (picked === 1 ? ' seleccionada' : ' seleccionadas'); dismissLinks.disabled = picked === 0; } if (selectAllLinks) selectAllLinks.addEventListener('change', () => { linkChecks.forEach(c => { c.checked = selectAllLinks.checked; }); updateLinkSelection(); }); linkChecks.forEach(c => c.addEventListener('change', updateLinkSelection)); // una casilla oculta por el filtro no debe borrarse sin que se vea function clearHiddenSelection() { checks.forEach(c => { if (c.closest('.case-row').hidden) c.checked = false; }); selectAll.checked = false; updateSelection(); } [search, typeFilter].forEach(input => input.addEventListener('input', clearHiddenSelection));
+const search = document.querySelector('#search'); let etapaActual = ''; const typeFilter = document.querySelector('#client-type'); const rows = [...document.querySelectorAll('.case-row')]; function filterRows() { const term = search.value.trim().toLocaleLowerCase('es'); let visible = 0; rows.forEach(row => { const show = (!term || row.dataset.search.includes(term)) && (!etapaActual || row.dataset.etapa === etapaActual) && (!typeFilter.value || row.dataset.type === typeFilter.value); row.hidden = !show; if (show) visible += 1; }); document.querySelector('#no-results').hidden = visible !== 0; } [search, typeFilter].forEach(input => input.addEventListener('input', filterRows)); document.querySelectorAll('.chip-filter').forEach(chip => chip.addEventListener('click', () => { etapaActual = chip.dataset.etapa; document.querySelectorAll('.chip-filter').forEach(c => c.setAttribute('aria-pressed', String(c === chip))); filterRows(); clearHiddenSelection(); })); const listado = document.querySelector('#requests'); const orden = document.querySelector('#orden'); function fechaDe(row) { return Number(row.dataset.fecha) || 0; } function ordenar() { // Sin fecha (0) queda al final en cualquier orden por fecha; la página ya llega ordenada del servidor. const masReciente = (a, b) => (fechaDe(b) || -Infinity) - (fechaDe(a) || -Infinity) || 0; const masAntigua = (a, b) => (fechaDe(a) || Infinity) - (fechaDe(b) || Infinity) || 0; const masUrgente = (a, b) => (Number(a.dataset.urgencia) - Number(b.dataset.urgencia)) || masReciente(a, b); const comparar = {reciente: masReciente, antigua: masAntigua, urgencia: masUrgente}[orden.value] || masReciente; [...rows].sort(comparar).forEach(row => listado.appendChild(row)); } orden.addEventListener('input', ordenar); const checks = [...document.querySelectorAll('.row-check')]; const selectAll = document.querySelector('#select-all'); const deleteBtn = document.querySelector('#delete-btn'); function updateSelection() { const picked = checks.filter(c => c.checked).length; document.querySelector('#selected-count').textContent = picked + (picked === 1 ? ' seleccionada' : ' seleccionadas'); deleteBtn.disabled = picked === 0; } selectAll.addEventListener('change', () => { checks.forEach(c => { if (!c.closest('.case-row').hidden) c.checked = selectAll.checked; }); updateSelection(); }); checks.forEach(c => c.addEventListener('change', updateSelection)); const linkChecks = [...document.querySelectorAll('.link-row-check')]; const selectAllLinks = document.querySelector('#select-all-links'); const dismissLinks = document.querySelector('#dismiss-links-btn'); function updateLinkSelection() { if (!dismissLinks) return; const picked = linkChecks.filter(c => c.checked).length; document.querySelector('#links-selected-count').textContent = picked + (picked === 1 ? ' seleccionada' : ' seleccionadas'); dismissLinks.disabled = picked === 0; } if (selectAllLinks) selectAllLinks.addEventListener('change', () => { linkChecks.forEach(c => { c.checked = selectAllLinks.checked; }); updateLinkSelection(); }); linkChecks.forEach(c => c.addEventListener('change', updateLinkSelection)); // una casilla oculta por el filtro no debe borrarse sin que se vea function clearHiddenSelection() { checks.forEach(c => { if (c.closest('.case-row').hidden) c.checked = false; }); selectAll.checked = false; updateSelection(); } [search, typeFilter].forEach(input => input.addEventListener('input', clearHiddenSelection));
 </script>
 </main>
 <script>
