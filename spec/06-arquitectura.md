@@ -33,6 +33,7 @@ La descripción es la primera frase de su docstring.
 | `attachments` | Límites y evidencia de adjuntos en memoria. |
 | `lectores_texto` | Lectura en memoria de texto, HTML y RTF. |
 | `tramos` | Dividir un texto largo sin perder nada y condensar los hallazgos de cada tramo (T-25). |
+| `reintentos` | Espera creciente entre intentos de un hilo que falla y el caso que lo muestra (T-26). |
 | `lectores_geograficos` | Geometrías, misiones y tablas geográficas en memoria. |
 | `caso` | `Caso`: la vista de una solicitud de cotización tal como la ven el dashboard y las acciones. |
 | `configuracion` | La forma de `config.json` (vive fuera del repositorio, en la carpeta de datos): sus claves y sus tipos. |
@@ -74,6 +75,7 @@ La descripción es la primera frase de su docstring.
 |---|---|
 | `envios` | Reserva persistente y reconciliación de envíos del dashboard. |
 | `lectura_por_tramos` | Análisis de un hilo con lectura completa aunque no quepa en el modelo (T-25). |
+| `reintentos` | Registro de los hilos que fallaron y de cuándo reintentarlos (T-26). |
 
 | Módulo | Para qué sirve |
 |---|---|

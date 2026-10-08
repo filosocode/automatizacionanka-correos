@@ -53,7 +53,8 @@ def checked_run(apply: bool, review_only: bool, gmail_drafts: bool, source: str)
     started = time.time()
     error = ""
     try:
-        run(apply, review_only, gmail_drafts)
+        # el piloto respeta las esperas de los hilos que fallaron; una orden de una persona las ignora (T-26)
+        run(apply, review_only, gmail_drafts, **({} if source == "piloto" else {"respetar_espera": False}))
     except ModoNoPermitido as exc:
         error = str(exc)
         log.warning("Revisión de Gmail interrumpida (%s): el modo activo ya no es local ni api.", source)

@@ -425,7 +425,7 @@ class AislamientoDeHilosTests(unittest.TestCase):
         with self.assertLogs("anka.servicios.pipeline", level="ERROR") as logs:
             self.reviewer(process).run()
         self.assertEqual(procesados, ["t-2", "t-3"])
-        self.assertTrue(any("t-1" in line and "próxima revisión" in line for line in logs.output))
+        self.assertTrue(any("t-1" in line and "no se pudo analizar" in line for line in logs.output))
 
     def test_a_mode_change_still_stops_the_whole_pass(self):
         from anka.dominio.errores import ModoNoPermitido

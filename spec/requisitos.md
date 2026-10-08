@@ -236,6 +236,14 @@ ventana del modelo (`num_ctx_max` en Ollama, `context_tokens` en API) se analiza
 Con ChatGPT Work el paquete local entrega todo el texto en segmentos ordenados (`segment=i/n`) y el contrato advierte cuando
 Work declara, por adjunto, una cobertura incoherente (completa sin secciones revisadas, parcial o ilegible sin motivo).
 
+### T-26 · Un hilo que falla se reintenta con espera y se ve
+Un hilo que no se puede analizar (modelo ocupado, respuesta inválida, documentos que no caben) no se reintenta en cada
+ciclo: se registra el fallo y se espera 5 min, 15 min, 1 h, 4 h, 12 h y luego 24 h entre intentos; un hilo que falla no frena
+a los demás. Mientras no se logre, el hilo aparece en la lista de casos como «Requiere revisión técnica» con el motivo y
+la hora del próximo intento, para que una persona lo revise a mano sin esperar; si el análisis sale bien, ese caso se
+reemplaza por el real. El botón «Actualizar correo» ignora la espera (es una orden de una persona). Un hilo que ya tenía
+un análisis válido nunca se sobrescribe con el aviso de fallo. Los registros de fallos de más de 60 días se borran.
+
 ### U-06 · Estados veraces
 El estado que se ve en la lista, en el detalle y en los avisos no se contradice y refleja lo ocurrido.
 
