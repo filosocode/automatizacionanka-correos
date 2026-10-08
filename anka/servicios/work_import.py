@@ -136,7 +136,8 @@ def _work_analysis(payload: dict) -> Analisis:
     """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
     source = payload.get("source", "")
     reply_text = str(payload.get("draft_reply") or "").strip()
-    warnings = question_evidence_warnings(payload) + attachment_coverage_warnings(payload)
+    warnings = (question_evidence_warnings(payload) + attachment_coverage_warnings(payload)
+                + [str(aviso) for aviso in payload.get("_avisos_del_puente") or []])
     return {
         "is_quote_request": payload["status"] != "Descartada",
         "project_name": payload["project_name"],

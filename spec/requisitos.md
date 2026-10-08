@@ -64,6 +64,10 @@ El ciclo de vida de un caso sigue `spec/transiciones.json`; cada fila se ejecuta
 ### T-02 · Contrato con Work
 El JSON que ChatGPT Work deja en el borrador cumple `spec/contrato_work.schema.json`; el puente lo valida y acepta el
 estado sin importar tildes ni mayúsculas.
+Un descuido de tipo evidente en un campo opcional (p. ej. `unresolved: true` donde va un texto) no hace perder el borrador:
+el puente lo corrige (queda vacío), lo importa y deja el motivo como advertencia visible en el caso. Un borrador que de
+verdad incumple el contrato se rechaza una sola vez por versión del borrador (no se vuelve a descargar cada minuto hasta que
+Work lo edite) y el aviso del puente dice cuál es, de qué correo y qué corregir.
 
 ### T-03 · Código de la oferta y control de cambios
 Cada caso aceptado recibe su T (que pasa a T&E al aprobarse). Desde la T, la tabla solo cambia por el contacto

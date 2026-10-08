@@ -18,11 +18,12 @@ def _now() -> datetime:
 
 
 def write_heartbeat(interval: int, drafts: int = 0, updated: int = 0, failures: int = 0,
-                    error: str = "", events: int = 0) -> None:
+                    error: str = "", events: int = 0, detalles: list[str] | None = None) -> None:
     """Escribe el estado del último ciclo. Nunca debe tumbar al puente."""
     data = {
         "at": _now().isoformat(timespec="seconds"), "pid": os.getpid(), "interval": interval,
         "drafts": drafts, "updated": updated, "failures": failures, "error": error, "events": events,
+        "detalles": detalles or [],
     }
     try:
         settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -99,6 +100,8 @@ def bridge_state() -> tuple[str, str]:
         )
     if beat.get("error") or beat.get("failures"):
         detail = beat.get("error") or f"{beat['failures']} borrador(es) no importado(s)"
+        if not beat.get("error") and beat.get("detalles"):
+            detail += ": " + "; ".join(beat["detalles"])
         return "error", f"Puente Work activo con avisos a las {when}: {detail}."
     return "ok", (
         f"Puente Work activo: Gmail revisado a las {when} ({_ago(age)}), "
