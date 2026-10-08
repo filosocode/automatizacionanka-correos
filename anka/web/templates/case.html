@@ -39,7 +39,8 @@
   </section>
   {% endif %}
   {% if email != 'technical' %}
-  <section class="section" id="respuesta">
+  {% if plegar_respuesta %}<details class="more respuesta-plegada" id="respuesta"><summary>Respuesta al cliente (opcional)</summary>{% endif %}
+  <section class="section"{% if not plegar_respuesta %} id="respuesta"{% endif %}>
     <h2>Respuesta al cliente</h2>
     <p class="meta">Revisa el destinatario y el contenido. Ningún correo se envía sin pulsar “Enviar ahora”.{% if blank_reply %} Está en blanco para que escribas lo que quieras; si prefieres, <a href="/case?thread_id={{ thread_id | urlquote }}&template=acuse#respuesta">usa un acuse de recibo sugerido</a>.{% endif %}
       {% if review.quote_code %}Correos con el código: <a href="/case?thread_id={{ thread_id | urlquote }}&template=received#respuesta">proyecto recibido</a>{% if review.code_stage == 'TE' %} · <a href="/case?thread_id={{ thread_id | urlquote }}&template=te_aprobada#respuesta">oferta aprobada (T&amp;E)</a>{% endif %}.{% endif %}</p>
@@ -75,10 +76,11 @@
     {% endif %}
     <div style="margin-top:14px">{% if sufficient and not review.get('quote_code') %}<div class='notice'><strong>Recepción completa.</strong> La información puede pasar a revisión interna. Este dashboard todavía no prepara precios ni cotizaciones.</div>{% endif %}</div>
   </section>
+  {% if plegar_respuesta %}</details>{% endif %}
   {% endif %}
   {{ code_panel }}
   {% if review.status == 'ready_review' %}
-  <section class="section">
+  <section class="section" id="carpeta">
     <h2>Carpeta del proyecto en Drive</h2>
     <p class="meta">Se crea sola al enviar la respuesta al cliente, con el cliente de «Información comercial». Se reutiliza la carpeta del cliente si existe; el cliente nuevo se crea solo si no hay una igual ni parecida, y si hay una solicitud parecida (nombre o mismo archivo) no se duplica. Si algo de eso lo impide, aquí puedes decidir a mano.</p>
     {% if drive_pending %}<div class='notice'>{{ drive_pending }}</div>{% endif %}
@@ -91,7 +93,7 @@
     </form>
   </section>
   {% elif review.status == 'ready' and review.folder_id %}
-  <section class="section">
+  <section class="section" id="carpeta">
     <h2>Carpeta del proyecto en Drive</h2>
     <p><a class="button secondary" href="https://drive.google.com/drive/folders/{{ review.folder_id | urlquote }}">Abrir carpeta en Drive</a></p>
   </section>

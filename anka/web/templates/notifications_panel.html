@@ -1,4 +1,5 @@
 <section class="notifications">
+{% if plegar %}<details class="more"><summary>Novedades ({{ items | length }}): ya aparecen en tu cola de hoy</summary>{% endif %}
   <div class="section-head"><div><h2>Novedades</h2><div class="meta">Correos y respuestas que requieren tu atención.</div></div>
     <form method="post" action="/notifications/read"><button class="secondary" type="submit">Marcar como revisadas</button></form>
   </div>
@@ -12,4 +13,5 @@
   <a class="button secondary" href="/case?thread_id={{ item.thread_id | urlquote }}">Revisar</a>
 </article>
 {% endfor %}
+{% if plegar %}</details>{% endif %}
 </section>

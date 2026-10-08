@@ -53,6 +53,23 @@
       if (button && !confirm(button.dataset.confirm)) event.preventDefault();
     });
     (function () {
+      // El aviso de siguiente paso se pega justo debajo del encabezado fijo, sin taparlo.
+      const encabezado = document.querySelector('header');
+      function medirEncabezado() {
+        const fijo = getComputedStyle(encabezado).position === 'sticky';
+        document.documentElement.style.setProperty('--header-h', (fijo ? encabezado.offsetHeight : 0) + 'px');
+      }
+      medirEncabezado();
+      window.addEventListener('resize', medirEncabezado);
+      // Un enlace a una sección plegada (#respuesta) la abre.
+      function abrirDestino() {
+        const destino = location.hash && document.getElementById(location.hash.slice(1));
+        if (destino && destino.tagName === 'DETAILS') destino.open = true;
+      }
+      abrirDestino();
+      window.addEventListener('hashchange', abrirDestino);
+    })();
+    (function () {
       // Tema: sistema → claro → oscuro; se recuerda en este navegador.
       const nombres = {system: 'sistema', light: 'claro', dark: 'oscuro'};
       const orden = ['system', 'light', 'dark'];

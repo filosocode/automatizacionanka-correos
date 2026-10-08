@@ -5,7 +5,8 @@
 {{ notifications }}
 <section>
   {% if todo %}<ol class="queue">{% for row in todo %}{{ row }}{% endfor %}</ol>
-  {% if hidden_count %}<p class="meta">Hay {{ hidden_count }} caso(s) más que esperan una acción tuya. <a href="/requests">Verlos en Solicitudes</a>.</p>{% endif %}
+  {% if hidden_count %}<p class="meta">Hay {{ hidden_count }} caso(s) más que esperan una acción tuya.</p>
+  <a class="button secondary" href="/requests">Ver los {{ hidden_count }} en Solicitudes</a>{% endif %}
   {% else %}<div class='empty'>Todo al día. Los casos que esperan al cliente o están cotizando no requieren acción por ahora.</div>{% endif %}
 </section>
 <div class="grid kpis" style="margin-top:24px">

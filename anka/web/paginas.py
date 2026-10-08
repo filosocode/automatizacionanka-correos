@@ -63,7 +63,7 @@ def _dashboard_insights(quotes: Sequence[Mapping[str, Any]], services: Counter, 
     return render("insights.html", items=items)
 
 
-def _notifications_panel(notifications: list[dict]) -> Markup:
+def _notifications_panel(notifications: list[dict], plegar: bool = False) -> Markup:
     if not notifications:
         return Markup("")
     items = [
@@ -74,7 +74,7 @@ def _notifications_panel(notifications: list[dict]) -> Markup:
         }
         for item in notifications
     ]
-    return render("notifications_panel.html", items=items)
+    return render("notifications_panel.html", items=items, plegar=plegar)
 
 
 REPLY_LABEL = "Cliente respondió · por analizar"
@@ -103,8 +103,9 @@ def accion_de_caso(quote: Mapping[str, Any]) -> tuple[int, str, str]:
 
 
 def cola_de_hoy(quotes: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
-    """Los casos que piden algo de una persona, del más urgente al menos; `sorted` conserva el orden de la lista."""
-    return sorted((q for q in quotes if case_stage(q)[1]), key=lambda q: accion_de_caso(q)[0])
+    """Los casos que piden algo de una persona, del más urgente al menos y, a igual urgencia, el más reciente."""
+    return sorted((q for q in quotes if case_stage(q)[1]),
+                  key=lambda q: (accion_de_caso(q)[0], -fecha_de_recepcion(q)))
 
 
 ETAPAS_FILTRO = (("atender", "Por atender"), ("esperando", "Esperando al cliente"),
@@ -147,7 +148,8 @@ def render_index(message: str = "") -> str:
     body = render(
         "index.html",
         sync_text=sync_status_text(),
-        notifications=_notifications_panel(notifications),
+        notifications=_notifications_panel(notifications, plegar=bool(notifications) and all(
+            item["thread_id"] in {q["thread_id"] for q in todo_cases[:COLA_MAXIMA]} for item in notifications)),
         total=len(quotes),
         unique_clients=len({q["client_email"].casefold() for q in quotes if q["client_email"]}),
         action_count=len(todo_cases),

@@ -360,6 +360,26 @@ def _next_step_banner(review: Caso, work_mode: bool) -> Markup:
             "next_step.html", tone="info", title="Información validada: puedes emitir la T",
             text="Damos por recibido el proyecto y empezamos a cotizar.",
             action_href="#emitir-t", action_label="Emitir la T")
+    code = review.get("quote_code", "")
+    if code:
+        stage = review.get("code_stage") or "T"
+        title = f"{code_label(code, stage)} · " + ("oferta aprobada" if stage == "TE" else "cotizando")
+        folder = review.get("folder_id")
+        if folder:
+            return render(
+                "next_step.html", tone="info", title=title,
+                text="La T está emitida y la carpeta del proyecto ya existe en Drive.",
+                action_href="https://drive.google.com/drive/folders/" + urllib.parse.quote(folder),
+                action_label="Abrir carpeta en Drive")
+        return render(
+            "next_step.html", tone="warn", title=title,
+            text="La T está emitida, pero la carpeta del proyecto aún no existe en Drive.",
+            action_href="#carpeta", action_label="Ir a la carpeta")
+    if label.startswith("Esperando al cliente"):
+        return render(
+            "next_step.html", tone="info", title="Esperando al cliente",
+            text=f"{label}. Si no responde, el seguimiento prepara un recordatorio que tú revisas antes de enviarlo.",
+            action_href="#seguimiento", action_label="Ver seguimiento")
     return Markup("")
 
 
@@ -580,6 +600,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         service_family=assessment.get("service_family", "Por clasificar"),
         suggestion_complete=review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING},
         draft_complete=bool(review["draft_id"] or sent_complete),
+        plegar_respuesta=bool(review.get("quote_code")) or (
+            review.informacion_validada and review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING}),
         sent_complete=sent_complete, no_reply_needed=review["status"] in {QuoteStatus.READY, QuoteStatus.IGNORED},
         client_types=CLIENT_TYPES, sectors=SECTORS,
         routing_summary=_routing_summary(analysis), issues_summary=issues_summary,

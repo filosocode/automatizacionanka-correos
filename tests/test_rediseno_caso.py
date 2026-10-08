@@ -1,4 +1,4 @@
-"""Cubre: U-09, U-10, U-11, U-13, U-14, U-15, U-16 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
+"""Cubre: U-09, U-10, U-11, U-11, U-13, U-14, U-15, U-16 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
 from __future__ import annotations
 
 import re
@@ -252,6 +252,45 @@ class TemaClaroYOscuro(unittest.TestCase):
         self.assertLess(layout.index("localStorage.getItem('anka-tema')"), layout.index("<style>"))  # sin parpadeo
         for estado in ("system", "light", "dark"):
             self.assertIn(estado, layout)
+
+
+class ResumenYControles(unittest.TestCase):
+    def test_a_igual_urgencia_el_mas_reciente_primero(self) -> None:
+        # Cubre: U-11
+        casos = [_caso("vieja", QuoteStatus.REVIEW, first_seen_at="2026-09-01T09:00:00"),
+                 _caso("nueva", QuoteStatus.REVIEW, first_seen_at="2026-10-08T06:10:00"),
+                 _caso("emitir", QuoteStatus.READY, first_seen_at="2026-08-01T09:00:00")]
+        self.assertEqual([q["thread_id"] for q in paginas.cola_de_hoy(casos)], ["emitir", "nueva", "vieja"])
+
+    def _resumen(self, casos: list[dict], notificaciones: list[dict]) -> str:
+        from unittest import mock
+        with mock.patch.object(paginas, "all_quotes", return_value=casos),                 mock.patch.object(paginas, "unread_notifications", return_value=notificaciones),                 mock.patch.object(paginas, "sync_status_text", return_value=""),                 mock.patch.object(paginas, "page", side_effect=lambda titulo, cuerpo, mensaje="": str(cuerpo)):
+            return paginas.render_index()
+
+    def _novedad(self, hilo: str) -> dict:
+        return {"thread_id": hilo, "title": "Correo nuevo", "project_name": "P", "message": "m", "created_at": "2026-10-08T06:10:00"}
+
+    def test_las_novedades_que_repiten_la_cola_se_pliegan_y_conservan_su_boton(self) -> None:
+        # Cubre: U-11
+        casos = [_caso("a", QuoteStatus.REVIEW), _caso("b", QuoteStatus.READY)]
+        repetida = self._resumen(casos, [self._novedad("a")])
+        self.assertIn("ya aparecen en tu cola de hoy", repetida)
+        self.assertIn("Marcar como revisadas", repetida)                # el botón sigue dentro del plegado
+        ajena = self._resumen(casos, [self._novedad("otro")])
+        self.assertNotIn("ya aparecen en tu cola de hoy", ajena)       # una novedad que no está en la cola queda a la vista
+
+    def test_el_resto_de_la_cola_es_un_boton(self) -> None:
+        # Cubre: U-11
+        html = self._resumen([_caso(f"t{n}", QuoteStatus.REVIEW) for n in range(7)], [])
+        self.assertIn('<a class="button secondary" href="/requests">Ver los 2 en Solicitudes</a>', html)
+
+    def test_controles_de_44_px_y_botones_de_etapa_con_espacio(self) -> None:
+        # Cubre: U-14
+        css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
+        self.assertRegex(css, r"nav a \{\s*display: inline-flex; align-items: center; min-height: 44px;")
+        self.assertIn("input:not([type=checkbox]):not([type=radio]), select { min-height: 44px; }", css)
+        self.assertRegex(css, r"\.chip-filter \{ display: inline-flex; align-items: center; gap: 6px;")
+        self.assertRegex(css, r"\.more > summary \{[^}]*min-height: 44px;")
 
 
 if __name__ == "__main__":

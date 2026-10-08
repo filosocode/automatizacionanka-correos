@@ -251,8 +251,9 @@ una por una, sin perder ninguna página. Con el mismo contenido el caso es más 
 El Resumen muestra los casos que esperan una acción de una persona como una cola ordenada por urgencia, de a lo más cinco,
 y cada uno con un solo botón con verbo que lleva a su paso. El orden es: el cliente respondió; cambios, propuestas o
 actualizaciones por revisar; borrador o envío por revisar; listo para emitir la T; decisión técnica o aclaración; seguimiento sin
-respuesta. A igual urgencia se conserva el orden de la lista. Si hay más de cinco, el Resumen lo dice y enlaza a Solicitudes,
-donde siguen todos.
+respuesta. A igual urgencia va primero la más reciente. Si hay más de cinco, el Resumen lo dice y ofrece un botón a Solicitudes,
+donde siguen todos. Las novedades que repiten a casos ya mostrados en la cola quedan plegadas, con su botón de marcarlas
+como revisadas.
 
 ### U-12 · Decidir y preguntar en un solo paso
 En revisión técnica, la pantalla ofrece una sola sección, «¿Cómo seguimos?», con las dos salidas y lo que ocurre después de
@@ -287,3 +288,13 @@ la página sale por defecto la más reciente primero. La fecha es la de recepci�
 de la última actualización; las solicitudes sin fecha quedan al final en cualquier orden por fecha. A igual fecha se conserva
 el orden de la lista. «Más urgentes primero» usa el orden de la cola del Resumen y, a igual urgencia, la más reciente primero.
 El orden se aplica en el servidor (la página ya llega ordenada) y se puede cambiar sin recargar.
+
+### U-17 · Siguiente paso en todas las etapas, bajo el encabezado
+El aviso de «siguiente paso» está en las cuatro etapas: además de la decisión y la emisión de la T, un caso que espera al cliente dice
+cuánto lleva esperando y lleva al seguimiento, y un caso con T dice su código y lleva a la carpeta del proyecto (o a crearla). El
+aviso se queda fijo justo debajo del encabezado, sin taparlo ni cubrir la navegación, en cualquier alto de encabezado.
+
+### U-18 · La respuesta no compite con la emisión de la T
+Cuando la información está validada o el caso ya tiene T, «Respuesta al cliente» queda plegada («opcional») y no aparece junto a la
+emisión; un enlace a ella (`#respuesta`) la abre. Sigue estando disponible para el acuse y los correos con el código (U-08).
+Con la información sin validar, la respuesta sigue a la vista como siempre.
