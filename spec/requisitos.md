@@ -260,3 +260,9 @@ cada una. Las preguntas para el cliente se editan ahí y no se repiten como tare
 hay. Mientras la respuesta está en pausa no aparece la sección «Respuesta al cliente». Al decidir, la persona llega directo
 al correo (si pregunta) o a la emisión de la T (si la información basta), y el aviso de arriba le dice que revise y envíe.
 Ningún correo sale sin «Enviar ahora» (R8).
+
+### U-13 · Solicitudes: lista ordenada, con verbo y filtrada por etapa
+La lista de Solicitudes va ordenada por la misma urgencia que la cola del Resumen. Cada fila lleva el botón con el verbo de su
+paso («Decidir», «Emitir la T», «Revisar borrador»…) y, si no espera nada de una persona, «Abrir». Se filtra por etapa (Por
+atender, Esperando al cliente, Listas para la T, En cotización) con la cantidad de cada una, y por tipo de cliente. «Eliminar
+seleccionadas» queda dentro de un menú «Acciones» y conserva su confirmación: no está a la vista junto a las acciones normales.

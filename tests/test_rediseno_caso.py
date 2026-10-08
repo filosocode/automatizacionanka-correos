@@ -1,4 +1,4 @@
-"""Cubre: U-09, U-10, U-11 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
+"""Cubre: U-09, U-10, U-11, U-13 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
 from __future__ import annotations
 
 import unittest
@@ -52,7 +52,7 @@ class EmisionDeLaT(unittest.TestCase):
 def _caso(hilo: str, estado: QuoteStatus, **extra: object) -> dict:
     return {"thread_id": hilo, "status": estado, "status_label": "x", "client_name": "OTACC", "changes": [],
             "analysis": {"project_name": f"Proyecto {hilo}"}, "services": [], "client_type": "No clasificado",
-            "client_email": "", **extra}
+            "client_email": "", "sector": "No clasificado", **extra}
 
 
 class ColaDeHoy(unittest.TestCase):
@@ -92,6 +92,42 @@ class ColaDeHoy(unittest.TestCase):
             html = paginas.render_index()
         self.assertEqual(html.count('class="queue-row"'), paginas.COLA_MAXIMA)
         self.assertIn("Hay 2 caso(s) más", html)
+
+
+class ListaDeSolicitudes(unittest.TestCase):
+    def test_grupo_de_etapa(self) -> None:
+        # Cubre: U-13
+        self.assertEqual(paginas.grupo_de_etapa(_caso("a", QuoteStatus.READY)), "listo")
+        self.assertEqual(paginas.grupo_de_etapa(_caso("b", QuoteStatus.REVIEW)), "atender")
+        self.assertEqual(paginas.grupo_de_etapa(_caso("c", QuoteStatus.WAITING)), "esperando")
+        self.assertEqual(paginas.grupo_de_etapa(
+            _caso("d", QuoteStatus.READY, quote_code="26005", code_stage="T")), "cotizando")
+        self.assertEqual(paginas.grupo_de_etapa(_caso("e", QuoteStatus.IGNORED)), "otras")
+
+    def test_la_fila_lleva_verbo_etapa_y_ancla(self) -> None:
+        # Cubre: U-13
+        fila = str(paginas.quote_row(_caso("h1", QuoteStatus.REVIEW), selectable=True))
+        self.assertIn('data-etapa="atender"', fila)
+        self.assertIn(">Decidir</a>", fila)
+        self.assertIn("/case?thread_id=h1#decision", fila)
+        quieta = str(paginas.quote_row(_caso("h2", QuoteStatus.IGNORED)))
+        self.assertIn(">Abrir</a>", quieta)
+
+    def test_la_lista_va_por_urgencia_filtra_por_etapa_y_oculta_eliminar_en_acciones(self) -> None:
+        # Cubre: U-13
+        from unittest import mock
+        casos = [_caso("decidir", QuoteStatus.REVIEW), _caso("emitir", QuoteStatus.READY),
+                 _caso("respondio", QuoteStatus.WAITING, reply_pending="2026-10-08T06:00:00"),
+                 _caso("ignorada", QuoteStatus.IGNORED)]
+        with mock.patch.object(paginas, "all_quotes", return_value=casos),                 mock.patch.object(paginas, "unread_notifications", return_value=[]),                 mock.patch.object(paginas, "page", side_effect=lambda titulo, cuerpo, mensaje="": str(cuerpo)):
+            html = paginas.render_requests()
+        orden = [html.index(f"thread_id={hilo}") for hilo in ("respondio", "emitir", "decidir", "ignorada")]
+        self.assertEqual(orden, sorted(orden))
+        for etiqueta in ("Por atender", "Esperando al cliente", "Listas para la T", "En cotización"):
+            self.assertIn(etiqueta, html)
+        self.assertIn('<details class="more bulk-menu"><summary>Acciones</summary>', html)
+        self.assertLess(html.index("bulk-menu"), html.index('id="delete-btn"'))
+        self.assertIn("data-confirm", html[html.index('id="delete-btn"'):html.index('id="delete-btn"') + 400])
 
 
 if __name__ == "__main__":

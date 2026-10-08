@@ -33,7 +33,7 @@ from anka.servicios.change_control import (
 )
 from anka.dominio.registros import Cambio
 from anka.servicios.quotes import discarded_quotes, all_quotes, unread_notifications
-from anka.dominio.caso import CLIENT_TYPES, STATUS_LABELS
+from anka.dominio.caso import CLIENT_TYPES
 
 log = get_logger(__name__)
 
@@ -107,6 +107,22 @@ def cola_de_hoy(quotes: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     return sorted((q for q in quotes if case_stage(q)[1]), key=lambda q: accion_de_caso(q)[0])
 
 
+ETAPAS_FILTRO = (("atender", "Por atender"), ("esperando", "Esperando al cliente"),
+                 ("listo", "Listas para la T"), ("cotizando", "En cotización"))
+
+
+def grupo_de_etapa(quote: Mapping[str, Any]) -> str:
+    """El grupo de la lista de Solicitudes: atender, esperando, listo, cotizando u otras."""
+    label, urgent = case_stage(quote)
+    if label == "Listo para emitir la T":
+        return "listo"
+    if label.startswith("Esperando al cliente") or label in ("Llamar al cliente", "Sin respuesta · recordar"):
+        return "esperando"
+    if urgent:
+        return "atender"
+    return "cotizando" if quote.get("quote_code") else "otras"
+
+
 def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False) -> Markup:
     """Fila de la cola de hoy: posición, proyecto, qué espera y un solo botón con verbo."""
     _, verb, anchor = accion_de_caso(quote)
@@ -156,6 +172,7 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
     if len(received_at) < 16 or received_at[10] not in ("T", " "):
         received_at = quote["analysis"].get("received_at") or received_at
     date = _received_datetime_label(received_at)
+    _, verb, anchor = accion_de_caso(quote) if case_stage(quote)[1] else (0, "Abrir", "")
     return render(
         "quote_row.html",
         project=project, services=services, is_new=is_new, selectable=selectable,
@@ -163,6 +180,7 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
         status=quote["status"], client_type=quote["client_type"],
         client_name=quote["client_name"], sector=quote["sector"],
         badge_class="warn" if case_stage(quote)[1] else "info",
+        etapa=grupo_de_etapa(quote), verb=verb, href=f"/case?thread_id={url_quote(quote['thread_id'])}{anchor}",
         status_label=case_stage(quote)[0],
         date=date,
         thread_id=quote["thread_id"], reply_pending=bool(quote.get("reply_pending", "")),
@@ -204,9 +222,9 @@ def render_requests(message: str = "") -> str:
     body = render(
         "requests.html",
         rows=[quote_row(quote, quote["thread_id"] in unread_threads, selectable=True)
-              for quote in sorted(quotes, key=lambda q: not case_stage(q)[1])],  # primero lo que pide acción
+              for quote in sorted(quotes, key=lambda q: accion_de_caso(q)[0] if case_stage(q)[1] else 10)],
         pending_links=pending_links,
-        status_options=list(STATUS_LABELS.items()),
+        etapas=[(key, label, sum(grupo_de_etapa(q) == key for q in quotes)) for key, label in ETAPAS_FILTRO],
         type_options=CLIENT_TYPES,
     )
     return page("Solicitudes", body, message)

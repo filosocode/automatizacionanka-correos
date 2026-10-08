@@ -18,19 +18,25 @@
 {% endif %}
 <div class="filters">
   <label>Buscar<input id="search" type="search" placeholder="Proyecto, cliente o servicio"></label>
-  <label>Estado<select id="status"><option value="">Todos</option>{% for key, label in status_options %}<option value='{{ key }}'>{{ label }}</option>{% endfor %}</select></label>
   <label>Tipo de cliente<select id="client-type"><option value="">Todos</option>{% for value in type_options %}<option value='{{ value }}'>{{ value }}</option>{% endfor %}</select></label>
 </div>
+<div class="chips" role="group" aria-label="Filtrar por etapa">
+  <button type="button" class="chip-filter" data-etapa="" aria-pressed="true">Todas</button>
+  {% for key, label, count in etapas %}<button type="button" class="chip-filter" data-etapa="{{ key }}" aria-pressed="false">{{ label }} <b>{{ count }}</b></button>
+  {% endfor %}
+</div>
+<details class="more bulk-menu"><summary>Acciones</summary>
 <form id="bulk-delete" method="post" action="/delete" class="bulk-bar">
   <label class="check-all"><input id="select-all" type="checkbox"> Seleccionar todas las visibles</label>
   <span id="selected-count" class="meta">0 seleccionadas</span>
   <button id="delete-btn" class="danger" type="submit" disabled data-confirm="¿Eliminar los hilos seleccionados, completos? Se borran del dashboard y, si ya tienen carpeta de proyecto, esa carpeta se mueve a la papelera de Drive (recuperable ~30 días). No se toca Gmail ni las carpetas de cliente.">Eliminar seleccionadas</button>
 </form>
+</details>
 <div id="requests" class="grid">{% if rows %}{% for row in rows %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todavía no hay solicitudes registradas.</div>{% endif %}</div>
 <div id="no-results" class="empty" hidden>No hay solicitudes con esos filtros.</div>
 <script>
 const search = document.querySelector('#search');
-const statusFilter = document.querySelector('#status');
+let etapaActual = '';
 const typeFilter = document.querySelector('#client-type');
 const rows = [...document.querySelectorAll('.case-row')];
 function filterRows() {
@@ -38,14 +44,20 @@ function filterRows() {
   let visible = 0;
   rows.forEach(row => {
     const show = (!term || row.dataset.search.includes(term)) &&
-      (!statusFilter.value || row.dataset.status === statusFilter.value) &&
+      (!etapaActual || row.dataset.etapa === etapaActual) &&
       (!typeFilter.value || row.dataset.type === typeFilter.value);
     row.hidden = !show;
     if (show) visible += 1;
   });
   document.querySelector('#no-results').hidden = visible !== 0;
 }
-[search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', filterRows));
+[search, typeFilter].forEach(input => input.addEventListener('input', filterRows));
+document.querySelectorAll('.chip-filter').forEach(chip => chip.addEventListener('click', () => {
+  etapaActual = chip.dataset.etapa;
+  document.querySelectorAll('.chip-filter').forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
+  filterRows();
+  clearHiddenSelection();
+}));
 const checks = [...document.querySelectorAll('.row-check')];
 const selectAll = document.querySelector('#select-all');
 const deleteBtn = document.querySelector('#delete-btn');
@@ -74,9 +86,10 @@ if (selectAllLinks) selectAllLinks.addEventListener('change', () => {
 });
 linkChecks.forEach(c => c.addEventListener('change', updateLinkSelection));
 // una casilla oculta por el filtro no debe borrarse sin que se vea
-[search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', () => {
+function clearHiddenSelection() {
   checks.forEach(c => { if (c.closest('.case-row').hidden) c.checked = false; });
   selectAll.checked = false;
   updateSelection();
-}));
+}
+[search, typeFilter].forEach(input => input.addEventListener('input', clearHiddenSelection));
 </script>

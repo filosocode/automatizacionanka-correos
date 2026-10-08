@@ -682,7 +682,8 @@ class UxFixesTests(Base):
             page = paginas.render_requests()
         self.assertIn("Esperando al cliente", page)
         self.assertIn("Por aclarar con el cliente", page)
-        self.assertLess(page.index("Por aclarar con el cliente"), page.index("Esperando al cliente"))
+        lista = page[page.index('id="requests"'):]                  # sin contar los botones del filtro de etapa
+        self.assertLess(lista.index("Por aclarar con el cliente"), lista.index("Esperando al cliente"))
 
     # 2. textos al día
     def test_no_stale_prompts_once_the_t_exists(self):

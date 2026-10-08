@@ -119,6 +119,9 @@ main { width: min(1240px, 100%); margin: 0 auto; padding: 28px 24px 48px; }
 .case-row { grid-template-columns: minmax(180px, 1.4fr) 1fr 160px 130px auto; align-items: center; }
 .case-row[data-selectable] { grid-template-columns: 24px minmax(180px, 1.4fr) 1fr 160px 130px auto; }
 .row-check, .check-all input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 12px; }
+.chip-filter { min-height: 44px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-weight: 500; cursor: pointer; }
+.chip-filter[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .bulk-bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
 .check-all { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
 button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
