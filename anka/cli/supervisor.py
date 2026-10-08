@@ -2,6 +2,10 @@
 y hace la copia de seguridad diaria. Cierra antes cualquier instancia vieja.
 
     python supervisor.py            (lo usa «Iniciar Anka.bat» y el autoarranque de Windows)
+
+Son dos procesos: un guardián mínimo (`guardian`) que no tiene lógica propia y el servicio (`servicio`) que hace el trabajo.
+Cuando cambia el código el servicio sale con `EXIT_RELANZAR` y el guardián lo lanza de nuevo con el código nuevo: así el
+lanzador tampoco se queda con código anterior (T-27).
 """
 
 from __future__ import annotations
@@ -23,6 +27,8 @@ log = get_logger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXIT_STOP = 2                       # el puente pide no reiniciarlo (modo o cuenta incorrectos)
+EXIT_RELANZAR = 75                  # el servicio pide que el guardián lo lance de nuevo (cambió el código)
+SERVICIO = "--servicio"             # argumento con el que el guardián lanza el servicio
 REMINDER_EVERY = 300                # segundos entre revisiones de recordatorios
 MODE_RECHECK = 30          # segundos entre lecturas de config.json para saber si el puente debe estar activo
 WATCH_EVERY = 3                     # segundos entre revisiones de cambios y de procesos
@@ -48,25 +54,38 @@ def backoff(failures: int) -> int:
     return min(60, 2 ** max(1, failures))
 
 
+def instancias_anteriores(rows: list[dict], own_pid: int) -> list[int]:
+    """De la lista de procesos, los dashboards, puentes y lanzadores anteriores: nunca el propio ni sus ascendentes.
+
+    El guardián (y su intérprete) son ascendentes del servicio y llevan «supervisor.py» en su línea de comandos: sin esta
+    exclusión el servicio cerraría a quien lo vuelve a lanzar.
+    """
+    parent_of = {int(row["ProcessId"]): int(row.get("ParentProcessId") or 0) for row in rows}
+    ancestors, pid = set(), own_pid
+    while pid and pid not in ancestors:
+        ancestors.add(pid)
+        pid = parent_of.get(pid, 0)
+    return [int(row["ProcessId"]) for row in rows
+            if int(row["ProcessId"]) not in ancestors and "python" in (row.get("CommandLine") or "").lower()
+            and any(marker in row["CommandLine"] for marker in MARKERS)]
+
+
 def old_instances(own_pid: int) -> list[int]:
     """PID de dashboards, puentes y lanzadores anteriores (Windows)."""
-    script = ("Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | "
-              "Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress")
+    script = ("Get-CimInstance Win32_Process | "
+              "Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress")
     try:
         out = subprocess.run(["powershell", "-NoProfile", "-Command", script],
                              capture_output=True, text=True, timeout=30).stdout
         rows = json.loads(out or "[]")
     except (OSError, ValueError, subprocess.SubprocessError):
         return []
-    rows = [rows] if isinstance(rows, dict) else rows
-    return [int(row["ProcessId"]) for row in rows
-            if int(row["ProcessId"]) != own_pid and "python" in row["CommandLine"].lower()
-            and any(marker in row["CommandLine"] for marker in MARKERS)]
+    return instancias_anteriores([rows] if isinstance(rows, dict) else rows, own_pid)
 
 
 def stop_old_instances() -> int:
     """Cierra los lanzadores, dashboards y puentes que quedaron de una ejecución anterior; devuelve cuántos cerró."""
-    pids = [pid for pid in old_instances(os.getpid()) if pid != os.getppid()]
+    pids = old_instances(os.getpid())
     for pid in pids:
         subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
     if pids:
@@ -131,8 +150,8 @@ class Child:
         log.warning("%s terminó (código %s); se reinicia en %d s", self.name, code, wait)
 
 
-def main() -> None:
-    """Arranca el dashboard y, en modo Work, el puente; los reinicia si se caen o cambia el código; copia a diario."""
+def servicio() -> int:
+    """Arranca dashboard y puente, los reinicia si se caen, copia a diario y pide relanzarse si cambia el código."""
     configure_logging(console=sys.stdout is not None)
     stop_old_instances()
     dashboard = Child("Dashboard", ["app.py", "review-ui", "--no-browser"])
@@ -146,11 +165,8 @@ def main() -> None:
         while True:
             if code_snapshot() != snapshot:
                 time.sleep(2)                       # que terminen de guardarse los archivos
-                snapshot = code_snapshot()
-                log.info("Cambió el código: reiniciando dashboard y puente")
-                for child in children:
-                    child.stop()
-                    child.stopped, child.failures, child.retry_at = False, 0, 0.0
+                log.info("Cambió el código: el lanzador se reinicia solo, con el dashboard y el puente")
+                return EXIT_RELANZAR                # el `finally` detiene a los hijos; el guardián lanza el código nuevo
             if time.time() - mode_checked >= MODE_RECHECK:
                 mode_checked, in_work_mode = time.time(), work_mode()
             if in_work_mode:
@@ -173,6 +189,29 @@ def main() -> None:
     finally:
         for child in children:
             child.stop()
+    return 0
+
+
+def guardian() -> int:
+    """Lanza el servicio y lo vuelve a lanzar cada vez que pide reiniciarse; con otra salida termina igual que él."""
+    configure_logging(console=sys.stdout is not None)
+    while True:
+        started = time.time()
+        try:
+            code = subprocess.call([CHILD_PYTHON, str(ROOT / "supervisor.py"), SERVICIO], cwd=ROOT,
+                                   creationflags=0x08000000 if sys.stdout is None else 0)   # sin ventana con Windows
+        except KeyboardInterrupt:
+            return 0
+        if code != EXIT_RELANZAR:
+            return code
+        log.info("El lanzador se vuelve a lanzar con el código nuevo")
+        if time.time() - started < 5:
+            time.sleep(2)                           # que no gire sin descanso si algo lo pide sin parar
+
+
+def main() -> None:
+    """Punto de entrada: el servicio si se pide con `--servicio`; si no, el guardián que lo lanza y relanza."""
+    raise SystemExit(servicio() if SERVICIO in sys.argv else guardian())
 
 
 if __name__ == "__main__":

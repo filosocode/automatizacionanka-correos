@@ -130,5 +130,76 @@ class SupervisorTests(unittest.TestCase):
             self.assertEqual(popen.call_count, 2)
 
 
+def proceso(pid, ppid, comando):
+    return {"ProcessId": pid, "ParentProcessId": ppid, "CommandLine": comando}
+
+
+# Cubre: T-27
+class AutoReinicioTests(unittest.TestCase):
+    def test_el_servicio_no_cierra_a_su_guardian_pero_si_a_los_lanzadores_viejos(self):
+        py = "C:/py/python.exe"
+        filas = [
+            proceso(1, 0, "cmd.exe /c Iniciar Anka.bat"),
+            proceso(2, 1, py + " supervisor.py"),                         # guardián (intérprete del entorno)
+            proceso(3, 2, py + " supervisor.py"),                         # guardián (intérprete real)
+            proceso(4, 3, py + " supervisor.py --servicio"),              # servicio (intérprete del entorno)
+            proceso(5, 4, py + " supervisor.py --servicio"),              # servicio (intérprete real) = propio
+            proceso(8, 0, py + " supervisor.py"),                         # un lanzador de una ejecución anterior
+            proceso(9, 8, py + " app.py review-ui --no-browser"),         # y su dashboard
+            proceso(10, 8, py + " work_dashboard_sync.py --seconds 60"),  # y su puente
+            proceso(11, 0, "C:/otro/notepad.exe supervisor.py"),            # no es python: se ignora
+            proceso(12, 0, py + " otra_cosa.py"),                         # python ajeno al proyecto
+            proceso(13, 0, None),                                         # proceso sin línea de comandos
+        ]
+        self.assertEqual(supervisor.instancias_anteriores(filas, own_pid=5), [8, 9, 10])
+
+    def test_los_ascendentes_se_siguen_hasta_la_raiz_sin_ciclos(self):
+        filas = [proceso(1, 2, "python supervisor.py"), proceso(2, 1, "python supervisor.py"),
+                 proceso(3, 2, "python supervisor.py --servicio")]
+        self.assertEqual(supervisor.instancias_anteriores(filas, own_pid=3), [])   # 1 y 2 son ascendentes (aunque se cierren en ciclo)
+
+    def test_el_guardian_relanza_el_servicio_mientras_pida_reiniciarse(self):
+        with patch.object(supervisor.subprocess, "call", side_effect=[supervisor.EXIT_RELANZAR] * 2 + [0]) as call,                 patch.object(supervisor.time, "sleep"), patch.object(supervisor, "configure_logging"):
+            self.assertEqual(supervisor.guardian(), 0)
+        self.assertEqual(call.call_count, 3)
+        self.assertIn(supervisor.SERVICIO, call.call_args[0][0])               # lo lanza como servicio
+
+    def test_el_guardian_termina_igual_que_el_servicio_con_cualquier_otra_salida(self):
+        with patch.object(supervisor.subprocess, "call", return_value=3) as call,                 patch.object(supervisor, "configure_logging"):
+            self.assertEqual(supervisor.guardian(), 3)
+        self.assertEqual(call.call_count, 1)
+        with patch.object(supervisor.subprocess, "call", side_effect=KeyboardInterrupt),                 patch.object(supervisor, "configure_logging"):
+            self.assertEqual(supervisor.guardian(), 0)                          # Ctrl+C: parada normal
+
+    def test_main_elige_servicio_o_guardian_segun_el_argumento(self):
+        with patch.object(supervisor, "servicio", return_value=75) as servicio,                 patch.object(supervisor, "guardian", return_value=0) as guardian:
+            with patch.object(supervisor.sys, "argv", ["supervisor.py", supervisor.SERVICIO]):
+                with self.assertRaises(SystemExit) as salida:
+                    supervisor.main()
+            self.assertEqual((salida.exception.code, servicio.call_count, guardian.call_count), (75, 1, 0))
+            with patch.object(supervisor.sys, "argv", ["supervisor.py"]):
+                with self.assertRaises(SystemExit) as salida:
+                    supervisor.main()
+            self.assertEqual((salida.exception.code, servicio.call_count, guardian.call_count), (0, 1, 1))
+
+    def test_el_servicio_pide_relanzarse_cuando_cambia_el_codigo_y_detiene_a_los_hijos(self):
+        hijos = []
+
+        class Hijo:
+            def __init__(self, nombre, args):
+                self.name, self.stopped, self.stop_calls = nombre, False, 0
+                hijos.append(self)
+
+            def check(self):
+                pass
+
+            def stop(self):
+                self.stop_calls += 1
+
+        with patch.object(supervisor, "configure_logging"), patch.object(supervisor, "stop_old_instances"),                 patch.object(supervisor, "Child", Hijo), patch.object(supervisor.time, "sleep"),                 patch.object(supervisor, "work_mode", return_value=False),                 patch.object(supervisor, "backup_due", return_value=False),                 patch.object(supervisor, "run_due_reminders"),                 patch.object(supervisor, "code_snapshot", side_effect=[{"a": 1.0}, {"a": 2.0}, {"a": 2.0}]):
+            self.assertEqual(supervisor.servicio(), supervisor.EXIT_RELANZAR)
+        self.assertEqual([h.stop_calls for h in hijos], [1, 1])                 # dashboard y puente quedan detenidos
+
+
 if __name__ == "__main__":
     unittest.main()

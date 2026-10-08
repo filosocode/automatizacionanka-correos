@@ -333,3 +333,11 @@ Con borradores rechazados y sin fallos el puente está «activo» con un estado 
 error: sigue importando el resto. El Resumen lista cada borrador rechazado con su hilo (si existe), el motivo (campos del
 contrato, nunca contenido del cliente) y qué hacer. En `question_audit`, un `unresolved` booleano (Work lo escribe como sí/no)
 se trata como vacío y se importa: la advertencia de la pregunta («debe precisar qué subdato sigue sin resolver») lo hace visible.
+
+### T-27 · El lanzador se reinicia solo cuando cambia el código
+Cuando cambia el código (incluida una migración de la base), el lanzador no solo reinicia el dashboard y el puente: **se reinicia
+él mismo**, para no seguir corriendo con código anterior contra una base ya migrada (los recordatorios y la copia de seguridad
+fallaban con «la base es de una versión más nueva»). Un guardián mínimo lanza el servicio del lanzador y lo vuelve a lanzar
+cada vez que este lo pide con el código de salida 75; con cualquier otra salida termina igual que él (Ctrl+C o parada normal).
+Al arrancar, el servicio cierra los lanzadores, dashboards y puentes anteriores **sin cerrar a su propio guardián** (sus
+procesos ascendentes). El guardián no ejecuta lógica del lanzador, así que no se queda desactualizado.
