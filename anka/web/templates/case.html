@@ -67,7 +67,7 @@
     {% elif email == 'sent' %}
 <div class='notice'>Respuesta enviada el {{ review.sent_at or 'sin fecha registrada' }}.</div><pre>{{ review.draft_body }}</pre>
     {% elif email == 'recipient_error' %}
-<div class='notice' style='border-color:#e2b8b3;background:#faecea'>{{ recipient_error }}</div>
+<div class='notice error'>{{ recipient_error }}</div>
     {% elif email == 'technical' %}
 <div class='notice'><strong>Respuesta en pausa.</strong> El equipo de Anka debe revisar el caso antes de solicitar información al cliente.</div>
     {% else %}

@@ -56,6 +56,17 @@ def _activities_table(activities: list[dict]) -> Markup:
     return render("activities_table.html", rows=rows)
 
 
+_PALABRAS = {
+    "extraido": "Leído", "completa": "Completa", "parcial": "Parcial", "lectura_parcial": "Lectura parcial",
+    "no_legible": "No se pudo leer", "unreadable": "No se pudo leer", "bloqueado": "Bloqueado: lo revisa una persona",
+}
+
+
+def _palabra(codigo: str) -> str:
+    """Un código interno de lectura, dicho como lo diría una persona; lo desconocido pasa igual."""
+    return _PALABRAS.get(codigo.strip().casefold().replace(" ", "_"), codigo)
+
+
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
     """Tabla de adjuntos con estado, datos bloqueados y citas verificables."""
     rows = []
@@ -74,8 +85,8 @@ def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
             evidence.append(" · ".join(parts))
         rows.append((
             str(item.get("filename") or ""),
-            str(item.get("status") or ""),
-            str(item.get("coverage") or "sin detalle"),
+            _palabra(str(item.get("status") or "")),
+            _palabra(str(item.get("coverage") or "sin detalle")),
             str(item.get("reason") or "") or "lectura correcta",
             ", ".join(str(value) for value in (item.get("blocked_fields") or [])) or "ninguno",
             evidence,
@@ -259,11 +270,12 @@ def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
 
     rows = [
-        {"index": index, "is_new": False, "cells": cells(item)}
+        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)}}
         for index, item in enumerate(activities)
     ]
     new_row = {key: "" for key, _ in ACTIVITY_COLUMNS} | {"estado": "pendiente"}
-    rows.append({"index": len(activities), "is_new": True, "cells": cells(new_row)})
+    rows.append({"index": len(activities), "is_new": True, "cells": cells(new_row),
+                 "by": {c["key"]: c["value"] for c in cells(new_row)}})
     return render(
         "activities_editor.html",
         thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS,

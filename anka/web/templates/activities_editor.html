@@ -1,19 +1,36 @@
 <style>
   .act-table textarea, .act-table select { width: 100%; min-width: 120px; font: inherit; font-size: 13px; }
   .act-table td { padding: 4px; vertical-align: top; }
-  .act-table textarea.vacio { background: #f0f2f3; color: #63717b; }
-  .act-table select.estado-confirmado { background: #d9ead3; }
-  .act-table select.estado-pendiente { background: #fff2cc; }
-  .act-table select.estado-contradictorio { background: #f4cccc; }
+  .act-table textarea.vacio { background: var(--surface-2); color: var(--muted); }
+  .act-table select.estado-confirmado { background: var(--ok-bg); color: var(--ok-ink); }
+  .act-table select.estado-pendiente { background: var(--caution-bg); color: var(--caution-ink); }
+  .act-table select.estado-contradictorio { background: var(--bad-bg); color: var(--bad-ink); }
   .act-table tr.nueva td { border-top: 2px dashed var(--line); }
   .act-table .del { white-space: nowrap; font-size: 12px; color: var(--muted); }
+  .act-table .cant { min-width: 130px; }
+  .act-table .cant textarea { min-width: 60px; }
+  .act-table tbody.act-row { border-bottom: 1px solid var(--line); }
+  .act-table tr.act-more td { padding: 0 4px 10px; }
+  .act-table tr.act-more summary { cursor: pointer; color: var(--muted); font-size: 13px; min-height: 32px; }
+  .act-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 6px; }
 </style>
 <form method="post" action="/activities">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   <input type="hidden" name="row_count" value="{{ row_count }}">
-  <p class="meta">Guía: <strong>pendiente</strong> = falta confirmar un dato; <strong>contradictorio</strong> = las fuentes discrepan. En Notas indica qué falta o qué valores difieren, cita sus fuentes/localizadores y deja el siguiente paso y quién debe resolverlo (cliente/contratante o equipo Anka). No asignes nombres si no están definidos.</p>
-  <div style="overflow-x:auto"><table class="act-table"><thead><tr>{% for label in headers %}<th>{{ label }}</th>{% endfor %}<th></th></tr></thead>
-  <tbody>{% for row in rows %}<tr{% if row.is_new %} class='nueva'{% endif %}>{% for cell in row.cells %}{% if cell.key == 'estado' %}<td><select name='a{{ row.index }}_estado' class='estado-{{ cell.value or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == cell.value %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>{% else %}<td><textarea name='a{{ row.index }}_{{ cell.key }}' rows='2'{% if not cell.value or cell.value == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ cell.value }}</textarea></td>{% endif %}{% endfor %}{% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'> Quitar</label></td>{% endif %}</tr>{% endfor %}</tbody></table></div>
+  <p class="meta">Estado: <strong>confirmado</strong> = el dato está completo; <strong>pendiente</strong> = falta confirmar algo; <strong>contradictorio</strong> = las fuentes no coinciden. En Notas escribe qué falta o qué valores chocan, de dónde salen y quién lo resuelve (el cliente o el equipo de Anka). Abre «Más datos» para ver ubicación, entregable, plazo y fuente.</p>
+{% macro campo(row, key, label, filas=2) %}<textarea name='a{{ row.index }}_{{ key }}' rows='{{ filas }}' aria-label='{{ label }}'{% if not row.by[key] or row.by[key] == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ row.by[key] }}</textarea>{% endmacro %}
+  <div style="overflow-x:auto"><table class="act-table"><thead><tr><th>Actividad</th><th>Servicio/técnica</th><th>Cantidad y unidad</th><th>Estado</th><th>Notas</th><th></th></tr></thead>
+  {% for row in rows %}<tbody class="act-row"><tr{% if row.is_new %} class='nueva'{% endif %}>
+    <td>{{ campo(row, 'activity', 'Actividad') }}</td>
+    <td>{{ campo(row, 'servicio_tecnica', 'Servicio o técnica') }}</td>
+    <td class="cant">{{ campo(row, 'quantity', 'Cantidad', 1) }}{{ campo(row, 'unit', 'Unidad', 1) }}</td>
+    <td><select name='a{{ row.index }}_estado' aria-label='Estado' class='estado-{{ row.by.estado or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == row.by.estado %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>
+    <td>{{ campo(row, 'notes', 'Notas') }}</td>
+    {% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'> Quitar</label></td>{% endif %}</tr>
+    <tr class="act-more"><td colspan="6"><details><summary>Más datos: ubicación, entregable, plazo y fuente</summary>
+      <div class="act-grid"><label>Ubicación{{ campo(row, 'ubicacion', 'Ubicación') }}</label><label>Entregable{{ campo(row, 'entregable', 'Entregable') }}</label><label>Plazo o restricción{{ campo(row, 'plazo_restriccion', 'Plazo o restricción') }}</label><label>Fuente{{ campo(row, 'fuente', 'Fuente') }}</label></div>
+    </details></td></tr></tbody>{% endfor %}
+  </table></div>
   <div class="toolbar" style="margin-top:12px">
     <button type="submit">Guardar tabla</button>
     <label class="reason">Motivo (opcional)

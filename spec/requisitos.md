@@ -266,3 +266,17 @@ La lista de Solicitudes va ordenada por la misma urgencia que la cola del Resume
 paso («Decidir», «Emitir la T», «Revisar borrador»…) y, si no espera nada de una persona, «Abrir». Se filtra por etapa (Por
 atender, Esperando al cliente, Listas para la T, En cotización) con la cantidad de cada una, y por tipo de cliente. «Eliminar
 seleccionadas» queda dentro de un menú «Acciones» y conserva su confirmación: no está a la vista junto a las acciones normales.
+
+### U-14 · Tabla legible y lenguaje claro
+La tabla de actividades muestra cinco columnas (Actividad, Servicio/técnica, Cantidad con su unidad, Estado y Notas); ubicación,
+entregable, plazo y fuente van en «Más datos» de cada fila y se guardan igual. La guía de la tabla habla al comercial (qué
+significa cada estado y qué escribir en Notas). La tabla de adjuntos usa palabras de persona («No se pudo leer», «Falta
+revisar», «Dónde se leyó») y no códigos internos. El foco del teclado es siempre visible y los botones y campos miden al
+menos 44 px de alto.
+
+### U-15 · Tema claro y oscuro
+El dashboard tiene tema claro y oscuro con la misma paleta verde azulada. Sigue el tema del sistema por defecto y un botón
+«Tema» de la barra superior alterna sistema, claro y oscuro; la elección se recuerda en el navegador y se aplica antes de
+pintar la página, sin parpadeo. Todos los colores salen de variables definidas para ambos temas: no quedan colores literales
+fuera de ellas (salvo la marca y el texto blanco de los botones de peligro). El foco y el contraste del texto se mantienen
+legibles en los dos.

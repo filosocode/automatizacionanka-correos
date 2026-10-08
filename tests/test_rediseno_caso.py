@@ -1,13 +1,16 @@
-"""Cubre: U-09, U-10, U-11, U-13 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
+"""Cubre: U-09, U-10, U-11, U-13, U-14, U-15 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
 from anka.dominio.attachments import compactar_paginas
 from anka.dominio.status import QuoteStatus
 from anka.web import paginas
+from anka.dominio.activities import ACTIVITY_COLUMNS
 from anka.web.templating import render
+from anka.web.views import activities_editor, attachments_table
 
 RAIZ = Path(__file__).resolve().parents[1]
 
@@ -128,6 +131,87 @@ class ListaDeSolicitudes(unittest.TestCase):
         self.assertIn('<details class="more bulk-menu"><summary>Acciones</summary>', html)
         self.assertLess(html.index("bulk-menu"), html.index('id="delete-btn"'))
         self.assertIn("data-confirm", html[html.index('id="delete-btn"'):html.index('id="delete-btn"') + 400])
+
+
+class TablaYLenguaje(unittest.TestCase):
+    ACTIVIDAD = {"activity": "Parque solar", "servicio_tecnica": "LiDAR", "quantity": "544.5", "unit": "ha",
+                 "ubicacion": "Meta", "entregable": "MDT", "plazo_restriccion": "40 días", "fuente": "pág. 3",
+                 "estado": "pendiente", "notes": "Falta el KML"}
+
+    def test_cinco_columnas_visibles_y_los_diez_campos_se_siguen_enviando(self) -> None:
+        # Cubre: U-14
+        html = str(activities_editor("h1", [self.ACTIVIDAD]))
+        cabecera = html[html.index("<thead>"):html.index("</thead>")]
+        self.assertEqual(cabecera.count("<th>"), 6)             # cinco columnas y la de «Quitar»
+        for titulo in ("Actividad", "Servicio/técnica", "Cantidad y unidad", "Estado", "Notas"):
+            self.assertIn(f"<th>{titulo}</th>", cabecera)
+        for clave, _ in ACTIVITY_COLUMNS:                       # el formulario guarda lo mismo que antes
+            self.assertIn(f"name='a0_{clave}'", html)
+            self.assertIn(f"name='a1_{clave}'", html)           # y la fila nueva
+        self.assertIn("Más datos: ubicación, entregable, plazo y fuente", html)
+
+    def test_la_guia_habla_al_comercial(self) -> None:
+        # Cubre: U-14
+        html = str(activities_editor("h1", []))
+        self.assertIn("quién lo resuelve", html)
+        self.assertNotIn("No asignes nombres", html)
+
+    def test_adjuntos_con_palabras_de_persona(self) -> None:
+        # Cubre: U-14
+        html = str(attachments_table([
+            {"filename": "plano.dwg", "status": "bloqueado", "coverage": "no_legible", "blocked_fields": ["alcance"]},
+            {"filename": "et.pdf", "status": "extraido", "coverage": "completa"}]))
+        for texto in ("Falta revisar", "Dónde se leyó", "No se pudo leer", "Bloqueado: lo revisa una persona", "Leído"):
+            self.assertIn(texto, html)
+        for codigo in ("no_legible", "extraido", "Datos bloqueados", "Evidencia y localizador"):
+            self.assertNotIn(codigo, html)
+
+    def test_foco_visible_y_controles_de_44_px(self) -> None:
+        # Cubre: U-14
+        css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
+        self.assertIn(":focus-visible { outline: 3px solid", css)
+        self.assertNotIn("min-height: 34px", css)
+        self.assertNotIn("min-height: 36px", css)
+        self.assertNotIn("min-height: 40px", css)
+
+
+class TemaClaroYOscuro(unittest.TestCase):
+    def setUp(self) -> None:
+        self.css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
+
+    def _tokens(self, bloque: str) -> dict[str, str]:
+        return dict(re.findall(r"(--[\w-]+):\s*([^;]+);", bloque))
+
+    def _bloques(self) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+        claro = self.css[self.css.index(":root {"):self.css.index("@media (prefers-color-scheme: dark)")]
+        sistema = self.css[self.css.index("@media (prefers-color-scheme: dark)"):self.css.index(':root[data-theme="dark"]')]
+        manual = self.css[self.css.index(':root[data-theme="dark"]'):self.css.index("* { box-sizing")]
+        return self._tokens(claro), self._tokens(sistema), self._tokens(manual)
+
+    def test_los_dos_oscuros_son_iguales_y_redefinen_todos_los_colores_del_claro(self) -> None:
+        # Cubre: U-15
+        claro, sistema, manual = self._bloques()
+        self.assertEqual(sistema, manual)                       # el del sistema y el manual no se desincronizan
+        self.assertEqual(set(claro), set(manual))               # ningún token queda solo en un tema
+        self.assertNotEqual(claro["--bg"], manual["--bg"])
+        self.assertIn(':root:not([data-theme="light"])', self.css)  # una elección «claro» gana sobre el sistema oscuro
+        self.assertEqual(len(re.findall(r"^\s+color-scheme: dark;", self.css, re.M)), 2)  # los controles nativos también
+
+    def test_no_quedan_colores_literales_fuera_de_las_variables(self) -> None:
+        # Cubre: U-15
+        resto = self.css[self.css.index("* { box-sizing"):]
+        self.assertEqual(sorted(set(re.findall(r"#[0-9a-fA-F]{3,8}\b", resto))), ["#16231f", "#fff"])
+        plantillas = RAIZ / "anka" / "web" / "templates"
+        for nombre in ("activities_editor.html", "case.html"):
+            self.assertNotRegex((plantillas / nombre).read_text(encoding="utf-8"), r"#[0-9a-fA-F]{3,6}\b")
+
+    def test_el_boton_de_tema_y_su_aplicacion_previa_al_pintado(self) -> None:
+        # Cubre: U-15
+        layout = (RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8")
+        self.assertIn('id="theme-toggle"', layout)
+        self.assertLess(layout.index("localStorage.getItem('anka-tema')"), layout.index("<style>"))  # sin parpadeo
+        for estado in ("system", "light", "dark"):
+            self.assertIn(estado, layout)
 
 
 if __name__ == "__main__":
