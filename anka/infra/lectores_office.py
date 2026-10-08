@@ -196,7 +196,7 @@ def docx_text(content: bytes) -> str:
             if re.fullmatch(r"word/(header|footer)\d+\.xml", name):
                 header_root = ElementTree.fromstring(document.read(name))
                 text = " ".join(
-                    "".join(node.itertext()) for node in header_root.iter() if local_name(node.tag) in {"p", "t"}
+                    "".join(node.itertext()).strip() for node in header_root.iter() if local_name(node.tag) == "p"
                 ).strip()
                 if text:
                     kind = "Encabezado" if "/header" in name else "Pie de página"
@@ -251,6 +251,7 @@ def xlsx_text(content: bytes) -> str:
             f"Hoja: {sheet.title}; visibilidad: {sheet.sheet_state}; rango declarado: {sheet.calculate_dimension()}"
         )
         cell_count = 0
+        over_limit = False
         formula_rows = formula_sheet.iter_rows()
         for row_number, row in enumerate(sheet.iter_rows(), 1):
             if row_number > MAX_SPREADSHEET_CELLS:
@@ -264,42 +265,45 @@ def xlsx_text(content: bytes) -> str:
                     rows.append(
                         f"LECTURA PARCIAL: hoja {sheet.title} supera {MAX_SPREADSHEET_CELLS} celdas inspeccionadas"
                     )
+                    over_limit = True
                     break
                 value = _xlsx_value(cell, formula_cell, sheet, rows)
                 if value is not None:
                     values.append(f"{cell.coordinate}={value}")
             if values:
                 rows.append(" | ".join(values))
-        with zip_acotado(content) as archive:
-            images = [name for name in archive.namelist() if name.startswith("xl/media/")]
-            append_archive_image_ocr(archive, images, rows)
-            charts = [name for name in archive.namelist() if re.fullmatch(r"xl/charts/chart\d+\.xml", name)]
-            for chart_name in charts:
-                chart_root = ElementTree.fromstring(archive.read(chart_name))
-                chart_text = [
-                    " ".join("".join(node.itertext()).split())
-                    for node in chart_root.iter()
-                    if local_name(node.tag) in {"f", "v"} and "".join(node.itertext()).strip()
-                ]
-                rows.append(f"Gráfico ({chart_name}); referencias y valores almacenados: " + "; ".join(chart_text[:80]))
-            comments = [name for name in archive.namelist() if name.startswith("xl/comments")]
-            for comment_name in comments:
-                comment_root = ElementTree.fromstring(archive.read(comment_name))
-                for comment in (node for node in comment_root.iter() if local_name(node.tag) == "comment"):
-                    reference = comment.attrib.get("ref", "celda sin referencia")
-                    author_id = comment.attrib.get("authorId", "")
-                    value = " ".join("".join(comment.itertext()).split())
-                    rows.append(f"Comentario ({comment_name}, {reference}, autor {author_id}): {value}")
-            pivots = [name for name in archive.namelist() if name.startswith("xl/pivotTables/")]
-            if pivots:
-                rows.append(
-                    "COBERTURA PARCIAL: tablas dinámicas requieren interpretación especializada: " + ", ".join(pivots)
-                )
-            drawings = [
-                name for name in archive.namelist() if name.startswith("xl/drawings/") and name.endswith(".xml")
+            if over_limit:
+                break
+    with zip_acotado(content) as archive:
+        images = [name for name in archive.namelist() if name.startswith("xl/media/")]
+        append_archive_image_ocr(archive, images, rows)
+        charts = [name for name in archive.namelist() if re.fullmatch(r"xl/charts/chart\d+\.xml", name)]
+        for chart_name in charts:
+            chart_root = ElementTree.fromstring(archive.read(chart_name))
+            chart_text = [
+                " ".join("".join(node.itertext()).split())
+                for node in chart_root.iter()
+                if local_name(node.tag) in {"f", "v"} and "".join(node.itertext()).strip()
             ]
-            if drawings:
-                rows.append("DIBUJOS/FORMAS DE HOJA PENDIENTES DE LECTURA VISUAL: " + ", ".join(drawings))
+            rows.append(f"Gráfico ({chart_name}); referencias y valores almacenados: " + "; ".join(chart_text[:80]))
+        comments = [name for name in archive.namelist() if name.startswith("xl/comments")]
+        for comment_name in comments:
+            comment_root = ElementTree.fromstring(archive.read(comment_name))
+            for comment in (node for node in comment_root.iter() if local_name(node.tag) == "comment"):
+                reference = comment.attrib.get("ref", "celda sin referencia")
+                author_id = comment.attrib.get("authorId", "")
+                value = " ".join("".join(comment.itertext()).split())
+                rows.append(f"Comentario ({comment_name}, {reference}, autor {author_id}): {value}")
+        pivots = [name for name in archive.namelist() if name.startswith("xl/pivotTables/")]
+        if pivots:
+            rows.append(
+                "COBERTURA PARCIAL: tablas dinámicas requieren interpretación especializada: " + ", ".join(pivots)
+            )
+        drawings = [
+            name for name in archive.namelist() if name.startswith("xl/drawings/") and name.endswith(".xml")
+        ]
+        if drawings:
+            rows.append("DIBUJOS/FORMAS DE HOJA PENDIENTES DE LECTURA VISUAL: " + ", ".join(drawings))
     return "\n".join(rows)
 
 

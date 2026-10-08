@@ -32,6 +32,41 @@ def estimar_tokens(texto: str, caracteres_por_token: float = 2.5) -> int:
     return int(len(texto) / caracteres_por_token) + 1
 
 
+_ENCABEZADO = re.compile(r"^(?:[[]\s*(?:Página|Diapositiva|Hoja)[^]]*[]]|Hoja:.*)$", re.IGNORECASE)
+
+
+def ultimo_encabezado(texto: str) -> str:
+    """El último marcador de página, diapositiva u hoja de `texto` (vacío si no hay).
+
+    Un tramo que no empieza en un marcador no sabe en qué página está; sin esto el modelo inventaba el localizador.
+    """
+    for linea in reversed(texto.split("\n")):
+        if _ENCABEZADO.match(linea.strip()):
+            return linea.strip()
+    return ""
+
+
+def quitar_lineas_repetidas(texto: str, minimo: int = 30) -> tuple[str, int]:
+    """Quita las líneas largas que ya aparecieron antes (encabezados y pies de página, avisos repetidos).
+
+    Una línea igual a otra anterior no aporta ningún dato nuevo, pero un modelo pequeño extrae sus hechos una vez por
+    cada repetición hasta desbordar su salida. Las líneas cortas se conservan: pueden ser filas de tabla o totales
+    que sí significan algo cada vez. Devuelve el texto y cuántas líneas quitó.
+    """
+    vistas: set[str] = set()
+    conservadas = []
+    quitadas = 0
+    for linea in texto.split("\n"):
+        clave = re.sub(r"\s+", " ", linea).strip().casefold()
+        if len(clave) >= minimo:
+            if clave in vistas:
+                quitadas += 1
+                continue
+            vistas.add(clave)
+        conservadas.append(linea)
+    return "\n".join(conservadas), quitadas
+
+
 def _punto_de_corte(texto: str, inicio: int, fin: int) -> int:
     """Mejor lugar donde cortar entre `inicio` y `fin`: la frontera más fuerte en la segunda mitad de la ventana."""
     piso = inicio + (fin - inicio) // 2

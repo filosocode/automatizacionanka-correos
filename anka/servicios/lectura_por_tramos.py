@@ -13,7 +13,10 @@ from anka.dominio.analisis import Adjunto, Analisis
 from anka.dominio.configuracion import ConfigLlm
 from anka.dominio.correo import header, message_text
 from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka
-from anka.dominio.tramos import SOLAPE_CARACTERES, Hallazgo, compendio, dividir_texto, unir_hallazgos
+from anka.dominio.tramos import (
+    SOLAPE_CARACTERES, Hallazgo, compendio, dividir_texto, quitar_lineas_repetidas, ultimo_encabezado,
+    unir_hallazgos,
+)
 from anka.infra import cache_hallazgos, llm
 from anka.infra.logging_setup import get_logger
 
@@ -112,32 +115,42 @@ def _texto_del_compendio(adjunto: Adjunto, hallazgos: list[Hallazgo], resumen: l
 
 
 def _leer_por_tramos(texto: str, origen: str, config_llm: ConfigLlm, contexto: str) -> tuple[list[Hallazgo], int]:
+    texto, repetidas = quitar_lineas_repetidas(texto)
+    if repetidas:
+        log.info("%s: %d líneas repetidas (encabezados, pies) se leen una sola vez", origen, repetidas)
     tramos = dividir_texto(texto, llm.caracteres_por_tramo(config_llm))
     listas = []
+    vigente = ""  # último marcador de página/hoja visto: el siguiente tramo continúa dentro de él
     for numero, tramo in enumerate(tramos, 1):
         log.info("Leyendo %s por tramos: %d de %d", origen, numero, len(tramos))
-        listas.append(_hallazgos_del_tramo(tramo, origen, f"tramo {numero} de {len(tramos)}", config_llm, contexto))
+        posicion = f"tramo {numero} de {len(tramos)}"
+        listas.append(_hallazgos_del_tramo(tramo, origen, posicion, config_llm, contexto, vigente=vigente))
+        vigente = ultimo_encabezado(tramo) or vigente
     return unir_hallazgos(listas), len(tramos)
 
 
 def _hallazgos_del_tramo(
     tramo: str, origen: str, posicion: str, config_llm: ConfigLlm, contexto: str, profundidad: int = 0,
+    vigente: str = "",
 ) -> list[Hallazgo]:
     """Hallazgos de un tramo; si el modelo no logra responderlo, lo divide en dos y lo vuelve a intentar.
 
     Repetir el mismo prompt con temperatura 0 daría el mismo fallo; uno más corto suele salir bien. Si ni dividiendo
     se logra, el error sube: el hilo no se completa con tramos faltantes.
     """
+    prompt = llm.hallazgos_prompt(contexto, origen, tramo, posicion, vigente=vigente)
     try:
-        return _hallazgos(llm.hallazgos_prompt(contexto, origen, tramo, posicion), config_llm)
+        return _hallazgos(prompt, config_llm)
     except ErrorDeAnka:
         if profundidad >= MAX_DIVISIONES or len(tramo) < 2 * MIN_TRAMO_REINTENTO:
-            raise
+            # ya no se puede dividir: último recurso, otra decodificación que castiga la repetición
+            log.warning("%s (%s): el modelo no respondió; segundo intento contra repeticiones", origen, posicion)
+            return _hallazgos(prompt, config_llm, anti_repeticion=True)
         log.warning("%s (%s): el modelo no respondió; se divide el tramo y se reintenta", origen, posicion)
         mitades = dividir_texto(tramo, max(MIN_TRAMO_REINTENTO, len(tramo) // 2 + SOLAPE_CARACTERES))
         return unir_hallazgos(
             _hallazgos_del_tramo(mitad, origen, f"{posicion}, parte {n} de {len(mitades)}", config_llm, contexto,
-                                 profundidad + 1)
+                                 profundidad + 1, vigente)
             for n, mitad in enumerate(mitades, 1)
         )
 
@@ -153,12 +166,12 @@ def _consolidar(hallazgos: list[Hallazgo], origen: str, config_llm: ConfigLlm, c
     return unir_hallazgos(_hallazgos(prompt, config_llm) for prompt in prompts)
 
 
-def _hallazgos(prompt: str, config_llm: ConfigLlm) -> list[Hallazgo]:
+def _hallazgos(prompt: str, config_llm: ConfigLlm, anti_repeticion: bool = False) -> list[Hallazgo]:
     """Hallazgos del tramo: de la caché si ya se extrajeron, y si no del modelo (y se guardan)."""
     identificador = cache_hallazgos.clave(prompt, config_llm.get("model", ""), llm.VERSION_PROMPT_HALLAZGOS)
     guardados = cache_hallazgos.leer(identificador)
     if guardados is not None:
         return guardados
-    hallazgos = llm.extraer_hallazgos(prompt, config_llm)
+    hallazgos = llm.extraer_hallazgos(prompt, config_llm, anti_repeticion=anti_repeticion)
     cache_hallazgos.guardar(identificador, hallazgos)
     return hallazgos
