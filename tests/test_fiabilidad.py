@@ -137,3 +137,57 @@ class RecoveryTests(unittest.TestCase):
         write()
         with self.assertRaisesRegex(ValueError, "sin etiquetar"):
             evaluar(corpus, results)
+
+
+class _GmailError(Exception):
+    """Imita googleapiclient.errors.HttpError: lleva `resp.status`."""
+
+    def __init__(self, status):
+        super().__init__(f"HTTP {status}")
+        self.resp = MagicMock(status=status)
+
+
+# Cubre: U-05
+class SendFailureTests(unittest.TestCase):
+    """Un rechazo cierto de Gmail libera la reserva; un fallo incierto la conserva."""
+
+    from tests.test_auto_folder import SendCreatesTheFolderTests as _Base
+    setUp = _Base.setUp
+    seed = _Base.seed
+
+    def send(self, error):
+        from anka.servicios import case_actions
+        with patch.object(case_actions, "_send_through_gmail", side_effect=error):
+            with self.assertRaises(type(error)):
+                case_actions.send_dashboard_reply("t-1", "Hola.")
+
+    def test_a_definitive_rejection_releases_the_reservation_so_it_can_be_retried(self):
+        self.seed(client="Minera Sur")
+        self.send(_GmailError(403))
+        self.assertIsNone(envios.pendiente("t-1", "cliente@example.com", "Hola."))
+        from anka.servicios import case_actions
+        self.assertIn("Correo enviado", case_actions.send_dashboard_reply("t-1", "Hola."))
+
+    def test_an_uncertain_failure_keeps_the_reservation_and_blocks_a_blind_retry(self):
+        self.seed(client="Minera Sur")
+        for error in (_GmailError(503), _GmailError(408), TimeoutError("sin respuesta")):
+            with self.subTest(error=repr(error)):
+                self.send(error)
+                self.assertEqual(envios.pendiente("t-1", "cliente@example.com", "Hola.")["state"], "pending")
+                db = store.connect()
+                db.execute("DELETE FROM mail_operations")
+                db.commit()
+                db.close()
+
+    def test_only_client_errors_are_definitive(self):
+        self.assertTrue(envios.fallo_definitivo(_GmailError(400)))
+        self.assertTrue(envios.fallo_definitivo(_GmailError(429)))
+        self.assertFalse(envios.fallo_definitivo(_GmailError(408)))
+        self.assertFalse(envios.fallo_definitivo(_GmailError(500)))
+        self.assertFalse(envios.fallo_definitivo(OSError("red")))
+
+    def test_a_sent_operation_is_never_released(self):
+        key, _ = envios.reservar("t-9", "a@example.com", "Hola")
+        envios.confirmar(key, "g1")
+        envios.liberar(key)
+        self.assertEqual(envios.pendiente("t-9", "a@example.com", "Hola")["state"], "sent")

@@ -179,6 +179,8 @@ El botón de enviar se bloquea tras el primer clic y el servidor rechaza repetir
 La reserva de envío es persistente y atómica por hilo, destinatario real y texto. Un envío en curso o
 de resultado incierto bloquea el reintento, incluso después de reiniciar. Antes de reintentarlo se
 reconcilia con Gmail mediante un identificador de mensaje estable; no se presupone que un timeout sea un fallo de envío.
+Si Gmail rechaza la petición con certeza (error 4xx, salvo 408), la reserva se libera para poder corregir y reintentar;
+ante un timeout, un corte de red o un 5xx la reserva se conserva, porque el mensaje pudo haber salido.
 
 ### T-22 · Recuperación de evidencia
 El respaldo incluye los originales de `evidence/` junto con la base y los ajustes permitidos, nunca credenciales.

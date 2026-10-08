@@ -65,6 +65,27 @@ def confirmar(clave: str, gmail_id: str) -> None:
         db.close()
 
 
+def fallo_definitivo(error: Exception) -> bool:
+    """Indica si Gmail rechazó la petición sin procesarla (4xx salvo 408), y por tanto no hay correo enviado.
+
+    Un timeout, un corte de red o un 5xx son inciertos: el mensaje pudo salir, así que la reserva se conserva.
+    """
+    estado = getattr(getattr(error, "resp", None), "status", None)
+    if not isinstance(estado, int):
+        return False
+    return 400 <= estado < 500 and estado != 408
+
+
+def liberar(clave: str) -> None:
+    """Quita la reserva de un envío que Gmail rechazó con certeza, para poder corregirlo y reintentar."""
+    db = connect()
+    try:
+        db.execute("DELETE FROM mail_operations WHERE operation_key=? AND state='pending'", (clave,))
+        db.commit()
+    finally:
+        db.close()
+
+
 def reconciliar(gmail: Any, operacion: dict) -> str:
     """Busca el Message-ID reservado; la ausencia nunca autoriza un reenvío automático."""
     if operacion["gmail_id"]:

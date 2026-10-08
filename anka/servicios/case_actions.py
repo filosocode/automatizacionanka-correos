@@ -246,7 +246,13 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     email['Message-ID'] = stable_message_id
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
     draft_id = quote["draft_id"] or (quote["analysis"].get("work_reply") or {}).get("draft_id") or ""
-    result = _send_through_gmail(gmail, thread_id, raw, draft_id)
+    try:
+        result = _send_through_gmail(gmail, thread_id, raw, draft_id)
+    except Exception as exc:
+        if envios.fallo_definitivo(exc):
+            envios.liberar(operation_key)
+            log.warning("%s: Gmail rechazó el envío; se libera la reserva para poder reintentar", thread_id)
+        raise
     envios.confirmar(operation_key, result['id'])
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     new_status = _status_after_reply(quote["status"])
