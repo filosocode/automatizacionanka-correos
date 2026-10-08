@@ -5,10 +5,10 @@ from tests import _isolate  # noqa: F401  (debe ir primero)
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from anka.dominio import work_contract
-from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka
+from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka, SalidaDesbordada
 from anka.dominio import reception
 from anka.dominio.tramos import compendio, dividir_texto, estimar_tokens, unir_hallazgos
 from anka.infra import cache_hallazgos, llm, settings
@@ -121,6 +121,41 @@ class ModeloTests(unittest.TestCase):
         self.assertEqual(captured["options"]["num_predict"], llm.OUTPUT_RESERVE_TOKENS)
         self.assertIn("no respondió en 7 s", str(caught.exception))
 
+    def test_a_runaway_output_is_its_own_error_and_a_real_context_overflow_is_not(self):
+        def respuesta(**campos):
+            import json
+            lectura = MagicMock()
+            lectura.__enter__.return_value.read.return_value = json.dumps(
+                {"response": "{", "done_reason": "length", **campos}).encode()
+            return lectura
+
+        config = {"provider": "ollama", "base_url": "http://h:1"}
+        with patch("urllib.request.urlopen", return_value=respuesta(eval_count=llm.OUTPUT_RESERVE_TOKENS)):
+            with self.assertRaises(SalidaDesbordada) as caught:
+                llm.generar_json("p", {}, config)
+        self.assertIn("bucle de repetición", str(caught.exception))
+        with patch("urllib.request.urlopen", return_value=respuesta(eval_count=100)):
+            with self.assertRaises(ContextoInsuficiente):
+                llm.generar_json("p", {}, config)
+
+    def test_extra_options_reach_ollama_only_when_requested(self):
+        import json
+        enviadas = []
+
+        def fake(request, timeout):
+            enviadas.append(json.loads(request.data.decode())["options"])
+            lectura = MagicMock()
+            lectura.__enter__.return_value.read.return_value = b'{"response": "{}"}'
+            return lectura
+
+        config = {"provider": "ollama", "base_url": "http://h:1"}
+        with patch("urllib.request.urlopen", fake):
+            llm.generar_json("p", {}, config)
+            llm.generar_json("p", {}, config, opciones=llm.OPCIONES_ANTI_REPETICION)
+        self.assertEqual(enviadas[0]["temperature"], 0)
+        self.assertNotIn("repeat_penalty", enviadas[0])
+        self.assertEqual(enviadas[1]["repeat_penalty"], 1.2)
+
     def test_generar_json_uses_the_configured_provider(self):
         with patch.object(llm, "_json_de_ollama", return_value={"a": 1}) as ollama:
             self.assertEqual(llm.generar_json("p", {}, {"provider": "ollama"}), {"a": 1})
@@ -200,7 +235,7 @@ class OrquestadorTests(unittest.TestCase):
         self.messages = [encoded_message("m1", "cliente@example.com", "Solicito cotización del levantamiento.", 1)]
         self.prompts = []
 
-    def extraer(self, prompt, config):
+    def extraer(self, prompt, config, anti_repeticion=False):
         self.prompts.append(prompt)
         n = len(self.prompts)
         return [hallazgo(f"dato {n}", str(n), f"ET.pdf, tramo {n}")]
@@ -255,7 +290,7 @@ class OrquestadorTests(unittest.TestCase):
         self.assertEqual(len(self.prompts), llamadas)  # ninguna llamada nueva al modelo
 
     def test_a_chunk_the_model_cannot_answer_is_split_and_retried(self):
-        def extraer(prompt, config):
+        def extraer(prompt, config, anti_repeticion=False):
             self.prompts.append(prompt)
             if len(prompt) > 6000:  # un modelo que se pierde con tramos largos
                 raise ErrorDeAnka("respuesta truncada")
@@ -268,25 +303,41 @@ class OrquestadorTests(unittest.TestCase):
         self.assertTrue(all(linea(n) in leido for n in range(600)))  # nada quedó sin leer al dividir
         self.assertGreater(resultado["lectura_por_tramos"]["adjuntos"][0]["hallazgos"], 1)
 
+    def test_a_chunk_that_cannot_be_split_gets_a_last_attempt_that_punishes_repetition(self):
+        llamadas = []
+
+        def extraer(prompt, config, anti_repeticion=False):
+            llamadas.append(anti_repeticion)
+            if not anti_repeticion:
+                raise ErrorDeAnka("salida sin fin")
+            return [hallazgo("dato", "1", "ET.pdf, página 1")]
+
+        corto = adjunto("ET.pdf", 600)
+        corto["text"] = corto["text"][:2500]  # un tramo corto: ya no se puede dividir
+        with patch.object(llm, "caracteres_por_tramo", return_value=2500),                 patch.object(lectura_por_tramos, "MIN_TRAMO_REINTENTO", 1500):
+            self.analizar([corto, adjunto("otro.txt", 600)], extraer=extraer)
+        self.assertIn(True, llamadas)
+        self.assertEqual(llamadas[:2], [False, True])  # primero el intento normal, luego el anti-repetición
+
     def test_a_chunk_that_never_works_even_split_stops_the_analysis(self):
-        def siempre_falla(prompt, config):
+        def siempre_falla(prompt, config, anti_repeticion=False):
             self.prompts.append(prompt)
             raise ErrorDeAnka("no responde")
 
         with self.assertRaises(ErrorDeAnka):
             self.analizar([adjunto("ET.pdf", 600)], extraer=siempre_falla)
         # 1 intento + 2 divisiones en cadena: no reintenta sin fin
-        self.assertLessEqual(len(self.prompts), 1 + 3 + 9)
+        self.assertLessEqual(len(self.prompts), 1 + 3 + 9 + 9)  # + el último recurso de cada hoja
 
     def test_a_chunk_that_fails_stops_the_analysis_instead_of_completing_it_with_gaps(self):
-        def falla(prompt, config):
+        def falla(prompt, config, anti_repeticion=False):
             raise ErrorDeAnka("el modelo no respondió")
 
         with self.assertRaises(ErrorDeAnka):
             self.analizar([adjunto("ET.pdf", 600)], extraer=falla)
 
     def test_a_huge_compendium_is_consolidated_until_it_fits(self):
-        def extraer(prompt, config):
+        def extraer(prompt, config, anti_repeticion=False):
             self.prompts.append(prompt)
             if "Estas líneas son hallazgos" in prompt:
                 return [hallazgo("consolidado", "1")]
@@ -299,7 +350,7 @@ class OrquestadorTests(unittest.TestCase):
         self.assertIn("consolidado", analyze.call_args.args[3][0]["text"])
 
     def test_when_nothing_makes_it_fit_it_refuses_instead_of_cutting(self):
-        def extraer(prompt, config):
+        def extraer(prompt, config, anti_repeticion=False):
             self.prompts.append(prompt)
             return [hallazgo(f"dato {n} " + "z" * 300, "1", f"p{n}") for n in range(60)]
 
@@ -408,3 +459,79 @@ class LocalizadorLimpioTests(unittest.TestCase):
                                 "localizador": "Página 10, tramo 2 de 2", "cita": "c"}]}
         self.assertEqual(llm._validar_hallazgos(crudo)[0]["localizador"], "Página 10")
         self.assertIn("nunca incluyas", llm.hallazgos_prompt("ctx", "a.pdf", "texto", "tramo 1 de 2"))
+
+
+class LineasRepetidasTests(unittest.TestCase):
+    def test_repeated_long_lines_are_read_once_and_short_or_distinct_ones_are_kept(self):
+        from anka.dominio.tramos import quitar_lineas_repetidas
+
+        pie = "Grupo Anka - Especificaciones técnicas - Proyecto Llanos 8 - Confidencial"
+        texto = "\n".join(["[Página 1]", "Área 100 ha", pie, "[Página 2]", "Área 100 ha", "Área 5 ha", pie, "Total", "Total"])
+        limpio, quitadas = quitar_lineas_repetidas(texto)
+        self.assertEqual(quitadas, 1)  # solo el pie repetido: «Área 100 ha» y «Total» son cortas
+        self.assertEqual(limpio.count(pie), 1)
+        self.assertEqual(limpio.count("Área 100 ha"), 2)
+        self.assertEqual(limpio.count("Total"), 2)
+
+    def test_whitespace_and_case_do_not_hide_a_repeat_and_nothing_else_changes(self):
+        from anka.dominio.tramos import quitar_lineas_repetidas
+
+        linea = "El plazo de ejecución es de 30 días calendario contados desde la orden"
+        limpio, quitadas = quitar_lineas_repetidas(f"{linea}\n  {linea.upper()}  \notra línea distinta\n")
+        self.assertEqual((quitadas, limpio), (1, f"{linea}\notra línea distinta\n"))
+
+    def test_the_reader_by_chunks_collapses_repeats_before_splitting(self):
+        pie = "Grupo Anka - Especificaciones técnicas - Proyecto Llanos 8 - Confidencial"
+        texto = "\n".join(f"{pie}\nDato {n}: área de {n} ha en el sector {n}" for n in range(300))
+        prompts = []
+
+        def extraer(prompt, config, anti_repeticion=False):
+            prompts.append(prompt)
+            return [hallazgo("d", "1", "doc.pdf, página 1")]
+
+        with patch.object(llm, "extraer_hallazgos", side_effect=extraer):
+            lectura_por_tramos._leer_por_tramos(texto, "doc.pdf", {"provider": "ollama", "model": "m"}, "ctx")
+        self.assertEqual("".join(prompts).count(pie), 1)  # el pie, que estaba 300 veces, se lee una sola vez
+        self.assertTrue(all(f"Dato {n}:" in "".join(prompts) for n in range(300)))
+
+
+class CalidadDeHallazgosTests(unittest.TestCase):
+    """Defectos que solo se vieron con el modelo real: hallazgos vacíos y localizadores sin contexto de página."""
+
+    def test_empty_findings_the_model_pads_the_schema_with_are_dropped(self):
+        crudo = {"hallazgos": [
+            {"tema": "precision", "actividad": "", "dato": "", "valor": "", "localizador": "", "cita": ""},
+            {"tema": "norma", "actividad": "", "dato": "  ", "valor": " ", "localizador": "p1", "cita": "x"},
+            {"tema": "magnitud", "actividad": "", "dato": "Área", "valor": "", "localizador": "p1", "cita": ""},
+            {"tema": "plazo", "actividad": "", "dato": "", "valor": "30 días", "localizador": "p2", "cita": ""},
+        ]}
+        self.assertEqual([h["tema"] for h in llm._validar_hallazgos(crudo)], ["magnitud", "plazo"])
+
+    def test_the_last_page_marker_is_found_so_the_next_chunk_keeps_its_context(self):
+        from anka.dominio.tramos import ultimo_encabezado
+
+        texto = "[Página 1]\nuno\n[Página 2]\ndos\nHoja: Datos\ncelda"
+        self.assertEqual(ultimo_encabezado(texto), "Hoja: Datos")
+        self.assertEqual(ultimo_encabezado("[Página 7; sin texto extraíble]\nx"), "[Página 7; sin texto extraíble]")
+        self.assertEqual(ultimo_encabezado("[Diapositiva 3]\ny"), "[Diapositiva 3]")
+        self.assertEqual(ultimo_encabezado("sin marcadores\nni uno"), "")
+
+    def test_each_chunk_is_told_which_page_it_continues_in(self):
+        texto = "\n".join(["[Página 1]"] + [f"Línea {n} del primer bloque con bastante texto de relleno" for n in range(60)]
+                          + ["[Página 2]"] + [f"Línea {n} del segundo bloque con bastante texto de relleno" for n in range(60)])
+        prompts = []
+
+        def extraer(prompt, config, anti_repeticion=False):
+            prompts.append(prompt)
+            return [hallazgo("d", "1", "doc.pdf, página 1")]
+
+        with patch.object(llm, "extraer_hallazgos", side_effect=extraer), \
+                patch.object(llm, "caracteres_por_tramo", return_value=1500):
+            lectura_por_tramos._leer_por_tramos(texto, "doc.pdf", {"provider": "ollama", "model": "m"}, "ctx")
+        self.assertNotIn("continúa dentro de", prompts[0])  # el primero trae su propio marcador
+        self.assertTrue(all("continúa dentro de: [Página" in prompt for prompt in prompts[1:]))
+        self.assertIn("continúa dentro de: [Página 2]", prompts[-1])
+
+    def test_the_prompt_asks_to_group_repetitive_series(self):
+        prompt = llm.hallazgos_prompt("ctx", "a.pdf", "texto", "tramo 1 de 2")
+        self.assertIn("agrupa en UNO las series repetitivas", prompt)

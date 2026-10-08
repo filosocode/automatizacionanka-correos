@@ -64,6 +64,10 @@ El ciclo de vida de un caso sigue `spec/transiciones.json`; cada fila se ejecuta
 ### T-02 · Contrato con Work
 El JSON que ChatGPT Work deja en el borrador cumple `spec/contrato_work.schema.json`; el puente lo valida y acepta el
 estado sin importar tildes ni mayúsculas.
+Un descuido de tipo evidente en un campo opcional (p. ej. `unresolved: true` donde va un texto) no hace perder el borrador:
+el puente lo corrige (queda vacío), lo importa y deja el motivo como advertencia visible en el caso. Un borrador que de
+verdad incumple el contrato se rechaza una sola vez por versión del borrador (no se vuelve a descargar cada minuto hasta que
+Work lo edite) y el aviso del puente dice cuál es, de qué correo y qué corregir.
 
 ### T-03 · Código de la oferta y control de cambios
 Cada caso aceptado recibe su T (que pasa a T&E al aprobarse). Desde la T, la tabla solo cambia por el contacto
@@ -222,7 +226,12 @@ ventana del modelo (`num_ctx_max` en Ollama, `context_tokens` en API) se analiza
    los adjuntos pequeños se conservan tal cual, y la evidencia por adjunto se calcula sobre el texto completo;
 5. los hallazgos de un tramo se guardan en una caché con tope (clave: texto del tramo, modelo y versión del prompt) para no
    repetir llamadas al reanalizar un hilo;
-6. un tramo que falla tras un reintento detiene el análisis del hilo con un aviso: jamás se completa con tramos faltantes;
+6. un tramo que el modelo no responde se divide en dos y se reintenta (hasta 2 veces); si ya no se puede dividir se hace
+   un último intento que castiga la repetición; si tampoco, se detiene el análisis del hilo con un aviso: jamás se completa
+   con tramos faltantes;
+   antes de dividir se colapsan las líneas largas repetidas (encabezados y pies de página): se leen una vez; cada tramo
+   recibe el último marcador de página u hoja visto, para que el localizador no se invente; y los hallazgos vacíos con que
+   un modelo pequeño rellena el esquema se descartan;
 7. el análisis registra `lectura_por_tramos` (adjunto, tramos, hallazgos, niveles) y la nota de revisión lo muestra.
 Con ChatGPT Work el paquete local entrega todo el texto en segmentos ordenados (`segment=i/n`) y el contrato advierte cuando
 Work declara, por adjunto, una cobertura incoherente (completa sin secciones revisadas, parcial o ilegible sin motivo).
