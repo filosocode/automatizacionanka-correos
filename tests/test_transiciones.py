@@ -103,13 +103,22 @@ class Transitions(unittest.TestCase):
                         quotes.resolve_technical_review(thread, row["decision"], questions)
                         self.assertEqual(self.status(thread), row["hacia"])
 
-    def send(self, thread, gmail):
+    def con_pendiente_interno(self, thread):
+        db = connect()
+        row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread,)).fetchone()
+        analysis = json.loads(row["analysis_json"] or "{}")
+        analysis["preguntas"] = [{"id": "q1", "texto": "Revisar el KMZ", "decision": "internal"}]
+        db.execute("UPDATE quotes SET analysis_json=? WHERE thread_id=?", (json.dumps(analysis), thread))
+        db.commit()
+        db.close()
+
+    def send(self, thread, gmail, texto="", esperar=False):
         quote = quotes.get_quote(thread)
         context = (quote, gmail, {"id": thread, "messages": []}, set())
         with patch.object(case_actions, "case_email_context", return_value=context), \
                 patch.object(case_actions, "reply_email",
                              return_value=__import__("email.message", fromlist=["EmailMessage"]).EmailMessage()):
-            return case_actions.send_dashboard_reply(thread, f"Texto para {thread}")
+            return case_actions.send_dashboard_reply(thread, texto or f"Texto para {thread}", esperar=esperar)
 
     def test_sending_from_the_dashboard(self):
         for row in self.rows("enviar_desde_dashboard"):
@@ -121,7 +130,10 @@ class Transitions(unittest.TestCase):
                         with self.assertRaises(ValueError):
                             case_actions.case_email_context(thread)
                     else:
-                        self.send(thread, FakeGmail())
+                        if row.get("con_pendientes_internos"):
+                            self.con_pendiente_interno(thread)
+                        self.send(thread, FakeGmail(), "¿Cuál es el datum del levantamiento?"
+                                  if row.get("con_preguntas") else "", esperar=row.get("esperar_respuesta", False))
                         expected = origin if row["hacia"] == "igual" else row["hacia"]
                         self.assertEqual(self.status(thread), expected)
 

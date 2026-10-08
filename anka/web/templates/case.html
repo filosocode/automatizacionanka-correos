@@ -29,13 +29,35 @@
       <p class="meta">Pasa a «Información validada» y podrás emitir la T y crear la carpeta del proyecto en Drive.</p>
       <div class="toolbar"><button type="submit" name="decision" value="sufficient"
         data-confirm="El caso pasará a «información suficiente» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Ya lo revisé: información suficiente (crear carpeta en Drive)</button></div>
-      <h3 style="margin-top:20px">Falta información: preguntar al cliente</h3>
-      <p class="meta">Se prepara un correo con estas preguntas. Lo revisas y decides si lo envías.</p>
-      <label>Preguntas para el cliente (una por línea)
-        <textarea name="questions" style="min-height:110px" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">{{ prefill_questions }}</textarea>
+      <h3 style="margin-top:20px">Preguntas: decide qué hacer con cada una</h3>
+      <p class="meta">Elige para cada pregunta si se la haces al cliente, si la resuelve Anka por dentro o si no hace falta. Puedes
+        cambiar el texto y agregar las tuyas. Al preparar el correo solo entran las que elijas para el cliente; las internas
+        quedan en «Qué falta resolver». Nada se envía sin «Enviar ahora».</p>
+      {% for pregunta in preguntas %}
+      <div class="pregunta">
+        <input type="hidden" name="q_id" value="{{ pregunta.id }}">
+        <label>Pregunta
+          <textarea name="q_text_{{ pregunta.id }}" rows="2" style="min-height:56px">{{ pregunta.texto }}</textarea>
+        </label>
+        <label>Qué hacer
+          <select name="q_decision_{{ pregunta.id }}">
+            <option value="ask_client"{% if pregunta.elegida == 'ask_client' %} selected{% endif %}>Preguntar al cliente</option>
+            <option value="internal"{% if pregunta.elegida == 'internal' %} selected{% endif %}>Resolver internamente</option>
+            <option value="discard"{% if pregunta.elegida == 'discard' %} selected{% endif %}>Descartar</option>
+          </select>
+        </label>
+        <p class="meta">{{ pregunta.origen_texto }}{% if pregunta.decidida %} · decidida por ti{% else %} · el análisis sugiere {{ pregunta.sugerencia }}{% endif %}</p>
+      </div>
+      {% else %}
+      <p class="meta">El análisis no dejó preguntas candidatas. Si necesitas preguntarle algo al cliente, escríbelo abajo.</p>
+      {% endfor %}
+      <label>Agregar mis propias preguntas para el cliente (una por línea)
+        <textarea name="q_nuevas" style="min-height:70px" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?"></textarea>
       </label>
-      {% if prefill_questions %}<p class="meta">Son las preguntas que dejó el análisis; edítalas, quita las que no apliquen o añade las tuyas.</p>{% endif %}
-      <div class="toolbar" style="margin-top:12px"><button type="submit" class="secondary" name="decision" value="ask_client">Preparar el correo con estas preguntas</button></div>
+      <div class="toolbar" style="margin-top:12px">
+        <button type="submit" class="secondary" name="decision" value="ask_client">Preparar el correo con las preguntas elegidas</button>
+        <button type="submit" class="secondary" name="decision" value="internal_only">Guardar mis decisiones sin preguntar al cliente</button>
+      </div>
     </form>
   </section>
   {% endif %}
@@ -54,8 +76,11 @@
   <input type="hidden" name="change_id" value="{{ compose_change_id }}">{% endif %}
   {% if compose_purpose %}<input type="hidden" name="purpose" value="{{ compose_purpose }}">{% endif %}
   <label>Respuesta para {{ compose_to or review.recipient }}
-    <textarea name="body" style="min-height:260px" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
+    <textarea name="body" id="cuerpo-correo" style="min-height:260px" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
   </label>
+  <p class="meta" id="aviso-espera" aria-live="polite"></p>
+  <label class="meta" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta">
+    Esperar su respuesta aunque el correo no tenga preguntas</label>
   <div class="toolbar" style="margin-top:14px">
     <button type="submit" formaction="/draft">Guardar borrador en Gmail</button>
     <button type="submit" formaction="/send" class="danger"
@@ -63,11 +88,11 @@
   </div>
 </form>
     {% elif email == 'waiting' %}
-<div class='notice'><strong>Correo enviado.</strong> Se envió a {{ review.recipient }} el {{ review.sent_at[:16] | replace('T', ' ') }}. Ahora esperamos la respuesta del cliente.</div>
+<div class='notice'><strong>Correo enviado.</strong> Se envió a {{ review.recipient }} el {{ review.sent_at[:16] | replace('T', ' ') }}. {% if preguntas_enviadas %}Esperamos su respuesta a {{ preguntas_enviadas | length }} pregunta{{ 's' if preguntas_enviadas | length != 1 }}.{% else %}Ahora esperamos la respuesta del cliente.{% endif %}</div>
 <details class="more"><summary class="meta">Ver lo que enviaste</summary><pre>{{ review.draft_body }}</pre></details>
 <p><a class="button secondary" href="/case?thread_id={{ thread_id | urlquote }}&template=libre#respuesta">Escribir otro correo</a></p>
     {% elif email == 'sent' %}
-<div class='notice'>Respuesta enviada el {{ review.sent_at or 'sin fecha registrada' }}.</div><pre>{{ review.draft_body }}</pre>
+<div class='notice'>Respuesta enviada el {{ review.sent_at or 'sin fecha registrada' }}.{% if preguntas_enviadas is not none and not preguntas_enviadas %} <strong>No se espera respuesta del cliente a este correo</strong>: no llevaba preguntas.{% endif %}</div><pre>{{ review.draft_body }}</pre>
     {% elif email == 'recipient_error' %}
 <div class='notice error'>{{ recipient_error }}</div>
     {% elif email == 'technical' %}

@@ -137,6 +137,8 @@ class Analisis(TypedDict, total=False):
     gmail_url: str
     engine: str
     force_analysis: bool
+    preguntas: list[Any]                 # preguntas del caso con la decisión de una persona (U-22)
+    preguntas_enviadas: dict[str, Any]   # {en, preguntas}: las preguntas que llevaba el último correo enviado (U-22)
     analysis_failure: dict[str, Any]     # {motivo, intentos, proximo_intento}: el hilo no se pudo analizar (T-26)
     lectura_por_tramos: dict[str, Any]   # {adjuntos: [{adjunto, tramos, hallazgos}], niveles}: leídos por tramos
     ignored_reason: str

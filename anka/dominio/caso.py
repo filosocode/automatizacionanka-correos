@@ -205,9 +205,13 @@ def combine_activities(current: list[Actividad], incoming: list[Actividad]) -> l
     return result + list(news.values())
 
 
-def waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None) -> str:
-    """Desde cuándo espera el caso la respuesta del cliente ('' si no está esperando)."""
-    if status not in (QuoteStatus.WAITING, QuoteStatus.RESPONSE_SENT) or not sent_at:
+def waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None, sin_preguntas: bool = False) -> str:
+    """Desde cuándo espera el caso la respuesta del cliente ('' si no está esperando).
+
+    `sin_preguntas`: el último correo enviado era un acuse, sin preguntas (U-22): no se espera respuesta, así que no hay
+    días de espera, ni «sin respuesta», ni «llamar al cliente».
+    """
+    if status not in (QuoteStatus.WAITING, QuoteStatus.RESPONSE_SENT) or not sent_at or sin_preguntas:
         return ""
     if latest and timestamp(latest[0]) >= timestamp(sent_at):
         return ""            # el cliente ya respondió después

@@ -387,3 +387,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .work-rejected { margin-bottom: 18px; border-color: var(--info-line); }
 .work-rejected li { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .work-rejected li:last-child { border-bottom: 0; }
+
+/* Preguntas del caso: una tarjeta por pregunta con su selector (U-22) */
+.pregunta { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; background: var(--surface-2); }
+.pregunta select { max-width: 100%; }

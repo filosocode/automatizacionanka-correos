@@ -14,6 +14,7 @@ from email.utils import parsedate_to_datetime
 import os
 from urllib.parse import quote as url_quote
 from markupsafe import Markup
+from anka.dominio.preguntas import era_un_acuse
 from anka.dominio.errores import ErrorDeAnka
 from anka.web.views import (
     metric_rows,
@@ -357,7 +358,9 @@ def case_stage(quote: Mapping[str, Any]) -> tuple[str, bool]:
         QuoteStatus.SENDING: ("Envío interrumpido", True),
         QuoteStatus.MISSING: ("Hilo no disponible", True),
         QuoteStatus.WAITING: ("Esperando al cliente", False),
-        QuoteStatus.RESPONSE_SENT: ("Esperando al cliente", False),
+        QuoteStatus.RESPONSE_SENT: (
+            ("Respuesta enviada · sin espera" if era_un_acuse(quote.get("analysis") or {}) else "Esperando al cliente"),
+            False),
         QuoteStatus.READY_REVIEW: ("Listo para emitir la T", True),
         QuoteStatus.READY: ("Listo para emitir la T", True),
         QuoteStatus.IGNORED: ("Descartada", False),

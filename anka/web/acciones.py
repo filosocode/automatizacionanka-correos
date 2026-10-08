@@ -112,7 +112,7 @@ def _post_send(form: Form) -> str:
     # Un ValueError aquí suele ser «el mismo correo ya salió»: se explica, no es un fallo.
     message = _guidance(lambda: send_dashboard_reply(
         thread_id, field(form, "body"), field(form, "to"),
-        int_field(form, "change_id"), field(form, "purpose")), ValueError)
+        int_field(form, "change_id"), field(form, "purpose"), esperar=field(form, "esperar") == "1"), ValueError)
     return _to_case(thread_id, message)
 
 
@@ -132,9 +132,14 @@ def _post_rescue(form: Form) -> str:
 def _post_review_decision(form: Form) -> str:
     thread_id = field(form, "thread_id")
     decision = field(form, "decision")
-    message = _guidance(lambda: resolve_technical_review(thread_id, decision, field(form, "questions")), ValueError)
-    # Tras decidir, directo al paso que sigue: el correo, o la emisión de la T.
-    return _to_case(thread_id, message, "#respuesta" if decision == "ask_client" else "#emitir-t")
+    ids = [i.strip() for i in form.get("q_id", []) if i.strip()]
+    elecciones = {i: (field(form, f"q_decision_{i}"), field(form, f"q_text_{i}")) for i in ids} if ids else None
+    message = _guidance(lambda: resolve_technical_review(
+        thread_id, decision, field(form, "questions"),
+        elecciones=elecciones, nuevas=field(form, "q_nuevas")), ValueError)
+    # Tras decidir, directo al paso que sigue: el correo, o la emisión de la T; guardar decisiones no cambia de paso.
+    anchor = {"ask_client": "#respuesta", "sufficient": "#emitir-t"}.get(decision, "")
+    return _to_case(thread_id, message, anchor)
 
 
 def _post_project_merge(form: Form) -> str:

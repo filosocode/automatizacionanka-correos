@@ -371,3 +371,22 @@ exportación. Quitar una fila la marca a la vista (atenuada y tachada, «se quit
 con filas quitadas pide confirmar cuántas. Un enlace «Ver historial de cambios» lleva al acta del caso. La exportación (Excel y
 hoja de Google) es una zona aparte, «Exportar la tabla», con una sola explicación corta y el detalle plegado. Nada de esto
 cambia lo que se guarda ni cómo.
+
+### U-22 · Decidir cada pregunta y saber de qué correos se espera respuesta
+En un caso en revisión técnica, cada pregunta candidata (las de la auditoría de preguntas, las pendientes del análisis y las de
+recepción) aparece con un selector: «Preguntar al cliente», «Resolver internamente» o «Descartar», ya puesto según lo que
+sugirió el análisis; la persona puede editar el texto, cambiar el selector de una, de varias o de todas, y agregar preguntas
+propias. Una pregunta que el análisis marcó como revisión interna o «no preguntar», o cuyo encabezado dice «interno»,
+«interna» o «internamente», nunca se sugiere para el cliente.
+«Preparar el correo con las preguntas elegidas» arma el correo solo con esas preguntas, numeradas, y no lo reemplaza el
+borrador de Work (que sigue siendo el punto de partida cuando no se eligió ninguna). «Guardar mis decisiones» las conserva sin
+pasar el caso a preguntas; las marcadas «Resolver internamente» aparecen en los pendientes de Anka. Cada decisión deja huella
+(quién, cuándo, qué). Si llega un mensaje nuevo en el hilo, el reanálisis las descarta, como la decisión de revisión técnica.
+El estado después de enviar depende de **lo que salió en el correo**, no de un clic anterior: con al menos una pregunta el caso
+queda en «Esperando cliente» (y el aviso dice cuántas); sin preguntas (un acuse) queda en «Respuesta enviada · sin espera»:
+no cuenta días de espera, ni avisa «sin respuesta» ni «llamar al cliente», ni recibe recordatorios por silencio. El evento del
+envío y el aviso del caso lo dicen con esas palabras. Un caso anterior a este cambio, sin el dato de las preguntas enviadas,
+conserva su comportamiento de antes. Antes de enviar, la pantalla dice cuántas preguntas lleva el
+correo y si el caso quedará esperando; una casilla «Esperar su respuesta aunque el correo no tenga preguntas» fuerza la espera
+(TR-26). Un acuse mientras queden preguntas decididas como internas devuelve el caso a «Falta tu decisión técnica» (TR-25),
+para que ese trabajo no salga de la cola de la persona.

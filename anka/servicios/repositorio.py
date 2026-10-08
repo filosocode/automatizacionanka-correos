@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import NamedTuple, Any
 from uuid import uuid4
 
+from anka.dominio.preguntas import era_un_acuse
 from anka.dominio.caso import (
     Caso, load_analysis, model_proposal, service_names, status_label, unanalyzed_reply, waiting_since,
 )
@@ -91,7 +92,7 @@ def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
         proposal=model_proposal(analysis),
         links=rel.pending_links.get(thread, []),
         changes=rel.changes.get(thread, []),
-        waiting_since=waiting_since(row["status"], row["sent_at"] or "", latest),
+        waiting_since=waiting_since(row["status"], row["sent_at"] or "", latest, sin_preguntas=era_un_acuse(analysis)),
         followup={
             "auto_enabled": bool(followup.get("auto_enabled")),
             "paused": bool(followup.get("paused")),

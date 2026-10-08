@@ -9,6 +9,7 @@ from email.utils import parseaddr
 
 from anka.dominio.analisis import Analisis, Adjunto
 from anka.dominio.correo import attachment_names, header, message_datetime, message_text
+from anka.dominio.preguntas import para_el_cliente
 
 
 @lru_cache(maxsize=4096)   # función pura que se llama con los mismos textos (nombres de campos) una y otra vez
@@ -434,8 +435,12 @@ def suggested_supporting_documents(analysis: Analisis) -> list[str]:
 
 def suggested_reply(analysis: Analisis, required_fields: list[str] | None = None) -> str:
     """Texto sugerido para responder al cliente: las preguntas pendientes o, si no hay, un acuse de recibo."""
-    questions = reception_questions(analysis, required_fields or [])
-    questions += (analysis.get("manual_review") or {}).get("questions", [])
+    decididas = analysis.get("preguntas")
+    if decididas:  # una persona decidió pregunta por pregunta (U-22): solo salen las que eligió para el cliente
+        questions = para_el_cliente(decididas)
+    else:
+        questions = reception_questions(analysis, required_fields or [])
+        questions += (analysis.get("manual_review") or {}).get("questions", [])
     questions = list(dict.fromkeys(questions))  # la misma pregunta puede venir de la recepción y de la revisión
     documents = suggested_supporting_documents(analysis)
     forwarded = analysis.get("routing", {}).get("is_forwarded", False)
