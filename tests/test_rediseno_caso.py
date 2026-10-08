@@ -1,4 +1,4 @@
-"""Cubre: U-09, U-10, U-11, U-11, U-13, U-14, U-15, U-16 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
+"""Cubre: U-09, U-10, U-11, U-11, U-13, U-14, U-15, U-16, U-21 — siguiente paso fijo, una sola acción de emisión, fuentes en rangos y cola de hoy."""
 from __future__ import annotations
 
 import re
@@ -190,16 +190,66 @@ class TablaYLenguaje(unittest.TestCase):
             self.assertIn(f"name='a1_{clave}'", html)           # y la fila nueva
         self.assertIn("Más datos: ubicación, entregable, plazo y fuente", html)
 
-    def test_cantidad_y_unidad_en_una_linea_y_cajas_compactas(self) -> None:
+    def test_cantidad_y_unidad_juntas_y_cajas_del_mismo_tamano_sin_barras(self) -> None:
         # Cubre: U-14
         html = str(activities_editor("h1", [self.ACTIVIDAD]))
         par = html[html.index('<div class="cant-par">'):html.index("</div>", html.index('<div class="cant-par">'))]
         self.assertIn("name='a0_quantity'", par)
         self.assertIn("name='a0_unit'", par)                                     # juntas, en el mismo contenedor
-        self.assertIn(".act-table .cant-par { display: flex;", html)
-        self.assertIn("table-layout: fixed", html)
-        self.assertIn("height: 68px", html)                                      # y no las cajas de 120 px de antes
-        self.assertIn(".act-table th:nth-child(5) { width: 29%; }", html)        # Notas, la columna más ancha
+        self.assertIn("grid-template-columns: repeat(5, minmax(0, 1fr)) 84px", html)   # cinco columnas iguales
+        self.assertIn("field-sizing: content", html)                             # la caja se ajusta a su texto
+        self.assertIn("resize: vertical", html)                                  # se puede cambiar desde la esquina
+        self.assertIn("overflow: auto", html)                                    # y se desplaza por dentro si el texto no cabe
+        self.assertNotIn("overflow: hidden", html)
+        self.assertIn('id="ajustar-cajas"', html)                                # y hay vuelta al tamaño automático
+        self.assertIn("flex: 1 1 auto", html)                                    # todas las de la fila igualan la altura
+        self.assertNotIn("resize: none", html)
+        self.assertNotIn("height: 68px", html)                                   # ni alturas distintas por columna
+        self.assertNotIn("width: 29%", html)                                     # ni una columna más ancha que otra
+        self.assertIn('role="row"', html)                                        # la cuadrícula conserva la semántica de tabla
+
+    def test_el_script_iguala_la_fila_al_arrastrar_la_esquina_y_puede_volver_al_ajuste(self) -> None:
+        # Cubre: U-14
+        layout = (RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8")
+        for pieza in ("document.querySelector('.act-table')", "new MutationObserver", "attributeFilter: ['style']",
+                      "caja.closest('.act-main, .act-grid')", "c.style.height = alto", "getElementById('ajustar-cajas')",
+                      "c.style.height = ''"):
+            self.assertIn(pieza, layout)
+        self.assertEqual(layout.count("<script>"), 2)                             # sin script nuevo: va en el de siempre
+
+    def test_barra_de_guardado_con_motivo_dentro_y_exportar_aparte(self) -> None:
+        # Cubre: U-21
+        html = str(activities_editor("h1", [self.ACTIVIDAD], ultima={"version": 4, "created_at": "2026-10-08T12:35:10"}))
+        barra = html[html.index('id="barra-guardado"'):html.index("</form>")]
+        self.assertIn("Sin cambios por guardar · última versión: 4 (2026-10-08 12:35)", barra)
+        self.assertIn('id="caja-motivo"', barra)
+        self.assertIn('<select name="reason">', barra)                           # el motivo va con «Guardar tabla»
+        self.assertIn('id="guardar-tabla"', barra)
+        self.assertIn('href="/acta?thread_id=h1">Ver historial de cambios</a>', barra)
+        self.assertNotIn("Descargar Excel", barra)                               # y nada de Excel cerca del motivo
+        exportar = html[html.index("</form>"):]
+        self.assertIn("Exportar la tabla", exportar)
+        self.assertIn('href="/export.xlsx?thread_id=h1">Descargar Excel</a>', exportar)
+        self.assertIn("Cómo funciona la hoja de Google", exportar)               # la explicación larga, plegada
+        self.assertNotIn('name="reason"', exportar)
+
+    def test_sin_version_previa_la_barra_solo_dice_que_no_hay_cambios(self) -> None:
+        # Cubre: U-21
+        html = str(activities_editor("h1", [self.ACTIVIDAD]))
+        self.assertIn('data-sin-cambios="Sin cambios por guardar"', html)
+
+    def test_quitar_se_ve_marcado_y_el_script_pide_motivo_solo_con_cambios_y_confirma(self) -> None:
+        # Cubre: U-21
+        html = str(activities_editor("h1", [self.ACTIVIDAD]))
+        self.assertIn('<span class="q-on">Se quitará al guardar. Deshacer</span>', html)
+        self.assertIn(".act-row.por-quitar .act-main textarea", html)            # atenuada y tachada
+        self.assertIn("text-decoration: line-through", html)
+        layout = (RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8")
+        for pieza in ("getElementById('barra-guardado')", "motivo.hidden = !hay", "guardar.disabled = !hay",
+                      "classList.toggle('por-quitar', c.checked)", "guardar.dataset.confirm", "Se quitará ", "Se quitarán ",
+                      "Cambios sin guardar: "):
+            self.assertIn(pieza, layout)
+        self.assertEqual(layout.count("<script>"), 2)                             # sin script nuevo
 
     def test_la_guia_habla_al_comercial(self) -> None:
         # Cubre: U-14

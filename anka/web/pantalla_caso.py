@@ -565,7 +565,8 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "activities_editor": activities_editor(
             thread_id, analysis.get("activities", []), list(EDIT_REASONS.items()),
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
-                  "actualizada": review.sheet_synced_at[:16].replace("T", " ")}),
+                  "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
+            ultima=last_manual_version(thread_id)),
         "attachments_table": attachments_table(analysis.get("attachments", [])),
         "review_tasks": review_tasks_panel(
             analysis.get("question_audit", []),

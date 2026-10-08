@@ -270,8 +270,10 @@ seleccionadas» queda dentro de un menú «Acciones» y conserva su confirmació
 
 ### U-14 · Tabla legible y lenguaje claro
 La tabla de actividades muestra cinco columnas (Actividad, Servicio/técnica, Cantidad con su unidad, Estado y Notas); ubicación,
-entregable, plazo y fuente van en «Más datos» de cada fila y se guardan igual. Los campos son compactos (no cajas de ~120 px),
-cantidad y unidad van juntas en una línea y Notas, que es lo más largo, es la columna más ancha. La guía de la tabla habla al comercial (qué
+entregable, plazo y fuente van en «Más datos» de cada fila y se guardan igual. Las cinco columnas miden lo mismo y todas las cajas de una
+fila tienen la misma altura (la que pida el texto más largo), de modo que por defecto no hace falta desplazarse; cantidad y
+unidad van juntas en una caja. Se puede cambiar la altura arrastrando la esquina de una caja (toda su fila toma esa altura y
+la caja se desplaza por dentro si el texto no cabe) y un botón «Ajustar cajas al texto» vuelve al tamaño automático. La guía de la tabla habla al comercial (qué
 significa cada estado y qué escribir en Notas). La tabla de adjuntos usa palabras de persona («No se pudo leer», «Falta
 revisar», «Dónde se leyó») y no códigos internos. El foco del teclado es siempre visible y los botones y campos miden al
 menos 44 px de alto.
@@ -341,3 +343,12 @@ fallaban con «la base es de una versión más nueva»). Un guardián mínimo la
 cada vez que este lo pide con el código de salida 75; con cualquier otra salida termina igual que él (Ctrl+C o parada normal).
 Al arrancar, el servicio cierra los lanzadores, dashboards y puentes anteriores **sin cerrar a su propio guardián** (sus
 procesos ascendentes). El guardián no ejecuta lógica del lanzador, así que no se queda desactualizado.
+
+### U-21 · Guardar la tabla con control: cambios visibles, motivo solo si hay cambios y exportar aparte
+Debajo de la tabla de actividades hay una barra de guardado. Dice si hay cambios sin guardar y cuáles («2 filas editadas, 1 por
+quitar, 1 nueva») o, si no hay, la última versión guardada; «Guardar tabla» solo se puede pulsar cuando hay algo que guardar. El
+motivo (opcional) aparece solo cuando se edita, se quita o se añade algo, junto a «Guardar tabla», y no se muestra cerca de la
+exportación. Quitar una fila la marca a la vista (atenuada y tachada, «se quitará al guardar», con opción de deshacer) y guardar
+con filas quitadas pide confirmar cuántas. Un enlace «Ver historial de cambios» lleva al acta del caso. La exportación (Excel y
+hoja de Google) es una zona aparte, «Exportar la tabla», con una sola explicación corta y el detalle plegado. Nada de esto
+cambia lo que se guarda ni cómo.

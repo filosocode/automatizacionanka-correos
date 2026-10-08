@@ -263,8 +263,17 @@ def reception_assessment_panel(assessment: dict) -> Markup:
     )
 
 
+def _sin_cambios(ultima: Mapping[str, Any] | None) -> str:
+    """El texto de la barra de guardado cuando no hay nada por guardar: la última versión que guardó una persona."""
+    if not ultima:
+        return "Sin cambios por guardar"
+    cuando = str(ultima["created_at"])[:16].replace("T", " ")
+    return f"Sin cambios por guardar · última versión: {ultima['version']} ({cuando})"
+
+
 def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
-                      reasons: list[tuple[str, str]] | None = None, hoja: Mapping[str, Any] | None = None) -> Markup:
+                      reasons: list[tuple[str, str]] | None = None, hoja: Mapping[str, Any] | None = None,
+                      ultima: Mapping[str, Any] | None = None) -> Markup:
     """Tabla editable: colores por estado, celdas vacias en gris y una fila nueva al final."""
     def cells(item: Mapping[str, Any]) -> list[dict]:
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
@@ -280,6 +289,7 @@ def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
         "activities_editor.html",
         thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS,
         reasons=reasons or [],
+        sin_cambios=_sin_cambios(ultima),
         hoja={"url": "", "error": "", "tiene_carpeta": False, "actualizada": ""} | dict(hoja or {}),
         headers=[label for _, label in ACTIVITY_COLUMNS],
     )
