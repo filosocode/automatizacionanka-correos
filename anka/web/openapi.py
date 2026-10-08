@@ -175,11 +175,12 @@ OPERACIONES: tuple[Operacion, ...] = (
               (_ID, Campo("body", "Texto del correo.", requerido=True, ejemplo="Hola, ¿podría confirmar…?"),
                Campo("to", "Destinatario; si se omite, el del caso.")), "redirect"),
     Operacion("post", "/send", "Acciones del caso", "⚠ Enviar la respuesta al cliente",
-              "**Envía un correo real** desde Gmail y deja el caso esperando. Rechaza repetir el mismo texto "
-              "en 15 minutos.", "correo",
+              "**Envía un correo real** desde Gmail. Si lleva preguntas (o `esperar=1`) deja el caso esperando al "
+              "cliente; si no, queda como respuesta enviada. Rechaza repetir el mismo texto en 15 minutos.", "correo",
               (_ID, Campo("body", "Texto del correo.", requerido=True, ejemplo="Hola, ¿podría confirmar…?"),
                Campo("to", "Destinatario; si se omite, el del caso."),
                Campo("change_id", "Cambio al que responde este correo.", "integer", ejemplo=0),
+               Campo("esperar", "`1` para dejar el caso esperando al cliente aunque el correo no lleve preguntas."),
                Campo("purpose", "Para qué es el correo, si responde a un cambio.",
                      opciones=("ack", "ask_code", "notify_contact", "scope_update"))), "redirect"),
     Operacion("post", "/activities", "Acciones del caso", "Guardar la tabla de actividades",

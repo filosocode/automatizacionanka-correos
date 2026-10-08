@@ -173,7 +173,12 @@ def internas(preguntas: Iterable[Pregunta]) -> list[str]:
 def era_un_acuse(analysis: Mapping[str, Any]) -> bool:
     """¿El último correo enviado desde el dashboard no llevaba preguntas? Un caso antiguo, sin el dato, no lo es."""
     enviadas = analysis.get("preguntas_enviadas")
-    return isinstance(enviadas, Mapping) and not enviadas.get("preguntas")
+    return isinstance(enviadas, Mapping) and not enviadas.get("preguntas") and not enviadas.get("esperada")
+
+
+def hay_pendientes_internos(analysis: Mapping[str, Any]) -> bool:
+    """¿La persona decidió resolver por dentro alguna pregunta? Mientras tanto el caso sigue siendo trabajo de Anka."""
+    return bool(internas(analysis.get("preguntas") or []))
 
 
 def en_el_correo(cuerpo: str) -> list[str]:

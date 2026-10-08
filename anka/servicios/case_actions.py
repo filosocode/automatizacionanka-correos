@@ -26,7 +26,7 @@ from anka.dominio.correo import (
     valid_email_address,
 )
 from anka.infra.mail import own_addresses, send_reply
-from anka.dominio.preguntas import en_el_correo
+from anka.dominio.preguntas import en_el_correo, hay_pendientes_internos
 from anka.dominio.reception import (
     question_email, reception_questions, safe_folder_name,
 )
@@ -179,28 +179,39 @@ def _send_through_gmail(gmail: Any, thread_id: str, raw: str, draft_id: str) -> 
     return gmail.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()
 
 
-def _status_after_reply(status: str, preguntas: int = 0) -> str:
+def _status_after_reply(
+        status: str, preguntas: int = 0, esperar: bool = False, pendientes_internos: bool = False) -> str:
     """Estado del caso después de enviarle algo al cliente, según lo que el correo llevaba (U-22).
 
-    Solo se espera respuesta si el correo hizo al menos una pregunta; un acuse queda como «respuesta enviada».
+    Se espera respuesta si el correo hizo al menos una pregunta o la persona marcó «esperar respuesta». Un acuse
+    queda como «respuesta enviada», salvo que aún haya preguntas decididas como internas: entonces el caso vuelve a
+    la revisión técnica para que ese trabajo no desaparezca de la cola de la persona.
     """
     # Un caso con información suficiente sigue abierto para crear su carpeta en Drive:
     # enviar un acuse o una aclaración no debe cerrarlo.
     if status in (QuoteStatus.READY_REVIEW, QuoteStatus.READY):
         return status
-    return QuoteStatus.WAITING if preguntas else QuoteStatus.RESPONSE_SENT
+    if preguntas or esperar:
+        return QuoteStatus.WAITING
+    return QuoteStatus.REVIEW if pendientes_internos else QuoteStatus.RESPONSE_SENT
 
 
 def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, recipient: str,
-                       new_status: str, now: str, preguntas: Sequence[str] = ()) -> None:
+                       new_status: str, now: str, preguntas: Sequence[str] = (), esperar: bool = False) -> None:
     """Guarda el estado nuevo, el hecho del envío (con cuántas preguntas llevaba) y la novedad para el dashboard."""
     db = connect()
     try:
         analysis = dict(quote["analysis"])
         analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
-        analysis["preguntas_enviadas"] = {"en": now, "preguntas": list(preguntas)}
-        con_preguntas = (f"con {len(preguntas)} pregunta(s) para el cliente: se espera su respuesta" if preguntas
-                         else "sin preguntas: no se espera respuesta del cliente")
+        analysis["preguntas_enviadas"] = {"en": now, "preguntas": list(preguntas), "esperada": bool(esperar)}
+        if preguntas:
+            con_preguntas = f"con {len(preguntas)} pregunta(s) para el cliente: se espera su respuesta"
+        elif esperar:
+            con_preguntas = "sin preguntas, pero marcaste esperar su respuesta"
+        else:
+            con_preguntas = "sin preguntas: no se espera respuesta del cliente"
+            if new_status == QuoteStatus.REVIEW:
+                con_preguntas += "; el caso vuelve a revisión técnica porque quedan tareas internas por resolver"
         actualizar_caso(db, thread_id,
             status=new_status,
             sent_message_id=message_id,
@@ -223,9 +234,10 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
 
 
 def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int = 0,
-                         purpose: str = "", create_folder: bool = True) -> str:
+                         purpose: str = "", create_folder: bool = True, esperar: bool = False) -> str:
     """Envía al cliente el correo escrito en el dashboard (ya revisado por una persona) y deja constancia.
 
+    `esperar` fuerza «esperando cliente» aunque el correo no lleve preguntas (la persona sabe que espera respuesta).
     Rechaza un reenvío idéntico reciente. Un caso con información suficiente crea además su carpeta en Drive,
     salvo que quien llama ya se haya ocupado de ella (`create_folder=False`).
     """
@@ -263,8 +275,8 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     envios.confirmar(operation_key, result['id'])
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     hechas = en_el_correo(body)
-    new_status = _status_after_reply(quote["status"], len(hechas))
-    _record_sent_reply(quote, thread_id, result["id"], body, recipient, new_status, now, hechas)
+    new_status = _status_after_reply(quote["status"], len(hechas), esperar, hay_pendientes_internos(quote["analysis"]))
+    _record_sent_reply(quote, thread_id, result["id"], body, recipient, new_status, now, hechas, esperar)
     log.info("%s: correo enviado desde el dashboard", thread_id)
     if change_id and purpose:
         mark_change_sent(thread_id, change_id, purpose, recipient)

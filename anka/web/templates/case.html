@@ -76,8 +76,11 @@
   <input type="hidden" name="change_id" value="{{ compose_change_id }}">{% endif %}
   {% if compose_purpose %}<input type="hidden" name="purpose" value="{{ compose_purpose }}">{% endif %}
   <label>Respuesta para {{ compose_to or review.recipient }}
-    <textarea name="body" style="min-height:260px" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
+    <textarea name="body" id="cuerpo-correo" style="min-height:260px" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
   </label>
+  <p class="meta" id="aviso-espera" aria-live="polite"></p>
+  <label class="meta" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta">
+    Esperar su respuesta aunque el correo no tenga preguntas</label>
   <div class="toolbar" style="margin-top:14px">
     <button type="submit" formaction="/draft">Guardar borrador en Gmail</button>
     <button type="submit" formaction="/send" class="danger"

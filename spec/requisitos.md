@@ -386,4 +386,7 @@ El estado después de enviar depende de **lo que salió en el correo**, no de un
 queda en «Esperando cliente» (y el aviso dice cuántas); sin preguntas (un acuse) queda en «Respuesta enviada · sin espera»:
 no cuenta días de espera, ni avisa «sin respuesta» ni «llamar al cliente», ni recibe recordatorios por silencio. El evento del
 envío y el aviso del caso lo dicen con esas palabras. Un caso anterior a este cambio, sin el dato de las preguntas enviadas,
-conserva su comportamiento de antes.
+conserva su comportamiento de antes. Antes de enviar, la pantalla dice cuántas preguntas lleva el
+correo y si el caso quedará esperando; una casilla «Esperar su respuesta aunque el correo no tenga preguntas» fuerza la espera
+(TR-26). Un acuse mientras queden preguntas decididas como internas devuelve el caso a «Falta tu decisión técnica» (TR-25),
+para que ese trabajo no salga de la cola de la persona.

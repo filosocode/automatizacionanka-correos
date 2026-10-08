@@ -112,7 +112,7 @@ def _post_send(form: Form) -> str:
     # Un ValueError aquí suele ser «el mismo correo ya salió»: se explica, no es un fallo.
     message = _guidance(lambda: send_dashboard_reply(
         thread_id, field(form, "body"), field(form, "to"),
-        int_field(form, "change_id"), field(form, "purpose")), ValueError)
+        int_field(form, "change_id"), field(form, "purpose"), esperar=field(form, "esperar") == "1"), ValueError)
     return _to_case(thread_id, message)
 
 

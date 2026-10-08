@@ -44,6 +44,24 @@
         setTimeout(() => { sender.disabled = true; sender.textContent = 'Enviando…'; }, 0);
       }
     });
+    (function () {
+      const cuerpo = document.getElementById('cuerpo-correo'), aviso = document.getElementById('aviso-espera');
+      if (!cuerpo || !aviso) return;
+      const casilla = document.getElementById('esperar-respuesta');
+      function contar() {
+        // Misma regla que el servidor (anka/dominio/preguntas.py): las preguntas con signos, sin contar enlaces.
+        const texto = cuerpo.value.replace(/https?:\/\/\S+|www\.\S+/gi, '');
+        const halladas = texto.match(/¿[^?¿]*\?|[^\n¿.!?]{6,}\?/g) || [];
+        return new Set(halladas.map(t => t.split(/\s+/).join(' '))).size;
+      }
+      function mostrar() {
+        const n = contar();
+        aviso.textContent = n ? 'Este correo lleva ' + n + ' pregunta' + (n === 1 ? '' : 's') + ': el caso quedará esperando al cliente.'
+          : (casilla.checked ? 'Este correo no lleva preguntas, pero marcaste esperar su respuesta: el caso quedará esperando al cliente.'
+          : 'Este correo no lleva preguntas: no se espera respuesta del cliente.');
+      }
+      cuerpo.addEventListener('input', mostrar); casilla.addEventListener('change', mostrar); mostrar();
+    })();
     window.addEventListener('pageshow', event => {
       if (event.persisted) location.reload();
     });

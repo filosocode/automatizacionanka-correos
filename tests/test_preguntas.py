@@ -174,6 +174,12 @@ class CasoCompletoTests(unittest.TestCase):
         with patch("anka.servicios.case_actions.services", return_value=(gmail, object())):
             return case_actions.send_dashboard_reply("t-1", texto)
 
+    def enviar_esperando(self, texto):
+        gmail = FakeGmail({"id": "t-1", "messages": [
+            encoded_message("m-1", "cliente@empresa.co", "Solicito cotización.", 1, subject="Solicitud")]})
+        with patch("anka.servicios.case_actions.services", return_value=(gmail, object())):
+            return case_actions.send_dashboard_reply("t-1", texto, esperar=True)
+
     def elegir(self, **por_texto):
         candidatas = dominio.con_decisiones(dominio.candidatas(self.caso()["analysis"], {}), None)
         elecciones = {c["id"]: (por_texto.get(c["texto"], (dominio.INTERNA, c["texto"]))[0],
@@ -220,7 +226,9 @@ class CasoCompletoTests(unittest.TestCase):
 
     def test_sending_an_acknowledgement_does_not_leave_the_case_waiting(self):
         # el defecto real: se «preguntó» por tareas internas, salió el acuse y el caso quedó esperando al cliente
-        quotes.resolve_technical_review("t-1", "sufficient", elecciones=self.elegir())
+        descartar = {c["id"]: (dominio.DESCARTAR, c["texto"])
+                     for c in dominio.con_decisiones(dominio.candidatas(self.caso()["analysis"], {}), None)}
+        quotes.resolve_technical_review("t-1", "sufficient", elecciones=descartar)
         db = store.connect()
         db.execute("UPDATE quotes SET status=?", (QuoteStatus.REVIEW_PENDING,))
         db.commit()
@@ -230,6 +238,45 @@ class CasoCompletoTests(unittest.TestCase):
         self.assertEqual(caso["status"], QuoteStatus.RESPONSE_SENT)
         self.assertEqual(caso["analysis"]["preguntas_enviadas"]["preguntas"], [])
         self.assertIn("No se espera respuesta del cliente a este correo", pantalla_caso.render_case("t-1"))
+
+    def a_revision_pendiente(self):
+        db = store.connect()
+        db.execute("UPDATE quotes SET status=?", (QuoteStatus.REVIEW_PENDING,))
+        db.commit()
+        db.close()
+
+    def test_an_acknowledgement_with_internal_tasks_left_sends_the_case_back_to_technical_review(self):
+        quotes.resolve_technical_review("t-1", "sufficient", elecciones=self.elegir())   # todo «resolver internamente»
+        self.a_revision_pendiente()
+        self.enviar(ACUSE)
+        self.assertEqual(self.caso()["status"], QuoteStatus.REVIEW)            # sigue en la cola de la persona
+        self.assertEqual(self.caso()["waiting_since"], "")
+        db = store.connect()
+        try:
+            resumen = db.execute("SELECT summary FROM case_events WHERE thread_id='t-1' AND kind='sent'").fetchone()[0]
+        finally:
+            db.close()
+        self.assertIn("vuelve a revisión técnica", resumen)
+
+    def test_the_person_can_force_waiting_even_when_the_email_has_no_questions(self):
+        self.a_revision_pendiente()
+        self.enviar_esperando(ACUSE)
+        caso = self.caso()
+        self.assertEqual(caso["status"], QuoteStatus.WAITING)
+        self.assertTrue(caso["waiting_since"])
+        db = store.connect()
+        try:
+            resumen = db.execute("SELECT summary FROM case_events WHERE thread_id='t-1' AND kind='sent'").fetchone()[0]
+        finally:
+            db.close()
+        self.assertIn("marcaste esperar su respuesta", resumen)
+
+    def test_the_composer_tells_how_many_questions_the_email_has_before_sending(self):
+        quotes.resolve_technical_review("t-1", "ask_client", nuevas="¿Hay acceso al predio?", elecciones=self.elegir())
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn('id="aviso-espera"', pagina)
+        self.assertIn('name="esperar" value="1"', pagina)
+        self.assertIn("Esperar su respuesta aunque el correo no tenga preguntas", pagina)
 
     def test_the_event_and_the_notice_say_whether_an_answer_is_expected(self):
         self.enviar(ACUSE)
