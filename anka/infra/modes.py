@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 from anka.dominio.configuracion import Configuracion
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.errores import ErrorDeAnka, ModoNoPermitido
 from anka.infra.llm import check_ollama
 from anka.infra.settings import ACTIVE_MODES, load_config, write_config
 
@@ -49,7 +49,7 @@ def codex_automation_status() -> str | None:
 def ensure_local_or_api_mode(config: Configuracion) -> None:
     """Detiene el comando si el modo es ChatGPT Work: en ese modo Python no lee Gmail."""
     if config.get("active_mode", "local") == "chatgpt_work":
-        raise ErrorDeAnka(
+        raise ModoNoPermitido(
             "active_mode está en 'chatgpt_work'. No ejecutes el bot local sobre Gmail. "
             "Pausa/cambia esa modalidad en config.json antes de usar run/watch."
         )

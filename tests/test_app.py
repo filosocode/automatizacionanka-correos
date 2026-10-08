@@ -11,7 +11,7 @@ import urllib.request
 import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from anka.servicios import estado_de_revision
 from anka.dominio.caso import Caso
@@ -558,9 +558,41 @@ class QuoteFlowTests(unittest.TestCase):
         ), patch("anka.servicios.estado_de_revision.load_config", return_value={"active_mode": "chatgpt_work"}), patch(
             "anka.servicios.estado_de_revision.run"
         ) as run_mock, redirect_stdout(io.StringIO()):
-            with self.assertRaises(ErrorDeAnka):
-                estado_de_revision.watch(True, False, 30, True)
+            with self.assertLogs("anka.servicios.estado_de_revision", "WARNING") as logs:
+                estado_de_revision.watch(True, False, 30, True)  # termina sin error
         run_mock.assert_not_called()
+        self.assertIn("se detiene", " ".join(logs.output))
+
+    def test_watch_stops_while_waiting_when_the_mode_changes_to_work(self):
+        # Cubre: T-11
+        modes = iter(["local", "chatgpt_work"])  # al arrancar el ciclo y en el primer vistazo de la espera
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
+        ), patch("anka.servicios.estado_de_revision.load_config",
+                 side_effect=lambda: {"active_mode": next(modes)}), patch(
+            "anka.servicios.estado_de_revision.run"
+        ) as run_mock, patch("anka.servicios.estado_de_revision.time.sleep") as sleep_mock:
+            with self.assertLogs("anka.servicios.estado_de_revision", "WARNING"):
+                estado_de_revision.watch(True, False, 300, True)
+        run_mock.assert_called_once()
+        sleep_mock.assert_called_once_with(estado_de_revision.MODE_CHECK_SECONDS)  # no durmió los 300 s
+
+    def test_a_review_stops_between_threads_when_the_mode_changes(self):
+        # Cubre: T-11
+        from anka.dominio.errores import ModoNoPermitido
+        checks = []
+
+        def check():
+            checks.append(1)
+            if len(checks) == 2:
+                raise ModoNoPermitido("cambió a Work")
+
+        reviewer = pipeline.RevisorDeHilos({}, MagicMock(), MagicMock(), None, set(), False, True, comprobar_modo=check)
+        reviewer.pending_thread_ids = lambda: {"t-1", "t-2", "t-3"}  # type: ignore[method-assign]
+        done = []
+        reviewer.process_thread = lambda thread_id, thread: done.append(thread_id)  # type: ignore[method-assign]
+        with self.assertRaises(ModoNoPermitido):
+            reviewer.run()
+        self.assertEqual(done, ["t-1"])  # el segundo hilo ya no se procesó
 
     def test_gmail_draft_body_starts_with_review_note(self):
         client_body = base64.urlsafe_b64encode(

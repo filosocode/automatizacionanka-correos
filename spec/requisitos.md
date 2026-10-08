@@ -97,6 +97,8 @@ La base SQLite se migra por pasos con copia previa y rechaza versiones más nuev
 ### T-11 · Paridad de los tres modos
 Ollama, API y ChatGPT Work siguen las mismas reglas, que viven en un solo documento; las pruebas fallan si se
 separan.
+Solo un orquestador lee Gmail: si el modo activo pasa a `chatgpt_work`, el bot local se detiene solo, de inmediato —
+entre un hilo y el siguiente de una pasada, o en las pausas de la vigilancia (cada 5 s)—, sin errores ni trazas.
 
 ### T-12 · Arquitectura en capas
 El código vive en `anka/` en cinco capas (dominio, infra, servicios, web, cli) con dependencias en una sola dirección,

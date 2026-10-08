@@ -6,7 +6,7 @@ from anka.servicios.repositorio import actualizar_caso
 import json
 import sqlite3
 from dataclasses import dataclass
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
@@ -66,7 +66,8 @@ class RevisorDeHilos:
     """
 
     def __init__(self, config: Configuracion, gmail: Any, drive: Any, db: sqlite3.Connection | None,
-                 account_addresses: set[str], review_only: bool, gmail_drafts: bool) -> None:
+                 account_addresses: set[str], review_only: bool, gmail_drafts: bool,
+                 comprobar_modo: Callable[[], None] | None = None) -> None:
         self.config = config
         self.gmail = gmail
         self.drive = drive
@@ -74,6 +75,8 @@ class RevisorDeHilos:
         self.account_addresses = account_addresses
         self.review_only = review_only
         self.gmail_drafts = gmail_drafts
+        # Se llama antes de cada hilo: si el modo cambió a Work a mitad de una pasada, se detiene en el acto.
+        self.comprobar_modo = comprobar_modo
 
     def pending_thread_ids(self) -> set[str]:
         """Hilos a revisar: los que coinciden con la búsqueda de Gmail y los que quedaron pendientes en la base."""
@@ -97,6 +100,8 @@ class RevisorDeHilos:
     def run(self) -> None:
         """Procesa cada hilo pendiente; uno que ya no se puede leer en Gmail queda marcado como no disponible."""
         for thread_id in sorted(self.pending_thread_ids()):
+            if self.comprobar_modo:
+                self.comprobar_modo()
             try:
                 thread = self.gmail.users().threads().get(
                     userId="me", id=thread_id, format="full"
@@ -328,6 +333,7 @@ def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False) -> N
     try:
         RevisorDeHilos(
             config, gmail, drive, db, own_addresses(config, gmail), review_only, gmail_drafts,
+            comprobar_modo=lambda: ensure_local_or_api_mode(load_config()),
         ).run()
     finally:
         if db:

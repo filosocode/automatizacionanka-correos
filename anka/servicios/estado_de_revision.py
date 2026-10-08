@@ -12,6 +12,7 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra.work_heartbeat import bridge_state
 from anka.infra.logging_setup import get_logger
+from anka.dominio.errores import ModoNoPermitido
 from anka.infra.modes import ensure_local_or_api_mode
 from anka.infra.settings import load_config
 from anka.infra.store import connect
@@ -24,6 +25,7 @@ log = get_logger(__name__)
 
 
 LAST_CHECK_FILE = "last_check.json"
+MODE_CHECK_SECONDS = 5  # cada cuánto se revisa el modo activo mientras el bot espera el siguiente ciclo
 
 
 def _quote_snapshot() -> dict[str, tuple]:
@@ -52,6 +54,9 @@ def checked_run(apply: bool, review_only: bool, gmail_drafts: bool, source: str)
     error = ""
     try:
         run(apply, review_only, gmail_drafts)
+    except ModoNoPermitido as exc:
+        error = str(exc)
+        log.warning("Revisión de Gmail interrumpida (%s): el modo activo ya no es local ni api.", source)
     except Exception as exc:
         error = str(exc) or exc.__class__.__name__
         log.exception("Error en la revisión de Gmail (%s)", source)
@@ -127,19 +132,40 @@ def sync_status_text() -> str:
     )
 
 
+def _modo_permite_el_bot() -> bool:
+    """¿Sigue siendo local o api el modo activo? Se lee del disco cada vez: el cambio puede venir de otra ventana."""
+    try:
+        ensure_local_or_api_mode(load_config())
+    except ModoNoPermitido:
+        log.warning("El modo activo cambió a chatgpt_work: el bot local se detiene para no duplicar a Work.")
+        return False
+    return True
+
+
+def _dormir_vigilando_el_modo(seconds: int) -> bool:
+    """Espera `seconds` segundos revisando el modo cada pocos segundos; False si el modo dejó de permitir el bot."""
+    remaining = float(seconds)
+    while remaining > 0:
+        step = min(MODE_CHECK_SECONDS, remaining)
+        time.sleep(step)
+        remaining -= step
+        if not _modo_permite_el_bot():
+            return False
+    return True
+
+
 def watch(apply: bool, review_only: bool, seconds: int, gmail_drafts: bool = False) -> None:
-    """Repite `run` cada N segundos hasta Ctrl+C."""
+    """Repite `run` cada N segundos hasta Ctrl+C o hasta que el modo activo pase a chatgpt_work."""
     if seconds < 30:
         raise ErrorDeAnka("--watch-seconds debe ser de al menos 30 segundos.")
     log.info("Vigilando Gmail cada %s segundos. Presiona Ctrl+C para detener.", seconds)
     try:
         while True:
+            if not _modo_permite_el_bot():
+                return
             log.info(time.strftime("\n[%Y-%m-%d %H:%M:%S] Revisando buzón..."))
-            ensure_local_or_api_mode(load_config())  # en modo Work el bot se detiene
-            try:
-                checked_run(apply, review_only, gmail_drafts, "piloto")
-            except Exception:
-                log.exception("Error en ciclo de revisión")
-            time.sleep(seconds)
+            checked_run(apply, review_only, gmail_drafts, "piloto")
+            if not _dormir_vigilando_el_modo(seconds):
+                return
     except KeyboardInterrupt:
         log.info("\nVigilancia detenida por el usuario.")
