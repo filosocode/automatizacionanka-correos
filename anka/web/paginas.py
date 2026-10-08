@@ -32,7 +32,7 @@ from anka.servicios.change_control import (
     code_label, required_messages,
 )
 from anka.dominio.registros import Cambio
-from anka.servicios.quotes import discarded_quotes, all_quotes, unread_notifications
+from anka.servicios.quotes import discarded_quotes, all_quotes, separated_project_pairs, unread_notifications
 from anka.dominio.caso import CLIENT_TYPES
 from anka.servicios.proyectos_repetidos import Grupo, agrupar as agrupar_solicitudes
 
@@ -145,7 +145,7 @@ def render_index(message: str = "") -> str:
     services = Counter(service for quote in quotes for service in quote["services"])
     clients = Counter(q["client_name"] for q in quotes if q["client_name"])
     stages = {q["thread_id"]: case_stage(q) for q in quotes}
-    grupo_de = {q["thread_id"]: g for g in agrupar_solicitudes(quotes) for q in g.miembros}
+    grupo_de = {q["thread_id"]: g for g in agrupar_solicitudes(quotes, separated_project_pairs()) for q in g.miembros}
     cola: list[tuple[Mapping[str, Any], Grupo]] = []
     for q in cola_de_hoy(quotes):                       # un proyecto ocupa una sola entrada: la de su hilo más urgente
         if all(grupo_de[q["thread_id"]] is not g for _, g in cola):
@@ -193,6 +193,11 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
         thread_id=quote["thread_id"], reply_pending=bool(quote.get("reply_pending", "")),
         code=code_label(quote["quote_code"], quote.get("code_stage") or "T") if quote.get("quote_code") else "",
     )
+
+
+def etiqueta_de_recepcion(quote: Mapping[str, Any]) -> str:
+    """«Recibido: 2026-10-08 06:10», la fecha de recepción tal como la muestra cada fila."""
+    return _received_datetime_label(_received_value(quote))
 
 
 def _received_value(quote: Mapping[str, Any]) -> str:
@@ -267,7 +272,7 @@ def render_requests(message: str = "", agrupar_hilos: bool = True) -> str:
          "reason": link["reason"]}
         for quote in quotes for link in quote.get("links", [])
     ]
-    grupos = agrupar_solicitudes(quotes)
+    grupos = agrupar_solicitudes(quotes, separated_project_pairs())
     hay_grupos = any(len(g.miembros) > 1 for g in grupos)
     if not agrupar_hilos:
         grupos = [Grupo((q,)) for q in quotes]

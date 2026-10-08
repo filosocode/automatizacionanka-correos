@@ -9,7 +9,7 @@ nunca son el mismo proyecto.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -63,7 +63,9 @@ def _ficha(quote: Mapping[str, Any]) -> _Ficha:
         if "." in archivo and archivo.rsplit(".", 1)[-1] in _DOCUMENTOS:
             archivos.add((archivo, int(adjunto.get("extracted_chars") or 0)))
     # «OTACC (razón social no indicada)» es el cliente «OTACC»: lo que va entre paréntesis es una nota.
-    cliente = normalize_client_name(re.sub(r"\([^)]*\)", " ", str(quote.get("client_name") or "")))
+    nombre_cliente = str(quote.get("client_name") or "")
+    # Una dirección de correo no es el nombre de una empresa: sin empresa, el cliente no está identificado.
+    cliente = "" if "@" in nombre_cliente else normalize_client_name(re.sub(r"\([^)]*\)", " ", nombre_cliente))
     return _Ficha(
         clave=clave, palabras=palabras, numeros=frozenset(p for p in palabras if re.search(r"\d", p)),
         archivos=frozenset(archivos), correo=str(quote.get("client_email") or "").strip().casefold(),
@@ -104,10 +106,16 @@ def _motivo(a: _Ficha, b: _Ficha) -> str:
     return MOTIVO_NOMBRE
 
 
-def agrupar(quotes: Sequence[Mapping[str, Any]]) -> list[Grupo]:
+def motivo_entre(a: Mapping[str, Any], b: Mapping[str, Any]) -> str:
+    """Por qué dos hilos concretos parecen el mismo proyecto, o cadena vacía si entre ellos no hay parecido directo."""
+    return _motivo(_ficha(a), _ficha(b))
+
+
+def agrupar(quotes: Sequence[Mapping[str, Any]], separados: Collection[frozenset[str]] = ()) -> list[Grupo]:
     """Todos los hilos, agrupados por proyecto; los que están solos van en un grupo de uno.
 
     Los grupos salen en el orden en que aparece su primer hilo y los hilos de cada uno en el orden de la lista.
+    `separados` son pares de hilos que una persona dijo que no son el mismo proyecto: entre ellos no hay parecido.
     """
     fichas = [_ficha(q) for q in quotes]
     padre = list(range(len(quotes)))
@@ -121,6 +129,8 @@ def agrupar(quotes: Sequence[Mapping[str, Any]]) -> list[Grupo]:
     aristas: list[tuple[int, int, str]] = []
     for i in range(len(quotes)):
         for j in range(i + 1, len(quotes)):
+            if frozenset((str(quotes[i].get("thread_id")), str(quotes[j].get("thread_id")))) in separados:
+                continue
             motivo = _motivo(fichas[i], fichas[j])
             if motivo:
                 aristas.append((i, j, motivo))

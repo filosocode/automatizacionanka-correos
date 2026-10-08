@@ -10,6 +10,8 @@ from __future__ import annotations
 from anka.servicios.repositorio import actualizar_caso
 
 import sqlite3
+from collections.abc import Mapping
+from typing import Any
 from uuid import uuid4
 import json
 from datetime import datetime
@@ -220,7 +222,7 @@ def _propose_activities(db: sqlite3.Connection, thread_id: str, analysis: Analis
                  "para que la adoptes o la descartes.", now)
 
 
-def _merge_own_case(db: sqlite3.Connection, thread_id: str, link: sqlite3.Row, now: str) -> str:
+def _merge_own_case(db: sqlite3.Connection, thread_id: str, link: Mapping[str, Any], now: str) -> str:
     """Si el correo confirmado ya generó su propio caso (hilo nuevo), lo une a este: queda descartado como «unido».
 
     Solo une un caso que no avanzó (sin código de oferta, sin carpeta, sin respuesta enviada); su contenido y su
@@ -249,6 +251,83 @@ def _merge_own_case(db: sqlite3.Connection, thread_id: str, link: sqlite3.Row, n
     record_event(db, other, "merged", "dashboard", f"merged-{link['id']}",
                  f"Este caso se unió a «{target}» porque confirmaste que su correo pertenece a ese caso.", now)
     return name
+
+
+def merge_blocker(quote: Mapping[str, Any]) -> str:
+    """Por qué un hilo no se puede unir a otro caso, o cadena vacía si se puede (solo se une lo que no avanzó)."""
+    if quote["status"] == QuoteStatus.IGNORED:
+        return "ya está en Descartadas"
+    if quote.get("quote_code"):
+        return "ya tiene código de oferta"
+    if quote.get("folder_id"):
+        return "ya tiene carpeta del proyecto"
+    if quote["status"] not in SIN_AVANCE:
+        return "ya tiene una respuesta enviada o está en cotización"
+    return ""
+
+
+def _pair(thread_id: str, other_thread_id: str) -> tuple[str, str]:
+    return (thread_id, other_thread_id) if thread_id < other_thread_id else (other_thread_id, thread_id)
+
+
+def separated_project_pairs() -> frozenset[frozenset[str]]:
+    """Los pares de hilos que una persona dijo que no son el mismo proyecto."""
+    db = connect()
+    try:
+        return frozenset(frozenset((row["thread_id"], row["other_thread_id"]))
+                         for row in db.execute("SELECT thread_id, other_thread_id FROM project_dismissals"))
+    finally:
+        db.close()
+
+
+def merge_project_thread(thread_id: str, other_thread_id: str) -> str:
+    """Una persona confirma que otro hilo es el mismo proyecto: se une a este caso y queda en Descartadas."""
+    if not other_thread_id or other_thread_id == thread_id:
+        raise ValueError("Elige otro hilo para unir.")
+    db = connect()
+    try:
+        target = db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        other = repositorio.obtener(other_thread_id)
+        if not target or not other:
+            raise ValueError("Uno de los hilos ya no existe.")
+        blocker = merge_blocker(other)
+        if blocker:
+            raise ValueError(f"Ese hilo no se puede unir: {blocker}. Si no es el mismo proyecto, usa «No es el mismo "
+                             "proyecto».")
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        link = {"other_thread_id": other_thread_id, "id": f"project-{other_thread_id}"}
+        name = _merge_own_case(db, thread_id, link, now)
+        if not name:
+            raise ValueError("Ese hilo ya avanzó y no se puede unir.")
+        record_event(db, thread_id, "project_merged", "dashboard", f"project-{other_thread_id}",
+                     f"Confirmaste que el hilo «{name}» es el mismo proyecto: se unió a este caso y quedó en "
+                     "Descartadas (se puede rescatar).", now)
+        db.commit()
+    finally:
+        db.close()
+    return (f"Unido: «{name}» pasó a Descartadas, por si quieres rescatarlo. Si traía cambios para la tabla, los verás "
+            "como propuesta para adoptar o descartar.")
+
+
+def separate_project_thread(thread_id: str, other_thread_id: str) -> str:
+    """Una persona dice que otro hilo NO es el mismo proyecto: no se vuelve a sugerir en ningún caso."""
+    if not other_thread_id or other_thread_id == thread_id:
+        raise ValueError("Elige otro hilo.")
+    db = connect()
+    try:
+        first, second = _pair(thread_id, other_thread_id)
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        db.execute("INSERT OR IGNORE INTO project_dismissals (thread_id, other_thread_id, decided_at) VALUES (?, ?, ?)",
+                   (first, second, now))
+        for mine, theirs in ((thread_id, other_thread_id), (other_thread_id, thread_id)):
+            if db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (mine,)).fetchone():
+                record_event(db, mine, "project_separated", "dashboard", f"project-{theirs}",
+                             "Decidiste que otro hilo con nombre o archivo parecido no es el mismo proyecto que este.",
+                             now)
+        db.commit()
+    finally:
+        db.close()
+    return "Anotado: esos hilos no se volverán a sugerir como el mismo proyecto."
 
 
 def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:

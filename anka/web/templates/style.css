@@ -380,3 +380,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .grupo { display: grid; gap: 8px; padding-left: 12px; border-left: 4px solid var(--accent); }
 .grupo-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .grupo-resto { display: grid; gap: 8px; margin-left: 14px; }
+.project-suggestion > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; }
+.project-candidate { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 10px 12px; }
+@media (max-width: 720px) { .project-candidate { grid-template-columns: 1fr; } }

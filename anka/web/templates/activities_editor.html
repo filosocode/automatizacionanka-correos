@@ -7,8 +7,17 @@
   .act-table select.estado-contradictorio { background: var(--bad-bg); color: var(--bad-ink); }
   .act-table tr.nueva td { border-top: 2px dashed var(--line); }
   .act-table .del { white-space: nowrap; font-size: 12px; color: var(--muted); }
-  .act-table .cant { min-width: 130px; }
-  .act-table .cant textarea { min-width: 60px; }
+  /* Compacta: las cajas no miden 120 px de alto; cada columna tiene su ancho y Notas, que es lo más largo, el mayor. */
+  .act-table { table-layout: fixed; min-width: 900px; }
+  .act-table textarea { min-width: 0; min-height: 0; height: 68px; padding: 6px 8px; resize: vertical; line-height: 1.35; }
+  .act-table td:nth-child(5) textarea { height: 104px; }
+  .act-table th:nth-child(1) { width: 17%; } .act-table th:nth-child(2) { width: 20%; }
+  .act-table th:nth-child(3) { width: 14%; } .act-table th:nth-child(4) { width: 12%; }
+  .act-table th:nth-child(5) { width: 29%; } .act-table th:nth-child(6) { width: 8%; }
+  .act-table select { min-width: 0; min-height: 44px; }
+  .act-table .cant-par { display: flex; gap: 6px; }
+  .act-table .cant-par textarea { height: 44px; }
+  .act-table .cant-par textarea:last-child { flex: 0 0 38%; }
   .act-table tbody.act-row { border-bottom: 1px solid var(--line); }
   .act-table tr.act-more td { padding: 0 4px 10px; }
   .act-table tr.act-more summary { cursor: pointer; color: var(--muted); font-size: 13px; min-height: 32px; }
@@ -23,7 +32,7 @@
   {% for row in rows %}<tbody class="act-row"><tr{% if row.is_new %} class='nueva'{% endif %}>
     <td>{{ campo(row, 'activity', 'Actividad') }}</td>
     <td>{{ campo(row, 'servicio_tecnica', 'Servicio o técnica') }}</td>
-    <td class="cant">{{ campo(row, 'quantity', 'Cantidad', 1) }}{{ campo(row, 'unit', 'Unidad', 1) }}</td>
+    <td class="cant"><div class="cant-par">{{ campo(row, 'quantity', 'Cantidad', 1) }}{{ campo(row, 'unit', 'Unidad', 1) }}</div></td>
     <td><select name='a{{ row.index }}_estado' aria-label='Estado' class='estado-{{ row.by.estado or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == row.by.estado %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>
     <td>{{ campo(row, 'notes', 'Notas') }}</td>
     {% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'> Quitar</label></td>{% endif %}</tr>

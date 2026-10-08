@@ -190,6 +190,17 @@ class TablaYLenguaje(unittest.TestCase):
             self.assertIn(f"name='a1_{clave}'", html)           # y la fila nueva
         self.assertIn("Más datos: ubicación, entregable, plazo y fuente", html)
 
+    def test_cantidad_y_unidad_en_una_linea_y_cajas_compactas(self) -> None:
+        # Cubre: U-14
+        html = str(activities_editor("h1", [self.ACTIVIDAD]))
+        par = html[html.index('<div class="cant-par">'):html.index("</div>", html.index('<div class="cant-par">'))]
+        self.assertIn("name='a0_quantity'", par)
+        self.assertIn("name='a0_unit'", par)                                     # juntas, en el mismo contenedor
+        self.assertIn(".act-table .cant-par { display: flex;", html)
+        self.assertIn("table-layout: fixed", html)
+        self.assertIn("height: 68px", html)                                      # y no las cajas de 120 px de antes
+        self.assertIn(".act-table th:nth-child(5) { width: 29%; }", html)        # Notas, la columna más ancha
+
     def test_la_guia_habla_al_comercial(self) -> None:
         # Cubre: U-14
         html = str(activities_editor("h1", []))

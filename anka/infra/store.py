@@ -266,6 +266,13 @@ def _migration_12_mail_operations(db: sqlite3.Connection) -> None:
         gmail_id TEXT NOT NULL, created_at TEXT NOT NULL, error TEXT NOT NULL)''')
 
 
+def _migration_13_project_dismissals(db: sqlite3.Connection) -> None:
+    """Pares de hilos que una persona dijo que NO son el mismo proyecto (siempre con el id menor primero)."""
+    db.execute('''CREATE TABLE project_dismissals (
+        thread_id TEXT NOT NULL, other_thread_id TEXT NOT NULL, decided_at TEXT NOT NULL,
+        PRIMARY KEY (thread_id, other_thread_id), CHECK (thread_id < other_thread_id))''')
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -281,6 +288,7 @@ MIGRATIONS = (
     _migration_10_sheet,
     _migration_11_one_case_per_message,
     _migration_12_mail_operations,
+    _migration_13_project_dismissals,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

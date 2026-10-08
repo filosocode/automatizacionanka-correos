@@ -270,7 +270,8 @@ seleccionadas» queda dentro de un menú «Acciones» y conserva su confirmació
 
 ### U-14 · Tabla legible y lenguaje claro
 La tabla de actividades muestra cinco columnas (Actividad, Servicio/técnica, Cantidad con su unidad, Estado y Notas); ubicación,
-entregable, plazo y fuente van en «Más datos» de cada fila y se guardan igual. La guía de la tabla habla al comercial (qué
+entregable, plazo y fuente van en «Más datos» de cada fila y se guardan igual. Los campos son compactos (no cajas de ~120 px),
+cantidad y unidad van juntas en una línea y Notas, que es lo más largo, es la columna más ancha. La guía de la tabla habla al comercial (qué
 significa cada estado y qué escribir en Notas). La tabla de adjuntos usa palabras de persona («No se pudo leer», «Falta
 revisar», «Dónde se leyó») y no códigos internos. El foco del teclado es siempre visible y los botones y campos miden al
 menos 44 px de alto.
@@ -310,5 +311,15 @@ nunca se agrupan.
 En Solicitudes el grupo es una fila: el hilo más reciente, con «N hilos del mismo proyecto», el motivo (y «verifica» si solo el
 nombre se parece) y un botón para desplegar los demás; el orden por fecha usa el hilo más reciente del grupo, y el orden por
 urgencia el más urgente. Se puede ver cada hilo por separado (`agrupar=0`). En el Resumen un proyecto ocupa una sola entrada
-de la cola, que abre su hilo más urgente y reciente y dice cuántos más hay. Unir de verdad los hilos queda para una fase
-posterior, con confirmación de una persona.
+de la cola, que abre su hilo más urgente y reciente y dice cuántos más hay. Unir de verdad los hilos es una
+acción aparte con confirmación de una persona (U-20).
+
+### U-20 · Unir o separar un hilo del mismo proyecto, con confirmación
+La pantalla de un caso avisa «Parece el mismo proyecto» cuando otros hilos se parecen a él (U-19) y, de cada uno, dice quién lo
+mandó, cuándo, en qué etapa está y por qué se parece (con «verifica» si solo es el nombre). De cada hilo se ofrece
+«Unir a este caso» y «No es el mismo proyecto». Unir pide confirmación y usa la unión que ya existe: el hilo pasa a Descartadas
+como «unido» (se puede rescatar), su historial se conserva y lo que traía para la tabla llega como propuesta para adoptar o
+descartar; queda anotado quién lo decidió y cuándo en los dos casos. Solo se unen hilos que no avanzaron: uno con código de
+oferta, con carpeta, con respuesta enviada o ya descartado no se puede unir, y el aviso lo explica (sigue pudiendo separarse).
+«No es el mismo proyecto» se guarda y esos dos hilos no vuelven a agruparse ni a sugerirse, en la lista ni en el caso.
+Nada se une solo (D-09).

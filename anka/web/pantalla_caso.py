@@ -41,14 +41,15 @@ from anka.servicios.change_control import (
 )
 from anka.servicios.gmail_followup import case_contacts
 from anka.dominio.registros import Cambio, Evento
+from anka.servicios.proyectos_repetidos import agrupar, motivo_entre
 from anka.servicios.quotes import (
-    ago_text, case_change_log, case_conversation, case_has_links, case_people, chain_status, get_quote,
-    minutes_since, reason_label, thread_events,
+    ago_text, all_quotes, case_change_log, case_conversation, case_has_links, case_people, chain_status, get_quote,
+    merge_blocker, minutes_since, reason_label, separated_project_pairs, thread_events,
 )
 from anka.dominio.caso import CLIENT_TYPES, REPLY_OVERDUE_MINUTES, SECTORS
 from anka.servicios.ediciones import EDIT_REASONS, last_manual_version, table_versions
 
-from anka.web.paginas import REPLY_LABEL, case_stage, page
+from anka.web.paginas import REPLY_LABEL, case_stage, etiqueta_de_recepcion, page
 
 log = get_logger(__name__)
 
@@ -309,6 +310,27 @@ def _code_panel(review: Caso) -> Markup:
         received_text=received_email_text(project, code_label(suggestion, "T"), contact) if suggestion else "")
 
 
+def _project_panel(thread_id: str) -> Markup:
+    """«Parece el mismo proyecto»: los hilos parecidos a este, con «Unir a este caso» y «No es el mismo proyecto»."""
+    quotes = all_quotes()
+    mine = next((q for q in quotes if q["thread_id"] == thread_id), None)
+    group = next((g for g in agrupar(quotes, separated_project_pairs())
+                  if any(q["thread_id"] == thread_id for q in g.miembros)), None)
+    if mine is None or group is None or len(group.miembros) < 2:
+        return Markup("")
+    candidates = []
+    for other in group.miembros:
+        if other["thread_id"] == thread_id:
+            continue
+        reason = motivo_entre(mine, other) or group.motivo
+        candidates.append({
+            "thread_id": other["thread_id"], "project": other["analysis"].get("project_name") or "Solicitud sin nombre",
+            "who": other["client_name"] or other["recipient"], "when": etiqueta_de_recepcion(other),
+            "stage": case_stage(other)[0], "reason": reason, "verify": reason == "nombre parecido",
+            "blocker": merge_blocker(other)})
+    return render("project_suggestion.html", thread_id=thread_id, candidates=candidates)
+
+
 def _next_step_banner(review: Caso, work_mode: bool) -> Markup:
     """Un solo aviso arriba del caso: lo más importante que sigue, con su botón si lo hay."""
     if any(c["state"] == "pending" for c in review.get("changes", [])):
@@ -564,6 +586,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "code_panel": _code_panel(review),
         "code_text": _code_text(review),
         "next_step": _next_step_banner(review, config.get("active_mode") == "chatgpt_work"),
+        "project_panel": _project_panel(thread_id),
         "proposal_panel": render("proposal.html", changes=proposal, thread_id=thread_id) if proposal else Markup(""),
         "timeline": _timeline_panel(thread_id, review, analysis, events, integrity_ok, event_count),
     }
