@@ -1,0 +1,17 @@
+<div class="next-step warn">
+  <div>
+    <strong>{{ who }} escribió después de la T</strong>
+    <span>
+      <span class="chip {{ 'nueva' if change.has_code else 'distinta' }}">{{ 'Cita la T' if change.has_code else 'No cita la T' }}</span>
+      <span class="chip {{ 'nueva' if change.is_contact else 'distinta' }}">{{ 'Contacto registrado' if change.is_contact else ('Otra persona de la misma empresa' if change.same_company else 'Otra persona / otro dominio') }}</span>
+    </span>
+    <span>«{{ change.subject }}»{% if change.snippet %} · {{ change.snippet }}{% endif %}</span>
+    <span class="meta">Si lo confirmas como cambio, se preparan los correos que corresponden; tú los revisas y los envías.</span>
+  </div>
+  <form method="post" action="/change" class="toolbar">
+    <input type="hidden" name="thread_id" value="{{ thread_id }}">
+    <input type="hidden" name="change_id" value="{{ change.id }}">
+    <button type="submit" name="decision" value="yes">Es un cambio</button>
+    <button type="submit" class="secondary" name="decision" value="no">No es un cambio</button>
+  </form>
+</div>

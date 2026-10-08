@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><name>Eje Variante Sur K0+000 - K12+500</name><LineString><tessellate>1</tessellate><coordinates>-77.280000,1.210000,0 -77.269500,1.213918,0 -77.259000,1.217366,0 -77.248500,1.219990,0 -77.238000,1.221637,0 -77.227500,1.222394,0 -77.217000,1.222564,0 -77.206500,1.222597,0 -77.196000,1.222973,0 -77.185500,1.224090,0 -77.175000,1.226164,0 -77.164500,1.229178,0</coordinates></LineString></Placemark></Document></kml>

@@ -7,3 +7,9 @@ __pycache__/
 .venv/
 .uv-cache/
 internal_context/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Archivos de trabajo del equipo que no son parte del código
+archivo_local/

@@ -1,0 +1,17 @@
+De: Laura Ospina <laura.ospina@solarvalle-ejemplo.com>
+Asunto: Cotización levantamiento LiDAR parque solar 45 MWp - Candelaria, Valle
+Adjuntos (anexar a mano): KMZ del predio (polígono 82 ha); plano PDF de implantación preliminar; TdR del contratante (PDF)
+------------------------------------------------------------
+Buen día equipo Anka,
+
+Estamos desarrollando un parque solar fotovoltaico de 45 MWp en Candelaria (Valle del Cauca), predio de 82 hectáreas. Necesitamos cotización de levantamiento con LiDAR aerotransportado y ortofoto para diseño de movimiento de tierras y drenajes.
+
+Entregables: nube de puntos clasificada, MDT/MDS con curvas cada 0,5 m, ortofoto GSD 3 cm. Sistema de referencia MAGNA-SIRGAS Origen Cali.
+Plazo: campo en las primeras dos semanas de noviembre; entrega en 15 días hábiles después.
+
+Adjunto el KMZ del predio, el plano de implantación preliminar y los términos de referencia.
+
+Quedo atenta,
+Laura Ospina
+Gerente de Desarrollo - SolarValle SAS
+Cel. 300 000 0001

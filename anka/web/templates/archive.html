@@ -1,0 +1,10 @@
+<div class="page-head"><div><h1>Archivo de casos eliminados</h1><p>El historial de un caso eliminado se conserva como evidencia: quién pidió qué y cuándo.</p></div></div>
+<section class="section">
+  {% if items %}
+  <table class="people">
+    <thead><tr><th>Caso</th><th>Hechos</th><th>Primero</th><th>Último</th><th></th></tr></thead>
+    <tbody>{% for item in items %}<tr><td>{{ item.thread_id }}</td><td>{{ item.n }}</td><td>{{ item.first[:16] | replace('T', ' ') }}</td><td>{{ item.last[:16] | replace('T', ' ') }}</td><td><a class="button secondary" href="/acta?thread_id={{ item.thread_id | urlquote }}">Ver acta</a></td></tr>
+    {% endfor %}</tbody>
+  </table>
+  {% else %}<p class="meta">No hay casos eliminados con historial.</p>{% endif %}
+</section>

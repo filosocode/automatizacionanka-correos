@@ -1,0 +1,39 @@
+{
+  "descripcion": "Transiciones de estado de un caso en el dashboard (fuente de verdad). Cada fila dice: ante este evento, desde estos estados, el caso queda en `hacia` («igual» = no cambia, «error» = el sistema lo rechaza). tests/test_transiciones.py ejecuta todas las filas contra el código real: si una cambia, cambia aquí primero (ver spec/01-flujo-y-estados.md y ESTANDAR_CAMBIOS.md).",
+  "estados": {
+    "review_pending": "Requiere aclaraciones (faltan datos; hay preguntas por enviar)",
+    "review": "Revisión técnica interna (una persona debe decidir)",
+    "ready_review": "Información suficiente para revisión interna",
+    "waiting": "Esperando al cliente (se le enviaron preguntas)",
+    "draft_created": "Borrador preparado",
+    "response_sent": "Respuesta enviada",
+    "ready": "Proyecto creado (carpeta de Drive creada)",
+    "sending": "Enviando (envío en curso o interrumpido)",
+    "missing": "Hilo no disponible",
+    "ignored": "Descartada"
+  },
+  "transiciones": [
+    {"id": "TR-01", "evento": "work_import", "estado_work": ["Nueva solicitud", "Faltan datos", "Requiere aclaraciones del cliente"], "dependencias_pendientes": false, "mismo_mensaje": false, "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "review_pending"},
+    {"id": "TR-02", "evento": "work_import", "estado_work": ["En análisis", "Revisión técnica", "Requiere revisión técnica interna"], "dependencias_pendientes": false, "mismo_mensaje": false, "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "review"},
+    {"id": "TR-03", "evento": "work_import", "estado_work": ["Borrador preparado"], "dependencias_pendientes": false, "mismo_mensaje": false, "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "draft_created"},
+    {"id": "TR-04", "evento": "work_import", "estado_work": ["Alcance completo", "Información suficiente para revisión interna"], "dependencias_pendientes": false, "mismo_mensaje": false, "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "ready_review"},
+    {"id": "TR-05", "evento": "work_import", "estado_work": ["Descartada"], "dependencias_pendientes": false, "mismo_mensaje": false, "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "ignored"},
+    {"id": "TR-06", "evento": "work_import", "estado_work": ["Nueva solicitud", "Faltan datos", "Requiere aclaraciones del cliente", "Borrador preparado", "Alcance completo", "Información suficiente para revisión interna"], "dependencias_pendientes": true, "mismo_mensaje": false, "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "review", "nota": "Con dependencias o contradicciones pendientes el caso pasa a revisión técnica (igual que el piloto de Python)."},
+    {"id": "TR-07", "evento": "work_import", "estado_work": ["Faltan datos", "Alcance completo", "Borrador preparado", "En análisis"], "dependencias_pendientes": false, "mismo_mensaje": false, "desde": ["ready", "sending"], "hacia": "igual", "nota": "Un caso con carpeta creada o con un envío en curso no retrocede por un borrador posterior."},
+    {"id": "TR-08", "evento": "work_import", "estado_work": ["Faltan datos", "Alcance completo"], "dependencias_pendientes": false, "mismo_mensaje": true, "desde": ["response_sent"], "hacia": "igual", "nota": "Volver a analizar el mismo mensaje no mueve un caso con respuesta enviada; un mensaje nuevo del cliente sí (TR-01 a TR-06)."},
+
+    {"id": "TR-10", "evento": "decidir_revision_tecnica", "decision": "sufficient", "desde": ["review"], "hacia": "ready_review"},
+    {"id": "TR-11", "evento": "decidir_revision_tecnica", "decision": "ask_client", "desde": ["review"], "hacia": "review_pending"},
+    {"id": "TR-12", "evento": "decidir_revision_tecnica", "decision": "sufficient", "desde": ["review_pending", "ready_review", "waiting", "draft_created", "response_sent", "ready", "ignored"], "hacia": "error", "nota": "Solo se decide sobre casos en revisión técnica."},
+
+    {"id": "TR-20", "evento": "enviar_desde_dashboard", "desde": ["review_pending"], "hacia": "waiting", "nota": "Se preguntó al cliente: espera su respuesta."},
+    {"id": "TR-21", "evento": "enviar_desde_dashboard", "desde": ["ready_review"], "hacia": "igual", "nota": "Un caso con información suficiente sigue abierto para crear la carpeta."},
+    {"id": "TR-22", "evento": "enviar_desde_dashboard", "con_codigo": true, "desde": ["ready"], "hacia": "igual", "nota": "Un caso ya avanzado con T puede escribir al cliente sin cambiar de estado."},
+    {"id": "TR-23", "evento": "enviar_desde_dashboard", "desde": ["draft_created", "waiting"], "hacia": "response_sent"},
+    {"id": "TR-24", "evento": "enviar_desde_dashboard", "desde": ["response_sent", "ready", "ignored", "missing"], "hacia": "error", "nota": "Sin T ni avisos que lo reabran, un caso cerrado no admite respuesta."},
+
+    {"id": "TR-30", "evento": "correo_enviado_desde_gmail", "desde": ["review_pending", "sending"], "hacia": "waiting"},
+    {"id": "TR-31", "evento": "correo_enviado_desde_gmail", "desde": ["draft_created"], "hacia": "response_sent"},
+    {"id": "TR-32", "evento": "correo_enviado_desde_gmail", "desde": ["waiting", "ready_review", "review", "response_sent", "ready", "ignored"], "hacia": "igual", "nota": "Solo anota el hecho en el seguimiento."}
+  ]
+}

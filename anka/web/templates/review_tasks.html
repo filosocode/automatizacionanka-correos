@@ -1,0 +1,9 @@
+{% if rows %}
+<ul class="review-task-list">
+  {% for status, task, reason in rows %}
+  <li><span class="badge {% if status == 'Revisión interna pendiente' %}info{% else %}warn{% endif %}">{{ status }}</span>
+    <strong>{{ task }}</strong>{% if reason %}<div class="meta">{{ reason }}</div>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}<p class="meta">No hay revisiones internas ni preguntas pendientes registradas.</p>{% endif %}

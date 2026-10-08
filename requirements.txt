@@ -1,6 +1,14 @@
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
-openai
-openpyxl
-pypdf
+# Rangos permitidos (fuente de verdad). Las versiones exactas instaladas, con hashes,
+# están en requirements.lock; regénera los .lock cuando cambies estos rangos (ver README).
+google-api-python-client>=2.200,<3
+google-auth-httplib2>=0.4,<1
+google-auth-oauthlib>=1.4,<2
+openai>=3.19,<4
+openpyxl>=3.1,<4
+pypdf>=6.19,<7
+pypdfium2>=5.13,<6
+rapidocr-onnxruntime>=1.4.4,<2
+Pillow>=11,<14
+xlrd>=2,<3
+pyshp>=3.1,<4
+jinja2>=3.1,<4

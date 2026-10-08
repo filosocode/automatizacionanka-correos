@@ -1,0 +1,35 @@
+﻿INSTRUCCIONES DE LA TAREA CHATGPT WORK — GRUPO ANKA
+
+Este archivo explica el puente Gmail → dashboard. El prompt de evidencia vigente está en `PROMPT_WORK_ANKA_PRECISO_V3.txt`. Editar archivos locales no actualiza una tarea activa de ChatGPT Work.
+
+PAQUETE LOCAL DE EVIDENCIA PARA WORK
+Work no ejecuta los extractores Python. Para dar a Work texto extraído localmente, descarga primero los adjuntos del mensaje y genera el paquete:
+python app.py prepare-work-packet --attachment "C:\ruta\especificacion.pdf" --attachment "C:\ruta\alcance.xlsx" --output-dir "C:\ruta\caso\paquete-work"
+Adjunta a la misma tarea de Work `manifest.json`, `LEEME.md` y todos los `.txt` generados. Si hay muchos segmentos, adjunta todos; su nombre conserva archivo y orden. No copies texto de un caso histórico como si fuera adjunto del hilo actual. El manifiesto informa cobertura y límites; `parcial`/`no_legible` significa revisión interna, no dato ausente. El paquete queda local y no se sube ni envía automáticamente.
+Límites del comando: 30 adjuntos, 50 MiB por archivo, 250 MiB total y 300 MiB de texto extraído por paquete. Se mantienen los límites internos por formato (PDF, hojas, ZIP/KMZ); los documentos parciales siguen señalados.
+
+CONTRATO V2: PREGUNTAS CON EVIDENCIA
+El bloque JSON incluye thread_id, message_id, client_email, client_name, project_name, summary, status, engine, received_at, gmail_url, requested_by_email, requested_by_name, cited_codes, activities, fields, missing_data, evidence_register, question_audit, attachments, contradictions y scope_dependencies. `missing_data` acepta textos legacy u objetos `{ "name": "dato pendiente", "type": "critical"|"recommended" }`. El puente agrega draft_reply y draft_id.
+Cada actividad incluye activity, servicio_tecnica, ubicacion, quantity, unit, entregable, plazo_restriccion, fuente, estado y notes. Cada field contiene name, value y source.
+En `notes`, explica faltantes con fuente y siguiente paso. Si `estado` es `contradictorio`, precisa qué parámetro discrepa, los valores y localizadores de ambas fuentes, qué decisión falta y el rol que debe resolverla. Usa `equipo técnico de Anka` para decisiones internas; no inventes responsables ni pidas al cliente que resuelva criterios propios de Anka.
+Para cada dato relevante, registra un hallazgo atómico en evidence_register con id, topic, status, value, source, location, owner y blocking. Cada pregunta de other_questions debe tener entrada en question_audit con question, reason_missing, reviewed_sources, question_id, target_finding_ids, disposition y unresolved. Pregunta al cliente solo por evidencia pendiente y bloqueante que le corresponda resolver. No preguntes datos explícitos ni traslades al cliente límites de lectura; estos últimos van a revisión interna. Si el dato es parcial, pregunta solo por lo que falta.
+El dashboard muestra advertencias para revisión humana y conserva el análisis y el borrador. La importación es compatible con payloads anteriores sin evidence_register.
+
+PUENTE GMAIL → DASHBOARD LOCAL
+El puente (`work_dashboard_sync.py`) lo inicia `Iniciar Anka.bat` junto con el dashboard. Para ejecutarlo una vez:
+python .\work_dashboard_sync.py --once
+Para mantenerlo activo:
+python .\work_dashboard_sync.py --seconds 60
+El equipo y el proceso deben permanecer activos. Ctrl+C lo detiene. Usa la autorización Google y la carpeta DATA_DIR configuradas. El puente importa borradores; nunca envía, elimina ni modifica borradores.
+No actives dos tareas que creen borradores para el mismo evento. Pega el prompt V3 actualizado en una sola tarea activa; si usas el paquete local, adjúntalo a la misma tarea y al mismo hilo.
+
+PRUEBA
+1. Ejecuta `--once` para verificar cuenta, permisos y módulos.
+2. Usa un correo de prueba elegible con la tarea activa.
+3. Confirma que el borrador incluye el bloque JSON en la sección interna.
+4. Ejecuta `--once` y comprueba que el dashboard actualice el caso.
+5. Revisa actividades, preguntas y advertencias de evidencia.
+6. Ejecuta `--once` otra vez; el mismo contenido no debe duplicarse.
+
+LIMITACIONES
+Si el borrador se envía o elimina antes de importar, el proceso no lo encontrará. JSON inválido o un hilo incorrecto no se importan y sus errores no se marcan como procesados. La base SQLite sigue siendo la fuente de persistencia del dashboard.

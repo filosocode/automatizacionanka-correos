@@ -1,0 +1,15 @@
+<section class="notifications">
+  <div class="section-head"><div><h2>Novedades</h2><div class="meta">Correos y respuestas que requieren tu atención.</div></div>
+    <form method="post" action="/notifications/read"><button class="secondary" type="submit">Marcar como revisadas</button></form>
+  </div>
+  {% for item in items %}
+<article class="notification">
+  <span class="notification-dot"></span>
+  <div><strong>{{ item.title }}</strong>
+    <div>{{ item.project_name }}</div>
+    <div class="meta">{{ item.message }} {{ item.timestamp }}</div>
+  </div>
+  <a class="button secondary" href="/case?thread_id={{ item.thread_id | urlquote }}">Revisar</a>
+</article>
+{% endfor %}
+</section>

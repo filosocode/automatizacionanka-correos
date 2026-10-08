@@ -1,0 +1,10 @@
+<div class="assessment-head">
+  <span class="badge {{ status_class }}">{{ label }}</span>
+  <span class="meta">Tipo detectado: {{ service_family }}</span>
+</div>
+<p>{{ reason }}</p>
+<div class="assessment-grid">
+  <div><h3>Preguntas necesarias al cliente</h3>{% if questions %}<ol class='assessment-list'>{% for question in questions %}<li>{{ question }}</li>{% endfor %}</ol>{% else %}<p class='meta'>No faltan datos básicos para iniciar la revisión interna.</p>{% endif %}</div>
+  <div><h3>Validaciones para el equipo de Anka</h3><ul class='assessment-list'>{% for check in checks %}<li>{{ check }}</li>{% endfor %}</ul></div>
+</div>
+<div class="notice intake-note"><strong>Etapa actual:</strong> recepción, lectura y aclaración. Esta evaluación no calcula precios ni confirma un alcance definitivo.</div>

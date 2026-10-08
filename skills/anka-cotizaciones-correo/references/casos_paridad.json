@@ -1,0 +1,55 @@
+{
+  "descripcion": "Catálogo compartido por los tres modos. Python lo ejecuta en tests/test_paridad_modos.py; en ChatGPT Work se usa para probar la skill a mano: cada caso dice si el correo debe pasar a análisis o descartarse sin analizar, según las reglas R1 a R7 de reglas_operativas.md. Son correos sintéticos, no de clientes reales.",
+  "terminos_rescate": ["cotización", "cotizar", "presupuesto", "propuesta", "levantamiento"],
+  "descarte": [
+    {"id": "explicita", "descripcion": "Solicitud explícita", "esperado": "pasa", "senal": null,
+     "correo": {"de": "Ana Reyes <ana@empresa.co>", "asunto": "Cotización levantamiento", "cuerpo": "Solicito cotización de un levantamiento de 10 ha en Cota.", "cabeceras": {}, "etiquetas": []}},
+    {"id": "pregunta_de_valor", "descripcion": "Pregunta de valor sin las palabras clave", "esperado": "pasa", "senal": null,
+     "correo": {"de": "Ana Reyes <ana@empresa.co>", "asunto": "Consulta", "cuerpo": "Buenas tardes, ¿cuánto vale medir un lote de 5 hectáreas en Cota? Necesito tiempos.", "cabeceras": {}, "etiquetas": []}},
+    {"id": "disponibilidad_y_costo", "descripcion": "Disponibilidad y costo para inspección con dron", "esperado": "pasa", "senal": null,
+     "correo": {"de": "Ana Reyes <ana@empresa.co>", "asunto": "Servicio de dron", "cuerpo": "Quisiera saber si tienen disponibilidad y el costo para inspeccionar con dron una línea.", "cabeceras": {}, "etiquetas": []}},
+    {"id": "estimacion", "descripcion": "Estimación de costo de un estudio de ortofoto", "esperado": "pasa", "senal": null,
+     "correo": {"de": "Ana Reyes <ana@empresa.co>", "asunto": "Información", "cuerpo": "Necesitamos una estimación de costo para un estudio de ortofoto de un predio de 200 ha.", "cabeceras": {}, "etiquetas": []}},
+    {"id": "humano_en_promociones", "descripcion": "Consulta real que Gmail puso en Promociones", "esperado": "pasa", "senal": null,
+     "correo": {"de": "Ana Reyes <ana@empresa.co>", "asunto": "Batimetría", "cuerpo": "¿Cuánto cuesta una batimetría de un embalse?", "cabeceras": {}, "etiquetas": ["INBOX", "CATEGORY_PROMOTIONS"]}},
+    {"id": "promocion_de_un_humano", "descripcion": "Promoción escrita por una persona, sin cabeceras automáticas: la decide el modelo, no el filtro", "esperado": "pasa", "senal": null,
+     "correo": {"de": "Vendedor <vendedor@proveedor.co>", "asunto": "Oferta", "cuerpo": "Descuentos en tu próxima compra de oficina.", "cabeceras": {}, "etiquetas": []}},
+    {"id": "aviso_automatico_con_cotizacion", "descripcion": "Aviso de un portal que menciona una cotización: se analiza", "esperado": "pasa", "senal": null,
+     "correo": {"de": "Portal <noreply@portal.co>", "asunto": "Solicitud de cotización #88", "cuerpo": "Se registró una solicitud.", "cabeceras": {}, "etiquetas": []}},
+    {"id": "no_reply", "descripcion": "Notificación de un sistema", "esperado": "descarta", "senal": "remitente_no_reply",
+     "correo": {"de": "Sistema <noreply@banco.co>", "asunto": "Tu extracto", "cuerpo": "Ya está disponible.", "cabeceras": {}, "etiquetas": []}},
+    {"id": "boletin", "descripcion": "Boletín con enlace de baja", "esperado": "descarta", "senal": "list_unsubscribe",
+     "correo": {"de": "Tienda <ofertas@tienda.com>", "asunto": "Ofertas", "cuerpo": "Descuentos de oficina.", "cabeceras": {"List-Unsubscribe": "<mailto:baja@tienda.com>"}, "etiquetas": []}},
+    {"id": "respuesta_automatica", "descripcion": "Respuesta automática de ausencia", "esperado": "descarta", "senal": "auto_submitted",
+     "correo": {"de": "Luis <luis@empresa.co>", "asunto": "Fuera de la oficina", "cuerpo": "Regreso el lunes.", "cabeceras": {"Auto-Submitted": "auto-replied"}, "etiquetas": []}},
+    {"id": "envio_masivo", "descripcion": "Envío masivo", "esperado": "descarta", "senal": "precedence_masivo",
+     "correo": {"de": "Revista <info@revista.co>", "asunto": "Edición de octubre", "cuerpo": "Ya salió.", "cabeceras": {"Precedence": "bulk"}, "etiquetas": []}},
+    {"id": "spam", "descripcion": "Marcado como spam por Gmail", "esperado": "descarta", "senal": "spam_gmail",
+     "correo": {"de": "Premios <ganaste@promo.xyz>", "asunto": "¡Ganaste!", "cuerpo": "Haz clic aquí.", "cabeceras": {}, "etiquetas": ["SPAM"]}}
+  ],
+  "clientes": [
+    {"a": "Energía Norte S.A.S.", "b": "ENERGIA NORTE", "igual": true},
+    {"a": "Energia Norte Ltda.", "b": "energía norte sas", "igual": true},
+    {"a": "Acme Corp", "b": "Acme", "igual": true},
+    {"a": "Minera Sur", "b": "Minera Sur S.A.", "igual": true},
+    {"a": "Energía Norte", "b": "Norte Energía", "igual": false},
+    {"a": "Acme Norte", "b": "Acme", "igual": false},
+    {"a": "SA Pedro Ingeniería", "b": "Pedro Ingeniería", "igual": false}
+  ],
+  "anios": [
+    {"carpeta_padre": "2026", "fecha_solicitud": "2026-12-31T23:00:00-05:00", "bloquea": false},
+    {"carpeta_padre": "2026", "fecha_solicitud": "2027-01-05T09:00:00-05:00", "bloquea": true},
+    {"carpeta_padre": "2025", "fecha_solicitud": "2026-02-01T09:00:00-05:00", "bloquea": true},
+    {"carpeta_padre": "Cotizaciones", "fecha_solicitud": "2030-01-01T00:00:00-05:00", "bloquea": false}
+  ],
+  "cambios": [
+    {"id": "sin_codigo_en_el_caso", "descripcion": "El caso aún no tiene T: el cliente escribe libremente", "codigo_del_caso": null, "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "Cambiar el plazo a 30 días", "anterior_a_la_t": false, "esperado": "aplica"},
+    {"id": "contacto_cita_t", "descripcion": "El contacto cita la T", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "Ref. T26145: el plazo es de 30 días", "anterior_a_la_t": false, "esperado": "aplica"},
+    {"id": "contacto_cita_te", "descripcion": "El contacto cita la T&E", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "Ref. T&E26145: el plazo es de 30 días", "anterior_a_la_t": false, "esperado": "aplica"},
+    {"id": "contacto_sin_codigo", "descripcion": "El contacto no cita el código", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "El plazo ahora es de 30 días", "anterior_a_la_t": false, "esperado": "pendiente"},
+    {"id": "otra_persona_misma_empresa_cita_t", "descripcion": "Otra persona de la misma empresa, con el código", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Luis Gómez <luis@empresa.co>", "cuerpo": "T26145: el plazo es de 30 días", "anterior_a_la_t": false, "esperado": "pendiente"},
+    {"id": "otra_persona_otro_dominio_sin_codigo", "descripcion": "Otra persona de otro dominio, sin código", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Pedro <pedro@otra.com>", "cuerpo": "El plazo ahora es de 30 días", "anterior_a_la_t": false, "esperado": "pendiente"},
+    {"id": "cita_el_codigo_de_otro_caso", "descripcion": "El contacto cita la T de otro proyecto", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "Ref. T26146: el plazo es de 30 días", "anterior_a_la_t": false, "esperado": "pendiente"},
+    {"id": "mensaje_anterior_a_la_t", "descripcion": "Mensaje anterior a la asignación de la T", "codigo_del_caso": "26145", "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "El plazo es de 40 días", "anterior_a_la_t": true, "esperado": "aplica"}
+  ]
+}

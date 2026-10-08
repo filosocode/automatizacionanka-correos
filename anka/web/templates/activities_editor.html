@@ -1,0 +1,39 @@
+<style>
+  .act-table textarea, .act-table select { width: 100%; min-width: 120px; font: inherit; font-size: 13px; }
+  .act-table td { padding: 4px; vertical-align: top; }
+  .act-table textarea.vacio { background: #f0f2f3; color: #63717b; }
+  .act-table select.estado-confirmado { background: #d9ead3; }
+  .act-table select.estado-pendiente { background: #fff2cc; }
+  .act-table select.estado-contradictorio { background: #f4cccc; }
+  .act-table tr.nueva td { border-top: 2px dashed var(--line); }
+  .act-table .del { white-space: nowrap; font-size: 12px; color: var(--muted); }
+</style>
+<form method="post" action="/activities">
+  <input type="hidden" name="thread_id" value="{{ thread_id }}">
+  <input type="hidden" name="row_count" value="{{ row_count }}">
+  <p class="meta">Guía: <strong>pendiente</strong> = falta confirmar un dato; <strong>contradictorio</strong> = las fuentes discrepan. En Notas indica qué falta o qué valores difieren, cita sus fuentes/localizadores y deja el siguiente paso y quién debe resolverlo (cliente/contratante o equipo Anka). No asignes nombres si no están definidos.</p>
+  <div style="overflow-x:auto"><table class="act-table"><thead><tr>{% for label in headers %}<th>{{ label }}</th>{% endfor %}<th></th></tr></thead>
+  <tbody>{% for row in rows %}<tr{% if row.is_new %} class='nueva'{% endif %}>{% for cell in row.cells %}{% if cell.key == 'estado' %}<td><select name='a{{ row.index }}_estado' class='estado-{{ cell.value or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == cell.value %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>{% else %}<td><textarea name='a{{ row.index }}_{{ cell.key }}' rows='2'{% if not cell.value or cell.value == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ cell.value }}</textarea></td>{% endif %}{% endfor %}{% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'> Quitar</label></td>{% endif %}</tr>{% endfor %}</tbody></table></div>
+  <div class="toolbar" style="margin-top:12px">
+    <button type="submit">Guardar tabla</button>
+    <label class="reason">Motivo (opcional)
+      <select name="reason">{% for value, label in reasons %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+    <a class="button secondary" href="/export.xlsx?thread_id={{ thread_id | urlquote }}">Descargar Excel</a>
+  </div>
+  <p class="meta">Tus ediciones solo quedan en el historial (versión, qué cambió y cuándo); no se envía nada al cliente. Una fila nueva se guarda solo si tiene datos.</p>
+</form>
+<div class="sheet-box" id="hoja-google">
+  <div class="toolbar">
+    <strong>Hoja de Google Sheets</strong>
+    {% if hoja.url %}<a class="button secondary" href="{{ hoja.url }}" target="_blank" rel="noopener noreferrer">Abrir en Google Sheets</a>{% endif %}
+    {% if hoja.tiene_carpeta %}<form method="post" action="/hoja" style="display:inline">
+      <input type="hidden" name="thread_id" value="{{ thread_id }}">
+      <button type="submit" class="secondary">{% if hoja.url %}Actualizar ahora{% else %}Crear la hoja de Google{% endif %}</button>
+    </form>{% endif %}
+  </div>
+  {% if hoja.url %}<p class="meta">Se actualiza sola cada vez que guardas la tabla{% if hoja.actualizada %} · última actualización {{ hoja.actualizada }}{% endif %}.</p>
+  {% elif hoja.tiene_carpeta %}<p class="meta">Todavía no hay hoja de Google para este caso: créala y desde entonces se actualiza sola.</p>
+  {% else %}<p class="meta">La hoja de Google se crea en la carpeta del proyecto, que se crea al emitir la T. Mientras tanto puedes descargar el Excel.</p>{% endif %}
+  {% if hoja.error %}<div class="notice">⚠ {{ hoja.error }}</div>{% endif %}
+  <p class="meta">Edita la tabla aquí, en el dashboard: lo que se escriba directamente en la hoja se sobrescribe en la próxima actualización (Google guarda las versiones anteriores en Archivo &gt; Historial de versiones). La hoja incluye también la solicitud inicial y el historial de cambios.</p>
+</div>

@@ -1,0 +1,82 @@
+<div class="page-head"><div><h1>Solicitudes</h1><p>Consulta y completa la información comercial de cada oportunidad.</p></div><a class="button secondary" href="/export.xlsx">Exportar todo a Excel</a></div>
+{% if pending_links %}
+<section class="section related-bulk">
+  <div class="section-head"><div><h2>Posibles actualizaciones</h2><p class="meta">Selecciona y descarta en lote los avisos que no pertenecen a sus casos. Se conservan los correos y las solicitudes; solo se quita la sugerencia de vínculo.</p></div></div>
+  <form id="bulk-dismiss-links" method="post" action="/links-dismiss-all">
+    <div class="bulk-bar"><label class="check-all"><input id="select-all-links" type="checkbox"> Seleccionar todas</label><span id="links-selected-count" class="meta">0 seleccionadas</span><button type="submit" class="secondary" disabled id="dismiss-links-btn">Descartar seleccionadas</button></div>
+    <div class="link-list">
+    {% for item in pending_links %}
+      <label class="link-item link-bulk-item">
+        <input class="link-row-check" type="checkbox" name="link_ref" value="{{ item.thread_id }}:{{ item.link.id }}">
+        <span><strong>{{ item.project_name }}</strong> · {{ item.who }} · «{{ item.link.subject }}»{% if item.link.snippet %}<span class="meta">Dice: «{{ item.link.snippet }}»</span>{% endif %}</span>
+        <a href="/case?thread_id={{ item.thread_id | urlquote }}">Abrir caso</a>
+      </label>
+    {% endfor %}
+    </div>
+  </form>
+</section>
+{% endif %}
+<div class="filters">
+  <label>Buscar<input id="search" type="search" placeholder="Proyecto, cliente o servicio"></label>
+  <label>Estado<select id="status"><option value="">Todos</option>{% for key, label in status_options %}<option value='{{ key }}'>{{ label }}</option>{% endfor %}</select></label>
+  <label>Tipo de cliente<select id="client-type"><option value="">Todos</option>{% for value in type_options %}<option value='{{ value }}'>{{ value }}</option>{% endfor %}</select></label>
+</div>
+<form id="bulk-delete" method="post" action="/delete" class="bulk-bar">
+  <label class="check-all"><input id="select-all" type="checkbox"> Seleccionar todas las visibles</label>
+  <span id="selected-count" class="meta">0 seleccionadas</span>
+  <button id="delete-btn" class="danger" type="submit" disabled data-confirm="¿Eliminar los hilos seleccionados, completos? Se borran del dashboard y, si ya tienen carpeta de proyecto, esa carpeta se mueve a la papelera de Drive (recuperable ~30 días). No se toca Gmail ni las carpetas de cliente.">Eliminar seleccionadas</button>
+</form>
+<div id="requests" class="grid">{% if rows %}{% for row in rows %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todavía no hay solicitudes registradas.</div>{% endif %}</div>
+<div id="no-results" class="empty" hidden>No hay solicitudes con esos filtros.</div>
+<script>
+const search = document.querySelector('#search');
+const statusFilter = document.querySelector('#status');
+const typeFilter = document.querySelector('#client-type');
+const rows = [...document.querySelectorAll('.case-row')];
+function filterRows() {
+  const term = search.value.trim().toLocaleLowerCase('es');
+  let visible = 0;
+  rows.forEach(row => {
+    const show = (!term || row.dataset.search.includes(term)) &&
+      (!statusFilter.value || row.dataset.status === statusFilter.value) &&
+      (!typeFilter.value || row.dataset.type === typeFilter.value);
+    row.hidden = !show;
+    if (show) visible += 1;
+  });
+  document.querySelector('#no-results').hidden = visible !== 0;
+}
+[search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', filterRows));
+const checks = [...document.querySelectorAll('.row-check')];
+const selectAll = document.querySelector('#select-all');
+const deleteBtn = document.querySelector('#delete-btn');
+function updateSelection() {
+  const picked = checks.filter(c => c.checked).length;
+  document.querySelector('#selected-count').textContent = picked + (picked === 1 ? ' seleccionada' : ' seleccionadas');
+  deleteBtn.disabled = picked === 0;
+}
+selectAll.addEventListener('change', () => {
+  checks.forEach(c => { if (!c.closest('.case-row').hidden) c.checked = selectAll.checked; });
+  updateSelection();
+});
+checks.forEach(c => c.addEventListener('change', updateSelection));
+const linkChecks = [...document.querySelectorAll('.link-row-check')];
+const selectAllLinks = document.querySelector('#select-all-links');
+const dismissLinks = document.querySelector('#dismiss-links-btn');
+function updateLinkSelection() {
+  if (!dismissLinks) return;
+  const picked = linkChecks.filter(c => c.checked).length;
+  document.querySelector('#links-selected-count').textContent = picked + (picked === 1 ? ' seleccionada' : ' seleccionadas');
+  dismissLinks.disabled = picked === 0;
+}
+if (selectAllLinks) selectAllLinks.addEventListener('change', () => {
+  linkChecks.forEach(c => { c.checked = selectAllLinks.checked; });
+  updateLinkSelection();
+});
+linkChecks.forEach(c => c.addEventListener('change', updateLinkSelection));
+// una casilla oculta por el filtro no debe borrarse sin que se vea
+[search, statusFilter, typeFilter].forEach(input => input.addEventListener('input', () => {
+  checks.forEach(c => { if (c.closest('.case-row').hidden) c.checked = false; });
+  selectAll.checked = false;
+  updateSelection();
+}));
+</script>

@@ -1,0 +1,41 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "C90", "D100", "D101", "D102", "D103"]
+
+[tool.ruff.lint.per-file-ignores]
+# La documentación obligatoria es del paquete; las pruebas y los envoltorios de la raíz se explican solos.
+"tests/*" = ["D", "E501"]   # las pruebas llevan textos largos de ejemplo
+"app.py" = ["D", "E501"]
+"supervisor.py" = ["D", "E501"]
+"work_dashboard_sync.py" = ["D", "E501"]
+"check_spec.py" = ["D", "E501"]
+"simulaciones/*" = ["D", "E501"]   # material de apoyo local, fuera del repositorio
+
+[tool.ruff.lint.mccabe]
+# Ninguna función pasa de 15 caminos: si crece, se divide en pasos con nombre.
+max-complexity = 15
+
+[tool.coverage.run]
+source = ["anka", "check_spec"]
+omit = ["simulaciones/*", "tests/*", ".venv/*", ".uv-cache/*", ".github/*"]
+
+[tool.coverage.report]
+# Piso de cobertura: sube cuando mejore, nunca lo bajes para hacer pasar un cambio.
+fail_under = 82
+skip_covered = false
+
+[tool.mypy]
+# Usa la versión del intérprete: CI comprueba 3.11 y 3.12 con sus dependencias respectivas.
+files = ["."]
+exclude = ['^simulaciones/', '^\.venv/', '^\.uv-cache/', '^tests/', '^archivo_local/']
+# Las librerías de Google no publican tipos completos.
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true

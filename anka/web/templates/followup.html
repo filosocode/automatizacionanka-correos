@@ -1,0 +1,15 @@
+<section class="section followup" id="seguimiento">
+  <div class="section-head"><h2>Seguimiento del cliente</h2><span class="badge {{ 'warn' if urgent else 'info' }}">{{ headline }}</span></div>
+  <p>Esperando respuesta desde el {{ since }} · <strong>{{ days }}</strong> día(s) hábil(es).
+    {% if contacted %}<span class="meta">Ya hablaste con el cliente; no habrá más avisos hasta tu próximo correo.</span>{% endif %}</p>
+  {% if reminders %}<ul class="timeline">{% for n in reminders %}<li><span class="meta">Recordatorio automático {{ n }} enviado</span></li>{% endfor %}</ul>{% endif %}
+  <p class="meta">Seguimiento automático: {% if auto and paused %}<strong>pausado</strong>{% elif auto %}<strong>activado</strong>: hasta {{ max_reminders }} recordatorios (a 1 y 3 días hábiles, solo en horario hábil) y a los {{ call_days }} días hábiles te avisa para llamar{% else %}<strong>apagado</strong>. Si lo activas, se envían hasta {{ max_reminders }} recordatorios cortos al contacto registrado (a 1 y 3 días hábiles, de lunes a viernes de 8:00 a 17:00) y a los {{ call_days }} días hábiles te avisa para llamar. Se detiene apenas el cliente responda.{% endif %}</p>
+  <form method="post" action="/followup" class="toolbar">
+    <input type="hidden" name="thread_id" value="{{ thread_id }}">
+    {% if not auto %}<button type="submit" name="action" value="auto_on" data-confirm="Se enviarán recordatorios automáticos a este cliente (máximo {{ max_reminders }}). ¿Activas el seguimiento automático?">Activar seguimiento automático</button>
+    {% elif paused %}<button type="submit" name="action" value="resume">Reanudar seguimiento</button>
+    {% else %}<button type="submit" class="secondary" name="action" value="pause">Pausar seguimiento</button>
+    <button type="submit" class="secondary" name="action" value="auto_off">Desactivar</button>{% endif %}
+    {% if not contacted %}<button type="submit" class="secondary" name="action" value="contacted" data-confirm="Se detienen los avisos y recordatorios de este caso. ¿Ya hablaste con el cliente?">Ya hablé con el cliente</button>{% endif %}
+  </form>
+</section>

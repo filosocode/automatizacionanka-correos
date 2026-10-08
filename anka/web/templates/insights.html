@@ -1,0 +1,1 @@
+{% if not items %}<p class='meta'>Las conclusiones aparecerán cuando ingresen solicitudes.</p>{% else %}{% for title, detail in items %}<div class='insight'><strong>{{ title }}</strong><span class='meta'>{{ detail }}</span></div>{% endfor %}{% endif %}

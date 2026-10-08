@@ -1,0 +1,30 @@
+<section class="section code-panel" id="emitir-t">
+  {% if code %}
+  <div class="section-head"><h2>Código de la oferta</h2><span class="badge info">{{ stage_label }}</span></div>
+  <p><strong class="code">{{ code }}</strong>
+    <span class="meta">Todo cambio debe citarlo. Contacto registrado: {{ contact }}</span></p>
+  {% if stage == 'T' %}
+  <form method="post" action="/code-approve">
+    <input type="hidden" name="thread_id" value="{{ thread_id }}">
+    <div class="toolbar"><button type="submit" class="secondary"
+      data-confirm="La oferta pasará de {{ code }} a {{ approved_code }} y se preparará el correo de confirmación para {{ contact }} (no se envía solo). ¿El cliente la aprobó?">La oferta fue aprobada (pasa a {{ approved_code }}) y preparar el correo</button></div>
+  </form>
+  {% endif %}
+  {% elif can_assign %}
+  <div class="section-head"><h2>Listo para cotizar: emitir la T</h2><span class="badge">Información validada</span></div>
+  <p class="meta">La información ya está validada. Al emitir la T damos por recibido el proyecto, en un solo paso: se genera el código, se crea la carpeta en Drive con los documentos del cliente y la tabla de actividades, y se envía a {{ contact }} el correo con la T y cómo sigue el proceso. Todo cambio debe citar el código.</p>
+  <form method="post" action="/code-issue">
+    <input type="hidden" name="thread_id" value="{{ thread_id }}">
+    <input type="hidden" name="suggested_number" value="{{ suggestion }}">
+    <div class="filters"><label>Número de la T (año + consecutivo)<input name="number" value="{{ suggestion }}" pattern="[0-9]{5}" required></label></div>
+    <p class="meta">Es una sugerencia según los códigos de este dashboard; confírmala o corrígela con el consecutivo real (el texto del correo se ajusta solo).</p>
+    <label>Correo que se enviará a {{ contact }} (puedes editarlo)<textarea name="body" rows="14" required>{{ received_text }}</textarea></label>
+    <div class="toolbar">
+      <button type="submit"
+        data-confirm="Se emitirá la T, se creará la carpeta en Drive con los documentos del cliente y la tabla, y SE ENVIARÁ este correo a {{ contact }}. ¿Confirmas el número y el texto?">Emitir la T, crear la carpeta y enviar el correo</button>
+      <button type="submit" class="secondary" formaction="/code"
+        data-confirm="Solo se emitirá la T y se preparará el correo, sin enviarlo ni crear la carpeta. ¿Continuar?">Solo emitir la T (lo envío yo después)</button>
+    </div>
+  </form>
+  {% endif %}
+</section>
