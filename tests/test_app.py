@@ -1053,7 +1053,7 @@ class CheckStatusTests(unittest.TestCase):
             store.save(db, "old", "m1", "missing", "a@b.co", {"received_at": "x"})
             db.close()
 
-            def fake_run(*args):
+            def fake_run(*args, **kwargs):
                 db = store.connect()
                 store.save(db, "old", "m2", "review_pending", "a@b.co", {"received_at": "x"})
                 store.save(db, "nuevo", "m3", "missing", "a@b.co", {"received_at": "x"})
