@@ -12,6 +12,7 @@ from typing import Any
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 import os
+from urllib.parse import quote as url_quote
 from markupsafe import Markup
 from anka.dominio.errores import ErrorDeAnka
 from anka.web.views import (
@@ -76,6 +77,48 @@ def _notifications_panel(notifications: list[dict]) -> Markup:
     return render("notifications_panel.html", items=items)
 
 
+REPLY_LABEL = "Cliente respondió · por analizar"
+COLA_MAXIMA = 5
+# Etiqueta de `case_stage` → (urgencia, verbo del botón, ancla del paso dentro del caso). Menor urgencia, primero.
+_ACCION_POR_ETAPA: dict[str, tuple[int, str, str]] = {
+    REPLY_LABEL: (0, "Revisar respuesta", ""),
+    "Cambio por revisar": (1, "Revisar cambio", ""),
+    "Faltan correos por enviar": (1, "Enviar correos", ""),
+    "Posible actualización": (1, "Revisar", ""),
+    "Propuesta del modelo por revisar": (1, "Revisar", "#proposal"),
+    "Borrador por revisar": (2, "Revisar borrador", "#respuesta"),
+    "Envío interrumpido": (2, "Revisar envío", "#respuesta"),
+    "Listo para emitir la T": (3, "Emitir la T", "#emitir-t"),
+    "Falta tu decisión técnica": (4, "Decidir", "#decision"),
+    "Por aclarar con el cliente": (4, "Aclarar", ""),
+    "Hilo no disponible": (4, "Abrir", ""),
+    "Llamar al cliente": (5, "Ver seguimiento", "#seguimiento"),
+    "Sin respuesta · recordar": (5, "Ver seguimiento", "#seguimiento"),
+}
+
+
+def accion_de_caso(quote: Mapping[str, Any]) -> tuple[int, str, str]:
+    """(urgencia, verbo, ancla) de un caso que espera una persona; lo desconocido va al final con «Abrir»."""
+    return _ACCION_POR_ETAPA.get(case_stage(quote)[0], (9, "Abrir", ""))
+
+
+def cola_de_hoy(quotes: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    """Los casos que piden algo de una persona, del más urgente al menos; `sorted` conserva el orden de la lista."""
+    return sorted((q for q in quotes if case_stage(q)[1]), key=lambda q: accion_de_caso(q)[0])
+
+
+def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False) -> Markup:
+    """Fila de la cola de hoy: posición, proyecto, qué espera y un solo botón con verbo."""
+    _, verb, anchor = accion_de_caso(quote)
+    code = quote.get("quote_code")
+    return render(
+        "queue_row.html", position=position, is_new=is_new,
+        project=quote["analysis"].get("project_name") or "Solicitud sin nombre",
+        client_name=quote["client_name"], reason=case_stage(quote)[0], verb=verb,
+        code=code_label(code, quote.get("code_stage") or "T") if code else "",
+        href=f"/case?thread_id={url_quote(quote['thread_id'])}{anchor}")
+
+
 def render_index(message: str = "") -> str:
     """Resumen: «qué hacer hoy», novedades y las métricas de las solicitudes."""
     quotes = all_quotes()
@@ -84,7 +127,7 @@ def render_index(message: str = "") -> str:
     services = Counter(service for quote in quotes for service in quote["services"])
     clients = Counter(q["client_name"] for q in quotes if q["client_name"])
     stages = {q["thread_id"]: case_stage(q) for q in quotes}
-    todo_cases = [q for q in quotes if stages[q["thread_id"]][1]]
+    todo_cases = cola_de_hoy(quotes)
     body = render(
         "index.html",
         sync_text=sync_status_text(),
@@ -99,7 +142,8 @@ def render_index(message: str = "") -> str:
         statuses=metric_rows(Counter(stages[q["thread_id"]][0] for q in quotes), "blue"),
         client_types=metric_rows(Counter(q["client_type"] for q in quotes)),
         insights=_dashboard_insights(quotes, services, clients),
-        todo=[quote_row(q, q["thread_id"] in unread_threads) for q in todo_cases],
+        todo=[queue_row(q, n, q["thread_id"] in unread_threads) for n, q in enumerate(todo_cases[:COLA_MAXIMA], 1)],
+        hidden_count=max(len(todo_cases) - COLA_MAXIMA, 0),
     )
     return page("Resumen comercial", body, message)
 
@@ -174,7 +218,6 @@ def render_discarded(message: str = "") -> str:
     return page("Descartadas", body, message)
 
 
-REPLY_LABEL = "Cliente respondió · por analizar"
 
 
 def _outgoing_pending(changes: Sequence[Cambio]) -> bool:

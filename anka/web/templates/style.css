@@ -110,6 +110,12 @@ main { width: min(1240px, 100%); margin: 0 auto; padding: 28px 24px 48px; }
   border: 1px solid var(--line);
   border-radius: 8px;
 }
+.queue { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.queue-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.queue-row:first-child { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.queue-row .rank { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #eef2f2; font-weight: 600; font-size: 14px; }
+.queue-row:first-child .rank { background: var(--accent); color: #fff; }
+.queue-row .button { min-height: 44px; justify-content: center; }
 .case-row { grid-template-columns: minmax(180px, 1.4fr) 1fr 160px 130px auto; align-items: center; }
 .case-row[data-selectable] { grid-template-columns: 24px minmax(180px, 1.4fr) 1fr 160px 130px auto; }
 .row-check, .check-all input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
@@ -229,6 +235,8 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
   .mode-form button { width: auto; }
   .kpis, .dashboard-grid { grid-template-columns: 1fr 1fr; }
   .case-row, .case-row[data-selectable], .filters { grid-template-columns: 1fr; }
+  .queue-row { grid-template-columns: 34px minmax(0, 1fr); }
+  .queue-row .button { grid-column: 1 / -1; }
   .notification { grid-template-columns: 12px minmax(0, 1fr); }
   .notification .button { grid-column: 1 / -1; }
   .process { grid-template-columns: 1fr 1fr; }
@@ -248,6 +256,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .timeline li { padding-left: 12px; border-left: 3px solid #cfd8dc; }
 .next-step { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; margin-bottom: 16px; border-radius: 8px; border: 1px solid #cfd8dc; background: #eef4f6; }
 .next-step.warn { background: #fbedd9; border-color: #e6c9a0; }
+.next-step { position: sticky; top: 8px; z-index: 5; box-shadow: 0 2px 8px rgba(0, 0, 0, .08); }
 .next-step div { display: grid; gap: 2px; }
 .next-step span { font-size: 14px; }
 .next-step[aria-label="Posibles actualizaciones"] { display: grid; align-items: start; }

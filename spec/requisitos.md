@@ -237,3 +237,26 @@ Un caso ya avanzado ofrece la caja de respuesta en blanco, sin textos sugeridos 
 Un caso con código T ofrece siempre, en la caja de respuesta, preparar el correo de «proyecto recibido» (con el
 código) y, cuando la oferta pasa a T&E, el de «oferta aprobada». Al aprobar la oferta se prepara ese correo, pero
 nada se envía sin que una persona pulse «Enviar ahora» (R8).
+
+### U-09 · El siguiente paso no se pierde al desplazarse
+El aviso de «siguiente paso» del caso queda a la vista mientras se recorre la pantalla (fijo arriba), con su botón que lleva
+al paso. En un caso listo para cotizar, la acción principal es emitir la T con el correo y la carpeta; la variante «solo
+emitir la T» queda plegada en «Otras opciones», de modo que a la vez solo hay una acción primaria de emisión visible.
+
+### U-10 · Fuentes compactas
+Las páginas citadas como fuente de una revisión pendiente se muestran como rangos («págs. 3, 5–7, 10–15») y no repetidas
+una por una, sin perder ninguna página. Con el mismo contenido el caso es más corto y legible.
+
+### U-11 · Resumen como cola priorizada
+El Resumen muestra los casos que esperan una acción de una persona como una cola ordenada por urgencia, de a lo más cinco,
+y cada uno con un solo botón con verbo que lleva a su paso. El orden es: el cliente respondió; cambios, propuestas o
+actualizaciones por revisar; borrador o envío por revisar; listo para emitir la T; decisión técnica o aclaración; seguimiento sin
+respuesta. A igual urgencia se conserva el orden de la lista. Si hay más de cinco, el Resumen lo dice y enlaza a Solicitudes,
+donde siguen todos.
+
+### U-12 · Decidir y preguntar en un solo paso
+En revisión técnica, la pantalla ofrece una sola sección, «¿Cómo seguimos?», con las dos salidas y lo que ocurre después de
+cada una. Las preguntas para el cliente se editan ahí y no se repiten como tareas: «Qué falta resolver» solo cuenta cuántas
+hay. Mientras la respuesta está en pausa no aparece la sección «Respuesta al cliente». Al decidir, la persona llega directo
+al correo (si pregunta) o a la emisión de la T (si la información basta), y el aviso de arriba le dice que revise y envíe.
+Ningún correo sale sin «Enviar ahora» (R8).

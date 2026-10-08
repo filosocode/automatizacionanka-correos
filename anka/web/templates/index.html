@@ -1,10 +1,12 @@
 <div class="page-head">
-  <div><h1>Qué hacer hoy</h1><p>Lo que espera una acción tuya, primero. {% if todo %}Tienes {{ todo | length }} caso(s) por atender.{% else %}No hay nada pendiente de tu parte.{% endif %}</p></div>
+  <div><h1>Qué hacer hoy</h1><p>{% if todo %}Atiende primero el 1. Tienes {{ action_count }} caso(s) por atender, del más urgente al menos.{% else %}No hay nada pendiente de tu parte.{% endif %}</p></div>
   <a class="button secondary" href="/requests">Ver todas las solicitudes</a>
 </div>
 {{ notifications }}
 <section>
-  <div class="grid">{% if todo %}{% for row in todo %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todo al día. Los casos que esperan al cliente o están cotizando no requieren acción por ahora.</div>{% endif %}</div>
+  {% if todo %}<ol class="queue">{% for row in todo %}{{ row }}{% endfor %}</ol>
+  {% if hidden_count %}<p class="meta">Hay {{ hidden_count }} caso(s) más que esperan una acción tuya. <a href="/requests">Verlos en Solicitudes</a>.</p>{% endif %}
+  {% else %}<div class='empty'>Todo al día. Los casos que esperan al cliente o están cotizando no requieren acción por ahora.</div>{% endif %}
 </section>
 <div class="grid kpis" style="margin-top:24px">
   <div class="kpi"><div class="kpi-label">Requieren acción</div><div class="kpi-value">{{ action_count }}</div><div class="kpi-note">Lo de arriba</div></div>

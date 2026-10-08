@@ -345,6 +345,11 @@ def _next_step_banner(review: Caso, work_mode: bool) -> Markup:
             "next_step.html", tone="warn", title="El cliente no ha respondido",
             text="Lleva 3 días hábiles esperando. Envía un recordatorio o activa el seguimiento automático.",
             action_href="#seguimiento", action_label="Ver seguimiento")
+    if review["status"] in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
+        return render(
+            "next_step.html", tone="info", title="Revisa el correo y envíalo",
+            text="Nada sale al cliente hasta que pulses «Enviar ahora».",
+            action_href="#respuesta", action_label="Ir al correo")
     if review["status"] == QuoteStatus.REVIEW:
         return render(
             "next_step.html", tone="warn", title="Falta tu decisión de revisión técnica",
@@ -508,7 +513,8 @@ def _code_text(review: Mapping[str, Any]) -> str:
 
 
 def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: dict, config: Configuracion,
-                 events: list[Evento], integrity_ok: bool, event_count: int) -> dict[str, Any]:
+                 events: list[Evento], integrity_ok: bool, event_count: int,
+                 questions_in_decision: bool = False) -> dict[str, Any]:
     """Los paneles de la pantalla del caso, cada uno ya renderizado."""
     proposal = review.get("proposal", [])
     return {
@@ -526,6 +532,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             dependencies=analysis.get("scope_dependencies", []),
             contradictions=analysis.get("contradictions", []),
             waiting_for_client=review["status"] == QuoteStatus.RESPONSE_SENT,
+            questions_in_decision=questions_in_decision,
         ),
         "question_audit": question_audit_panel(analysis.get("question_audit", [])),
         "question_quality": question_quality_panel(analysis.get("question_quality_warnings", [])),
@@ -564,6 +571,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     # «Enviada» se cumple venga el envío del dashboard, de Gmail o de Work.
     sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT or any(
         event["kind"] == "sent" for event in events)
+    prefill_questions = _suggested_questions(analysis, assessment) if technical else ""
     body = render(
         "case.html",
         review=review, thread_id=thread_id,
@@ -579,11 +587,12 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         sufficient=assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=review["status"] == QuoteStatus.REVIEW,
-        prefill_questions=_suggested_questions(analysis, assessment) if technical else "",
+        prefill_questions=prefill_questions,
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),
-        **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count),
+        **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count,
+                       questions_in_decision=bool(prefill_questions) and review["status"] == QuoteStatus.REVIEW),
     )
     return page("Revisar caso", body, message)
 

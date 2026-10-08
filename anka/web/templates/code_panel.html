@@ -22,9 +22,12 @@
     <div class="toolbar">
       <button type="submit"
         data-confirm="Se emitirá la T, se creará la carpeta en Drive con los documentos del cliente y la tabla, y SE ENVIARÁ este correo a {{ contact }}. ¿Confirmas el número y el texto?">Emitir la T, crear la carpeta y enviar el correo</button>
-      <button type="submit" class="secondary" formaction="/code"
-        data-confirm="Solo se emitirá la T y se preparará el correo, sin enviarlo ni crear la carpeta. ¿Continuar?">Solo emitir la T (lo envío yo después)</button>
     </div>
+    <details class="more other-options">
+      <summary class="meta">Otras opciones</summary>
+      <div class="toolbar"><button type="submit" class="secondary" formaction="/code"
+        data-confirm="Solo se emitirá la T y se preparará el correo, sin enviarlo ni crear la carpeta. ¿Continuar?">Solo emitir la T (lo envío yo después)</button></div>
+    </details>
   </form>
   {% endif %}
 </section>

@@ -137,5 +137,45 @@ class ReviewDecisionTests(unittest.TestCase):
         self.assertIn("pregunta", sent["location"])
 
 
+    def test_una_sola_seccion_de_decision_sin_repetir_preguntas_ni_respuesta_en_pausa(self):
+        # Cubre: U-12
+        page = pantalla_caso.render_case("t-tech")
+        self.assertIn("¿Cómo seguimos?", page)
+        self.assertNotIn("Respuesta en pausa", page)
+        self.assertNotIn('id="respuesta"', page)
+        self.assertIn("Ya lo revisé", page)
+        self.assertIn("Preparar el correo con estas preguntas", page)
+
+    def test_las_preguntas_para_el_cliente_se_cuentan_en_vez_de_repetirse(self):
+        # Cubre: U-12
+        from anka.web.views import review_tasks_panel
+        auditoria = [{"disposition": "ask_client", "unresolved": "Método de levantamiento"},
+                     {"disposition": "internal_review", "question": "Revisar el plano CAD"}]
+        repetido = str(review_tasks_panel(auditoria))
+        self.assertIn("Pregunta sugerida al cliente", repetido)
+        contado = str(review_tasks_panel(auditoria, questions_in_decision=True))
+        self.assertNotIn("Pregunta sugerida al cliente", contado)
+        self.assertNotIn("Método de levantamiento", contado)
+        self.assertIn("1 pregunta(s) para el cliente", contado)
+        self.assertIn("Revisar el plano CAD", contado)               # lo interno sigue a la vista (D-36)
+
+    def test_tras_decidir_se_llega_directo_al_paso_que_sigue(self):
+        # Cubre: U-12
+        pregunta = self.request(
+            "/review-decision",
+            f"thread_id=t-tech&decision=ask_client&questions=%C2%BFQu%C3%A9%3F&csrf_token={seguridad.CSRF_TOKEN}".encode())
+        self.assertTrue(pregunta["location"].endswith("#respuesta"))
+        page = pantalla_caso.render_case("t-tech")
+        self.assertIn("Revisa el correo y envíalo", page)
+        self.assertIn('href="#respuesta"', page)
+        self.assertIn("Nada sale al cliente hasta que pulses", page)
+
+    def test_si_la_informacion_basta_lleva_a_emitir_la_t(self):
+        # Cubre: U-12
+        suficiente = self.request(
+            "/review-decision", f"thread_id=t-tech&decision=sufficient&csrf_token={seguridad.CSRF_TOKEN}".encode())
+        self.assertTrue(suficiente["location"].endswith("#emitir-t"))
+
+
 if __name__ == "__main__":
     unittest.main()

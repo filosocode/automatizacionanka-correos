@@ -10,6 +10,7 @@ from typing import Any
 from markupsafe import Markup
 
 from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS
+from anka.dominio.attachments import compactar_paginas
 from anka.web.templating import render
 
 MODE_LABELS = {
@@ -195,8 +196,12 @@ def review_tasks_panel(
     dependencies: Sequence[Mapping[str, Any]] = (),
     contradictions: Sequence[Mapping[str, Any]] = (),
     waiting_for_client: bool = False,
+    questions_in_decision: bool = False,
 ) -> Markup:
-    """Resume revisiones y dependencias desde las fuentes disponibles, incluidos payloads antiguos."""
+    """Resume revisiones y dependencias desde las fuentes disponibles, incluidos payloads antiguos.
+
+    Con `questions_in_decision` las preguntas para el cliente se editan en la decisión: aquí solo se cuentan.
+    """
     audit_text = _audit_search_text(audit)
     internal_text = _internal_review_search_text(audit)
     candidates = (
@@ -216,8 +221,12 @@ def review_tasks_panel(
         key = re.sub(r"\W+", " ", task.casefold()).strip()
         if key and key not in keys:
             keys.add(key)
-            rows.append((status, task, reason))
-    return render("review_tasks.html", rows=rows)
+            rows.append((status, task, compactar_paginas(reason)))
+    moved = 0
+    if questions_in_decision:
+        moved = sum(status == "Pregunta sugerida al cliente" for status, _, _ in rows)
+        rows = [row for row in rows if row[0] != "Pregunta sugerida al cliente"]
+    return render("review_tasks.html", rows=rows, moved_questions=moved)
 
 
 def question_quality_panel(warnings: Sequence[str]) -> Markup:

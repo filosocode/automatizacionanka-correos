@@ -130,9 +130,10 @@ def _post_rescue(form: Form) -> str:
 
 def _post_review_decision(form: Form) -> str:
     thread_id = field(form, "thread_id")
-    message = _guidance(lambda: resolve_technical_review(
-        thread_id, field(form, "decision"), field(form, "questions")), ValueError)
-    return _to_case(thread_id, message)
+    decision = field(form, "decision")
+    message = _guidance(lambda: resolve_technical_review(thread_id, decision, field(form, "questions")), ValueError)
+    # Tras decidir, directo al paso que sigue: el correo, o la emisión de la T.
+    return _to_case(thread_id, message, "#respuesta" if decision == "ask_client" else "#emitir-t")
 
 
 def _post_followup(form: Form) -> str:
