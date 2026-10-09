@@ -449,8 +449,21 @@ def suggested_supporting_documents(analysis: Analisis) -> list[str]:
     return suggestions
 
 
-def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, documentos: list[str] | None = None) -> str:
-    """El correo al cliente con sus preguntas numeradas: la plantilla fija de todos los modos (no usa ningún modelo)."""
+def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, documentos: list[str] | None = None,
+                         proyecto: str = "", codigo: str = "") -> str:
+    """El correo al cliente con sus preguntas numeradas: la plantilla fija de todos los modos (no usa ningún modelo).
+
+    Con `codigo` (la T del caso, para el contacto registrado) el correo nombra el proyecto y el código y pide citarlo al
+    responder: desde la T la tabla solo se actualiza con mensajes que lo citen (R11). Nunca se pasa a quien no es el
+    contacto registrado.
+    """
+    if codigo:
+        question_lines = "\n".join(f"{number}. {question}" for number, question in enumerate(preguntas, 1))
+        return (
+            f"Hola,\n\nSobre su proyecto «{proyecto or 'su solicitud'}» ({codigo}), necesitamos confirmar lo siguiente:"
+            f"\n\n{question_lines}\n\nAl responder, por favor cite el código {codigo} para que podamos asociar su "
+            "respuesta al proyecto.\n\nPuede responder a este mismo correo.\n\nSaludos,\nGrupo Anka"
+        )
     opening = (
         "Gracias por compartir la solicitud. Para completar la información inicial, "
         if reenviado else
