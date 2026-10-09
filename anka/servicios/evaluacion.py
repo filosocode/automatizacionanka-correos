@@ -32,6 +32,7 @@ log = get_logger(__name__)
 
 BORRADOR = "borrador"
 VALIDADA = "validada"
+EXTRAIDA = "extraida"       # lo esperado salió de la tabla de cantidades de la solicitud (ni persona ni modelo)
 
 _SOLICITUD = re.compile(
     r"solicitud|rfq|rfp|tdr|t[eé]rminos|alcance|requerimiento|invitaci[oó]n|especificaci|pliego|cuestionario|"
@@ -132,8 +133,13 @@ def todas_las_fichas() -> list[dict[str, Any]]:
 
 
 def fichas_validadas() -> list[dict[str, Any]]:
-    """Solo las fichas que una persona validó: son las únicas que dan una medida."""
+    """Las fichas que una persona validó."""
     return [f for f in todas_las_fichas() if f.get("estado") == VALIDADA]
+
+
+def fichas_evaluables() -> list[dict[str, Any]]:
+    """Las que dan una medida: las validadas por una persona y las extraídas de una tabla de cantidades explícita."""
+    return [f for f in todas_las_fichas() if f.get("estado") in (VALIDADA, EXTRAIDA)]
 
 
 def validar(identificador: str) -> dict[str, Any]:
@@ -150,28 +156,34 @@ def validar(identificador: str) -> dict[str, Any]:
 # --------------------------------------------------------------------------------------------------- evaluación
 
 def evaluar(analizar: Callable[[Mapping[str, Any]], tuple[Mapping[str, Any], Sequence[str]]], modelo: str = "",
-            version_del_prompt: str = "") -> dict[str, Any]:
+            version_del_prompt: str = "", ids: Sequence[str] | None = None, repeticiones: int = 1) -> dict[str, Any]:
     """Corre `analizar` sobre cada ficha validada y mide. Guarda el informe con el modelo, el prompt y la fecha (T-23).
 
     `analizar(ficha)` devuelve (análisis, preguntas al cliente). Un caso que falla se informa aparte y no frena a los
-    demás.
+    demás. Con `ids` solo se evalúan esas fichas. Con `repeticiones` cada ficha se corre varias veces: el modelo no
+    responde igual cada vez, y una sola corrida no separa una mejora real del ruido.
     """
-    fichas = fichas_validadas()
+    fichas = [f for f in fichas_evaluables() if ids is None or f["id"] in ids]
     if not fichas:
-        raise ValueError("No hay fichas validadas: sin ellas no se calcula ninguna precisión.")
+        raise ValueError("No hay fichas validadas ni extraídas: sin ellas no se calcula ninguna precisión.")
     casos: list[dict[str, Any]] = []
     fallidos: list[dict[str, str]] = []
     for ficha in fichas:
-        try:
-            analisis, preguntas = analizar(ficha)
-            casos.append({"id": ficha["id"], "servicio": ficha.get("servicio", ""),
-                          **medida.comparar(ficha["esperado"], analisis, preguntas)})
-        except Exception as exc:  # un caso roto no debe esconder los demás
-            log.warning("Evaluación: el caso %s falló (%s)", ficha.get("id"), type(exc).__name__)
-            fallidos.append({"id": str(ficha.get("id")), "error": f"{type(exc).__name__}: {exc}"[:200]})
+        for corrida in range(1, max(1, repeticiones) + 1):
+            try:
+                analisis, preguntas = analizar(ficha)
+                casos.append({"id": ficha["id"], "servicio": ficha.get("servicio", ""), "repeticion": corrida,
+                              **medida.comparar(ficha["esperado"], analisis, preguntas)})
+            except Exception as exc:  # un caso roto no debe esconder los demás
+                log.warning("Evaluación: el caso %s falló (%s)", ficha.get("id"), type(exc).__name__)
+                fallidos.append({"id": str(ficha.get("id")), "repeticion": str(corrida),
+                                 "error": f"{type(exc).__name__}: {exc}"[:200]})
     ahora = datetime.now().astimezone()
     informe: dict[str, Any] = {
         "modelo": modelo, "version_del_prompt": version_del_prompt, "fecha": ahora.isoformat(timespec="seconds"),
+        "fichas": {"extraidas": sum(f.get("estado") == EXTRAIDA for f in fichas),
+                   "validadas": sum(f.get("estado") == VALIDADA for f in fichas)},
+        "repeticiones": max(1, repeticiones), "estabilidad": medida.estabilidad(casos),
         "resumen": medida.resumir(casos), "casos": casos, "fallidos": fallidos,
     }
     carpeta = carpeta_de_evaluacion() / "informes"
@@ -280,3 +292,48 @@ def analizar_ficha(ficha: Mapping[str, Any], config: Mapping[str, Any]) -> tuple
     preguntas = list(evaluacion_.get("questions", []))
     preguntas += [c["texto"] for c in preguntas_candidatas(analisis, evaluacion_) if c["sugerida"] == PREGUNTAR]
     return dict(analisis), list(dict.fromkeys(preguntas))
+
+
+# ---------------------------------------------------------------------------------- fichas extraídas de una tabla
+
+def _hojas_del_excel(ruta: Path) -> list[list[tuple[Any, ...]]]:
+    """Las primeras filas de las primeras hojas de un .xlsx; [] si no se puede abrir."""
+    import openpyxl
+    try:
+        libro = openpyxl.load_workbook(ruta, read_only=True, data_only=True)
+    except Exception as exc:  # un archivo roto o con otro formato no frena el muestreo, pero se anota
+        log.warning("Evaluación: no se pudo abrir %s (%s)", ruta.name, type(exc).__name__)
+        return []
+    try:
+        return [list(hoja.iter_rows(min_row=1, max_row=400, values_only=True)) for hoja in libro.worksheets[:6]]
+    except Exception as exc:
+        log.warning("Evaluación: no se pudo leer %s (%s)", ruta.name, type(exc).__name__)
+        return []
+    finally:
+        libro.close()
+
+
+def ficha_extraida(candidata: Mapping[str, Any], identificador: str) -> dict[str, Any] | None:
+    """La ficha de una carpeta cuyo Excel de solicitud trae su tabla de cantidades; None si ninguno la trae.
+
+    Lo esperado sale de la tabla con un lector distinto del modelo (no es circular) y sin que nadie tenga que
+    recordar el caso. La ficha queda `extraida`: cuenta en la evaluación, marcada como tal.
+    """
+    carpeta = Path(candidata["ruta"])
+    for nombre in candidata["solicitud"]:
+        if not nombre.lower().endswith(".xlsx"):
+            continue
+        hojas = _hojas_del_excel(carpeta / nombre)
+        tabla = next((a for a in (medida.extraer_tabla(h) for h in hojas) if a), [])
+        if not tabla:
+            continue
+        adjunto = adjunto_desde_archivo(carpeta / nombre)
+        lugares = [lugar for h in hojas for lugar in medida.lugares_declarados(h)]
+        return {
+            "id": identificador, "estado": EXTRAIDA, "servicio": candidata["servicio"], "origen": candidata["ruta"],
+            "origen_esperado": f"tabla de cantidades de {nombre}",
+            "correo": CORREO_SINTETICO, "adjuntos": [str(carpeta / nombre)],
+            "esperado": {"es_solicitud": True, "ubicacion": list(dict.fromkeys(lugares)), "actividades": tabla,
+                         "faltante": medida.temas_ausentes(adjunto.get("text", ""), lugares)},
+        }
+    return None

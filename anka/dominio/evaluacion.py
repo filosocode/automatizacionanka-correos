@@ -110,6 +110,74 @@ def temas_ausentes(texto: object, lugares: Iterable[str] = ()) -> list[str]:
     return sorted(set(TEMAS) - temas_en(texto, lugares))
 
 
+MAX_FILAS_DE_TABLA = 25
+_ENCABEZADO_DESCRIPCION = re.compile(r"^(descripcion|actividad|concepto|servicio|detalle|alcance)\b")
+_ENCABEZADO_UNIDAD = re.compile(r"^(unidad|und|u/?m|un)\.?$")
+_ENCABEZADO_CANTIDAD = re.compile(r"^(cantidad|cant)\.?(\s.*)?$")
+_ROTULO_DE_LUGAR = re.compile(r"^(ubicacion|localizacion|municipio|departamento|lugar)\b")
+_SOLO_NUMERO = re.compile(r"[\d.,]+")
+
+
+def _columna(celdas: Sequence[str], patron: re.Pattern[str]) -> int | None:
+    return next((i for i, celda in enumerate(celdas) if patron.match(celda)), None)
+
+
+def _cantidad_de_celda(valor: object) -> float | None:
+    if isinstance(valor, bool):
+        return None
+    if isinstance(valor, (int, float)):
+        return float(valor) if valor > 0 else None
+    if isinstance(valor, str) and _SOLO_NUMERO.fullmatch(valor.strip()):
+        cantidad = numero(valor)
+        return cantidad if cantidad and cantidad > 0 else None
+    return None
+
+
+def extraer_tabla(filas: Sequence[Sequence[object]]) -> list[ActividadEsperada]:
+    """Las actividades de la tabla de cantidades de una hoja: filas con descripción, unidad y una cantidad positiva.
+
+    La tabla se reconoce por sus encabezados (descripción, unidad y cantidad, en cualquier orden y con otras columnas
+    entre medias). Una tabla de más de `MAX_FILAS_DE_TABLA` filas no se usa, y una hoja sin ella da una lista vacía.
+    """
+    for indice, fila in enumerate(filas[:40]):
+        celdas = [_plano(celda) for celda in fila]
+        descripcion = _columna(celdas, _ENCABEZADO_DESCRIPCION)
+        unidad = _columna(celdas, _ENCABEZADO_UNIDAD)
+        cantidad = _columna(celdas, _ENCABEZADO_CANTIDAD)
+        if descripcion is None or unidad is None or cantidad is None:
+            continue
+        actividades: list[ActividadEsperada] = []
+        vistas: set[tuple[str, float, str]] = set()
+        for resto in filas[indice + 1:]:
+            if len(resto) <= max(descripcion, unidad, cantidad):
+                continue
+            texto, medida, cuanto = resto[descripcion], resto[unidad], _cantidad_de_celda(resto[cantidad])
+            if not (isinstance(texto, str) and len(texto.strip()) >= 3 and isinstance(medida, str) and medida.strip()
+                    and cuanto):
+                continue
+            actividad = ActividadEsperada(servicio=texto.strip()[:120], cantidad=cuanto,
+                                          unidad=unidad_canonica(medida.strip()))
+            clave = (actividad["servicio"], cuanto, actividad["unidad"])
+            if clave not in vistas:
+                vistas.add(clave)
+                actividades.append(actividad)
+        return actividades if len(actividades) <= MAX_FILAS_DE_TABLA else []
+    return []
+
+
+def lugares_declarados(filas: Sequence[Sequence[object]]) -> list[str]:
+    """Los lugares que la hoja declara en celdas rotuladas («Municipio», «Ubicación»…): la celda que sigue."""
+    lugares: list[str] = []
+    for fila in filas[:200]:
+        for i, celda in enumerate(fila):
+            if _ROTULO_DE_LUGAR.match(_plano(celda)):
+                valor = next((str(c).strip() for c in fila[i + 1:] if isinstance(c, str) and c.strip()), "")
+                if valor and valor not in lugares:
+                    lugares.append(valor)
+                break
+    return lugares
+
+
 def temas_preguntados(preguntas: Iterable[str]) -> set[str]:
     """Los temas de los que preguntan unas preguntas al cliente."""
     temas: set[str] = set()
@@ -202,6 +270,18 @@ def comparar(esperado: Mapping[str, Any], analisis: Mapping[str, Any], preguntas
 
 def _razon(parte: float, total: float) -> float | None:
     return round(parte / total, 3) if total else None
+
+
+def estabilidad(resultados: Sequence[Mapping[str, Any]]) -> float | None:
+    """De los casos corridos varias veces, qué parte dio lo mismo en todas sus corridas; None si ninguno se repitió."""
+    por_caso: dict[str, list[tuple[Any, ...]]] = {}
+    for r in resultados:
+        huella = (r["identifica"], r["actividades_encontradas"], r["actividades_obtenidas"], r["cantidades_correctas"])
+        por_caso.setdefault(str(r["id"]), []).append(huella)
+    repetidos = [huellas for huellas in por_caso.values() if len(huellas) > 1]
+    if not repetidos:
+        return None
+    return round(sum(len(set(huellas)) == 1 for huellas in repetidos) / len(repetidos), 3)
 
 
 def resumir(resultados: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
