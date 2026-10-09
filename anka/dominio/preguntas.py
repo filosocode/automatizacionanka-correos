@@ -41,6 +41,7 @@ _INTERNA = re.compile(r"\bintern(?:o|a|os|as|amente)\b", re.IGNORECASE)
 _PREFIJOS = ("crítico:", "critico:", "recomendable:")
 _TIPO_AL_FINAL = re.compile(r"\s*\((?:critical|recommended|crítico|recomendable)\)\s*$", re.IGNORECASE)
 _URL = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
+_INTRODUCCION = "\u00bfpodria confirmar lo siguiente?"     # la frase de la plantilla, sin tildes ni mayúsculas
 _PREGUNTA = re.compile(r"¿[^?¿]*\?|[^\n¿.!?]{6,}\?")
 
 
@@ -160,6 +161,32 @@ def decidir(
     return resultado
 
 
+_VINETA = re.compile(r"^\s*(?:\d+\s*[.)\-:]|[-*\u2022\u00b7])\s*")
+
+
+def separar(texto: str) -> list[str]:
+    """Las preguntas que una persona escribió, una por línea (U-24).
+
+    Se ignoran las líneas vacías, la numeración o viñeta que traigan y las repetidas; una línea sin signos de
+    interrogación se escribe entre ellos, para que el correo y el aviso de espera la cuenten como pregunta.
+    """
+    resultado: list[str] = []
+    vistas: set[str] = set()
+    for linea in str(texto or "").splitlines():
+        limpia = _VINETA.sub("", linea).strip()[:MAX_TEXTO].rstrip(" .;:")
+        if not limpia:
+            continue
+        if "?" not in limpia:
+            limpia = "\u00bf" + limpia + "?"
+        clave = identificador(limpia)
+        if clave not in vistas:
+            vistas.add(clave)
+            resultado.append(limpia)
+        if len(resultado) >= MAX_PREGUNTAS:
+            break
+    return resultado
+
+
 def para_el_cliente(preguntas: Iterable[Pregunta]) -> list[str]:
     """Los textos de las preguntas que la persona decidió hacerle al cliente, en el orden en que aparecen."""
     return [p["texto"] for p in preguntas if p.get("decision") == PREGUNTAR]
@@ -187,6 +214,8 @@ def en_el_correo(cuerpo: str) -> list[str]:
     vistas: list[str] = []
     for coincidencia in _PREGUNTA.findall(sin_enlaces):
         pregunta = " ".join(coincidencia.split())
+        if _plano(pregunta) == _INTRODUCCION:      # la frase de la plantilla que presenta la lista no es una pregunta
+            continue
         if pregunta not in vistas:
             vistas.append(pregunta)
     return vistas

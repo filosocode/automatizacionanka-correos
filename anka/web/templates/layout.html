@@ -54,7 +54,8 @@
         // Misma regla que el servidor (anka/dominio/preguntas.py): las preguntas con signos, sin contar enlaces.
         const texto = cuerpo.value.replace(/https?:\/\/\S+|www\.\S+/gi, '');
         const halladas = texto.match(/¿[^?¿]*\?|[^\n¿.!?]{6,}\?/g) || [];
-        return new Set(halladas.map(t => t.split(/\s+/).join(' '))).size;
+        const propias = halladas.map(t => t.split(/\s+/).join(' ')).filter(t => !/^¿podr[ií]a confirmar lo siguiente\?$/i.test(t));
+        return new Set(propias).size;
       }
       function mostrar() {
         const n = contar();

@@ -146,7 +146,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def _get_case(self, query: dict[str, list[str]]) -> None:
         self._send_html(pantalla_caso.render_case(
             field(query, "thread_id"), field(query, "message"), field(query, "template"),
-            int_field(query, "change_id"), field(query, "to"),
+            int_field(query, "change_id"), field(query, "to"), field(query, "preguntas"),
         ))
 
     def _get_acta(self, query: dict[str, list[str]]) -> None:

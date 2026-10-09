@@ -70,6 +70,15 @@
     {% if email == 'form' %}
 {% if review.sent_at and review.status == 'ready_review' %}<div class='notice'>Ya se envió una respuesta el {{ review.sent_at }}. El paso de la carpeta en Drive sigue disponible más arriba.</div>{% endif %}
 {% if review.draft_id %}<div class='notice'>Ya existe un borrador en Gmail. Al guardarlo de nuevo se actualizará.</div>{% elif not review.get('quote_code') %}<div class='notice'><strong>Respuesta sugerida lista.</strong> Todavía no está guardada ni enviada en Gmail.</div>{% endif %}
+<form method="get" action="/case#respuesta" class="armar-correo">
+  <input type="hidden" name="thread_id" value="{{ thread_id }}">
+  <input type="hidden" name="template" value="preguntas">
+  <label>Preguntas para el cliente (una por línea)
+    <textarea name="preguntas" style="min-height:90px" placeholder="¿Cuál es el datum del levantamiento?&#10;Plazo de entrega esperado">{{ armar_preguntas }}</textarea>
+  </label>
+  <p class="meta">Escribe lo que quieres preguntar y arma el correo con la plantilla de siempre; luego lo editas antes de enviarlo. No se envía nada.</p>
+  <button type="submit" class="secondary">Armar correo con estas preguntas</button>
+</form>
 <form method="post">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   {% if compose_to %}<input type="hidden" name="to" value="{{ compose_to }}">

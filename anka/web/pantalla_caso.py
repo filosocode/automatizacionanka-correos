@@ -26,9 +26,9 @@ from anka.dominio.status import (
     QuoteStatus,
 )
 from anka.dominio.correo import reply_body_without_quoted_history, split_quoted_reply, valid_email_address
-from anka.dominio.preguntas import candidatas, con_decisiones, elegida
+from anka.dominio.preguntas import candidatas, con_decisiones, elegida, separar
 from anka.dominio.reception import (
-    reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
+    correo_con_preguntas, reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
 )
 from anka.servicios.internal_context import internal_commercial_context
 from anka.infra.logging_setup import get_logger
@@ -465,7 +465,7 @@ _FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify
 
 def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, template: str, change_id: int, *,
                    email_allowed: bool, reopened: bool, technical: bool, recipient_error: str,
-                   ) -> tuple[str, str, bool]:
+                   preguntas_escritas: Sequence[str] = ()) -> tuple[str, str, bool]:
     """Qué muestra el cuadro de respuesta: (modo, texto inicial, ¿en blanco?)."""
     if email_allowed and review.espera_al_cliente and not template:
         return "waiting", "", False   # ya se escribió: no se ofrece enviar lo mismo otra vez
@@ -475,6 +475,11 @@ def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, temp
         if recipient_error:
             return "recipient_error", "", False
         return ("technical" if technical else "unavailable"), "", False
+    if template == "preguntas":      # U-24: el correo con las preguntas que la persona escribió, en cualquier etapa
+        if not preguntas_escritas:
+            return "form", "", True
+        reenviado = bool(analysis.get("routing", {}).get("is_forwarded"))
+        return "form", correo_con_preguntas(list(preguntas_escritas), reenviado), False
     if template == "libre" or (template not in _FREE_FORM_TEMPLATES and reopened):
         return "form", "", True       # respuesta libre en blanco (o caso ya avanzado)
     if template in _FREE_FORM_TEMPLATES:
@@ -598,7 +603,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
 
 
 def render_case(thread_id: str, message: str = "", template: str = "", change_id: int = 0,
-                to_kind: str = "") -> str:
+                to_kind: str = "", preguntas_texto: str = "") -> str:
     """Pantalla de un caso: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento."""
     review, recipient_error = _load_review(thread_id)
     if not review:
@@ -612,7 +617,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     email_allowed = review.admite_correo(reabierto=reopened, revision_tecnica=technical)
     email, email_body, blank_reply = _compose_state(
         review, analysis, config, template, change_id,
-        email_allowed=email_allowed, reopened=reopened, technical=technical, recipient_error=recipient_error)
+        email_allowed=email_allowed, reopened=reopened, technical=technical, recipient_error=recipient_error,
+        preguntas_escritas=separar(preguntas_texto) if template == "preguntas" else ())
     change = next((c for c in review.get("changes", []) if c["id"] == change_id), None)
     events = thread_events(thread_id)
     integrity_ok, event_count = chain_status(thread_id)
@@ -633,6 +639,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         sent_complete=sent_complete, no_reply_needed=review["status"] in {QuoteStatus.READY, QuoteStatus.IGNORED},
         client_types=CLIENT_TYPES, sectors=SECTORS,
         routing_summary=_routing_summary(analysis), issues_summary=issues_summary,
+        armar_preguntas=preguntas_texto if template == "preguntas" else "",
         email=email, email_body=email_body, recipient_error=recipient_error, blank_reply=blank_reply,
         sufficient=assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
