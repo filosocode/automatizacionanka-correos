@@ -35,7 +35,7 @@ from anka.servicios.change_control import (
 )
 from anka.dominio.registros import Cambio
 from anka.servicios.quotes import (
-    all_quotes, discarded_quotes, get_quote, separated_project_pairs, unread_notifications,
+    all_quotes, discarded_quotes, get_quote, separated_project_pairs, unread_notifications, unread_thread_count,
 )
 from anka.dominio.caso import CLIENT_TYPES
 from anka.servicios.proyectos_repetidos import Grupo, agrupar as agrupar_solicitudes
@@ -49,7 +49,7 @@ def page(title: str, body: Markup, message: str = "") -> str:
         mode = load_config().get("active_mode")
     except (ErrorDeAnka, OSError, ValueError):
         mode = None
-    return render_page(title, body, message, len(unread_notifications(100)), mode,
+    return render_page(title, body, message, unread_thread_count(), mode,
                        bool(os.getenv("OPENAI_API_KEY")))
 
 

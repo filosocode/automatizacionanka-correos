@@ -117,10 +117,11 @@ OPERACIONES: tuple[Operacion, ...] = (
                                  "La autorización de Google venció o falta. Pulsa «Reautorizar Google» en el dashboard "
                                  "o ejecuta: python app.py auth"}),
     Operacion("get", "/state", "Lectura (JSON)", "Estado para refrescar la pantalla",
-              "Marca de cambios (`v`) y estado del puente de ChatGPT Work. Las páginas abiertas la consultan cada "
+              "Marca de cambios (`v`), casos con novedades sin leer (`sin_leer`) y estado del puente de ChatGPT Work. "
+              "Las páginas abiertas la consultan cada "
               "20 segundos para saber si deben recargarse.",
               contenido="json",
-              ejemplo_respuesta={"v": "3|2026-10-01T19:01:12-05:00|0|50", "bridge": "ok",
+              ejemplo_respuesta={"v": "3|2026-10-01T19:01:12-05:00|0|50", "sin_leer": 2, "bridge": "ok",
                                  "text": "Puente Work activo: Gmail revisado hace 36 s.",
                                  "google": {"estado": "ok", "texto": "La autorización de Google está vigente."}}),
     Operacion("get", "/eventos", "Lectura (JSON)", "Avisos en vivo de cambios",
@@ -294,6 +295,9 @@ OPERACIONES: tuple[Operacion, ...] = (
                      ["18f3a9c2d4e5b601"]),), "redirect"),
     Operacion("post", "/notifications/read", "Acciones generales", "Marcar las novedades como revisadas",
               "Marca todas las novedades sin leer.", "guarda", (), "redirect"),
+    Operacion("post", "/notifications/seen", "Acciones del caso", "Marcar como leídas las novedades de un caso",
+              "La página de un caso, cuando está a la vista, marca como leídas solo las novedades de ese caso. "
+              "Responde con una redirección a `/state`.", "guarda", (_ID,), "redirect"),
 )
 
 

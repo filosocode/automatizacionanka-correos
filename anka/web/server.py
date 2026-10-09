@@ -26,7 +26,7 @@ from anka.servicios import salud
 from anka.servicios.autorizacion import estado_de_google
 from anka.infra.work_heartbeat import bridge_state
 from anka.servicios.quotes import (
-    all_quotes, archived_threads, change_marker, get_quote,
+    all_quotes, archived_threads, change_marker, get_quote, unread_thread_count,
 )
 
 from anka.web import openapi, paginas
@@ -176,7 +176,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
             work = False
         state, text = bridge_state() if work else ("", "")
         google = estado_de_google()
-        self._send_json({"v": change_marker(), "bridge": state, "text": text,
+        self._send_json({"v": change_marker(), "sin_leer": unread_thread_count(), "bridge": state, "text": text,
                          "google": {"estado": google.estado, "texto": google.texto}})
 
     def _get_eventos(self, query: dict[str, list[str]]) -> None:

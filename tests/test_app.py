@@ -694,9 +694,13 @@ class QuoteFlowTests(unittest.TestCase):
                     "thread-dashboard", "Hola,\n\nGracias por su solicitud revisada."
                 )
             sent_quote = quotes.get_quote("thread-dashboard")
-            notification_kinds = {
-                item["kind"] for item in quotes.unread_notifications()
-            }
+            db = store.connect()          # todas las novedades, leídas o no: lo propio queda de constancia (U-25)
+            try:
+                notification_kinds = {row["kind"] for row in db.execute("SELECT kind FROM dashboard_notifications")}
+                own_unread = db.execute("SELECT COUNT(*) FROM dashboard_notifications WHERE read_at IS NULL "
+                                        "AND kind IN ('draft_saved', 'response_sent')").fetchone()[0]
+            finally:
+                db.close()
         self.assertIn("Borrador guardado", message)
         self.assertEqual(draft_quote["status"], "draft_created")
         self.assertEqual(draft_quote["draft_id"], "draft-1")
@@ -711,6 +715,7 @@ class QuoteFlowTests(unittest.TestCase):
         self.assertNotIn("Gracias por su solicitud", trail)
         self.assertIn("draft_saved", notification_kinds)
         self.assertIn("response_sent", notification_kinds)
+        self.assertEqual(own_unread, 0)           # lo que hizo la propia persona no suma al contador (U-25)
 
 
 # Cubre: F1-01, F1-05, F1-06

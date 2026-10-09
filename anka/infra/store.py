@@ -436,13 +436,16 @@ def open_db(data_dir: Path) -> sqlite3.Connection:
 
 
 def add_dashboard_notification(db: sqlite3.Connection, thread_id: str, kind: str,
-                               source_key: str, title: str, message: str) -> None:
-    """Crea una novedad para el dashboard; la misma `source_key` no se repite."""
+                               source_key: str, title: str, message: str, leida: bool = False) -> None:
+    """Crea una novedad para el dashboard; la misma `source_key` no se repite.
+
+    `leida=True` es para lo que la propia persona hizo: queda en la tabla (constancia) pero no suma al contador (U-25).
+    """
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     db.execute("""INSERT OR IGNORE INTO dashboard_notifications
-                  (thread_id, kind, source_key, title, message, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?)""",
-               (thread_id, kind, source_key, title, message, now))
+                  (thread_id, kind, source_key, title, message, created_at, read_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               (thread_id, kind, source_key, title, message, now, now if leida else None))
 
 
 def record_event(db: sqlite3.Connection, thread_id: str, kind: str, source: str, ref: str,

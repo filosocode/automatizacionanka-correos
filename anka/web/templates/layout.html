@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title }} - Anka</title>
+  <title>{% if unread_count %}({{ unread_count }}) {% endif %}{{ title }} - Anka</title>
   <script>try { var tema = localStorage.getItem('anka-tema'); if (tema === 'light' || tema === 'dark') document.documentElement.dataset.theme = tema; } catch (e) { /* sin almacenamiento: sigue el sistema */ }</script>
   <style>
 {% include "style.css" %}
@@ -15,6 +15,7 @@
     <nav><a href="/">Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests">Solicitudes</a><a href="/discarded">Descartadas</a><a href="/archive">Archivo</a></nav>
     <div class="toolbar">
       <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Cambiar el tema de color">Tema: sistema</button>
+      <button type="button" id="avisos-navegador" class="secondary" hidden title="El navegador de este equipo te avisará cuando entren novedades y esta pestaña esté oculta">Activar avisos del navegador</button>
       <span id="bridge-chip" class="bridge-chip" hidden></span>
       <span id="google-chip" class="bridge-chip" hidden></span>
       <form method="post" action="/google/reautorizar" id="google-reauth" hidden>
@@ -185,6 +186,38 @@
       const googleChip = document.getElementById('google-chip');
       const googleForm = document.getElementById('google-reauth');
       const googleStatus = document.getElementById('google-status');
+      const botonAvisos = document.getElementById('avisos-navegador');
+      const tituloBase = document.title.replace(/^\(\d+\) /, '');
+      let sinLeer = null;
+      function mostrarConteo(n) {
+        document.title = (n ? '(' + n + ') ' : '') + tituloBase;
+        const cuenta = document.querySelector('nav .nav-count');
+        if (cuenta) { cuenta.textContent = n; cuenta.hidden = !n; }
+      }
+      function avisarDelNavegador(n) {
+        // Solo con la pestaña oculta y si la persona lo activó; no sale nada fuera de este navegador.
+        try {
+          if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+            new Notification('Anka', {body: n + (n === 1 ? ' caso con novedades por revisar' : ' casos con novedades por revisar')});
+          }
+        } catch (e) { /* sin permiso o sin soporte: queda el título */ }
+      }
+      try {
+        if (botonAvisos && 'Notification' in window && Notification.permission === 'default') {
+          botonAvisos.hidden = false;
+          botonAvisos.addEventListener('click', () => {
+            Notification.requestPermission().then(() => { botonAvisos.hidden = true; });
+          });
+        }
+      } catch (e) { /* sin soporte: no se ofrece */ }
+      // La página de un caso, ya a la vista, marca como leídas sus novedades (solo las de ese caso).
+      const formVisto = document.getElementById('visto');
+      function marcarVisto() {
+        if (!formVisto || document.visibilityState !== 'visible') return;
+        fetch(formVisto.action, {method: 'POST', body: new URLSearchParams(new FormData(formVisto))})
+          .then(() => { base = null; poll(); }).catch(() => {});
+      }
+      document.addEventListener('visibilitychange', marcarVisto);
       document.addEventListener('input', () => { dirty = true; });
       document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); });
       async function poll() {
@@ -208,6 +241,11 @@
           googleChip.title = g.texto || '';
           if (g.texto) googleStatus.textContent = g.texto;
           googleChip.textContent = needsGoogle ? 'Google desconectado' : 'Autorizando Google…';
+          if (typeof s.sin_leer === 'number') {
+            if (sinLeer !== null && s.sin_leer > sinLeer) avisarDelNavegador(s.sin_leer);
+            sinLeer = s.sin_leer;
+            mostrarConteo(s.sin_leer);
+          }
           if (base === null) base = s.v;
           else if (s.v !== base) {
             if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
@@ -217,6 +255,7 @@
         } catch (e) { /* servidor local cerrado: se reintenta */ }
       }
       poll();
+      marcarVisto();
       setInterval(poll, 20000);
       // Aviso inmediato del servidor (U-23): si el navegador no lo admite o se corta, queda la consulta de arriba.
       if (window.EventSource) {
