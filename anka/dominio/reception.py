@@ -449,6 +449,28 @@ def suggested_supporting_documents(analysis: Analisis) -> list[str]:
     return suggestions
 
 
+def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, documentos: list[str] | None = None) -> str:
+    """El correo al cliente con sus preguntas numeradas: la plantilla fija de todos los modos (no usa ningún modelo)."""
+    opening = (
+        "Gracias por compartir la solicitud. Para completar la información inicial, "
+        if reenviado else
+        "Gracias por su solicitud. Para completar la información inicial, "
+    )
+    question_lines = "\n".join(f"{number}. {question}" for number, question in enumerate(preguntas, 1))
+    document_block = ""
+    if documentos:
+        document_lines = "\n".join(f"- {document}" for document in documentos)
+        document_block = (
+            "\n\nSi dispone de ellos, también puede adjuntar los siguientes "
+            "documentos para complementar la revisión:\n\n" + document_lines
+        )
+    return (
+        "Hola,\n\n" + opening + "¿podría confirmar lo siguiente?\n\n"
+        + question_lines + document_block
+        + "\n\nPuede responder a este mismo correo.\n\nSaludos,\nGrupo Anka"
+    )
+
+
 def suggested_reply(analysis: Analisis, required_fields: list[str] | None = None) -> str:
     """Texto sugerido para responder al cliente: las preguntas pendientes o, si no hay, un acuse de recibo."""
     decididas = analysis.get("preguntas")
@@ -461,26 +483,7 @@ def suggested_reply(analysis: Analisis, required_fields: list[str] | None = None
     documents = suggested_supporting_documents(analysis)
     forwarded = analysis.get("routing", {}).get("is_forwarded", False)
     if questions:
-        opening = (
-            "Gracias por compartir la solicitud. Para completar la información inicial, "
-            if forwarded else
-            "Gracias por su solicitud. Para completar la información inicial, "
-        )
-        question_lines = "\n".join(
-            f"{number}. {question}" for number, question in enumerate(questions, 1)
-        )
-        document_block = ""
-        if documents:
-            document_lines = "\n".join(f"- {document}" for document in documents)
-            document_block = (
-                "\n\nSi dispone de ellos, también puede adjuntar los siguientes "
-                "documentos para complementar la revisión:\n\n" + document_lines
-            )
-        return (
-            "Hola,\n\n" + opening + "¿podría confirmar lo siguiente?\n\n"
-            + question_lines + document_block
-            + "\n\nPuede responder a este mismo correo.\n\nSaludos,\nGrupo Anka"
-        )
+        return correo_con_preguntas(questions, forwarded, documents)
     if analysis.get("routing", {}).get("is_forwarded"):
         opening = "Gracias por reenviar la solicitud."
     else:
