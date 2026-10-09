@@ -11,7 +11,8 @@
 | [`PROMPT_WORK_ANKA_RIGUROSO_V2.txt`](PROMPT_WORK_ANKA_RIGUROSO_V2.txt) | Quien configura Work | Prompt vigente con contrato de evidencia y preguntas auditables para copiar en la tarea |
 | [PROMPT_WORK_ANKA.txt](PROMPT_WORK_ANKA.txt) | Quien revisa antecedentes | Prompt histórico inicial |
 | [PROMPT_WORK_ANKA_RIGUROSO.txt](PROMPT_WORK_ANKA_RIGUROSO.txt) | Quien revisa antecedentes | Prompt histórico riguroso |
-| [PROMPT_WORK_ANKA_PRECISO_V3.txt](PROMPT_WORK_ANKA_PRECISO_V3.txt) | Quien revisa antecedentes | Variante conservada; el piloto referencia Riguroso V2 |
+| [PROMPT_WORK_ANKA_PRECISO_V4.txt](PROMPT_WORK_ANKA_PRECISO_V4.txt) | Quien configura la tarea de Work | Prompt vigente: la V3 más el registro de `model` y `skill_version` (T-32) |
+| [PROMPT_WORK_ANKA_PRECISO_V3.txt](PROMPT_WORK_ANKA_PRECISO_V3.txt) | Quien revisa antecedentes | Versión anterior conservada; el piloto referencia Riguroso V2 |
 | [`INSTRUCCIONES.txt`](INSTRUCCIONES.txt) | Quien opera el puente | Sincronización entre Gmail y el dashboard, prueba y limitaciones |
 | [`ESTANDAR_CAMBIOS.md`](ESTANDAR_CAMBIOS.md) | Quien desarrolla | Cómo se cambia el comportamiento sin separar los tres modos |
 | [`POLITICA_CONTEXTO_COMERCIAL.md`](POLITICA_CONTEXTO_COMERCIAL.md) | Quien desarrolla | Qué contexto interno puede (y no puede) aparecer en correos |

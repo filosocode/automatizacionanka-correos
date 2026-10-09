@@ -128,6 +128,8 @@ class Analisis(TypedDict, total=False):
     attachments: list[Adjunto]
     routing: Enrutamiento
     work_reply: RespuestaWork
+    work_model: str           # T-32: el modelo que declaró Work (solo interno)
+    work_skill_version: str   # T-32: la versión del prompt que declaró Work (solo interno)
     manual_review: RevisionManual
     manual_edit: EdicionManual
     pending_model_activities: list[Actividad]
