@@ -17,6 +17,7 @@ from anka.infra.modes import (
     set_mode,
 )
 from anka.infra.settings import load_config
+from anka.infra.work_heartbeat import request_check_now
 
 from anka.servicios.case_actions import (
     approve_review, delete_cases, issue_code_and_notify, save_dashboard_draft, send_dashboard_reply,
@@ -77,7 +78,10 @@ def _guidance(action: Callable[[], str], *errors: type[BaseException]) -> str:
 
 def _post_refresh(form: Form) -> str:
     if load_config().get("active_mode") == "chatgpt_work":
-        return _to("/", "Este botón no lee Gmail en modo ChatGPT Work. " + sync_status_text())
+        # El dashboard no lee Gmail en este modo: solo despierta al puente (que sí lo lee, en solo lectura).
+        request_check_now()
+        return _to("/", "Pedí al puente que revise Gmail ahora; el dashboard se actualiza solo en unos segundos. "
+                   + sync_status_text())
     return _to("/", describe_check(checked_run(True, True, False, "dashboard")))
 
 

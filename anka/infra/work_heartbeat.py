@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
+from collections.abc import Callable
 from datetime import datetime
 
 from anka.infra import settings
 
 HEARTBEAT_FILE = "work_sync_heartbeat.json"
-DEFAULT_INTERVAL = 60
+DEFAULT_INTERVAL = 30
+WAKE_FILE = "work_sync_wake"
 
 
 def _now() -> datetime:
@@ -120,3 +123,23 @@ def bridge_state() -> tuple[str, str]:
         f"Puente Work activo: Gmail revisado a las {when} ({_ago(age)}), "
         f"{beat.get('drafts', 0)} borradores, {beat.get('updated', 0)} actualizados."
     )
+
+
+def request_check_now() -> None:
+    """Pide al puente que revise Gmail ya, sin esperar su ciclo (el dashboard no lee Gmail: solo deja la señal)."""
+    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    (settings.DATA_DIR / WAKE_FILE).write_text(_now().isoformat(timespec="seconds"), encoding="utf-8")
+
+
+def wait_for_next_cycle(seconds: int, sleep: Callable[[float], None] = time.sleep) -> bool:
+    """Espera `seconds` o hasta que el dashboard pida revisar ahora; True si fue por la petición (y la consume)."""
+    path = settings.DATA_DIR / WAKE_FILE
+    for _ in range(max(1, int(seconds))):
+        if path.exists():
+            try:
+                path.unlink()
+            except OSError:
+                pass
+            return True
+        sleep(1)
+    return False

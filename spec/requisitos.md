@@ -355,6 +355,11 @@ error: sigue importando el resto. El Resumen lista cada borrador rechazado con s
 contrato, nunca contenido del cliente) y qué hacer. En `question_audit`, un `unresolved` booleano (Work lo escribe como sí/no)
 se trata como vacío y se importa: la advertencia de la pregunta («debe precisar qué subdato sigue sin resolver») lo hace visible.
 
+### T-30 · Revisar Gmail ahora y un ciclo más corto del puente
+El puente revisa Gmail cada 30 segundos (antes 60; es el mínimo permitido). En modo ChatGPT Work el botón «Revisar ahora» del
+encabezado le pide revisar ya: el dashboard no lee Gmail, solo deja una señal que el puente atiende en cuanto la ve (en menos
+de un segundo) y consume. Cada revisión sigue siendo de solo lectura sobre Gmail.
+
 ### T-27 · El lanzador se reinicia solo cuando cambia el código
 Cuando cambia el código (incluida una migración de la base), el lanzador no solo reinicia el dashboard y el puente: **se reinicia
 él mismo**, para no seguir corriendo con código anterior contra una base ya migrada (los recordatorios y la copia de seguridad
@@ -371,6 +376,13 @@ exportación. Quitar una fila la marca a la vista (atenuada y tachada, «se quit
 con filas quitadas pide confirmar cuántas. Un enlace «Ver historial de cambios» lleva al acta del caso. La exportación (Excel y
 hoja de Google) es una zona aparte, «Exportar la tabla», con una sola explicación corta y el detalle plegado. Nada de esto
 cambia lo que se guarda ni cómo.
+
+### U-23 · El dashboard se actualiza solo, al instante
+Las páginas abiertas reciben un aviso del servidor en cuanto cambia un caso (nuevo borrador de Work, correo enviado, cambio de
+estado) y se actualizan sin esperar la consulta periódica (que se conserva como respaldo si el navegador no admite el canal o se
+corta). Una página con algo escrito no se recarga sola: muestra el aviso de siempre. El canal es de solo lectura, se renueva solo
+cada 10 minutos, admite pocas pestañas a la vez (las demás siguen con la consulta periódica) y se cierra sin dejar nada colgado
+cuando la pestaña se cierra.
 
 ### U-22 · Decidir cada pregunta y saber de qué correos se espera respuesta
 En un caso en revisión técnica, cada pregunta candidata (las de la auditoría de preguntas, las pendientes del análisis y las de
