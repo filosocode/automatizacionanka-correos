@@ -68,3 +68,42 @@ def canonical_work_status(value: object) -> str | None:
         if _plain(label) == wanted:
             return label
     return None
+
+
+# Variantes evidentes que Work ha escrito (o podría escribir) en lugar de una etiqueta oficial (T-33). Solo llevan a
+# estados conservadores, donde una persona decide o se piden datos: nunca a uno que avance el caso ni a «Descartada».
+_SINONIMOS_POR_ESTADO = {
+    "Requiere revisión técnica interna": (
+        "requiere revisión humana", "revisión humana", "requiere revisión manual", "revisión manual",
+        "requiere revisión interna", "revisión interna", "requiere revisión técnica", "revisión técnica interna",
+        "requiere revisión de una persona",
+    ),
+    "Faltan datos": (
+        "faltan datos críticos", "datos faltantes", "falta información", "información faltante",
+        "faltan datos del cliente",
+    ),
+    "Requiere aclaraciones del cliente": (
+        "requiere aclaración del cliente", "requiere aclaraciones", "requiere aclaración", "aclaración del cliente",
+    ),
+}
+ESTADOS_CONSERVADORES = frozenset(_SINONIMOS_POR_ESTADO)
+SINONIMOS_DE_ESTADO = {
+    _plain(texto): etiqueta for etiqueta, textos in _SINONIMOS_POR_ESTADO.items() for texto in textos
+}
+
+
+def reconocer_estado_de_work(valor: object) -> tuple[str | None, str]:
+    """(etiqueta oficial, aviso) para el estado que escribió Work; (None, '') si no se reconoce.
+
+    Una etiqueta oficial se reconoce sin aviso (aunque venga sin tildes). Un sinónimo evidente de un estado conservador
+    se acepta con un aviso para que el caso diga qué escribió Work y cómo se tomó (T-33).
+    """
+    oficial = canonical_work_status(valor)
+    if oficial is not None:
+        return oficial, ""
+    etiqueta = SINONIMOS_DE_ESTADO.get(_plain(valor))
+    if etiqueta is None:
+        return None, ""
+    escrito = " ".join(str(valor).split())[:80]
+    aviso = f"Work escribió el estado «{escrito}», que no es uno de los permitidos; se tomó como «{etiqueta}»."
+    return etiqueta, aviso

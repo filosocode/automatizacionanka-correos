@@ -370,6 +370,21 @@ mal escrito en la dirección (`change_id=abc`) se toma como «ninguno» y no mue
 carpeta de Drive tiene un tope de 150 caracteres y no se corta una palabra a la mitad. La importación de Work sigue aceptando un texto
 donde se espera una lista (Work lo hace a veces); el contrato completo se exige en el puente, que es la entrada de producción.
 
+### T-32 · Saber con qué modelo y qué versión del prompt analizó Work
+El contrato admite dos campos opcionales: `model` (el modelo que declara la interfaz de ChatGPT Work para la tarea) y `skill_version`
+(la versión del prompt). La importación los guarda en el caso y los anota en el hecho «Work analizó el caso» del historial. Son
+**solo internos**: ningún correo al cliente los incluye. Lo escribe el propio modelo, así que sirve para detectar cambios entre
+análisis, no como garantía. Se limpian (sin saltos de línea ni caracteres de control, con tope de largo) y se muestran escapados.
+Un borrador sin ellos sigue siendo válido y el hecho queda como antes.
+
+### T-33 · El estado que escribe Work: lista cerrada y sinónimos conservadores
+El prompt de Work lista los diez estados permitidos y exige uno de ellos tal cual, sin variantes. Si aun así llega una variante, el
+puente solo la acepta cuando es un sinónimo evidente de un estado **conservador**, es decir, uno en el que una persona decide o se
+piden datos: «Requiere revisión técnica interna», «Faltan datos» o «Requiere aclaraciones del cliente». Nunca se interpreta una
+variante como un estado que avanza el caso («Alcance completo», «Información suficiente», «Borrador preparado») ni como «Descartada»:
+adivinar mal ahí adelantaría o escondería una solicitud. Cuando se acepta un sinónimo, el caso lo dice en sus advertencias
+(«Work escribió el estado «X»; se tomó como «Y»»). Cualquier otro valor se rechaza como hasta ahora y se ve en el Resumen.
+
 ### T-30 · Revisar Gmail ahora y un ciclo más corto del puente
 El puente revisa Gmail cada 30 segundos (antes 60; es el mínimo permitido). En modo ChatGPT Work el botón «Revisar ahora» del
 encabezado le pide revisar ya: el dashboard no lee Gmail, solo deja una señal que el puente atiende en cuanto la ve (en menos

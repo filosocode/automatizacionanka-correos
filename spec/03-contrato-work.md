@@ -23,6 +23,10 @@ Hola, â€¦ (el correo limpio para el cliente)
 
 ## Campos
 Obligatorios: `thread_id`, `message_id`, `client_email`, `project_name`, `status` y `engine` (= `chatgpt_work`).
+`status` es uno de los diez valores del esquema, tal cual. El puente acepta además unos pocos sinónimos evidentes que llevan a un
+estado conservador (T-33), dejando un aviso en el caso; cualquier otro valor se rechaza.
+Opcionales y solo internos (T-32): `model` y `skill_version`, el modelo que declara Work y la versión de su prompt; quedan
+en el caso y en el historial, nunca en un correo al cliente.
 Recomendados: `client_name`, `summary`, `received_at`, `gmail_url`, `activities`, `fields`, `missing_data`,
 `attachments`, `contradictions`, `scope_dependencies`. `fields` contiene objetos `name`, `value` y `source`.
 `missing_data` acepta textos por compatibilidad y objetos `{ "name": "dato pendiente", "type": "critical"|"recommended" }`;

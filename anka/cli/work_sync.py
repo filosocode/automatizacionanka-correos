@@ -15,7 +15,7 @@ from typing import Any, NoReturn
 from anka.servicios.gmail_followup import sync_thread_activity
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra.logging_setup import configure_logging, get_logger
-from anka.dominio.status import canonical_work_status
+from anka.dominio.status import reconocer_estado_de_work
 from anka.dominio.work_contract import corregir_descuidos_de_tipo, validate
 from anka.infra.work_heartbeat import other_bridge_running, wait_for_next_cycle, write_heartbeat
 
@@ -67,9 +67,11 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
         avisos = corregir_descuidos_de_tipo(payload)  # p. ej. `unresolved: true`: queda vacío y el caso lo advierte
         if avisos:
             payload["_avisos_del_puente"] = avisos
-        status = canonical_work_status(payload.get("status"))
+        status, aviso = reconocer_estado_de_work(payload.get("status"))
         if status is not None:
-            payload["status"] = status  # la etiqueta oficial, aunque Work la escriba sin tildes
+            payload["status"] = status  # la etiqueta oficial (aunque venga sin tildes o con un sinónimo evidente)
+            if aviso:
+                payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso]
         errors = validate(payload)      # spec/contrato_work.schema.json es la fuente de verdad
         if errors:
             raise ValueError("Contrato de Work no cumplido: " + " ".join(errors[:5]))

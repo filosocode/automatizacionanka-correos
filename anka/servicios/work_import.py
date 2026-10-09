@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime
 import json
+import re
 import sqlite3
 from collections.abc import Callable
 from typing import Any
@@ -18,7 +19,7 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
 from anka.dominio.correo import decode_websafe
 from anka.dominio.reception import unresolved_scope_issues
-from anka.dominio.status import QuoteStatus, canonical_work_status
+from anka.dominio.status import QuoteStatus, reconocer_estado_de_work
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import connect, record_event, save
 from anka.servicios.change_control import apply_guard
@@ -61,7 +62,10 @@ def _decode_work_payload(payload_base64: str) -> tuple[str, dict]:
     missing = sorted(field for field in required if not str(payload.get(field, "")).strip())
     if missing:
         raise ErrorDeAnka("Faltan campos del dashboard: " + ", ".join(missing))
-    payload["status"] = canonical_work_status(payload["status"]) or payload["status"]
+    status, aviso = reconocer_estado_de_work(payload["status"])
+    payload["status"] = status or payload["status"]
+    if aviso:
+        payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso]
     return raw, payload
 
 
@@ -137,6 +141,8 @@ def _work_analysis(payload: dict) -> Analisis:
     """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
     source = payload.get("source", "")
     reply_text = str(payload.get("draft_reply") or "").strip()
+    modelo = _declarado(payload.get("model"), MAX_MODELO)
+    version = _declarado(payload.get("skill_version"), MAX_VERSION)
     warnings = (question_evidence_warnings(payload) + attachment_coverage_warnings(payload)
                 + [str(aviso) for aviso in payload.get("_avisos_del_puente") or []])
     return {
@@ -160,6 +166,8 @@ def _work_analysis(payload: dict) -> Analisis:
         "received_at": payload.get("received_at", ""),
         "gmail_url": payload.get("gmail_url", ""),
         "engine": payload.get("engine", ""),
+        **({"work_model": modelo} if modelo else {}),
+        **({"work_skill_version": version} if version else {}),
         "routing": {
             "original_sender": payload.get("client_name", ""),
             "original_sender_email": payload["client_email"],
@@ -179,6 +187,25 @@ def _internal_status(payload: dict, analysis: Analisis) -> str:
         # pendientes el caso pasa a revisión técnica interna, donde una persona decide.
         return QuoteStatus.REVIEW
     return status
+
+
+MAX_MODELO = 80
+MAX_VERSION = 40
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
+
+
+def _declarado(valor: object, tope: int) -> str:
+    """Un dato que Work escribe sobre sí mismo (modelo, versión del prompt): una sola línea, sin caracteres de control y
+    con tope, porque lo redacta el propio modelo y no es de fiar (T-32)."""
+    return " ".join(_CONTROL.sub(" ", str(valor or "")).split())[:tope]
+
+
+def _modelo_declarado(payload: dict) -> str:
+    """' Modelo declarado por Work: X; prompt: Y.' para el historial, o '' si Work no los informó."""
+    modelo = _declarado(payload.get("model"), MAX_MODELO)
+    version = _declarado(payload.get("skill_version"), MAX_VERSION)
+    partes = ([f"Modelo declarado por Work: {modelo}"] if modelo else []) + ([f"prompt: {version}"] if version else [])
+    return (" " + "; ".join(partes) + ".") if partes else ""
 
 
 def _demora_del_puente(payload: dict) -> str:
@@ -217,7 +244,7 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
          payload.get("internal_sender") or payload["client_email"], analysis)
     version = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
     record_event(db, thread_id, "analysis", "work", version,
-                 f"Work analizó el caso: {payload['status']}.{_demora_del_puente(payload)}",
+                 f"Work analizó el caso: {payload['status']}.{_modelo_declarado(payload)}{_demora_del_puente(payload)}",
                  payload.get("received_at", ""))
     db.commit()
 
