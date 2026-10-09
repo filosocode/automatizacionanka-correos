@@ -387,6 +387,14 @@ El contrato admite dos campos opcionales: `model` (el modelo que declara la inte
 análisis, no como garantía. Se limpian (sin saltos de línea ni caracteres de control, con tope de largo) y se muestran escapados.
 Un borrador sin ellos sigue siendo válido y el hecho queda como antes.
 
+### T-33 · El estado que escribe Work: lista cerrada y sinónimos conservadores
+El prompt de Work lista los diez estados permitidos y exige uno de ellos tal cual, sin variantes. Si aun así llega una variante, el
+puente solo la acepta cuando es un sinónimo evidente de un estado **conservador**, es decir, uno en el que una persona decide o se
+piden datos: «Requiere revisión técnica interna», «Faltan datos» o «Requiere aclaraciones del cliente». Nunca se interpreta una
+variante como un estado que avanza el caso («Alcance completo», «Información suficiente», «Borrador preparado») ni como «Descartada»:
+adivinar mal ahí adelantaría o escondería una solicitud. Cuando se acepta un sinónimo, el caso lo dice en sus advertencias
+(«Work escribió el estado «X»; se tomó como «Y»»). Cualquier otro valor se rechaza como hasta ahora y se ve en el Resumen.
+
 ### T-30 · Revisar Gmail ahora y un ciclo más corto del puente
 El puente revisa Gmail cada 30 segundos (antes 60; es el mínimo permitido). En modo ChatGPT Work el botón «Revisar ahora» del
 encabezado le pide revisar ya: el dashboard no lee Gmail, solo deja una señal que el puente atiende en cuanto la ve (en menos
@@ -423,6 +431,9 @@ numeradas tal como se escribieron, «Puede responder a este mismo correo» y la 
 reescribe ni inventa nada. Una línea sin signos de interrogación se escribe entre ellos; se ignoran las líneas vacías, la numeración
 y las viñetas que la persona haya puesto y las preguntas repetidas, con un máximo de 20. El texto queda en el cuadro para editarlo;
 nada se envía hasta «Enviar ahora» (R8), y el aviso previo cuenta las preguntas y la casilla de espera sigue funcionando.
+Si el caso ya tiene código (T o T&E) y el correo va al contacto registrado, la plantilla es otra: nombra el proyecto y el código
+(«Sobre su proyecto «X» (T26145), necesitamos confirmar lo siguiente») y pide citar el código al responder, porque desde la T la
+tabla solo se actualiza con mensajes que lo citen (R11). A quien no es el contacto registrado nunca se le incluye el código.
 
 ### U-22 · Decidir cada pregunta y saber de qué correos se espera respuesta
 En un caso en revisión técnica, cada pregunta candidata (las de la auditoría de preguntas, las pendientes del análisis y las de

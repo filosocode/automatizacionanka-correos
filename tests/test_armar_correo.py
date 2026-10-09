@@ -62,6 +62,33 @@ class PlantillaDelCorreo(unittest.TestCase):
         self.assertIn("Gracias por compartir la solicitud.", correo_con_preguntas(["¿Datum?"], reenviado=True))
 
 
+class PlantillaConCodigo(unittest.TestCase):
+    def test_with_a_code_the_email_names_the_project_and_asks_to_quote_the_code(self):
+        # Cubre: U-24
+        correo = correo_con_preguntas(["¿Cuál es el nombre del encargado?"], proyecto="Parque solar 45 MWp", codigo="T26145")
+        self.assertIn("Sobre su proyecto «Parque solar 45 MWp» (T26145), necesitamos confirmar lo siguiente:", correo)
+        self.assertIn("1. ¿Cuál es el nombre del encargado?", correo)
+        self.assertIn("cite el código T26145", correo)
+        self.assertNotIn("información inicial", correo)             # ya no es la plantilla de primer contacto
+        self.assertTrue(correo.endswith("Saludos,\nGrupo Anka"))
+
+    def test_the_approved_stage_uses_its_own_code(self):
+        # Cubre: U-24
+        correo = correo_con_preguntas(["¿Plazo?"], proyecto="Proyecto Norte", codigo="T&E26145")
+        self.assertIn("(T&E26145)", correo)
+
+    def test_without_a_code_it_is_the_first_contact_template(self):
+        # Cubre: U-24
+        correo = correo_con_preguntas(["¿Plazo?"], proyecto="Proyecto Norte", codigo="")
+        self.assertIn("Para completar la información inicial", correo)
+        self.assertNotIn("Proyecto Norte", correo)
+
+    def test_the_questions_are_still_counted_with_the_code_template(self):
+        # Cubre: U-24
+        correo = correo_con_preguntas(["¿Cuál es el datum?", "¿Plazo?"], proyecto="X", codigo="T26145")
+        self.assertEqual(dominio.en_el_correo(correo), ["¿Cuál es el datum?", "¿Plazo?"])
+
+
 class EnLaPantalla(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -109,6 +136,29 @@ class EnLaPantalla(unittest.TestCase):
         self.caso(QuoteStatus.READY_REVIEW)
         pagina = pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto="  ")
         self.assertNotIn("podría confirmar", self.cuadro(pagina))
+
+    def con_codigo(self, contacto="cliente@empresa.co"):
+        self.caso(QuoteStatus.READY, codigo=True)
+        db = store.open_db(Path(self.temp.name))
+        db.execute("UPDATE quotes SET contact_email=?", (contacto,))
+        db.commit()
+        db.close()
+
+    def test_a_case_with_a_code_gets_the_code_template_for_the_registered_contact(self):
+        # Cubre: U-24
+        self.con_codigo()
+        pagina = pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto="Nombre del encargado")
+        cuadro = self.cuadro(pagina)
+        self.assertIn("(T26145), necesitamos confirmar lo siguiente:", cuadro)
+        self.assertIn("1. ¿Nombre del encargado?", cuadro)
+        self.assertIn("cite el código T26145", cuadro)
+
+    def test_the_code_is_never_sent_to_someone_who_is_not_the_registered_contact(self):
+        # Cubre: U-24
+        self.con_codigo(contacto="otra.persona@empresa.co")           # el correo va a cliente@empresa.co
+        cuadro = self.cuadro(pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto="¿Plazo?"))
+        self.assertNotIn("T26145", cuadro)
+        self.assertIn("1. ¿Plazo?", cuadro)
 
     def test_what_is_typed_is_escaped(self):
         # Cubre: U-24
