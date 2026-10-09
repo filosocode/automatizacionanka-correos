@@ -121,7 +121,7 @@ class ElPrompt(unittest.TestCase):
         v4 = (RAIZ / "docs" / "PROMPT_WORK_ANKA_PRECISO_V4.txt").read_text(encoding="utf-8")
         self.assertRegex(v4, r"`model`")
         self.assertRegex(v4, r"`skill_version`")
-        self.assertIn("PRECISO_V4", v4)
+        self.assertIn("PRECISO_V4.1", v4)
         self.assertNotIn("PRECISO_V4", (RAIZ / "docs" / "PROMPT_WORK_ANKA_PRECISO_V3.txt").read_text(encoding="utf-8"))
 
     def test_the_documentation_points_to_the_current_prompt(self):
@@ -130,7 +130,7 @@ class ElPrompt(unittest.TestCase):
 
     def test_the_version_the_prompt_declares_is_the_one_the_prompt_is_named_after(self):
         v4 = (RAIZ / "docs" / "PROMPT_WORK_ANKA_PRECISO_V4.txt").read_text(encoding="utf-8")
-        self.assertTrue(re.search(r"exactamente `PRECISO_V4`", v4))
+        self.assertTrue(re.search(r"exactamente `PRECISO_V4\.1`", v4))
 
 
 if __name__ == "__main__":
