@@ -19,7 +19,7 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
 from anka.dominio.correo import decode_websafe
 from anka.dominio.reception import unresolved_scope_issues
-from anka.dominio.status import QuoteStatus, canonical_work_status
+from anka.dominio.status import QuoteStatus, reconocer_estado_de_work
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import connect, record_event, save
 from anka.servicios.change_control import apply_guard
@@ -62,7 +62,10 @@ def _decode_work_payload(payload_base64: str) -> tuple[str, dict]:
     missing = sorted(field for field in required if not str(payload.get(field, "")).strip())
     if missing:
         raise ErrorDeAnka("Faltan campos del dashboard: " + ", ".join(missing))
-    payload["status"] = canonical_work_status(payload["status"]) or payload["status"]
+    status, aviso = reconocer_estado_de_work(payload["status"])
+    payload["status"] = status or payload["status"]
+    if aviso:
+        payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso]
     return raw, payload
 
 
