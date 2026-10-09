@@ -260,6 +260,12 @@ OPERACIONES: tuple[Operacion, ...] = (
               (_ID, Campo("link_id", "Id del vínculo pendiente.", "integer", True, 1),
                Campo("decision", "`yes`: es de este caso; `no`: no lo es.", requerido=True, opciones=("yes", "no"))),
               "redirect"),
+    Operacion("post", "/review-reopen", "Acciones del caso", "Cambiar de idea antes de enviar las preguntas",
+              "Mientras el correo con las preguntas no haya salido: `reconsiderar` devuelve el caso a la decisión "
+              "técnica con las elecciones conservadas; `suficiente` desiste de preguntar y da la información por "
+              "suficiente. No envía nada.", "guarda",
+              (_ID, Campo("accion", "Qué hacer al volver atrás.", requerido=True,
+                          opciones=("reconsiderar", "suficiente"))), "redirect"),
     Operacion("post", "/links-dismiss", "Acciones del caso", "Descartar varias sugerencias de vínculo",
               "Descarta las sugerencias seleccionadas para este caso. Conserva los mensajes originales y los casos "
               "de sus hilos; no los une ni los elimina.", "guarda",

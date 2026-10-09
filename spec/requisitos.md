@@ -442,11 +442,25 @@ corta). Una página con algo escrito no se recarga sola: muestra el aviso de sie
 cada 10 minutos, admite pocas pestañas a la vez (las demás siguen con la consulta periódica) y se cierra sin dejar nada colgado
 cuando la pestaña se cierra.
 
+### U-26 · Los puntos que se piden al cliente son los de su lista, y lo que es de Anka no va
+En el correo, la frase «¿podría confirmar lo siguiente?» es la pregunta y los puntos numerados que la siguen son lo que se pide
+confirmar: no necesitan llevar cada uno su propio signo de interrogación. Para saber si un correo espera respuesta se cuentan esos
+puntos (y cualquier pregunta con «?» fuera de la lista), de modo que el aviso previo («lleva N preguntas») cuente lo mismo que el cliente
+va a leer. Lo que es de Anka no se sugiere para el cliente: las tareas internas y los límites de lectura («KML no inspeccionable»,
+«PDFs extraídos parcialmente», «no verificado»), tengan o no «?».
+
+### U-27 · Cambiar de idea antes de enviar las preguntas
+Mientras el correo con las preguntas no haya salido, la persona puede volver atrás desde la pantalla del caso, con dos salidas. **Volver a
+elegir las preguntas** devuelve el caso a la decisión técnica con todo lo que había elegido conservado (las que pasó al cliente, las que
+dejó para Anka, las que descartó y las que agregó), para cambiar cuáles y cuántas. **No preguntar: la información es suficiente** da el caso
+por suficiente, como en la decisión técnica, y habilita emitir la T. Ambas quedan en el historial y ninguna envía nada. Un borrador ya
+guardado en Gmail no se borra. Con el correo ya enviado no se puede volver atrás: la regla lo rechaza con su motivo.
+
 ### U-24 · Armar un correo con las preguntas que la persona escribe, en cualquier etapa
 En el cuadro de respuesta de cualquier etapa en que se pueda escribir al cliente hay un campo «Preguntas para el cliente» (una por
 línea) y un botón «Armar correo con estas preguntas». El correo se arma con la misma plantilla fija de siempre (saludo, las preguntas
 numeradas tal como se escribieron, «Puede responder a este mismo correo» y la firma), en los tres modos y sin usar ningún modelo: no
-reescribe ni inventa nada. Una línea sin signos de interrogación se escribe entre ellos; se ignoran las líneas vacías, la numeración
+reescribe ni inventa nada. Cada línea es un punto de la lista tal como se escribió; se ignoran las líneas vacías, la numeración
 y las viñetas que la persona haya puesto y las preguntas repetidas, con un máximo de 20. El texto queda en el cuadro para editarlo;
 nada se envía hasta «Enviar ahora» (R8), y el aviso previo cuenta las preguntas y la casilla de espera sigue funcionando.
 Si el caso ya tiene código (T o T&E) y el correo va al contacto registrado, la plantilla es otra: nombra el proyecto y el código
