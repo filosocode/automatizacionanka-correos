@@ -139,9 +139,9 @@ class DiscardedTests(unittest.TestCase):
 
     def test_rescue_of_a_non_discarded_thread_returns_an_error_page(self):
         body = f"thread_id=t-real&csrf_token={seguridad.CSRF_TOKEN}".encode()
-        with self.assertLogs("anka.web.server", "ERROR"):
+        with self.assertLogs("anka.web.server", "WARNING"):
             sent = self.request("POST", "/rescue", body)
-        self.assertEqual(sent["status"], 500)
+        self.assertEqual(sent["status"], 400)       # lo rechaza la aplicación con su motivo: no es un fallo del servidor
         self.assertIn("descartad", sent["page"])
 
     def test_rescue_is_audited_without_client_data(self):

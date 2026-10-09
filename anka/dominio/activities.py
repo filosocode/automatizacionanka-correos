@@ -37,15 +37,35 @@ def normalize_estado(value: object) -> str:
     if any(mark in text for mark in ("pendiente", "revisi", "requiere", "aclar", "falta", "no indicad")):
         return "pendiente"
     return "confirmado" if text.startswith("confirmado") else "pendiente"
+_UNIDADES = {
+    "ha": "ha", "hectarea": "ha", "hectareas": "ha", "hectárea": "ha", "hectáreas": "ha",
+    "km": "km", "kilometro": "km", "kilometros": "km", "kilómetro": "km", "kilómetros": "km",
+    "m": "m", "mt": "m", "mts": "m", "metro": "m", "metros": "m",
+    "km2": "km²", "km²": "km²", "kilometros cuadrados": "km²", "kilómetros cuadrados": "km²",
+    "m2": "m²", "m²": "m²", "metros cuadrados": "m²",
+}
+
+
+def unidad_canonica(unidad: str) -> str:
+    """La unidad escrita de una sola forma («Ha», «hectáreas» → «ha»); una que no se reconoce queda como vino."""
+    return _UNIDADES.get(unidad.strip().rstrip(".").casefold(), unidad)
+
+
 def limpiar_cantidad_y_unidad(row: dict) -> None:
     """Evita que la unidad aparezca dos veces: el modelo suele escribir «544.5 ha» en la cantidad y «ha» en la unidad.
 
     Si la cantidad es solo «número + unidad», se queda con el número; si ya menciona todas las unidades (varias
-    magnitudes en un texto), se vacía la unidad. Una cantidad sin la unidad no se toca.
+    magnitudes en un texto), se vacía la unidad. Una cantidad sin la unidad no se toca. Al final la unidad se escribe
+    de una sola forma (`unidad_canonica`).
     """
     quantity, unit = str(row.get("quantity") or "").strip(), str(row.get("unit") or "").strip()
-    if not quantity or not unit:
-        return
+    if quantity and unit:
+        _quitar_unidad_repetida(row, quantity, unit)
+    if row.get("unit"):
+        row["unit"] = unidad_canonica(str(row["unit"]))
+
+
+def _quitar_unidad_repetida(row: dict, quantity: str, unit: str) -> None:
     plain = re.fullmatch(rf"([\d.,]+)\s*{re.escape(unit)}\.?", quantity, re.IGNORECASE)
     if plain:
         row["quantity"] = plain.group(1)

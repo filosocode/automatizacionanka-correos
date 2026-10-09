@@ -108,6 +108,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 return self._get()      # una conexión larga no puede retener la conexión a la base de la petición
             with request_scope():   # una sola conexión a la base para toda la petición
                 self._get()
+        except ValueError as exc:
+            self._rechazada("GET", self.path.split("?")[0], exc)
         except Exception as exc:
             log.exception("Error atendiendo GET %s", self.path.split("?")[0])
             self._send_html(paginas.page("Error", render("empty.html", text=str(exc))), 500)
@@ -261,9 +263,17 @@ class ReviewHandler(BaseHTTPRequestHandler):
             with request_scope():
                 location = action(form)
             self._redirect(location)
+        except ValueError as exc:
+            self._rechazada("POST", path, exc)
         except Exception as exc:
             log.exception("Error atendiendo POST %s", path)
             self._send_html(paginas.page("Error", render("empty.html", text=str(exc))), 500)
+
+    def _rechazada(self, metodo: str, ruta: str, exc: ValueError) -> None:
+        """Una petición que la aplicación rechaza con su motivo (caso inexistente, dato no válido) no es un fallo del
+        servidor: se responde 400 con el mensaje y se anota como aviso, con su traza por si ocultara un error propio."""
+        log.warning("%s %s rechazada: %s", metodo, ruta, exc, exc_info=True)
+        self._send_html(paginas.page("No se pudo completar", render("empty.html", text=str(exc))), 400)
 
     def _redirect(self, location: str) -> None:
         self.send_response(303)

@@ -54,9 +54,16 @@ def field(form: Form, name: str, default: str = "") -> str:
     return form.get(name, [default])[0]
 
 
+MAX_ENTERO = 2**53
+
+
 def int_field(form: Form, name: str) -> int:
-    """El campo como entero; vacío o ausente es 0."""
-    return int(field(form, name, "0") or 0)
+    """El campo como entero; vacío, ausente o que no es un número es 0 (una URL manipulada no es un error interno)."""
+    try:
+        valor = int(field(form, name, "0") or 0)
+    except ValueError:
+        return 0
+    return valor if abs(valor) <= MAX_ENTERO else 0   # SQLite no guarda enteros de más de 64 bits
 
 
 def _to_case(thread_id: str, message: str, suffix: str = "") -> str:
