@@ -557,6 +557,50 @@ def delete_quotes(thread_ids: list[str]) -> str:
     return f"Se eliminaron {len(found)} solicitud(es) del dashboard."
 
 
+def volver_a_decidir(thread_id: str, accion: str) -> str:
+    """Cambiar de idea antes de enviar las preguntas (U-27): volver a elegirlas o desistir de preguntar.
+
+    Solo mientras el correo no ha salido. `reconsiderar` devuelve el caso a la decisión técnica con las elecciones
+    conservadas; `suficiente` da la información por suficiente, como en la decisión técnica. No envía nada ni borra el
+    borrador que ya esté en Gmail.
+    """
+    if accion not in ("reconsiderar", "suficiente"):
+        raise ValueError("Acción no válida.")
+    db = connect()
+    try:
+        row = db.execute(
+            "SELECT status, analysis_json, sent_at, draft_id FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        if not row:
+            raise ValueError("La solicitud ya no existe.")
+        analysis = load_analysis(row["analysis_json"])
+        decision = analysis.get("manual_review") or {}
+        enviado = bool(row["sent_at"]) and str(row["sent_at"]) >= str(decision.get("at") or "")
+        if (row["status"] not in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED)
+                or decision.get("decision") != "ask_client" or enviado):
+            raise ValueError("Solo se puede volver atrás mientras el correo con las preguntas no ha salido.")
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        if accion == "reconsiderar":
+            analysis.pop("manual_review", None)         # las elecciones (`preguntas`) se conservan
+            nuevo = QuoteStatus.REVIEW
+            texto = "Volviste a la decisión técnica antes de enviar el correo: puedes cambiar qué preguntas hacer."
+            mensaje = "Volviste a elegir las preguntas. Tus elecciones siguen ahí: cámbialas y prepara el correo."
+        else:
+            analysis["manual_review"] = {"decision": "sufficient", "at": now, "questions": []}
+            nuevo = QuoteStatus.READY_REVIEW
+            texto = "Decidiste no preguntar al cliente antes de enviar el correo: la información es suficiente."
+            mensaje = "Marcado como información suficiente. Ya puedes emitir la T y crear la carpeta en Drive."
+        if row["draft_id"]:
+            mensaje += " El borrador que guardaste en Gmail sigue ahí; no se borra."
+        actualizar_caso(db, thread_id, status=nuevo, updated_at=now,
+                        analysis_json=json.dumps(analysis, ensure_ascii=False))
+        record_event(db, thread_id, "review_decision", "dashboard", f"{now}-{uuid4().hex[:6]}", texto, now)
+        db.commit()
+    finally:
+        db.close()
+    log.info("%s: volvió a la decisión técnica antes de enviar (%s)", thread_id, accion)
+    return mensaje
+
+
 def resolve_technical_review(
     thread_id: str, decision: str, questions_text: str = "", *,
     elecciones: Mapping[str, tuple[str, str]] | None = None, nuevas: str = "",

@@ -103,6 +103,29 @@ class Transitions(unittest.TestCase):
                         quotes.resolve_technical_review(thread, row["decision"], questions)
                         self.assertEqual(self.status(thread), row["hacia"])
 
+    def con_decision_de_preguntar(self, thread):
+        db = connect()
+        row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread,)).fetchone()
+        analysis = json.loads(row["analysis_json"] or "{}")
+        analysis["manual_review"] = {"decision": "ask_client", "at": "2026-10-01T10:30:00-05:00", "questions": ["¿Datum?"]}
+        db.execute("UPDATE quotes SET analysis_json=? WHERE thread_id=?", (json.dumps(analysis), thread))
+        db.commit()
+        db.close()
+
+    def test_going_back_before_sending(self):
+        for row in self.rows("volver_a_decidir"):
+            for origin in row["desde"]:
+                with self.subTest(row=row["id"], desde=origin):
+                    thread = self.seed(origin)
+                    if row.get("con_decision"):
+                        self.con_decision_de_preguntar(thread)
+                    if row["hacia"] == "error":
+                        with self.assertRaises(ValueError):
+                            quotes.volver_a_decidir(thread, "reconsiderar")
+                    else:
+                        quotes.volver_a_decidir(thread, row["accion"])
+                        self.assertEqual(self.status(thread), row["hacia"])
+
     def con_pendiente_interno(self, thread):
         db = connect()
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread,)).fetchone()

@@ -32,7 +32,7 @@ from anka.servicios.change_control import (
     assign_code, promote_to_te, resolve_change,
 )
 from anka.servicios.quotes import (
-    dismiss_pending_links, dismiss_pending_links_many, mark_notifications_read, rescue_discarded,
+    dismiss_pending_links, dismiss_pending_links_many, mark_notifications_read, rescue_discarded, volver_a_decidir,
     merge_project_thread, resolve_link, resolve_model_proposal, resolve_technical_review, save_quote_metadata,
     separate_project_thread,
 )
@@ -151,6 +151,13 @@ def _post_review_decision(form: Form) -> str:
     # Tras decidir, directo al paso que sigue: el correo, o la emisión de la T; guardar decisiones no cambia de paso.
     anchor = {"ask_client": "#respuesta", "sufficient": "#emitir-t"}.get(decision, "")
     return _to_case(thread_id, message, anchor)
+
+
+def _post_review_reopen(form: Form) -> str:
+    """Cambiar de idea antes de enviar las preguntas (U-27): volver a elegirlas o desistir de preguntar."""
+    thread_id, accion = field(form, "thread_id"), field(form, "accion")
+    message = _guidance(lambda: volver_a_decidir(thread_id, accion), ValueError)
+    return _to_case(thread_id, message, {"reconsiderar": "#decision", "suficiente": "#emitir-t"}.get(accion, ""))
 
 
 def _post_project_merge(form: Form) -> str:
@@ -275,6 +282,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/mode": _post_mode,
     "/rescue": _post_rescue,
     "/review-decision": _post_review_decision,
+    "/review-reopen": _post_review_reopen,
     "/followup": _post_followup,
     "/project-merge": _post_project_merge,
     "/project-separate": _post_project_separate,

@@ -465,6 +465,16 @@ _FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify
                         "te_aprobada")
 
 
+def _puede_volver_atras(review: Caso, analysis: Analisis) -> bool:
+    """¿Sigue sin salir el correo de la decisión de preguntar? Entonces se puede cambiar de idea (U-27)."""
+    decision = analysis.get("manual_review") or {}
+    if review["status"] not in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
+        return False
+    if decision.get("decision") != "ask_client":
+        return False
+    return not (review.get("sent_at") and str(review["sent_at"]) >= str(decision.get("at") or ""))
+
+
 def _codigo_para_el_contacto(review: Caso) -> str:
     """El código de la oferta para citarlo en el correo, o '' si no hay T o el destinatario no es el contacto registrado
     (R11: a quien no es el contacto nunca se le incluye el código)."""
@@ -661,6 +671,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         sufficient=assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=review["status"] == QuoteStatus.REVIEW,
+        puede_volver=_puede_volver_atras(review, analysis),
         preguntas=preguntas, preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
