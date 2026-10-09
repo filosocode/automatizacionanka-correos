@@ -207,6 +207,17 @@ La evaluación distingue pruebas determinísticas de resultados observados con m
 del prompt, modelo, fecha, corpus anonimizado y resultados por caso. Una muestra sin etiquetar no produce una
 calificación de precisión. La trazabilidad identifica métodos de prueba ejecutables y no solo archivos etiquetados.
 
+### T-34 · Evaluar el análisis con solicitudes reales del histórico
+Para saber cuánto acierta el análisis (T-23) se arma un conjunto de casos a partir del histórico de propuestas (`I:\T&E`, solo
+lectura): la solicitud que hizo el cliente frente a lo que Anka terminó cotizando. Cada caso es una ficha con lo esperado: si es
+una solicitud, la ubicación, las actividades con su cantidad y unidad, y los datos que la solicitud no traía y debían preguntarse.
+Una ficha nace como **borrador** (la propone el modelo a partir de la propuesta aprobada) y solo cuenta cuando una persona la
+**valida**. Las fichas y los informes viven en la carpeta de datos del equipo, nunca en el repositorio, y los archivos del cliente
+no se copian: la ficha apunta a su ubicación original. `evaluar` corre la cadena real (lectura de adjuntos, análisis,
+preguntas) sobre las fichas validadas y mide: si identifica la solicitud, qué actividades encuentra y con qué cantidad y unidad,
+si encuentra la ubicación, y si pregunta lo que faltaba sin preguntar lo que ya venía. El informe guarda el modelo, la versión
+del prompt, la fecha y el resultado por caso, para comparar versiones. Sin fichas validadas no se calcula ninguna precisión.
+
 ### T-24 · Lectura completa de los adjuntos legibles
 La lectura exhaustiva de los adjuntos es lo que sostiene una cotización correcta, y vale igual en los tres modos. Todo adjunto
 de un formato legible (hasta 50 MiB, más que el máximo de Gmail) se lee completo: ningún recorte por longitud al texto que
