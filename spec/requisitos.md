@@ -39,7 +39,8 @@ el alcance y proponer preguntas; el validador Python comprueba la estructura y r
 
 ### F1-04 · Detectar datos faltantes
 Determina qué datos faltan para la etapa de cotización, distinguiendo lo crítico de lo recomendable, y los convierte
-en preguntas para el cliente. Con dependencias o contradicciones pendientes el caso pasa a revisión técnica.
+en preguntas para el cliente. Con dependencias o contradicciones pendientes el caso pasa a revisión técnica. Una magnitud (área, longitud, cantidad) solo cuenta como conocida si trae un número, en cifras o en palabras
+comunes: una etiqueta como «Área» o una palabra como «varios» en el campo de cantidad no lo es, y el caso pregunta la magnitud.
 
 ### F1-05 · Pedir los datos al cliente
 Prepara el correo de respuesta con las preguntas; una persona lo revisa y lo envía desde el dashboard o desde Gmail
