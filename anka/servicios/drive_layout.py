@@ -24,6 +24,7 @@ from anka.infra.google_services import ensure_folder, list_file_names, list_fold
 from anka.dominio.reception import normalized_text
 
 PATH_TEMPLATE = "{año}/{cliente}/{solicitud}"
+MAX_FOLDER_NAME = 150       # un asunto largo no debe producir un nombre ilegible ni rozar el tope de Drive
 
 # Sufijos societarios que se ignoran al comparar nombres (solo al final del nombre).
 LEGAL_SUFFIXES = (
@@ -174,6 +175,9 @@ def clean_folder_name(name: str) -> str:
     clean = re.sub(r"\s+", " ", _INVALID_CHARS.sub(" ", name)).strip(" .")
     if not clean:
         raise ValueError("El nombre de la carpeta no puede estar vacío.")
+    if len(clean) > MAX_FOLDER_NAME:
+        corte = clean[:MAX_FOLDER_NAME]
+        clean = (corte.rsplit(" ", 1)[0] if " " in corte else corte).strip(" .")   # sin cortar una palabra a la mitad
     return clean
 
 

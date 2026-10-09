@@ -19,7 +19,7 @@ Distingue una solicitud de cotización de lo que no lo es. Descarta sin analizar
 motivo para poder rescatarlo (R1 a R3); ante la duda, analiza.
 
 ### F1-03 · Tabla de actividades
-Resume cada solicitud en una tabla de actividades que una persona puede editar y exportar a Excel. Se conserva la
+Resume cada solicitud en una tabla de actividades que una persona puede editar y exportar a Excel. La unidad se escribe de una sola forma (ha, km, m, km², m²) aunque el correo diga «hectáreas», «Ha» o «Km». Se conserva la
 versión del modelo y cada edición queda como versión nueva, con sus diferencias y un motivo opcional.
 Los hechos extraídos de adjuntos conservan el nombre del archivo y un localizador verificable (página, párrafo,
 tabla/fila, hoja/celda o elemento KML/KMZ); los archivos o secciones no leídos se identifican como parciales o
@@ -362,6 +362,13 @@ anota la hora en que el borrador apareció en Gmail y la importación la compara
 lo dice en el hecho «Work analizó el caso»: «El borrador estaba en Gmail desde las HH:MM:SS; llegó al dashboard N s después»,
 y el registro técnico guarda el mismo dato. Esa hora no forma parte de la huella del contenido: reguardar un borrador sin
 cambiarlo no lo reimporta. Si no se conoce la hora, el hecho queda como antes.
+
+### T-31 · Las entradas inválidas se responden con claridad
+Una petición que la aplicación rechaza con su motivo (un caso que ya no existe, un dato no válido) responde 400 con ese mensaje y se
+anota como aviso, no como error del servidor (500); un fallo propio del código sigue siendo 500 y se anota con su traza. Un número
+mal escrito en la dirección (`change_id=abc`) se toma como «ninguno» y no muestra el texto interno de Python. El nombre de una
+carpeta de Drive tiene un tope de 150 caracteres y no se corta una palabra a la mitad. La importación de Work sigue aceptando un texto
+donde se espera una lista (Work lo hace a veces); el contrato completo se exige en el puente, que es la entrada de producción.
 
 ### T-30 · Revisar Gmail ahora y un ciclo más corto del puente
 El puente revisa Gmail cada 30 segundos (antes 60; es el mínimo permitido). En modo ChatGPT Work el botón «Revisar ahora» del
