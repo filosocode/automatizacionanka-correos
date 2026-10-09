@@ -421,6 +421,9 @@ numeradas tal como se escribieron, «Puede responder a este mismo correo» y la 
 reescribe ni inventa nada. Una línea sin signos de interrogación se escribe entre ellos; se ignoran las líneas vacías, la numeración
 y las viñetas que la persona haya puesto y las preguntas repetidas, con un máximo de 20. El texto queda en el cuadro para editarlo;
 nada se envía hasta «Enviar ahora» (R8), y el aviso previo cuenta las preguntas y la casilla de espera sigue funcionando.
+Si el caso ya tiene código (T o T&E) y el correo va al contacto registrado, la plantilla es otra: nombra el proyecto y el código
+(«Sobre su proyecto «X» (T26145), necesitamos confirmar lo siguiente») y pide citar el código al responder, porque desde la T la
+tabla solo se actualiza con mensajes que lo citen (R11). A quien no es el contacto registrado nunca se le incluye el código.
 
 ### U-22 · Decidir cada pregunta y saber de qué correos se espera respuesta
 En un caso en revisión técnica, cada pregunta candidata (las de la auditoría de preguntas, las pendientes del análisis y las de

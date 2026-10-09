@@ -25,7 +25,9 @@ from anka.web.views import (
 from anka.dominio.status import (
     QuoteStatus,
 )
-from anka.dominio.correo import reply_body_without_quoted_history, split_quoted_reply, valid_email_address
+from anka.dominio.correo import (
+    normalized_address, reply_body_without_quoted_history, split_quoted_reply, valid_email_address,
+)
 from anka.dominio.preguntas import candidatas, con_decisiones, elegida, separar
 from anka.dominio.reception import (
     correo_con_preguntas, reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
@@ -463,6 +465,18 @@ _FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify
                         "te_aprobada")
 
 
+def _codigo_para_el_contacto(review: Caso) -> str:
+    """El código de la oferta para citarlo en el correo, o '' si no hay T o el destinatario no es el contacto registrado
+    (R11: a quien no es el contacto nunca se le incluye el código)."""
+    numero = review.get("quote_code", "")
+    if not numero:
+        return ""
+    contacto = review.get("contact_email") or review["recipient"]
+    if normalized_address(contacto) != normalized_address(review["recipient"]):
+        return ""
+    return code_label(numero, review.get("code_stage", "T"))
+
+
 def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, template: str, change_id: int, *,
                    email_allowed: bool, reopened: bool, technical: bool, recipient_error: str,
                    preguntas_escritas: Sequence[str] = ()) -> tuple[str, str, bool]:
@@ -479,7 +493,10 @@ def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, temp
         if not preguntas_escritas:
             return "form", "", True
         reenviado = bool(analysis.get("routing", {}).get("is_forwarded"))
-        return "form", correo_con_preguntas(list(preguntas_escritas), reenviado), False
+        codigo = _codigo_para_el_contacto(review)
+        proyecto = analysis.get("project_name") or ""
+        correo = correo_con_preguntas(list(preguntas_escritas), reenviado, proyecto=proyecto, codigo=codigo)
+        return "form", correo, False
     if template == "libre" or (template not in _FREE_FORM_TEMPLATES and reopened):
         return "form", "", True       # respuesta libre en blanco (o caso ya avanzado)
     if template in _FREE_FORM_TEMPLATES:
