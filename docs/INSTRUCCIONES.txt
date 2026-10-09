@@ -1,6 +1,6 @@
 ﻿INSTRUCCIONES DE LA TAREA CHATGPT WORK — GRUPO ANKA
 
-Este archivo explica el puente Gmail → dashboard. El prompt de evidencia vigente está en `PROMPT_WORK_ANKA_PRECISO_V3.txt`. Editar archivos locales no actualiza una tarea activa de ChatGPT Work.
+Este archivo explica el puente Gmail → dashboard. El prompt de evidencia vigente está en `PROMPT_WORK_ANKA_PRECISO_V4.txt` (la V3 se conserva). Editar archivos locales no actualiza una tarea activa de ChatGPT Work.
 
 PAQUETE LOCAL DE EVIDENCIA PARA WORK
 Work no ejecuta los extractores Python. Para dar a Work texto extraído localmente, descarga primero los adjuntos del mensaje y genera el paquete:
@@ -9,7 +9,8 @@ Adjunta a la misma tarea de Work `manifest.json`, `LEEME.md` y todos los `.txt` 
 Límites del comando: 30 adjuntos, 50 MiB por archivo, 250 MiB total y 300 MiB de texto extraído por paquete. Se mantienen los límites internos por formato (PDF, hojas, ZIP/KMZ); los documentos parciales siguen señalados.
 
 CONTRATO V2: PREGUNTAS CON EVIDENCIA
-El bloque JSON incluye thread_id, message_id, client_email, client_name, project_name, summary, status, engine, received_at, gmail_url, requested_by_email, requested_by_name, cited_codes, activities, fields, missing_data, evidence_register, question_audit, attachments, contradictions y scope_dependencies. `missing_data` acepta textos legacy u objetos `{ "name": "dato pendiente", "type": "critical"|"recommended" }`. El puente agrega draft_reply y draft_id.
+El bloque JSON incluye thread_id, message_id, client_email, client_name, project_name, summary, status, engine, model, skill_version, received_at, gmail_url, requested_by_email, requested_by_name, cited_codes, activities, fields, missing_data, evidence_register, question_audit, attachments, contradictions y scope_dependencies. `missing_data` acepta textos legacy u objetos `{ "name": "dato pendiente", "type": "critical"|"recommended" }`. El puente agrega draft_reply y draft_id.
+`model` y `skill_version` (opcionales, solo internos): el modelo que muestra la interfaz de Work y la versión del prompt (`PRECISO_V4`). Quedan en el caso y en su historial; nunca van en el correo para el cliente.
 Cada actividad incluye activity, servicio_tecnica, ubicacion, quantity, unit, entregable, plazo_restriccion, fuente, estado y notes. Cada field contiene name, value y source.
 En `notes`, explica faltantes con fuente y siguiente paso. Si `estado` es `contradictorio`, precisa qué parámetro discrepa, los valores y localizadores de ambas fuentes, qué decisión falta y el rol que debe resolverla. Usa `equipo técnico de Anka` para decisiones internas; no inventes responsables ni pidas al cliente que resuelva criterios propios de Anka.
 Para cada dato relevante, registra un hallazgo atómico en evidence_register con id, topic, status, value, source, location, owner y blocking. Cada pregunta de other_questions debe tener entrada en question_audit con question, reason_missing, reviewed_sources, question_id, target_finding_ids, disposition y unresolved. Pregunta al cliente solo por evidencia pendiente y bloqueante que le corresponda resolver. No preguntes datos explícitos ni traslades al cliente límites de lectura; estos últimos van a revisión interna. Si el dato es parcial, pregunta solo por lo que falta.

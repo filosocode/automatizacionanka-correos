@@ -15,6 +15,8 @@
       "$comment": "Se acepta sin tildes ni mayúsculas: el puente lo normaliza a esta etiqueta antes de validar."
     },
     "engine": {"type": "string", "enum": ["chatgpt_work"]},
+    "model": {"type": "string", "$comment": "T-32, opcional y solo interno: el modelo que declara la interfaz de Work para la tarea."},
+    "skill_version": {"type": "string", "$comment": "T-32, opcional y solo interno: la versión del prompt, p. ej. PRECISO_V4."},
     "client_email": {"type": "string", "minLength": 1},
     "client_name": {"type": "string"},
     "project_name": {"type": "string", "minLength": 1},
