@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 import unicodedata
 from functools import lru_cache
 from email.utils import parseaddr
@@ -111,6 +112,21 @@ def _known_intake_value(value: object) -> bool:
     return bool(text) and not any(marker in text for marker in unknown)
 
 
+_NUMERO_EN_PALABRAS = re.compile(
+    r"\b(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|"
+    r"cincuenta|cien|ciento|mil|media|medio)\b")
+
+
+def _known_magnitude(value: object) -> bool:
+    """¿Es una medida? Debe traer una cantidad (en cifras o en palabras comunes): «Área» o «varios» no lo son.
+
+    El modelo a veces escribe el nombre del dato («Área») donde va el valor; sin esta exigencia el caso salía como
+    «información suficiente» sin que nadie preguntara el área (F1-04).
+    """
+    texto = normalized_text(str(value or ""))
+    return _known_intake_value(value) and bool(re.search(r"\d", texto) or _NUMERO_EN_PALABRAS.search(texto))
+
+
 def _detected_service_family(analysis: Analisis) -> str:
     text = normalized_text(" ".join([
         str(analysis.get("project_name") or ""),
@@ -167,9 +183,9 @@ def _intake_facts(analysis: Analisis) -> tuple[bool, bool, bool]:
     }
     activities = [item for item in analysis.get("activities", []) if isinstance(item, dict)]
 
-    def field_known(*terms: str) -> bool:
+    def field_known(*terms: str, known: Callable[[object], bool] = _known_intake_value) -> bool:
         return any(
-            any(normalized_text(term) in name for term in terms) and _known_intake_value(value)
+            any(normalized_text(term) in name for term in terms) and known(value)
             for name, value in fields.items()
         )
 
@@ -177,8 +193,8 @@ def _intake_facts(analysis: Analisis) -> tuple[bool, bool, bool]:
         _known_intake_value(item.get("ubicacion")) for item in activities
     )
     magnitude_known = field_known(
-        "area", "longitud", "cantidad", "dimension", "numero de", "magnitud"
-    ) or any(_known_intake_value(item.get("quantity")) for item in activities)
+        "area", "longitud", "cantidad", "dimension", "numero de", "magnitud", known=_known_magnitude
+    ) or any(_known_magnitude(item.get("quantity")) for item in activities)
     purpose_known = bool(activities) and any(
         _known_intake_value(item.get("activity")) for item in activities
     )
