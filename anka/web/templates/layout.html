@@ -31,6 +31,8 @@
       </div></details>
       {% if not is_work %}<form method="post" action="/refresh">
         <button type="submit">Actualizar correo</button>
+      </form>{% else %}<form method="post" action="/refresh">
+        <button type="submit" class="secondary" title="Pide al puente que revise Gmail ahora, sin esperar su ciclo">Revisar ahora</button>
       </form>{% endif %}
     </div>
   </header>
@@ -215,6 +217,11 @@
       }
       poll();
       setInterval(poll, 20000);
+      // Aviso inmediato del servidor (U-23): si el navegador no lo admite o se corta, queda la consulta de arriba.
+      if (window.EventSource) {
+        const avisos = new EventSource('/eventos');
+        avisos.onmessage = () => poll();
+      }
     })();
   </script>
 </body>

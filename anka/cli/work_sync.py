@@ -7,7 +7,6 @@ import hashlib
 import html
 import json
 import re
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,7 +17,7 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.infra.logging_setup import configure_logging, get_logger
 from anka.dominio.status import canonical_work_status
 from anka.dominio.work_contract import corregir_descuidos_de_tipo, validate
-from anka.infra.work_heartbeat import other_bridge_running, write_heartbeat
+from anka.infra.work_heartbeat import other_bridge_running, wait_for_next_cycle, write_heartbeat
 
 MOTIVO_MAX = 300
 
@@ -185,7 +184,7 @@ def main() -> None:
     """Importa los borradores de Work al dashboard una vez (`--once`) o cada N segundos, solo leyendo Gmail."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true")
-    parser.add_argument("--seconds", type=int, default=60)
+    parser.add_argument("--seconds", type=int, default=30)
     args = parser.parse_args()
     if args.seconds < 30:
         parser.error("--seconds debe ser al menos 30")
@@ -234,7 +233,7 @@ def main() -> None:
         write_heartbeat(args.seconds, error=error, **result)
         if args.once:
             raise SystemExit(1 if error or result["failures"] else 0)
-        time.sleep(args.seconds)
+        wait_for_next_cycle(args.seconds)   # o hasta que el dashboard pida revisar ahora
 
 def cli() -> None:
     """Entrada de línea de comandos: Ctrl+C detiene el puente sin mostrar una traza."""

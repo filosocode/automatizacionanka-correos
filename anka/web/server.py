@@ -6,6 +6,10 @@ from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import re
 import secrets
+import select
+import socket
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -46,6 +50,7 @@ GET_ROUTES: dict[str, str] = {
     "/archive": "_get_archive",
     "/export.xlsx": "_get_export",
     "/state": "_get_state",
+    "/eventos": "_get_eventos",
     "/api/casos": "_get_api_cases",
     "/api/salud": "_get_api_health",
     "/api/autorizacion": "_get_api_authorization",
@@ -54,6 +59,15 @@ GET_ROUTES: dict[str, str] = {
 }
 GET_PATTERNS: dict[str, str] = {"/api/casos/{thread_id}": "_get_api_case"}
 _GET_PATTERNS = [(re.compile(re.sub(r"\{\w+\}", "([^/]+)", template)), name) for template, name in GET_PATTERNS.items()]
+
+
+# Canal de avisos en vivo (U-23): la página deja una conexión abierta y el servidor le avisa cuando algo cambia.
+STREAM_ROUTES = frozenset({"/eventos"})
+MAX_STREAMS = 16            # pestañas conectadas a la vez; las demás siguen con la consulta periódica de siempre
+STREAM_SECONDS = 600        # la conexión se renueva sola: el navegador reconecta (no queda colgada para siempre)
+STREAM_CHECK = 1.0          # cada cuánto mira si cambió algo (una consulta ligera)
+STREAM_KEEPALIVE = 15       # latido para que nada corte una conexión inactiva
+_streams = threading.BoundedSemaphore(MAX_STREAMS)
 
 
 class ReviewHandler(BaseHTTPRequestHandler):
@@ -90,6 +104,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         """Atiende las páginas del dashboard; un error se registra y se muestra sin romper el servidor."""
         try:
+            if urllib.parse.urlparse(self.path).path in STREAM_ROUTES:
+                return self._get()      # una conexión larga no puede retener la conexión a la base de la petición
             with request_scope():   # una sola conexión a la base para toda la petición
                 self._get()
         except Exception as exc:
@@ -160,6 +176,47 @@ class ReviewHandler(BaseHTTPRequestHandler):
         google = estado_de_google()
         self._send_json({"v": change_marker(), "bridge": state, "text": text,
                          "google": {"estado": google.estado, "texto": google.texto}})
+
+    def _get_eventos(self, query: dict[str, list[str]]) -> None:
+        """Avisa a la página en cuanto cambia algo (U-23), en vez de esperar a su consulta periódica."""
+        if not _streams.acquire(blocking=False):
+            return self._send_json({"error": "Demasiadas pestañas conectadas."}, 503)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Frame-Options", "DENY")
+            self.end_headers()
+            self.wfile.write(b"retry: 3000\n\n")
+            last, quiet, started = None, 0.0, time.monotonic()
+            while time.monotonic() - started < STREAM_SECONDS:
+                marker = change_marker()
+                if marker != last:
+                    last, quiet = marker, 0.0
+                    self.wfile.write(f"data: {marker}\n\n".encode())
+                elif quiet >= STREAM_KEEPALIVE:
+                    quiet = 0.0
+                    self.wfile.write(b": latido\n\n")
+                self.wfile.flush()
+                if self._pestana_cerrada():
+                    break
+                time.sleep(STREAM_CHECK)
+                quiet += STREAM_CHECK
+        except OSError:
+            pass                        # la pestaña se cerró: es lo normal
+        finally:
+            _streams.release()
+            self.close_connection = True
+
+    def _pestana_cerrada(self) -> bool:
+        """¿Cerró el navegador esta conexión? Se sabe sin escribir nada, para liberar el cupo al instante."""
+        try:
+            conexion = self.connection
+            if not select.select([conexion], [], [], 0)[0]:
+                return False
+            return conexion.recv(1, socket.MSG_PEEK) == b""
+        except (AttributeError, OSError, ValueError):
+            return False          # sin socket (pruebas) o ya roto: el siguiente envío lo decide
 
     def _get_api_cases(self, query: dict[str, list[str]]) -> None:
         include_discarded = field(query, "descartados").lower() in ("1", "true", "si", "sí")

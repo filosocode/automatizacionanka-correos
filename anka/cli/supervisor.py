@@ -155,7 +155,7 @@ def servicio() -> int:
     configure_logging(console=sys.stdout is not None)
     stop_old_instances()
     dashboard = Child("Dashboard", ["app.py", "review-ui", "--no-browser"])
-    bridge = Child("Puente Work", ["work_dashboard_sync.py", "--seconds", "60"])
+    bridge = Child("Puente Work", ["work_dashboard_sync.py", "--seconds", "30"])
     children = [dashboard, bridge]
     snapshot = code_snapshot()
     last_reminders = 0.0

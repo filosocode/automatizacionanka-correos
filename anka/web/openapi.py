@@ -123,6 +123,10 @@ OPERACIONES: tuple[Operacion, ...] = (
               ejemplo_respuesta={"v": "3|2026-10-01T19:01:12-05:00|0|50", "bridge": "ok",
                                  "text": "Puente Work activo: Gmail revisado hace 36 s.",
                                  "google": {"estado": "ok", "texto": "La autorización de Google está vigente."}}),
+    Operacion("get", "/eventos", "Lectura (JSON)", "Avisos en vivo de cambios",
+              "Conexión abierta (Server-Sent Events): el servidor avisa a la página en cuanto cambia un caso, para que "
+              "se actualice sin esperar a la consulta de `/state`. Se renueva sola cada 10 minutos.",
+              contenido="eventos"),
     # ------------------------------------------------------------------ páginas
     Operacion("get", "/", "Páginas", "Resumen («qué hacer hoy»)",
               "Novedades, casos que esperan acción y métricas.", campos=(_MENSAJE,)),
@@ -268,7 +272,8 @@ OPERACIONES: tuple[Operacion, ...] = (
                           opciones=("use", "keep"))), "redirect"),
     # ------------------------------------------------------------------ acciones generales
     Operacion("post", "/refresh", "Acciones generales", "⚠ Actualizar correo",
-              "Revisa Gmail ahora. En modo ChatGPT Work no lee Gmail: solo informa el estado del puente.",
+              "Revisa Gmail ahora. En modo ChatGPT Work el dashboard no lee Gmail: despierta al puente para que "
+              "revise sin esperar su ciclo.",
               "gmail", (), "redirect"),
     Operacion("post", "/google/reautorizar", "Acciones generales", "⚠ Reautorizar Google",
               "Abre en **este equipo** el consentimiento de Google (iniciar sesión y aceptar los permisos de Gmail y "
@@ -367,6 +372,12 @@ def _respuestas_get(operacion: Operacion) -> dict[str, Any]:
             responses["404"] = {"description": "El caso no existe.",
                                 "content": {"application/json": {"example": {"error": "La solicitud no existe."}}}}
         return responses
+    if operacion.contenido == "eventos":
+        return {"200": {"description": "Avisos (Server-Sent Events): un `data:` con la marca de cambios "
+                                       "cuando algo cambia y un latido cada 15 s.",
+                        "content": {"text/event-stream": {"schema": {"type": "string"}}}},
+                "503": {"description": "Ya hay demasiadas pestañas conectadas; esa sigue con la consulta periódica.",
+                        "content": {"application/json": {"example": {"error": "Demasiadas pestañas conectadas."}}}}}
     if operacion.contenido == "xlsx":
         return {"200": {"description": "Archivo Excel.", "content": {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
