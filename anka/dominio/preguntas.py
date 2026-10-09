@@ -38,6 +38,10 @@ class Pregunta(TypedDict, total=False):
 
 
 _INTERNA = re.compile(r"\bintern(?:o|a|os|as|amente)\b", re.IGNORECASE)
+# Lo que Anka no pudo leer o comprobar: es de Anka, no del cliente, tenga o no la forma de una pregunta.
+_LIMITE_DE_LECTURA = re.compile(
+    r"no inspeccion|sin inspeccionar|no verificad|parcialmente|no legible|ilegible|no se pudo (?:leer|abrir)",
+    re.IGNORECASE)
 _PREFIJOS = ("crítico:", "critico:", "recomendable:")
 _TIPO_AL_FINAL = re.compile(r"\s*\((?:critical|recommended|crítico|recomendable)\)\s*$", re.IGNORECASE)
 _URL = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
@@ -69,9 +73,17 @@ def es_interna(texto: str) -> bool:
     """¿Es una tarea de Anka y no una pregunta al cliente? Su encabezado dice «interno», «interna» o «internamente».
 
     Solo se mira el encabezado (lo anterior a los dos puntos) y nunca un texto que ya es una pregunta: «¿Cuál es el
-    área interna del lote?» sí se le puede hacer al cliente.
+    área interna del lote?» sí se le puede hacer al cliente. Un límite de lectura («KML no inspeccionable») también es
+    de Anka.
     """
-    return "?" not in texto and bool(_INTERNA.search(texto.split(":", 1)[0]))
+    if "?" in texto:
+        return False
+    return bool(_INTERNA.search(texto.split(":", 1)[0]) or _LIMITE_DE_LECTURA.search(texto))
+
+
+def _sugerencia(texto: str) -> str:
+    """Qué sugerir de un punto del análisis: lo de Anka (tareas internas, límites de lectura) no va al cliente."""
+    return INTERNA if es_interna(texto) else PREGUNTAR
 
 
 def candidatas(analysis: Mapping[str, Any], assessment: Mapping[str, Any] | None = None) -> list[Pregunta]:
@@ -89,13 +101,12 @@ def candidatas(analysis: Mapping[str, Any], assessment: Mapping[str, Any] | None
     for item in analysis.get("question_audit") or []:
         if isinstance(item, Mapping):
             texto = limpiar(item.get("question"))
-            por_defecto = INTERNA if es_interna(texto) else PREGUNTAR
-            sugerida = _SUGERENCIA_DE_DISPOSICION.get(str(item.get("disposition") or ""), por_defecto)
+            sugerida = _SUGERENCIA_DE_DISPOSICION.get(str(item.get("disposition") or ""), _sugerencia(texto))
             agregar(texto, sugerida, "auditoría")
     for texto in (assessment or {}).get("questions", []):
-        agregar(texto, INTERNA if es_interna(limpiar(texto)) else PREGUNTAR, "recepción")
+        agregar(texto, _sugerencia(limpiar(texto)), "recepción")
     for texto in analysis.get("other_questions") or []:
-        agregar(texto, INTERNA if es_interna(limpiar(texto)) else PREGUNTAR, "análisis")
+        agregar(texto, _sugerencia(limpiar(texto)), "análisis")
     return list(encontradas.values())
 
 
@@ -167,8 +178,8 @@ _VINETA = re.compile(r"^\s*(?:\d+\s*[.)\-:]|[-*\u2022\u00b7])\s*")
 def separar(texto: str) -> list[str]:
     """Las preguntas que una persona escribió, una por línea (U-24).
 
-    Se ignoran las líneas vacías, la numeración o viñeta que traigan y las repetidas; una línea sin signos de
-    interrogación se escribe entre ellos, para que el correo y el aviso de espera la cuenten como pregunta.
+    Se ignoran las líneas vacías, la numeración o viñeta que traigan y las repetidas. Cada línea es un punto de la
+    lista del correo, tal como se escribió.
     """
     resultado: list[str] = []
     vistas: set[str] = set()
@@ -176,8 +187,6 @@ def separar(texto: str) -> list[str]:
         limpia = _VINETA.sub("", linea).strip()[:MAX_TEXTO].rstrip(" .;:")
         if not limpia:
             continue
-        if "?" not in limpia:
-            limpia = "\u00bf" + limpia + "?"
         clave = identificador(limpia)
         if clave not in vistas:
             vistas.add(clave)
@@ -208,14 +217,46 @@ def hay_pendientes_internos(analysis: Mapping[str, Any]) -> bool:
     return bool(internas(analysis.get("preguntas") or []))
 
 
+_FRASE_DE_LISTA = re.compile(r"confirm(?:ar|e|en|arnos)\s+lo\s+siguiente")
+_PUNTO_DE_LISTA = re.compile(r"^\s*(?:\d+\s*[.)]|[-*\u2022])\s+(\S.*?)\s*$")
+
+
+def _puntos_de_la_lista(lineas: Sequence[str]) -> list[str]:
+    """Los puntos numerados que siguen a «…confirmar lo siguiente»: lo que el correo pide confirmar."""
+    puntos: list[str] = []
+    for i, linea in enumerate(lineas):
+        if not _FRASE_DE_LISTA.search(_plano(linea)):
+            continue
+        hay = False
+        for siguiente in lineas[i + 1:]:
+            if not siguiente.strip():
+                if hay:
+                    break           # una línea en blanco tras los puntos cierra la lista
+                continue
+            punto = _PUNTO_DE_LISTA.match(siguiente)
+            if not punto:
+                break
+            hay = True
+            puntos.append(" ".join(punto.group(1).split()))
+    return puntos
+
+
 def en_el_correo(cuerpo: str) -> list[str]:
-    """Las preguntas que de verdad contiene un correo (enlaces aparte): de ellas depende que se espere respuesta."""
+    """Lo que un correo le pide al cliente (enlaces aparte): de ello depende que se espere respuesta.
+
+    Son los puntos de la lista que presenta «¿podría confirmar lo siguiente?» y las preguntas con «?» que lleve fuera de
+    ella. La frase que presenta la lista es la pregunta, no un punto más (U-26).
+    """
     sin_enlaces = _URL.sub("", cuerpo)
-    vistas: list[str] = []
+    vistos = _puntos_de_la_lista(sin_enlaces.splitlines())
     for coincidencia in _PREGUNTA.findall(sin_enlaces):
         pregunta = " ".join(coincidencia.split())
-        if _plano(pregunta) == _INTRODUCCION:      # la frase de la plantilla que presenta la lista no es una pregunta
+        plana = _plano(pregunta)
+        if plana == _INTRODUCCION or any(plana in _plano(punto) for punto in vistos):
             continue
-        if pregunta not in vistas:
-            vistas.append(pregunta)
-    return vistas
+        vistos.append(pregunta)
+    unicos: list[str] = []
+    for punto in vistos:
+        if punto not in unicos:
+            unicos.append(punto)
+    return unicos

@@ -18,7 +18,7 @@ from tests.test_app import complete_analysis, test_config
 class SepararPreguntas(unittest.TestCase):
     def test_each_line_is_a_question_without_numbering_or_bullets_and_without_repeats(self):
         texto = "1. ¿Cuál es el datum?\n- Plazo de entrega\n  \n2) ¿Cuál es el datum?\n* Hay acceso al predio."
-        self.assertEqual(dominio.separar(texto), ["¿Cuál es el datum?", "¿Plazo de entrega?", "¿Hay acceso al predio?"])
+        self.assertEqual(dominio.separar(texto), ["¿Cuál es el datum?", "Plazo de entrega", "Hay acceso al predio"])
 
     def test_a_line_that_is_already_a_question_is_left_alone(self):
         self.assertEqual(dominio.separar("What is the datum?"), ["What is the datum?"])
@@ -127,8 +127,8 @@ class EnLaPantalla(unittest.TestCase):
         self.caso(QuoteStatus.READY_REVIEW)
         pagina = pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto="Plazo de entrega\nEnvíe el KMZ")
         cuadro = self.cuadro(pagina)
-        self.assertIn("1. ¿Plazo de entrega?", cuadro)
-        self.assertIn("2. ¿Envíe el KMZ?", cuadro)
+        self.assertIn("1. Plazo de entrega", cuadro)
+        self.assertIn("2. Envíe el KMZ", cuadro)
         self.assertIn("Plazo de entrega", pagina.split('name="preguntas"')[1].split("</textarea>")[0])
 
     def test_with_no_questions_typed_the_box_stays_blank(self):
@@ -150,7 +150,7 @@ class EnLaPantalla(unittest.TestCase):
         pagina = pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto="Nombre del encargado")
         cuadro = self.cuadro(pagina)
         self.assertIn("(T26145), necesitamos confirmar lo siguiente:", cuadro)
-        self.assertIn("1. ¿Nombre del encargado?", cuadro)
+        self.assertIn("1. Nombre del encargado", cuadro)
         self.assertIn("cite el código T26145", cuadro)
 
     def test_the_code_is_never_sent_to_someone_who_is_not_the_registered_contact(self):

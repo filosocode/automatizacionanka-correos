@@ -52,11 +52,27 @@
       if (!cuerpo || !aviso) return;
       const casilla = document.getElementById('esperar-respuesta');
       function contar() {
-        // Misma regla que el servidor (anka/dominio/preguntas.py): las preguntas con signos, sin contar enlaces.
+        // Misma regla que el servidor (anka/dominio/preguntas.py): los puntos de la lista que presenta «confirmar lo
+        // siguiente» y las preguntas con «?» fuera de ella, sin contar enlaces.
+        const plano = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
         const texto = cuerpo.value.replace(/https?:\/\/\S+|www\.\S+/gi, '');
-        const halladas = texto.match(/¿[^?¿]*\?|[^\n¿.!?]{6,}\?/g) || [];
-        const propias = halladas.map(t => t.split(/\s+/).join(' ')).filter(t => !/^¿podr[ií]a confirmar lo siguiente\?$/i.test(t));
-        return new Set(propias).size;
+        const lineas = texto.split('\n');
+        const puntos = [];
+        lineas.forEach((linea, i) => {
+          if (!/confirm(?:ar|e|en|arnos)\s+lo\s+siguiente/.test(plano(linea))) return;
+          let hay = false;
+          for (const siguiente of lineas.slice(i + 1)) {
+            if (!siguiente.trim()) { if (hay) break; continue; }
+            const punto = siguiente.match(/^\s*(?:\d+\s*[.)]|[-*\u2022])\s+(\S.*?)\s*$/);
+            if (!punto) break;
+            hay = true;
+            puntos.push(plano(punto[1]));
+          }
+        });
+        (texto.match(/¿[^?¿]*\?|[^\n¿.!?]{6,}\?/g) || []).map(plano).forEach(h => {
+          if (h !== '¿podria confirmar lo siguiente?' && !puntos.some(p => p.includes(h))) puntos.push(h);
+        });
+        return new Set(puntos).size;
       }
       function mostrar() {
         const n = contar();
