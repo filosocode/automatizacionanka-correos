@@ -252,6 +252,14 @@ def _post_google_reauthorize(form: Form) -> str:
     return _to("/", reautorizar_google())
 
 
+def _post_notifications_seen(form: Form) -> str:
+    """La página de un caso, ya a la vista, marca como leídas las novedades de ese caso (U-25). Responde a un fetch."""
+    thread_id = field(form, "thread_id")
+    if thread_id:
+        mark_notifications_read(thread_id)
+    return "/state"
+
+
 def _post_notifications_read(form: Form) -> str:
     mark_notifications_read()
     return _to("/", "Novedades marcadas como revisadas.")
@@ -282,4 +290,5 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/hoja": _post_sheet,
     "/google/reautorizar": _post_google_reauthorize,
     "/notifications/read": _post_notifications_read,
+    "/notifications/seen": _post_notifications_seen,
 }

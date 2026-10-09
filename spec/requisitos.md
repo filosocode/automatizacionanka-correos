@@ -275,6 +275,16 @@ respuesta. A igual urgencia va primero la más reciente. Si hay más de cinco, e
 donde siguen todos. Las novedades que repiten a casos ya mostrados en la cola quedan plegadas, con su botón de marcarlas
 como revisadas.
 
+### U-25 · Novedades: qué cuenta, cuándo se leen y cómo avisan
+Una novedad cuenta solo si pide algo a una persona: el cliente respondió, posible actualización por revisar, caso nuevo y respuesta
+sugerida lista. Lo que la propia persona hizo (guardar un borrador, enviar una respuesta) queda en el historial del caso pero nace ya
+leído: no suma al contador ni aparece en «Novedades». El contador del menú cuenta casos con novedades, no filas: un caso nuevo
+cuenta uno aunque tenga dos novedades. Al abrir un caso con la página a la vista se marcan como leídas las novedades de ese caso
+(y solo las suyas); «Marcar como revisadas» sigue marcando todas. Si la página estaba en segundo plano no se marcan hasta que se vea.
+Para avisar sin mirar el Resumen, el título de la pestaña lleva el número de casos con novedades («(2) Resumen comercial - Anka») y,
+si la persona lo activa, el navegador muestra un aviso cuando entran novedades nuevas con la pestaña oculta. Es solo el navegador de
+este equipo: no se envía nada fuera.
+
 ### U-12 · Decidir y preguntar en un solo paso
 En revisión técnica, la pantalla ofrece una sola sección, «¿Cómo seguimos?», con las dos salidas y lo que ocurre después de
 cada una. Las preguntas para el cliente se editan ahí y no se repiten como tareas: «Qué falta resolver» solo cuenta cuántas

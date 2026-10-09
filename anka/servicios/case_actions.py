@@ -134,6 +134,7 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
             db, thread_id, "draft_saved", draft_id,
             "Borrador guardado en Gmail",
             f"El borrador quedó guardado para {recipient} y todavía no ha sido enviado.",
+            leida=True,
         )
         db.commit()
     finally:
@@ -227,6 +228,7 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
             db, thread_id, QuoteStatus.RESPONSE_SENT, message_id,
             "Respuesta enviada",
             f"El correo fue enviado a {recipient} en el mismo hilo, {con_preguntas}.",
+            leida=True,
         )
         db.commit()
     finally:

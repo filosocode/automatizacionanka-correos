@@ -17,6 +17,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from anka.dominio.analisis import Actividad, Analisis
+from anka.dominio.novedades import REQUIEREN_ACCION
 from anka.dominio.preguntas import DESCARTAR, candidatas, con_decisiones, decidir, internas, para_el_cliente
 from anka.dominio.reception import reception_assessment
 from anka.dominio.status import (
@@ -96,14 +97,29 @@ def save_review_packet(thread_id: str, recipient: str, analysis: Analisis,
     return path
 
 
+_TIPOS_QUE_CUENTAN = ", ".join(f"'{tipo}'" for tipo in sorted(REQUIEREN_ACCION))   # constantes propias, no entrada
+
+
+def unread_thread_count() -> int:
+    """Cuántos casos tienen novedades sin leer que piden acción: lo que muestra el contador (U-25)."""
+    db = connect()
+    try:
+        return int(db.execute(
+            f"""SELECT COUNT(DISTINCT n.thread_id) FROM dashboard_notifications n
+                JOIN quotes q ON q.thread_id = n.thread_id
+                WHERE n.read_at IS NULL AND n.kind IN ({_TIPOS_QUE_CUENTAN})""").fetchone()[0])
+    finally:
+        db.close()
+
+
 def unread_notifications(limit: int = 20) -> list[dict]:
     """Novedades del dashboard sin leer, las más recientes primero."""
     db = connect()
     try:
-        rows = db.execute("""SELECT n.*, q.analysis_json
+        rows = db.execute(f"""SELECT n.*, q.analysis_json
                              FROM dashboard_notifications n
                              JOIN quotes q ON q.thread_id = n.thread_id
-                             WHERE n.read_at IS NULL
+                             WHERE n.read_at IS NULL AND n.kind IN ({_TIPOS_QUE_CUENTAN})
                              ORDER BY n.created_at DESC, n.id DESC
                              LIMIT ?""", (limit,)).fetchall()
     finally:
@@ -638,7 +654,8 @@ def change_marker() -> str:
     try:
         row = db.execute(
             "SELECT COUNT(*) AS n, MAX(COALESCE(updated_at, first_seen_at)) AS ts, "
-            "(SELECT COUNT(*) FROM dashboard_notifications WHERE read_at IS NULL) AS unread, "
+            "(SELECT COUNT(*) FROM dashboard_notifications WHERE read_at IS NULL "
+            f"AND kind IN ({_TIPOS_QUE_CUENTAN})) AS unread, "
             "(SELECT COUNT(*) || MAX(recorded_at) FROM case_events) AS ev FROM quotes"
         ).fetchone()
     finally:
