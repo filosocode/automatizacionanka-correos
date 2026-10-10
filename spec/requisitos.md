@@ -19,7 +19,10 @@ Distingue una solicitud de cotización de lo que no lo es. Descarta sin analizar
 motivo para poder rescatarlo (R1 a R3); ante la duda, analiza.
 
 ### F1-03 · Tabla de actividades
-Resume cada solicitud en una tabla de actividades que una persona puede editar y exportar a Excel. La unidad se escribe de una sola forma (ha, km, m, km², m²) aunque el correo diga «hectáreas», «Ha» o «Km». Se conserva la
+Resume cada solicitud en una tabla de actividades que una persona puede editar y exportar a Excel. La unidad se escribe de una sola forma (ha, km, m, km², m²) aunque el correo diga «hectáreas», «Ha» o «Km».
+La cantidad de una actividad es una cifra y su unidad va aparte: si el análisis escribe en la cantidad una unidad sin cifra («Ha»), una etiqueta o
+un valor en dinero (la Fase 1 no cotiza), la cantidad queda «no indicado», la fila queda pendiente y se anota por qué; la unidad que
+venía en su lugar se conserva y un valor en dinero no se guarda en ninguna parte. Se conserva la
 versión del modelo y cada edición queda como versión nueva, con sus diferencias y un motivo opcional.
 Los hechos extraídos de adjuntos conservan el nombre del archivo y un localizador verificable (página, párrafo,
 tabla/fila, hoja/celda o elemento KML/KMZ); los archivos o secciones no leídos se identifican como parciales o
@@ -206,6 +209,21 @@ rechaza rutas externas, enlaces y archivos ajenos a la lista permitida. Se prueb
 La evaluación distingue pruebas determinísticas de resultados observados con modelos reales. Registra versión
 del prompt, modelo, fecha, corpus anonimizado y resultados por caso. Una muestra sin etiquetar no produce una
 calificación de precisión. La trazabilidad identifica métodos de prueba ejecutables y no solo archivos etiquetados.
+
+### T-34 · Evaluar el análisis con solicitudes reales del histórico
+Para saber cuánto acierta el análisis (T-23) se arma un conjunto de casos a partir del histórico de propuestas (`I:\T&E`, solo
+lectura): la solicitud que hizo el cliente frente a lo que Anka terminó cotizando. Cada caso es una ficha con lo esperado: si es
+una solicitud, la ubicación, las actividades con su cantidad y unidad, y los datos que la solicitud no traía y debían preguntarse.
+Una ficha nace como **borrador** (la propone el modelo a partir de la propuesta aprobada) y solo cuenta cuando una persona la
+**valida**. Las fichas y los informes viven en la carpeta de datos del equipo, nunca en el repositorio, y los archivos del cliente
+no se copian: la ficha apunta a su ubicación original. `evaluar` corre la cadena real (lectura de adjuntos, análisis,
+preguntas) sobre las fichas validadas y mide: si identifica la solicitud, qué actividades encuentra y con qué cantidad y unidad,
+si encuentra la ubicación, y si pregunta lo que faltaba sin preguntar lo que ya venía. El informe guarda el modelo, la versión
+del prompt, la fecha y el resultado por caso, para comparar versiones. Sin fichas validadas no se calcula ninguna precisión.
+Cuando la solicitud trae una hoja de Excel con su tabla de cantidades (columnas de descripción, unidad y cantidad), lo esperado se
+**extrae de esa tabla de forma determinista**, sin modelo y sin que nadie tenga que recordar el caso: la ficha queda «extraída» y
+cuenta en la evaluación, marcada como tal en el informe, y una persona puede revisarla por muestreo. Una tabla de más de 25 filas
+no se usa. Un borrador propuesto por el modelo sigue sin contar mientras nadie lo valide.
 
 ### T-24 · Lectura completa de los adjuntos legibles
 La lectura exhaustiva de los adjuntos es lo que sostiene una cotización correcta, y vale igual en los tres modos. Todo adjunto
