@@ -44,6 +44,9 @@ Descartadas
 <a href="/archive">
 Archivo
 </a>
+<a href="/desempeno">
+Desempeño
+</a>
 </nav>
 <div class="toolbar">
 <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Cambiar el tema de color">

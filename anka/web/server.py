@@ -51,6 +51,7 @@ GET_ROUTES: dict[str, str] = {
     "/export.xlsx": "_get_export",
     "/state": "_get_state",
     "/eventos": "_get_eventos",
+    "/desempeno": "_get_desempeno",
     "/api/casos": "_get_api_cases",
     "/api/salud": "_get_api_health",
     "/api/autorizacion": "_get_api_authorization",
@@ -139,6 +140,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def _get_requests(self, query: dict[str, list[str]]) -> None:
         agrupar = field(query, "agrupar", "1") != "0"
         self._send_html(paginas.render_requests(field(query, "message"), agrupar_hilos=agrupar))
+
+    def _get_desempeno(self, query: dict[str, list[str]]) -> None:
+        self._send_html(paginas.render_desempeno(field(query, "message")))
 
     def _get_discarded(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.render_discarded(field(query, "message")))

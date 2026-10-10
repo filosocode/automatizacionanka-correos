@@ -35,6 +35,7 @@ La descripción es la primera frase de su docstring.
 | `tramos` | Dividir un texto largo sin perder nada y condensar los hallazgos de cada tramo (T-25). |
 | `preguntas` | Preguntas candidatas de un caso, decisión de una persona por pregunta y preguntas que lleva un correo (U-22). |
 | `novedades` | Qué novedades piden acción a una persona y por tanto cuentan en el contador (U-25). |
+| `desempeno` | Desempeño del análisis medido con las correcciones del uso real (T-35). |
 | `reintentos` | Espera creciente entre intentos de un hilo que falla y el caso que lo muestra (T-26). |
 | `lectores_geograficos` | Geometrías, misiones y tablas geográficas en memoria. |
 | `caso` | `Caso`: la vista de una solicitud de cotización tal como la ven el dashboard y las acciones. |
@@ -86,6 +87,7 @@ La descripción es la primera frase de su docstring.
 | `change_control` | Código de la oferta (T / T&E) y control de cambios: quién pide qué, con qué código y a quién se avisa. |
 | `commercial_index` | Construye un indice comercial agregado y local desde el archivo historico T&E. |
 | `drive_contents` | Contenido de la carpeta de una solicitud en Drive. |
+| `desempeno` | Desempeño del análisis con el uso real: agrupa los casos por versión del prompt y modelo y mide las correcciones (T-35). |
 | `drive_layout` | Estructura de carpetas de Drive: Año / Cliente / Solicitud. |
 | `ediciones` | Edición de la tabla de actividades por una persona: motivos, diferencias entre versiones y guardado. |
 | `estado_de_revision` | Estado de la revisión de Gmail: cuándo fue la última, cuánto tardó, qué cambió y cómo se cuenta a la persona. |

@@ -37,6 +37,30 @@ def normalize_estado(value: object) -> str:
     if any(mark in text for mark in ("pendiente", "revisi", "requiere", "aclar", "falta", "no indicad")):
         return "pendiente"
     return "confirmado" if text.startswith("confirmado") else "pendiente"
+_NUMERO = re.compile(r"\d[\d.,]*")
+
+
+def numero_de_cantidad(texto: object) -> float | None:
+    """La primera cantidad de un texto («544,5 ha», «1.200 m», «12.5»), o None si no hay ninguna."""
+    encontrado = _NUMERO.search(str(texto or ""))
+    if not encontrado:
+        return None
+    token = encontrado.group(0).rstrip(".,")
+    if "." in token and "," in token:
+        decimal = "." if token.rfind(".") > token.rfind(",") else ","
+        token = token.replace("," if decimal == "." else ".", "").replace(decimal, ".")
+    else:
+        separador = "." if "." in token else "," if "," in token else ""
+        if separador:
+            partes = token.split(separador)
+            miles = len(partes) > 2 or (len(partes[-1]) == 3 and partes[0] not in ("0", "00") and len(partes[0]) <= 3)
+            token = "".join(partes) if miles else partes[0] + "." + partes[1]
+    try:
+        return float(token)
+    except ValueError:
+        return None
+
+
 _UNIDADES = {
     "ha": "ha", "hectarea": "ha", "hectareas": "ha", "hectárea": "ha", "hectáreas": "ha",
     "km": "km", "kilometro": "km", "kilometros": "km", "kilómetro": "km", "kilómetros": "km",

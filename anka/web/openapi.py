@@ -150,6 +150,9 @@ OPERACIONES: tuple[Operacion, ...] = (
                             "arma el correo con la plantilla fija.", ejemplo="¿Cuál es el datum?"),
                       Campo("change_id", "Cambio al que responde la plantilla.", "integer", ejemplo=1),
                       Campo("to", "A quién proponer el correo del cambio.", opciones=("sender", "contact")))),
+    Operacion("get", "/desempeno", "Páginas", "Desempeño del análisis",
+              "Qué tan bien trabaja el análisis (Work o modelo local), medido con las correcciones de las personas "
+              "en el uso real, por versión del prompt y modelo.", campos=(_MENSAJE,)),
     Operacion("get", "/acta", "Páginas", "Acta de cambios (imprimible)",
               "Historial con fecha, autor y huella de cada hecho del caso, apto para imprimir.", campos=(_ID,)),
     Operacion("get", "/export.xlsx", "Páginas", "Exportar actividades a Excel",

@@ -207,6 +207,15 @@ La evaluación distingue pruebas determinísticas de resultados observados con m
 del prompt, modelo, fecha, corpus anonimizado y resultados por caso. Una muestra sin etiquetar no produce una
 calificación de precisión. La trazabilidad identifica métodos de prueba ejecutables y no solo archivos etiquetados.
 
+### T-35 · Desempeño del análisis medido con el uso real
+Cada vez que una persona corrige lo que el análisis propuso, esa corrección es una medida de su acierto: sin etiquetar nada, el uso diario dice
+qué tan bien trabaja Work (o el modelo local). La pantalla «Desempeño» agrupa los casos por la versión del prompt y el modelo que declaró el
+análisis (T-32) y, para cada grupo, muestra cuántos casos hay, cuántos no necesitaron ninguna corrección, qué parte de las filas de la tabla se
+conservó, qué parte de las cantidades quedó intacta, y cuánto coincidió la persona con lo que se le sugirió para las preguntas (cuántas
+sacó del cliente, cuántas añadió o pasó al cliente). Compara la tabla que dejó el análisis con la que dejó la persona, solo hasta el primer
+reanálisis (después los cambios pueden venir de información nueva). Con menos de 10 casos en un grupo lo dice: son pocos para concluir. Un caso
+sin correcciones puede ser un acierto o un caso que nadie revisó: la pantalla lo advierte.
+
 ### T-24 · Lectura completa de los adjuntos legibles
 La lectura exhaustiva de los adjuntos es lo que sostiene una cotización correcta, y vale igual en los tres modos. Todo adjunto
 de un formato legible (hasta 50 MiB, más que el máximo de Gmail) se lee completo: ningún recorte por longitud al texto que
