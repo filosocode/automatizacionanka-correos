@@ -557,6 +557,36 @@ def delete_quotes(thread_ids: list[str]) -> str:
     return f"Se eliminaron {len(found)} solicitud(es) del dashboard."
 
 
+def seguir_sin_respuesta(thread_id: str) -> str:
+    """Seguir con la T sin esperar la respuesta del cliente (U-28), por decisión de una persona.
+
+    Solo un caso que ya escribió al cliente (esperando su respuesta o con una respuesta enviada) y aún sin código. Da la
+    información por suficiente bajo su criterio, deja de esperar (y de recibir recordatorios) y habilita emitir la T. No
+    envía nada.
+    """
+    db = connect()
+    try:
+        row = db.execute(
+            "SELECT status, analysis_json, quote_code FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        if not row:
+            raise ValueError("La solicitud ya no existe.")
+        if row["status"] not in (QuoteStatus.WAITING, QuoteStatus.RESPONSE_SENT) or row["quote_code"]:
+            raise ValueError("Solo se puede seguir sin respuesta un caso que espera al cliente y aún no tiene T.")
+        analysis = load_analysis(row["analysis_json"])
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        analysis["manual_review"] = {"decision": "sufficient", "at": now, "questions": [], "sin_respuesta": True}
+        actualizar_caso(db, thread_id, status=QuoteStatus.READY_REVIEW, updated_at=now,
+                        analysis_json=json.dumps(analysis, ensure_ascii=False))
+        record_event(db, thread_id, "review_decision", "dashboard", f"{now}-{uuid4().hex[:6]}",
+                     "Decidiste seguir con la T sin esperar la respuesta del cliente: la información queda como "
+                     "suficiente bajo tu criterio.", now)
+        db.commit()
+    finally:
+        db.close()
+    log.info("%s: sigue sin esperar la respuesta del cliente", thread_id)
+    return "Seguirás sin su respuesta. Ya puedes emitir la T y crear la carpeta del proyecto en Drive."
+
+
 def volver_a_decidir(thread_id: str, accion: str) -> str:
     """Cambiar de idea antes de enviar las preguntas (U-27): volver a elegirlas o desistir de preguntar.
 

@@ -438,6 +438,13 @@ dejó para Anka, las que descartó y las que agregó), para cambiar cuáles y cu
 por suficiente, como en la decisión técnica, y habilita emitir la T. Ambas quedan en el historial y ninguna envía nada. Un borrador ya
 guardado en Gmail no se borra. Con el correo ya enviado no se puede volver atrás: la regla lo rechaza con su motivo.
 
+### U-28 · Seguir con la T sin esperar la respuesta del cliente
+Un caso al que ya se le escribió y el cliente no responde (esperando su respuesta, o con una respuesta enviada) puede seguir adelante si la persona lo
+decide: «Seguir con la T sin su respuesta» da la información por suficiente bajo su criterio y habilita emitir la T y crear la carpeta,
+con una confirmación y una nota en el historial («sin esperar la respuesta del cliente»). Deja de contar días de espera y de recibir
+recordatorios, porque ya no está esperando. No envía nada. Si el cliente responde después, la respuesta se atiende como cualquier mensaje
+nuevo. No aplica a un caso que ya tiene código ni a uno que no está esperando.
+
 ### U-24 · Armar un correo con las preguntas que la persona escribe, en cualquier etapa
 En el cuadro de respuesta de cualquier etapa en que se pueda escribir al cliente hay un campo «Preguntas para el cliente» (una por
 línea) y un botón «Armar correo con estas preguntas». El correo se arma con la misma plantilla fija de siempre (saludo, las preguntas

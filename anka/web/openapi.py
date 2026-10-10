@@ -266,6 +266,10 @@ OPERACIONES: tuple[Operacion, ...] = (
               "suficiente. No envía nada.", "guarda",
               (_ID, Campo("accion", "Qué hacer al volver atrás.", requerido=True,
                           opciones=("reconsiderar", "suficiente"))), "redirect"),
+    Operacion("post", "/seguir-sin-respuesta", "Acciones del caso",
+              "Seguir con la T sin esperar la respuesta del cliente",
+              "Para un caso que ya escribió al cliente y no tiene T: da la información por suficiente bajo criterio "
+              "de la persona y deja de esperar. No envía nada.", "guarda", (_ID,), "redirect"),
     Operacion("post", "/links-dismiss", "Acciones del caso", "Descartar varias sugerencias de vínculo",
               "Descarta las sugerencias seleccionadas para este caso. Conserva los mensajes originales y los casos "
               "de sus hilos; no los une ni los elimina.", "guarda",

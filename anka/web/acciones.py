@@ -34,6 +34,7 @@ from anka.servicios.change_control import (
 from anka.servicios.quotes import (
     dismiss_pending_links, dismiss_pending_links_many, mark_notifications_read, rescue_discarded, volver_a_decidir,
     merge_project_thread, resolve_link, resolve_model_proposal, resolve_technical_review, save_quote_metadata,
+    seguir_sin_respuesta,
     separate_project_thread,
 )
 from anka.servicios.ediciones import save_activities
@@ -160,6 +161,13 @@ def _post_review_reopen(form: Form) -> str:
     return _to_case(thread_id, message, {"reconsiderar": "#decision", "suficiente": "#emitir-t"}.get(accion, ""))
 
 
+def _post_seguir_sin_respuesta(form: Form) -> str:
+    """Seguir con la T sin esperar la respuesta del cliente (U-28)."""
+    thread_id = field(form, "thread_id")
+    message = _guidance(lambda: seguir_sin_respuesta(thread_id), ValueError)
+    return _to_case(thread_id, message, "#emitir-t")
+
+
 def _post_project_merge(form: Form) -> str:
     thread_id = field(form, "thread_id")
     message = _guidance(lambda: merge_project_thread(thread_id, field(form, "other_thread_id")), ValueError)
@@ -283,6 +291,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/rescue": _post_rescue,
     "/review-decision": _post_review_decision,
     "/review-reopen": _post_review_reopen,
+    "/seguir-sin-respuesta": _post_seguir_sin_respuesta,
     "/followup": _post_followup,
     "/project-merge": _post_project_merge,
     "/project-separate": _post_project_separate,
