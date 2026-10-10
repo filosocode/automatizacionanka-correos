@@ -12,7 +12,7 @@ import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, TypedDict
 
-from anka.dominio.activities import unidad_canonica
+from anka.dominio.activities import numero_de_cantidad, unidad_canonica
 
 
 class ActividadEsperada(TypedDict, total=False):
@@ -46,7 +46,6 @@ TEMAS: dict[str, tuple[str, ...]] = {
 # Raíces tan generales que coincidir en ellas no dice que dos actividades sean la misma.
 _RAICES_GENERICAS = frozenset({"levan", "servi", "estud", "traba", "activ", "proye", "reali", "elabo"})
 _PALABRAS_VACIAS = frozenset({"para", "como", "desde", "entre", "sobre", "dentro", "todo", "toda"})
-_NUMERO = re.compile(r"\d[\d.,]*")
 _UNIDAD_TRAS_NUMERO = re.compile(r"[\d.,]+\s*([^\W\d_]+²?|m2|km2)", re.IGNORECASE)
 
 
@@ -57,23 +56,7 @@ def _plano(texto: object) -> str:
 
 def numero(texto: object) -> float | None:
     """La primera cantidad de un texto («544,5 ha», «1.200 m», «12.5»), o None si no hay ninguna."""
-    encontrado = _NUMERO.search(str(texto or ""))
-    if not encontrado:
-        return None
-    token = encontrado.group(0).rstrip(".,")
-    if "." in token and "," in token:
-        decimal = "." if token.rfind(".") > token.rfind(",") else ","
-        token = token.replace("," if decimal == "." else ".", "").replace(decimal, ".")
-    else:
-        separador = "." if "." in token else "," if "," in token else ""
-        if separador:
-            partes = token.split(separador)
-            miles = len(partes) > 2 or (len(partes[-1]) == 3 and partes[0] not in ("0", "00") and len(partes[0]) <= 3)
-            token = "".join(partes) if miles else partes[0] + "." + partes[1]
-    try:
-        return float(token)
-    except ValueError:
-        return None
+    return numero_de_cantidad(texto)
 
 
 def _unidad(cantidad: object, unidad: object) -> str:

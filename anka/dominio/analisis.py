@@ -102,6 +102,7 @@ class RevisionManual(TypedDict, total=False):
     decision: str        # sufficient | ask_client
     at: str
     questions: list[str]
+    sin_respuesta: bool  # se siguió con la T sin esperar la respuesta del cliente (U-28)
 
 
 class EdicionManual(TypedDict, total=False):

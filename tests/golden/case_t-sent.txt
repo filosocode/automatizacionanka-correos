@@ -44,6 +44,9 @@ Descartadas
 <a href="/archive">
 Archivo
 </a>
+<a href="/desempeno">
+Desempeño
+</a>
 </nav>
 <div class="toolbar">
 <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Cambiar el tema de color">
@@ -661,6 +664,12 @@ Respuesta enviada el 2026-09-02T10:00:00-05:00.
 <pre>
 Respuesta enviada al cliente.
 </pre>
+<form method="post" action="/seguir-sin-respuesta" class="toolbar" style="margin-top:8px">
+<input type="hidden" name="thread_id" value="t-sent">
+<button type="submit" class="secondary" data-confirm="El caso pasará a «información suficiente» sin esperar la respuesta del cliente y podrás emitir la T. No se envía nada. ¿Confirmas?">
+Seguir con la T sin su respuesta
+</button>
+</form>
 <div style="margin-top:14px">
 <div class="notice">
 <strong>

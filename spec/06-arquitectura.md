@@ -35,6 +35,7 @@ La descripción es la primera frase de su docstring.
 | `tramos` | Dividir un texto largo sin perder nada y condensar los hallazgos de cada tramo (T-25). |
 | `preguntas` | Preguntas candidatas de un caso, decisión de una persona por pregunta y preguntas que lleva un correo (U-22). |
 | `novedades` | Qué novedades piden acción a una persona y por tanto cuentan en el contador (U-25). |
+| `desempeno` | Desempeño del análisis medido con las correcciones del uso real (T-35). |
 | `evaluacion` | Medir el análisis contra lo esperado (T-34): comparar un caso, resumir varios y reconocer de qué habla una pregunta. |
 | `reintentos` | Espera creciente entre intentos de un hilo que falla y el caso que lo muestra (T-26). |
 | `lectores_geograficos` | Geometrías, misiones y tablas geográficas en memoria. |
@@ -87,6 +88,7 @@ La descripción es la primera frase de su docstring.
 | `change_control` | Código de la oferta (T / T&E) y control de cambios: quién pide qué, con qué código y a quién se avisa. |
 | `commercial_index` | Construye un indice comercial agregado y local desde el archivo historico T&E. |
 | `drive_contents` | Contenido de la carpeta de una solicitud en Drive. |
+| `desempeno` | Desempeño del análisis con el uso real: agrupa los casos por versión del prompt y modelo y mide las correcciones (T-35). |
 | `evaluacion` | Evaluar el análisis con solicitudes reales del histórico: muestrear, guardar fichas, validarlas y medir (T-34). |
 | `drive_layout` | Estructura de carpetas de Drive: Año / Cliente / Solicitud. |
 | `ediciones` | Edición de la tabla de actividades por una persona: motivos, diferencias entre versiones y guardado. |

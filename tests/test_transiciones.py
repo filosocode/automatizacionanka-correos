@@ -126,6 +126,18 @@ class Transitions(unittest.TestCase):
                         quotes.volver_a_decidir(thread, row["accion"])
                         self.assertEqual(self.status(thread), row["hacia"])
 
+    def test_going_on_without_the_clients_answer(self):
+        for row in self.rows("seguir_sin_respuesta"):
+            for origin in row["desde"]:
+                with self.subTest(row=row["id"], desde=origin):
+                    thread = self.seed(origin)
+                    if row["hacia"] == "error":
+                        with self.assertRaises(ValueError):
+                            quotes.seguir_sin_respuesta(thread)
+                    else:
+                        quotes.seguir_sin_respuesta(thread)
+                        self.assertEqual(self.status(thread), row["hacia"])
+
     def con_pendiente_interno(self, thread):
         db = connect()
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread,)).fetchone()

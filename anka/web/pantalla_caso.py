@@ -672,6 +672,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=review["status"] == QuoteStatus.REVIEW,
         puede_volver=_puede_volver_atras(review, analysis),
+        puede_seguir_sin_respuesta=(review["status"] in (QuoteStatus.WAITING, QuoteStatus.RESPONSE_SENT)
+                                    and not review.get("quote_code")),
         preguntas=preguntas, preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")

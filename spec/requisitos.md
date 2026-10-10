@@ -210,6 +210,15 @@ La evaluación distingue pruebas determinísticas de resultados observados con m
 del prompt, modelo, fecha, corpus anonimizado y resultados por caso. Una muestra sin etiquetar no produce una
 calificación de precisión. La trazabilidad identifica métodos de prueba ejecutables y no solo archivos etiquetados.
 
+### T-35 · Desempeño del análisis medido con el uso real
+Cada vez que una persona corrige lo que el análisis propuso, esa corrección es una medida de su acierto: sin etiquetar nada, el uso diario dice
+qué tan bien trabaja Work (o el modelo local). La pantalla «Desempeño» agrupa los casos por la versión del prompt y el modelo que declaró el
+análisis (T-32) y, para cada grupo, muestra cuántos casos hay, cuántos no necesitaron ninguna corrección, qué parte de las filas de la tabla se
+conservó, qué parte de las cantidades quedó intacta, y cuánto coincidió la persona con lo que se le sugirió para las preguntas (cuántas
+sacó del cliente, cuántas añadió o pasó al cliente). Compara la tabla que dejó el análisis con la que dejó la persona, solo hasta el primer
+reanálisis (después los cambios pueden venir de información nueva). Con menos de 10 casos en un grupo lo dice: son pocos para concluir. Un caso
+sin correcciones puede ser un acierto o un caso que nadie revisó: la pantalla lo advierte.
+
 ### T-34 · Evaluar el análisis con solicitudes reales del histórico
 Para saber cuánto acierta el análisis (T-23) se arma un conjunto de casos a partir del histórico de propuestas (`I:\T&E`, solo
 lectura): la solicitud que hizo el cliente frente a lo que Anka terminó cotizando. Cada caso es una ficha con lo esperado: si es
@@ -455,6 +464,13 @@ elegir las preguntas** devuelve el caso a la decisión técnica con todo lo que 
 dejó para Anka, las que descartó y las que agregó), para cambiar cuáles y cuántas. **No preguntar: la información es suficiente** da el caso
 por suficiente, como en la decisión técnica, y habilita emitir la T. Ambas quedan en el historial y ninguna envía nada. Un borrador ya
 guardado en Gmail no se borra. Con el correo ya enviado no se puede volver atrás: la regla lo rechaza con su motivo.
+
+### U-28 · Seguir con la T sin esperar la respuesta del cliente
+Un caso al que ya se le escribió y el cliente no responde (esperando su respuesta, o con una respuesta enviada) puede seguir adelante si la persona lo
+decide: «Seguir con la T sin su respuesta» da la información por suficiente bajo su criterio y habilita emitir la T y crear la carpeta,
+con una confirmación y una nota en el historial («sin esperar la respuesta del cliente»). Deja de contar días de espera y de recibir
+recordatorios, porque ya no está esperando. No envía nada. Si el cliente responde después, la respuesta se atiende como cualquier mensaje
+nuevo. No aplica a un caso que ya tiene código ni a uno que no está esperando.
 
 ### U-24 · Armar un correo con las preguntas que la persona escribe, en cualquier etapa
 En el cuadro de respuesta de cualquier etapa en que se pueda escribir al cliente hay un campo «Preguntas para el cliente» (una por
