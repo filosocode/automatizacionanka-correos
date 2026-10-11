@@ -282,7 +282,7 @@ def warn_unknown_config_keys() -> None:
 
 COMMANDS_ORDER = (
     "auth", "drive-tree", "mode", "run", "reviews", "approve", "review-ui",
-    "set-mode", "analyze-text", "dashboard-upsert", "prepare-work-packet",
+    "set-mode", "analyze-text", "dashboard-upsert", "prepare-work-packet", "work-drive-sync",
 )
 
 
@@ -389,6 +389,15 @@ def _cmd_prepare_work_packet(args: argparse.Namespace, parser: argparse.Argument
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def _cmd_work_drive_sync(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    from anka.cli.work_drive import run as prepare
+
+    result = prepare(args.watch_seconds, args.thread_id)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if result.get("failures"):
+        raise ErrorDeAnka("Preparación incompleta; consulte work_drive_status.json y el registro.")
+
+
 def _cmd_analyze_text(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     if not args.text and not args.file:
         parser.error("analyze-text requiere --text o --file.")
@@ -463,6 +472,7 @@ COMMANDS = {
     "analyze-text": _cmd_analyze_text,
     "dashboard-upsert": _cmd_dashboard_upsert,
     "prepare-work-packet": _cmd_prepare_work_packet,
+    "work-drive-sync": _cmd_work_drive_sync,
 }
 
 

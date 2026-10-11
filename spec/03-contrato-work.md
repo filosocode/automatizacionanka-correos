@@ -6,6 +6,12 @@ Requisito: **T-02**. La definiciÃ³n formal es [`contrato_work.schema.json`](co
 puente.
 
 ## El borrador
+
+T-34 añade un canal explícito Gmail → extracción Python → Drive: el preparador publica `anka-work-drive-v1`
+con originales, segmentos completos y manifiesto vigente por hilo. Work lo consulta usando su conexión Drive
+y verifica la vigencia contra Gmail. La preparación es optativa; no cambia los estados comerciales ni el esquema
+del borrador. Work registra revisión/segmentos leídos en reason/reviewed_sections de cada adjunto. La edición local
+de la skill no configura por sí sola la tarea activa. Véase [guía](../docs/WORK_DRIVE_OCR.md).
 ```
 [REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]
 â€¦ correo original, resumen, actividades y preguntas (para la persona) â€¦
@@ -22,6 +28,16 @@ Hola, â€¦ (el correo limpio para el cliente)
   original de Gmail.
 
 ## Campos
+
+T-35: el puente conserva `DRIVE_PREFLIGHT`, `reading_audit`, `related_threads`,
+`analysis_complete` y `applicability`. La lectura y la aplicabilidad comercial se muestran por separado.
+Un documento simulado debe leerse; la simulación no prueba lectura incompleta ni autoriza su uso comercial.
+Los conteos no certifican la interpretación visual. IDs repetidos o diferentes y segmentos pendientes
+impiden declarar lectura completa. Un registro bloqueado permanece visible, sin considerarse análisis final.
+Para PRECISO_V4.5_DRIVE y posteriores se verifica el mensaje origen en Gmail antes de importar;
+el orden se basa en la recepción del mensaje origen, no en la edición del borrador. Para el mismo
+mensaje, un registro incompleto no reemplaza una revisión final de la misma versión del prompt.
+El preparador publica qué mensajes están listos; esto no ejecuta ni reintenta por sí solo la tarea remota.
 Obligatorios: `thread_id`, `message_id`, `client_email`, `project_name`, `status` y `engine` (= `chatgpt_work`).
 `status` es uno de los diez valores del esquema, tal cual. El puente acepta además unos pocos sinónimos evidentes que llevan a un
 estado conservador (T-33), dejando un aviso en el caso; cualquier otro valor se rechaza.
@@ -103,6 +119,11 @@ de cada actividad sigue R12.
 - Aplica R11: con T asignada, la tabla solo se actualiza si lo escribiÃ³ el contacto registrado y cita el cÃ³digo;
   si no, lo propuesto queda como propuesta pendiente.
 - Normaliza el estado de las filas (R12) y guarda el correo limpio como borrador propuesto.
+- Verifica la lectura que declara Work contra el manifiesto del preparador (T-37): revisión, mensajes, conteos y IDs esperados y
+  pendientes salen del manifiesto; de Work solo se toma qué segmentos dice haber leído. Lo que no se pueda verificar deja
+  `analysis_complete` en falso y el caso en revisión técnica interna.
+- Si el borrador no cumple el contrato y el hilo aún no tiene análisis, crea un caso mínimo con remitente, asunto y fecha del correo
+  (T-36); un borrador válido posterior lo reemplaza.
 
 ## Cambiar el contrato
 1. Edita el esquema (y este documento si cambia el sentido).

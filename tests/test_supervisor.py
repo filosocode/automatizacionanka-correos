@@ -198,7 +198,7 @@ class AutoReinicioTests(unittest.TestCase):
 
         with patch.object(supervisor, "configure_logging"), patch.object(supervisor, "stop_old_instances"),                 patch.object(supervisor, "Child", Hijo), patch.object(supervisor.time, "sleep"),                 patch.object(supervisor, "work_mode", return_value=False),                 patch.object(supervisor, "backup_due", return_value=False),                 patch.object(supervisor, "run_due_reminders"),                 patch.object(supervisor, "code_snapshot", side_effect=[{"a": 1.0}, {"a": 2.0}, {"a": 2.0}]):
             self.assertEqual(supervisor.servicio(), supervisor.EXIT_RELANZAR)
-        self.assertEqual([h.stop_calls for h in hijos], [1, 1])                 # dashboard y puente quedan detenidos
+        self.assertEqual([h.stop_calls for h in hijos], [1, 1, 1])  # incluye el preparador independiente
 
 
 if __name__ == "__main__":

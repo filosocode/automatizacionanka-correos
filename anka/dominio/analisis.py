@@ -129,6 +129,7 @@ class Analisis(TypedDict, total=False):
     routing: Enrutamiento
     work_reply: RespuestaWork
     work_model: str           # T-32: el modelo que declaró Work (solo interno)
+    work_message_id: str      # el mensaje del cliente que analizó Work (puente, T-35)
     work_skill_version: str   # T-32: la versión del prompt que declaró Work (solo interno)
     manual_review: RevisionManual
     manual_edit: EdicionManual
@@ -138,6 +139,13 @@ class Analisis(TypedDict, total=False):
     received_at: str
     gmail_url: str
     engine: str
+    DRIVE_PREFLIGHT: dict[str, Any]
+    reading_audit: dict[str, Any]
+    reading_summary: dict[str, Any]
+    evidence_check: dict[str, Any]   # T-38: lo que se comprobó de la tabla de Work contra los textos del expediente
+    related_threads: list[dict[str, Any]]
+    applicability: dict[str, Any]
+    analysis_complete: bool
     force_analysis: bool
     preguntas: list[Any]                 # preguntas del caso con la decisión de una persona (U-22)
     preguntas_enviadas: dict[str, Any]   # {en, preguntas}: las preguntas que llevaba el último correo enviado (U-22)

@@ -108,6 +108,29 @@ def create_reply_draft(
     return str(result["id"])
 
 
+def candidate_thread_versions(gmail: Any, query: str) -> dict[str, str]:
+    """Hilo → `historyId` de los hilos que coinciden con la búsqueda: cambia cuando el hilo cambia en Gmail (T-40)."""
+    versiones: dict[str, str] = {}
+    page_token = None
+    while True:
+        result = gmail.users().threads().list(userId="me", q=query, maxResults=500, pageToken=page_token).execute()
+        versiones.update({t["id"]: str(t.get("historyId", "")) for t in result.get("threads", [])})
+        page_token = result.get("nextPageToken")
+        if not page_token:
+            return versiones
+
+
+def es_error_de_cuota(exc: Exception) -> bool:
+    """Si Gmail rechazó la petición por cuota o por exceso de peticiones (403 de cuota o 429): no sirve insistir ya."""
+    from googleapiclient.errors import HttpError
+
+    if not isinstance(exc, HttpError):
+        return False
+    texto = str(exc)
+    return exc.resp.status == 429 or (exc.resp.status == 403 and any(
+        marca in texto for marca in ("Quota exceeded", "rateLimitExceeded", "userRateLimitExceeded")))
+
+
 def candidate_thread_ids(gmail: Any, query: str) -> list[str]:
     """Ids de los hilos que coinciden con la búsqueda de Gmail (recorre todas las páginas)."""
     ids: set[str] = set()

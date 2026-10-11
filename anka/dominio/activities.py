@@ -45,6 +45,20 @@ _UNIDADES = {
     "m2": "m²", "m²": "m²", "metros cuadrados": "m²",
 }
 
+_UNIT_PATTERNS = (
+    ("km²", re.compile(r"(?<!\w)(?:km²|km2|kil[oó]metros? cuadrados)(?!\w)", re.IGNORECASE)),
+    ("m²", re.compile(r"(?<!\w)(?:m²|m2|metros? cuadrados)(?!\w)", re.IGNORECASE)),
+    ("ha", re.compile(r"(?<!\w)(?:ha|hect[aá]reas?)(?!\w)", re.IGNORECASE)),
+    ("km", re.compile(r"(?<!\w)(?:km|kil[oó]metros?)(?!\w)", re.IGNORECASE)),
+    ("m", re.compile(r"(?<!\w)(?:m|mt|mts|metros?)(?!\w)", re.IGNORECASE)),
+)
+
+
+def unidades_en_cantidad(quantity: object) -> set[str]:
+    """Unidades distintas mencionadas explícitamente en una cantidad compuesta."""
+    text = str(quantity or "")
+    return {unit for unit, pattern in _UNIT_PATTERNS if pattern.search(text)}
+
 
 def unidad_canonica(unidad: str) -> str:
     """La unidad escrita de una sola forma («Ha», «hectáreas» → «ha»); una que no se reconoce queda como vino."""

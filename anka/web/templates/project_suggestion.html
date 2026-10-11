@@ -6,6 +6,9 @@
   <article class="case project-candidate">
     <div><strong>{{ c.project }}</strong><div class="meta">{{ c.who }} · {{ c.when }} · {{ c.stage }}</div>
       <div class="meta">Se parece por: {{ c.reason }}{% if c.verify %} · verifica que sea el mismo proyecto{% endif %}</div></div>
+    {% if c.previous_questions %}<div class="notice"><strong>Ya se preguntó en este otro hilo{% if c.questions_sent_at %} ({{ c.questions_sent_at[:16] | replace('T', ' ') }}){% endif %}:</strong>
+      <ul>{% for question in c.previous_questions %}<li>{{ question }}</li>{% endfor %}</ul>
+      Revisa si esa información ya llegó antes de volver a preguntar.</div>{% endif %}
     <div class="toolbar">
       <a class="button secondary" href="/case?thread_id={{ c.thread_id | urlquote }}">Abrir ese hilo</a>
       {% if c.blocker %}<span class="meta">No se puede unir: {{ c.blocker }}.</span>

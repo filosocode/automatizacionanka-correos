@@ -23,7 +23,7 @@ MAX_PACKET_TEXT_BYTES = 300 * 1024 * 1024
 PACKET_CHUNK_CHARS = 12_000
 
 
-def _chunk_text(text: str) -> list[str]:
+def chunk_text(text: str) -> list[str]:
     """Divide texto en fragmentos ordenados, procurando cortar en saltos de línea."""
     chunks = []
     remaining = text
@@ -115,7 +115,7 @@ def _write_packet(sources: list[Path], stage: Path) -> dict:
         text_files = []
         text_segments = []
         char_offset = 0
-        chunks = _chunk_text(extracted)
+        chunks = chunk_text(extracted)
         for chunk_index, chunk in enumerate(chunks, 1):
             filename = f"{index:02d}-{file_id}-{chunk_index:03d}.txt"
             header = (

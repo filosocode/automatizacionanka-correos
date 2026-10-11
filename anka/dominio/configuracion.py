@@ -37,3 +37,6 @@ class Configuracion(TypedDict, total=False):
     drive_parent_id: str              # carpeta del año vigente en Drive
     folder_prefix: str                # prefijo de la carpeta de cada solicitud
     work_sync_account: str            # cuenta de Gmail que lee el puente de Work
+    work_drive_enabled: bool          # preparación automática de expedientes; desactivada por defecto
+    work_drive_parent_id: str         # carpeta de recepción, distinta de la carpeta comercial del año
+    work_drive_query: str             # búsqueda explícita de correos para preparar

@@ -106,6 +106,7 @@ def attachment_parts(payload: dict) -> list[dict]:
             "filename": filename or "adjunto-sin-nombre",
             "mime_type": payload.get("mimeType", "application/octet-stream"),
             "attachment_id": attachment_id,
+            "size": payload.get("body", {}).get("size", 0),
             "data": payload.get("body", {}).get("data"),
             "disposition": _part_header(payload, "Content-Disposition"),
             "content_id": _part_header(payload, "Content-ID"),
@@ -129,6 +130,17 @@ def attachment_names(payload: dict) -> list[str]:
         part["filename"] for part in attachment_parts(payload)
         if not is_inline_signature_image(part)
     ]
+
+
+def adjuntos_recibidos(thread: dict, own_addresses: list[str] | set[str] | None = None) -> list[dict]:
+    """Los adjuntos reales que el cliente mandó en un hilo: mensaje, nombre, tamaño y tipo, sin los logos de firma.
+
+    Es lo que Gmail dice que hay (T-41): no incluye borradores ni mensajes propios, y no trae el contenido.
+    """
+    return [{"message_id": message["id"], "filename": part["filename"], "size": int(part.get("size") or 0),
+             "mime_type": part["mime_type"], "attachment_id": part.get("attachment_id"), "data": part.get("data")}
+            for message in inbound_messages(thread, own_addresses) if "DRAFT" not in message.get("labelIds", [])
+            for part in attachment_parts(message.get("payload", {})) if not is_inline_signature_image(part)]
 
 
 def message_datetime(message: dict) -> str:

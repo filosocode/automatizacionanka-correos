@@ -1,8 +1,16 @@
 ﻿INSTRUCCIONES DE LA TAREA CHATGPT WORK — GRUPO ANKA
 
-Este archivo explica el puente Gmail → dashboard. El prompt de evidencia vigente está en `PROMPT_WORK_ANKA_PRECISO_V4.txt` (la V3 se conserva). Editar archivos locales no actualiza una tarea activa de ChatGPT Work.
+Este archivo explica el puente Gmail → dashboard. La tarea persistente «Cotizaciones Grupo Anka» fue comprobada con `PRECISO_V4.5_DRIVE`. `PROMPT_WORK_ANKA_PRECISO_V4.txt` es una copia histórica V4.2; no pegarla en la tarea activa. `PROMPT_WORK_ANKA_PRECISO_V4_6.txt` es una propuesta completa V4.6, todavía no aplicada a la tarea remota. Editar archivos locales no actualiza una tarea activa de ChatGPT Work.
 
-PAQUETE LOCAL DE EVIDENCIA PARA WORK
+EXPEDIENTES AUTOMÁTICOS EN DRIVE
+El nuevo preparador `python app.py work-drive-sync` descarga desde Gmail, extrae texto/OCR y publica expedientes
+versionados en una raíz de recepción. No crea clientes ni proyectos comerciales, no modifica Gmail ni el dashboard.
+Se activa con work_drive_enabled, work_drive_parent_id, work_drive_query y work_sync_account explícitos;
+el supervisor lo ejecuta cada 60 segundos en un proceso separado. Guía: WORK_DRIVE_OCR.md.
+La tarea activa ya usa V4.5. Antes de cambiarla, confirma la versión mostrada en la tarea persistente. Work consulta
+Hilo <thread_id>/MANIFIESTO_WORK.json y todos sus segmentos. Editar este archivo no actualiza la tarea activa.
+
+PAQUETE LOCAL DE EVIDENCIA PARA WORK (alternativa manual)
 Work no ejecuta los extractores Python. Para dar a Work texto extraído localmente, descarga primero los adjuntos del mensaje y genera el paquete:
 python app.py prepare-work-packet --attachment "C:\ruta\especificacion.pdf" --attachment "C:\ruta\alcance.xlsx" --output-dir "C:\ruta\caso\paquete-work"
 Adjunta a la misma tarea de Work `manifest.json`, `LEEME.md` y todos los `.txt` generados. Si hay muchos segmentos, adjunta todos; su nombre conserva archivo y orden. No copies texto de un caso histórico como si fuera adjunto del hilo actual. El manifiesto informa cobertura y límites; `parcial`/`no_legible` significa revisión interna, no dato ausente. El paquete queda local y no se sube ni envía automáticamente.
@@ -34,3 +42,12 @@ PRUEBA
 
 LIMITACIONES
 Si el borrador se envía o elimina antes de importar, el proceso no lo encontrará. JSON inválido o un hilo incorrecto no se importan y sus errores no se marcan como procesados. La base SQLite sigue siendo la fuente de persistencia del dashboard.
+
+Auditoría del contrato de lectura (T-35):
+Prompt V6 (T-41): Work lee los adjuntos directamente desde Gmail, sin Drive. Cada elemento de `attachments` lleva `size_bytes` (el tamaño exacto que muestra Gmail) y, opcional, `read_via` ("attachment" o "raw_mime"). El puente compara nombre y tamaño con los adjuntos del hilo en Gmail: si falta alguno, el caso queda con lectura incompleta y se nombra el archivo. Si el lector de adjuntos del conector no admite el formato (p. ej. KML) o devuelve el contenido truncado, Work abre el mensaje en formato raw y extrae el original del MIME.
+DRIVE_PREFLIGHT (V5 y anteriores, con expediente en Drive) contiene hilo, revisión, mensajes y conteos reales de segmentos.
+reading_audit contiene email_segment_ids_expected, email_segment_ids_read, attachment_segment_ids_expected y attachment_segment_ids_read, además de revisión visual por archivo.
+related_threads conserva los candidatos relacionados y la auditoría de preguntas previas, sin consolidarlos.
+analysis_complete es false cuando existe bloqueo o revisión pendiente; no indica que todo el contenido sea ilegible.
+applicability contiene status y reason; por ejemplo simulado / documento de prueba. Datos simulados se leen y extraen para evaluar capacidad, con fuentes, sin confirmarlos comercialmente.
+La tarea remota debe recibir estas instrucciones de manera explícita; modificar esta copia local no configura la tarea activa.

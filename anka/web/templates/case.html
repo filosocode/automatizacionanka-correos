@@ -10,6 +10,7 @@
     <h2>Archivos y revisiones pendientes</h2>
     <p class="meta">Revisa los archivos y pendientes de Anka antes de validar el alcance o enviar preguntas al cliente.</p>
     {{ attachments_table }}
+    {{ reading_panel }}
     <h3 style="margin-top:20px">Qué falta resolver</h3>
     {{ review_tasks }}
   </section>
@@ -62,7 +63,9 @@
     </form>
   </section>
   {% endif %}
-  {% if email != 'technical' %}
+  {% if analysis_blocked and email == 'form' %}
+  <section class="section" id="respuesta"><h2>Respuesta al cliente</h2><div class="notice">En pausa: no se prepara ni se habilita una respuesta basada en este análisis hasta completar la lectura del mensaje y sus adjuntos.</div></section>
+  {% elif email != 'technical' %}
   {% if plegar_respuesta %}<details class="more respuesta-plegada" id="respuesta"><summary>Respuesta al cliente (opcional)</summary>{% endif %}
   <section class="section"{% if not plegar_respuesta %} id="respuesta"{% endif %}>
     <h2>Respuesta al cliente</h2>
@@ -169,8 +172,7 @@
   </section>
   <section class="section">
     <h2>Revisión de preguntas</h2>
-    {{ question_quality }}
-    {{ question_audit }}
+    {% if analysis_blocked %}<p class="notice">Preguntas ocultas hasta verificar la lectura completa.</p>{% else %}{{ question_quality }}{{ question_audit }}{% endif %}
   </section>
   <section class="section">
     <h2>Enrutamiento y validaciones</h2>

@@ -212,10 +212,21 @@ La lectura exhaustiva de los adjuntos es lo que sostiene una cotización correct
 de un formato legible (hasta 50 MiB, más que el máximo de Gmail) se lee completo: ningún recorte por longitud al texto que
 recibe el modelo ni al cuerpo del correo. `lectura_parcial` se reserva para contenido legible que de verdad no se pudo
 extraer (páginas o imágenes sin texto, celdas o entradas más allá del tope de recursos, gráficos o dibujos no extraídos); un
-OCR ejecutado cuenta como lectura completa, y su aviso sobre relaciones de tabla o figura queda en el texto sin degradar la
-cobertura. Si el análisis completo no cabe en la ventana del modelo no se recorta en silencio: Ollama amplía su ventana hasta
+OCR ejecutado conserva el texto extraído, pero su aviso de relaciones de tabla o figura pendientes marca cobertura parcial.
+La extracción textual no certifica interpretación visual. Si el análisis completo no cabe no se recorta: Ollama amplía hasta
 `llm.num_ctx_max` (32768 por defecto) y, si aun así no cabe, el hilo se informa para revisión manual con el motivo.
 La cantidad de una actividad no repite su unidad (`544.5` + `ha`, no `544.5 ha` + `ha`).
+
+### T-34 · Expedientes de recepción Gmail → OCR → Drive para Work
+Un proceso optativo y separado del puente de borradores prepara expedientes bajo una carpeta de recepción configurada,
+con una búsqueda Gmail explícita y cuenta verificada. No envía correos, no clasifica solicitudes ni crea carpetas comerciales.
+Cada hilo tiene un expediente y cada versión conserva mensaje, adjunto, SHA-256, originales, texto completo segmentado,
+localizadores, cobertura y motivo. Los adjuntos homónimos y las respuestas no sobrescriben versiones anteriores.
+El manifiesto se publica al final; una descarga/subida fallida no publica una versión lista y se reintenta sin duplicar.
+Archivos no soportados o fuera de límites se enumeran con su motivo; listo para analizar no equivale a lectura completa.
+Work consulta el manifiesto vigente del hilo y todos sus segmentos, verifica message_ids contra Gmail y deja revisión interna
+si el expediente falta, está desactualizado o es parcial. Los originales siguen disponibles para inspección visual.
+La comparación distingue extracción local reproducible de interpretación real de Work; nunca atribuye a Work un resultado simulado.
 
 ### T-25 · Lectura por tramos de los documentos que no caben en el modelo
 Un documento largo se lee **entero**, nunca recortado, en el modo local y en el de API. Si el correo y sus adjuntos caben en la
@@ -467,3 +478,121 @@ conserva su comportamiento de antes. Antes de enviar, la pantalla dice cuántas 
 correo y si el caso quedará esperando; una casilla «Esperar su respuesta aunque el correo no tenga preguntas» fuerza la espera
 (TR-26). Un acuse mientras queden preguntas decididas como internas devuelve el caso a «Falta tu decisión técnica» (TR-25),
 para que ese trabajo no salga de la cola de la persona.
+
+### T-35 · Trazabilidad de lectura y origen de Work
+El puente conserva el preflight y la auditoría de lectura, distingue aplicabilidad, verifica el origen en Gmail para V4.5 y evita regresiones por borradores antiguos.
+
+### T-36 · Un borrador de Work sin análisis válido no deja el caso fuera del dashboard
+Cuando Work deja en Gmail un borrador que no cumple el contrato (sin el bloque `ANKA_DASHBOARD_JSON_V1`, con un JSON roto o con campos
+inválidos) y el hilo no tiene todavía un análisis importado, el puente crea el caso con lo mínimo que es verificable en Gmail:
+remitente, asunto y fecha de recepción del último mensaje recibido. El caso queda en «Requiere revisión técnica interna», sin
+actividades, sin preguntas y sin texto para el cliente; sus pendientes dicen que Work no entregó un análisis válido, el motivo
+(campos del contrato, nunca contenido del cliente) y qué hacer (pedir a Work que reanalice el hilo). No inventa ningún dato.
+Nunca reemplaza un análisis ya importado de ese hilo, ni vuelve a crear un caso que una persona eliminó mientras el borrador no
+cambie. En cuanto Work deja un borrador válido, este reemplaza al caso mínimo. El Resumen sigue listando el borrador rechazado.
+
+### T-37 · La lectura que declara Work se verifica contra el manifiesto del preparador
+Cuando el preparador (T-34) publica un expediente, guarda una instantánea local mínima de su manifiesto (hilo, revisión, `message_ids`
+e identificador y nombre de cada segmento del correo y de los adjuntos). El puente la usa para dejar de confiar en lo que Work copia a
+mano: `DRIVE_PREFLIGHT.manifest_revision`, `message_ids`, los conteos de segmentos y las listas `*_segment_ids_expected` y
+`*_segment_ids_pending` se calculan desde el manifiesto; `*_segment_ids_read` es lo que Work declaró haber leído, reducido a lo que
+existe en el manifiesto (acepta el identificador o el nombre del segmento y lo normaliza al identificador). Cada diferencia se
+anota como aviso del puente. Si Work leyó una revisión que no es la vigente, el mensaje analizado no está en el manifiesto o quedan
+segmentos sin lectura verificada, `analysis_complete` pasa a falso y el caso a revisión técnica interna. Sin instantánea para el
+hilo (preparador apagado o expediente anterior a este cambio) no se modifica nada: el comportamiento es el de T-35.
+
+Cuando quedan segmentos de adjuntos sin lectura verificada, el puente dice **cuáles**: la instantánea guarda también el nombre del
+archivo de cada segmento, el aviso del caso lo nombra («1 de 4 segmentos de adjuntos sin lectura verificada: plano.kml») y la
+auditoría conserva la lista en `attachment_files_pending` (la calcula el puente, nunca Work). El aviso «Lectura pendiente» de la
+pantalla del caso nombra esos archivos y dice qué hacer: volver a ejecutar la tarea de Work sobre el hilo, porque un bloqueo no es un
+análisis final y un análisis completo posterior de la misma revisión reemplaza al incompleto. Los resultados siguen ocultos hasta
+que la lectura se verifique; esto solo evita que la persona deba adivinar qué falló. Una instantánea anterior a este cambio no
+trae los nombres: el aviso funciona igual, sin ellos, hasta que el preparador la vuelva a guardar.
+
+### T-38 · Lo que Work pone en la tabla se comprueba contra los textos del expediente
+Cuando el preparador (T-34) publica un expediente guarda también, solo en este equipo, el texto extraído del correo y de cada adjunto
+(con un tope de tamaño; si lo supera, la comprobación queda como «no comprobable»). El puente comprueba, sin cambiar ni bloquear nada:
+(a) que cada número de la cantidad de una actividad aparece en los textos del expediente (en el archivo citado si se puede
+identificar; si solo está en otro archivo, lo dice); (b) que los archivos citados en las fuentes existen en el expediente y que la
+página citada de un PDF no supera las páginas leídas; (c) que cada extracto literal de un adjunto aparece en el texto de ese adjunto.
+Cada diferencia es un aviso del caso con su ubicación («actividad 3, cantidad 126»). Si algún adjunto no tiene texto (ilegible o
+no extraído), un dato que no se encuentra se marca «no comprobable» y no como diferencia. El resultado queda en el caso
+(`evidence_check`: estado, cuántas comprobaciones, diferencias, no comprobables). Sin textos del hilo no se comprueba nada.
+
+### T-39 · El prompt de Work es corto y su ejemplo cumple el contrato
+El prompt de la tarea de Work cabe en unos 11 000 caracteres (la V4.7 tiene 19 500), no depende de la skill para el formato de salida e incluye un
+JSON de ejemplo completo. Una prueba extrae ese ejemplo del archivo del prompt y comprueba que cumple el esquema
+(`spec/contrato_work.schema.json`), de modo que el ejemplo no se desactualiza sin que falle una prueba. Work solo declara qué
+segmentos leyó; la revisión, los conteos y los pendientes los calcula el puente (T-37).
+
+### T-40 · El preparador gasta poca cuota de Gmail y no se queda sin preparar lo más nuevo
+El preparador (T-34) no vuelve a bajar un hilo cuyo estado en Gmail (`historyId` de `threads.list`) no cambió desde la última vez que
+lo preparó con éxito, salvo que falten sus copias locales (T-37, T-38). En cada pasada baja como máximo seis hilos completos y
+empieza por los que nunca ha preparado; los demás esperan a la siguiente pasada. Si Gmail rechaza una petición por cuota, termina la
+pasada sin insistir ni contar cada hilo restante como fallo, y lo deja anotado en su estado. Pedir un hilo concreto lo prepara siempre.
+
+### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
+**Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **falta la prueba manual en Work con el
+prompt V6**. Rige para los borradores del prompt V6 en adelante (`skill_version` `PRECISO_V6…`); los de V5 y anteriores siguen con T-34, T-37 y
+T-40 hasta que se retiren. Decisión: D-68.
+
+**Motivo.** El 2026-10-11 un caso real quedó oculto («Lectura pendiente») porque Work no abrió 1 de los 4 segmentos que el preparador
+había publicado en Drive («ID esperado no existe»), aunque el archivo existía, era del dueño y se podía descargar. Una prueba directa
+con el mismo hilo, sin Drive, abrió los 4 adjuntos: nombres y tamaños idénticos a los de Gmail, 10 de 12 extractos literales iguales en
+el texto que extrae Python y los otros 2 (coordenadas del KML) iguales en valor, solo escritos de otra forma.
+
+**Qué debe cumplirse**
+1. **Lectura.** Work abre los originales en Gmail: los del mensaje que analiza y los de los demás mensajes recibidos del hilo. Si el
+   lector de adjuntos del conector no admite el formato (p. ej. KML: `read_attachment_supported: false`) o devuelve el contenido
+   truncado, abre el mensaje en formato `raw` y extrae el original de su MIME. Nunca sustituye un archivo por otro ni da por leído lo
+   truncado. No usa Drive para leer.
+2. **Informe por archivo.** Cada elemento de `attachments[]` lleva, además de lo que ya lleva, `size_bytes` (entero: el tamaño que muestra
+   Gmail) y, opcional, `read_via` (`attachment` o `raw_mime`). Sin `size_bytes` el archivo no se puede verificar (ver 3).
+3. **Completitud verificada por el puente (sustituye a los segmentos de T-37).** Al importar un borrador de Work nuevo o cambiado, el
+   puente obtiene de Gmail la lista de adjuntos de los mensajes recibidos del hilo (nombre y tamaño; no descarga su contenido) y no cuenta
+   las imágenes inline de firma. Un adjunto queda **verificado** si Work lo reporta con el mismo nombre y el mismo tamaño y una cobertura
+   distinta de `null` (un adjunto sin `coverage` cuenta como no leído); dos adjuntos con el mismo nombre y tamaño son el mismo
+   archivo reenviado y cuentan como uno. Lo que Work marca con `status: ignorado` no cuenta como adjunto desconocido. Si falta alguno, difiere un tamaño o Work reporta uno que Gmail no
+   tiene, la lectura queda incompleta: `analysis_complete` pasa a falso, el caso a revisión técnica interna, el aviso del caso nombra
+   los archivos y los resultados siguen ocultos hasta que un análisis posterior de Work los verifique (el mismo mecanismo de
+   reemplazo de T-37). La lista se guarda con el caso: se consulta una vez por borrador importado, no en cada pasada.
+4. **Si Gmail no responde** al verificar (cuota, red), el borrador no se descarta ni se da por verificado: la lectura queda «sin
+   verificar», se dice así en el caso y se reintenta en la siguiente pasada, sin insistir dentro de la misma (como T-40).
+5. **Texto local para T-38.** El puente descarga y extrae con los lectores de Python solo los adjuntos de los hilos con un borrador
+   importado, una vez por adjunto (se reconoce por su huella), y guarda el texto solo en este equipo. Ya no hay un proceso que recorra el
+   buzón cada minuto bajando hilos completos. T-38 sigue siendo solo avisos, con un cambio: **los números se comparan por valor**, no
+   por texto (`-74.304` = `-74.30400000`; `126,51` = `126.51`), y un número con separador ambiguo (`1.234`, `1,234`) se acepta si
+   coincide con cualquiera de sus lecturas. Un extracto que son solo cifras (`-74.3025,4.779,2584.3`) se comprueba por valor, leyendo la
+   coma como decimal o como separador de lista. Sin ese cambio las coordenadas de un KML darían diferencias falsas.
+6. **Sin `DRIVE_PREFLIGHT` no se oculta el caso.** Un caso de Work que no trae `DRIVE_PREFLIGHT` ni verificación (un borrador anterior sin
+   expediente, o un caso viejo) ya no desaparece de la pantalla por eso; un borrador V6 se verifica por el punto 3. Solo se oculta un caso
+   con verificación `incompleta` (o, mientras existan, uno de V5 cuyo `DRIVE_PREFLIGHT` o cuyos segmentos no cuadran, como en T-37); uno
+   «sin verificar» se muestra con el aviso. En un borrador V6, `DRIVE_PREFLIGHT`, `reading_audit` y los campos `*_segment_*` se aceptan si
+   llegan, pero no se exigen ni deciden nada: `reading_audit` lo escribe el puente.
+   El origen del mensaje se sigue verificando contra Gmail (T-35) también para los borradores V6.
+7. **Qué se retira.** La publicación de expedientes en Drive (T-34, T-40), el manifiesto con segmentos, las instantáneas de manifiesto,
+   `work_drive_enabled` (queda en falso por defecto) y el paquete manual de adjuntos. El código se retira cuando T-41 esté
+   implementado **y probado en Work**, no antes. Los modos `local` y `api` no cambian: leen con Python.
+
+**Casos de aceptación** (los que se vuelven pruebas)
+- Cuatro adjuntos reportados con su nombre y tamaño: verificados, y `analysis_complete` se respeta.
+- Falta el KML en el informe de Work: aviso «Falta leer: poligono.kml», `analysis_complete` falso, caso en revisión técnica interna.
+- Un tamaño distinto al de Gmail, y un adjunto reportado que Gmail no tiene: ambos quedan pendientes y nombrados.
+- La imagen inline de firma no cuenta como adjunto pendiente.
+- Gmail falla al verificar: «sin verificar», el borrador se conserva y se reintenta.
+- Las coordenadas del KML con distinto formato no generan diferencia en T-38.
+- Un borrador sin `DRIVE_PREFLIGHT` se importa y no se oculta por eso; uno antiguo con `DRIVE_PREFLIGHT` se acepta sin exigirlo.
+
+**Cambios que acompañan (al implementar).** `spec/contrato_work.schema.json` (`attachments[].size_bytes` y `read_via`, opcionales);
+el prompt de Work pasa de la V5 a la V6 (la sección 2 se reescribe sin Drive, con la regla del formato `raw`, y el ejemplo JSON lleva
+`size_bytes` sin `DRIVE_PREFLIGHT`); `SKILL.md`; `tests/test_prompt_work.py` valida el ejemplo contra el esquema.
+**Prueba manual en Work** antes de activarlo: repetir la del 2026-10-11 con el hilo de ese caso y añadir un KMZ, un ZIP y un adjunto
+grande, para conocer el límite del conector con el correo `raw`.
+
+**Preguntas abiertas** (no se deciden aquí)
+- Qué significa `coverage` cuando falta la revisión visual: Work marcó «parcial» el Excel y el KML por no revisarlos visualmente, y
+  Python los da por «completa»; a la inversa, Python marcó «parcial» un PDF de una página que Work leyó y renderizó completo.
+- DWG/DXF: ni Python ni el conector los leen. Se seguirían registrando como no legibles, con la sugerencia de pedir al cliente un DXF y
+  un PDF de las presentaciones; leer DXF con una librería es una dependencia nueva que requiere su propia decisión.
+- Si Work puede hacer cálculos de comprobación (áreas, perímetros) marcados como derivados; la V5 dice «no calcules ni conviertas».
+- El límite de tamaño del correo `raw` en el conector.

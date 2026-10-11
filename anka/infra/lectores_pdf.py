@@ -31,15 +31,20 @@ def pdf_text(content: bytes) -> str:
     for page_number, page in enumerate(reader.pages, 1):
         text = page.extract_text() or ""
         pdf_page = pdf_document[page_number - 1] if pdf_document is not None else None
-        has_visual_content = _pdf_visual_content(pdf_page, pdfium, page_texts)
+        has_visual_content = _pdf_visual_content(pdf_page, pdfium)
         needs_ocr = not text.strip() or len(text.strip()) < 100 or has_visual_content
         if needs_ocr and pdf_page is not None:
             try:
+                width, height = pdf_page.get_size()
+                if width * height * 9 > MAX_OCR_PIXELS:
+                    raise Unreadable("página PDF excede el límite de píxeles para OCR")
                 bitmap = pdf_page.render(scale=3)
                 image = bitmap.to_pil()
-                if image.width * image.height > MAX_OCR_PIXELS:
-                    raise Unreadable("página PDF excede el límite de píxeles para OCR")
-                ocr = ocr_pil_image(image)
+                try:
+                    ocr = ocr_pil_image(image)
+                finally:
+                    image.close()
+                    bitmap.close()
                 native_compact = re.sub(r"\W+", "", text.casefold())
                 unique_ocr = [
                     line
@@ -75,13 +80,13 @@ def pdf_text(content: bytes) -> str:
     )
 
 
-def _pdf_visual_content(pdf_page: Any, pdfium: Any, page_texts: list[tuple[str, bool]]) -> bool:
+def _pdf_visual_content(pdf_page: Any, pdfium: Any) -> bool:
     has_visual_content = False
     if pdf_page is not None:
         try:
             page_width, page_height = pdf_page.get_size()
             page_area = page_width * page_height
-            image_objects = pdf_page.get_objects(filter=[pdfium.raw.FPDF_PAGEOBJ_IMAGE])
+            image_objects = pdf_page.get_objects(filter=[pdfium.raw.FPDF_PAGEOBJ_IMAGE, pdfium.raw.FPDF_PAGEOBJ_PATH])
             for image_object in image_objects:
                 left, bottom, right, top = image_object.get_bounds()
                 image_width, image_height = max(0, right - left), max(0, top - bottom)
@@ -90,6 +95,5 @@ def _pdf_visual_content(pdf_page: Any, pdfium: Any, page_texts: list[tuple[str, 
                     has_visual_content = True
                     break
         except Exception as exc:
-            page_texts.append((f"COBERTURA PARCIAL: inspección visual PDF falló ({type(exc).__name__})", True))
-            has_visual_content = True
+            raise Unreadable(f"inspección visual PDF falló ({type(exc).__name__}); revisión interna") from exc
     return has_visual_content

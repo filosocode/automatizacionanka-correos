@@ -146,8 +146,8 @@ class CompleteReadingTests(unittest.TestCase):
     def classify(self, text):
         return attachments._motivos_de_lectura_parcial(text)
 
-    def test_ocr_that_ran_does_not_downgrade_the_coverage(self):
-        self.assertEqual(self.classify(self.OCR_PAGE), [])
+    def test_ocr_with_uninterpreted_visual_relations_is_partial(self):
+        self.assertTrue(self.classify(self.OCR_PAGE))
 
     def test_content_that_could_not_be_extracted_is_still_partial(self):
         casos = [
@@ -162,12 +162,12 @@ class CompleteReadingTests(unittest.TestCase):
             with self.subTest(text=text[:40]):
                 self.assertTrue(self.classify(text))
 
-    def test_a_scanned_pdf_read_with_ocr_is_complete_in_every_mode(self):
+    def test_a_scanned_pdf_with_visual_warning_is_partial_in_every_mode(self):
         with patch.object(attachments, "_read_by_format", return_value=self.OCR_PAGE):
             for reader in (extract_attachment_text, extract_attachment_text_for_work_packet):
                 text, reason = reader("e.pdf", "application/pdf", b"%PDF")
                 self.assertIn("Área: 12 ha", text)
-                self.assertEqual(reason, "")
+                self.assertIn("parcial", reason)
 
     def test_the_partial_reasons_are_the_same_in_every_mode(self):
         with patch.object(attachments, "_read_by_format", return_value="[Página 3; sin texto extraíble]\nTexto"):

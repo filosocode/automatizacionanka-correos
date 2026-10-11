@@ -1,48 +1,138 @@
 {
   "$comment": "Contrato entre la tarea de ChatGPT Work y el puente (work_dashboard_sync.py): el JSON que va entre [ANKA_DASHBOARD_JSON_V1] y [/ANKA_DASHBOARD_JSON_V1] dentro del borrador de Gmail. Es la fuente de verdad: el puente lo valida y las pruebas lo usan. Subconjunto de JSON Schema: type, required, enum, properties, items, minLength.",
   "type": "object",
-  "required": ["thread_id", "message_id", "client_email", "project_name", "status", "engine"],
+  "required": [
+    "thread_id",
+    "message_id",
+    "client_email",
+    "project_name",
+    "status",
+    "engine"
+  ],
   "properties": {
-    "thread_id": {"type": "string", "minLength": 1, "$comment": "Hilo real del borrador."},
-    "message_id": {"type": "string", "minLength": 1, "$comment": "ID del mensaje del cliente analizado (no del borrador)."},
+    "thread_id": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "Hilo real del borrador."
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "ID del mensaje del cliente analizado (no del borrador)."
+    },
     "status": {
       "type": "string",
       "enum": [
-        "Nueva solicitud", "En análisis", "Faltan datos", "Requiere aclaraciones del cliente",
-        "Revisión técnica", "Requiere revisión técnica interna", "Borrador preparado",
-        "Alcance completo", "Información suficiente para revisión interna", "Descartada"
+        "Nueva solicitud",
+        "En análisis",
+        "Faltan datos",
+        "Requiere aclaraciones del cliente",
+        "Revisión técnica",
+        "Requiere revisión técnica interna",
+        "Borrador preparado",
+        "Alcance completo",
+        "Información suficiente para revisión interna",
+        "Descartada"
       ],
       "$comment": "Se acepta sin tildes ni mayúsculas: el puente lo normaliza a esta etiqueta antes de validar."
     },
-    "engine": {"type": "string", "enum": ["chatgpt_work"]},
-    "model": {"type": "string", "$comment": "T-32, opcional y solo interno: el modelo que declara la interfaz de Work para la tarea."},
-    "skill_version": {"type": "string", "$comment": "T-32, opcional y solo interno: la versión del prompt, p. ej. PRECISO_V4."},
-    "client_email": {"type": "string", "minLength": 1},
-    "client_name": {"type": "string"},
-    "project_name": {"type": "string", "minLength": 1},
-    "summary": {"type": "string"},
-    "received_at": {"type": "string", "$comment": "ISO 8601."},
-    "gmail_url": {"type": "string"},
-    "requested_by_email": {"type": "string", "$comment": "R11: quien escribió el mensaje analizado."},
-    "requested_by_name": {"type": "string"},
-    "cited_codes": {"type": "array", "items": {"type": "string"}, "$comment": "R11: códigos de oferta citados, tal como aparecen."},
-    "notes": {"type": "string"},
+    "engine": {
+      "type": "string",
+      "enum": [
+        "chatgpt_work"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "$comment": "T-32, opcional y solo interno: el modelo que declara la interfaz de Work para la tarea."
+    },
+    "skill_version": {
+      "type": "string",
+      "$comment": "T-32, opcional y solo interno: la versión del prompt, p. ej. PRECISO_V4."
+    },
+    "client_email": {
+      "type": "string",
+      "minLength": 1
+    },
+    "client_name": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string"
+    },
+    "received_at": {
+      "type": "string",
+      "$comment": "ISO 8601."
+    },
+    "gmail_url": {
+      "type": "string"
+    },
+    "requested_by_email": {
+      "type": "string",
+      "$comment": "R11: quien escribió el mensaje analizado."
+    },
+    "requested_by_name": {
+      "type": "string"
+    },
+    "cited_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "$comment": "R11: códigos de oferta citados, tal como aparecen."
+    },
+    "notes": {
+      "type": "string"
+    },
     "activities": {
       "type": "array",
       "$comment": "Cada fila es un objeto; el dashboard tolera filas escritas como texto (se convierten en una fila pendiente).",
       "items": {
-        "type": ["object", "string"],
+        "type": [
+          "object",
+          "string"
+        ],
         "properties": {
-          "activity": {"type": "string"},
-          "servicio_tecnica": {"type": "string"},
-          "ubicacion": {"type": "string"},
-          "quantity": {"type": ["string", "number"], "$comment": "El puente normaliza cantidades numéricas a texto para el dashboard."},
-          "unit": {"type": "string"},
-          "entregable": {"type": "string"},
-          "plazo_restriccion": {"type": "string"},
-          "fuente": {"type": "string"},
-          "estado": {"type": "string", "$comment": "R12: confirmado, pendiente o contradictorio. Cualquier otro texto se normaliza en el dashboard."},
-          "notes": {"type": "string", "$comment": "R12: accionable. En faltantes, indica dato, fuente revisada y siguiente paso. En contradicciones, indica parámetro, valores, fuentes/localizadores, decisión faltante y rol responsable; no inventa nombres ni traslada decisiones técnicas internas al cliente."}
+          "activity": {
+            "type": "string"
+          },
+          "servicio_tecnica": {
+            "type": "string"
+          },
+          "ubicacion": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "$comment": "El puente normaliza cantidades numéricas a texto para el dashboard."
+          },
+          "unit": {
+            "type": "string"
+          },
+          "entregable": {
+            "type": "string"
+          },
+          "plazo_restriccion": {
+            "type": "string"
+          },
+          "fuente": {
+            "type": "string"
+          },
+          "estado": {
+            "type": "string",
+            "$comment": "R12: confirmado, pendiente o contradictorio. Cualquier otro texto se normaliza en el dashboard."
+          },
+          "notes": {
+            "type": "string",
+            "$comment": "R12: accionable. En faltantes, indica dato, fuente revisada y siguiente paso. En contradicciones, indica parámetro, valores, fuentes/localizadores, decisión faltante y rol responsable; no inventa nombres ni traslada decisiones técnicas internas al cliente."
+          }
         }
       }
     },
@@ -51,11 +141,21 @@
       "$comment": "Datos obligatorios o útiles con el archivo y la ubicación que sustentan cada valor.",
       "items": {
         "type": "object",
-        "required": ["name", "value", "source"],
+        "required": [
+          "name",
+          "value",
+          "source"
+        ],
         "properties": {
-          "name": {"type": "string"},
-          "value": {"type": "string"},
-          "source": {"type": "string"}
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
         }
       }
     },
@@ -63,11 +163,21 @@
       "type": "array",
       "$comment": "Acepta strings legacy u objetos name/type que Work usa para distinguir faltantes críticos y recomendables.",
       "items": {
-        "type": ["string", "object"],
-        "required": ["name"],
+        "type": [
+          "string",
+          "object"
+        ],
+        "required": [
+          "name"
+        ],
         "properties": {
-          "name": {"type": "string", "minLength": 1},
-          "type": {"type": "string"}
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string"
+          }
         }
       }
     },
@@ -76,16 +186,57 @@
       "$comment": "Inventario atómico de datos relevantes y estado de evidencia. Referenciado por question_audit en el contrato v2.",
       "items": {
         "type": "object",
-        "required": ["id", "topic", "status", "value", "source", "location", "owner", "blocking"],
+        "required": [
+          "id",
+          "topic",
+          "status",
+          "value",
+          "source",
+          "location",
+          "owner",
+          "blocking"
+        ],
         "properties": {
-          "id": {"type": "string", "minLength": 1},
-          "topic": {"type": "string", "minLength": 1},
-          "status": {"type": "string", "enum": ["explicit", "partial", "absent", "unreadable", "contradictory", "unconfirmed"]},
-          "value": {"type": "string"},
-          "source": {"type": "string"},
-          "location": {"type": "string"},
-          "owner": {"type": "string", "enum": ["client", "anka", "contractor", "unknown"]},
-          "blocking": {"type": "boolean"}
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "topic": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "explicit",
+              "partial",
+              "absent",
+              "unreadable",
+              "contradictory",
+              "unconfirmed"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string",
+            "enum": [
+              "client",
+              "anka",
+              "contractor",
+              "unknown"
+            ]
+          },
+          "blocking": {
+            "type": "boolean"
+          }
         }
       }
     },
@@ -94,15 +245,45 @@
       "$comment": "Toda pregunta propuesta indica por qué sigue abierta y qué fuentes fueron consultadas para no repetir información existente.",
       "items": {
         "type": "object",
-        "required": ["question", "reason_missing", "reviewed_sources"],
+        "required": [
+          "question",
+          "reason_missing",
+          "reviewed_sources"
+        ],
         "properties": {
-          "question": {"type": "string"},
-          "reason_missing": {"type": "string"},
-          "reviewed_sources": {"type": "array", "items": {"type": "string"}},
-          "question_id": {"type": "string"},
-          "target_finding_ids": {"type": "array", "items": {"type": "string"}},
-          "disposition": {"type": "string", "enum": ["ask_client", "internal_review", "do_not_ask"]},
-          "unresolved": { "type": "string", "$comment": "Texto corto con el subdato concreto que sigue sin resolver; vacío si ninguno. Nunca true/false." }
+          "question": {
+            "type": "string"
+          },
+          "reason_missing": {
+            "type": "string"
+          },
+          "reviewed_sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "question_id": {
+            "type": "string"
+          },
+          "target_finding_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "ask_client",
+              "internal_review",
+              "do_not_ask"
+            ]
+          },
+          "unresolved": {
+            "type": "string",
+            "$comment": "Texto corto con el subdato concreto que sigue sin resolver; vacío si ninguno. Nunca true/false."
+          }
         }
       }
     },
@@ -111,25 +292,77 @@
       "items": {
         "type": "object",
         "properties": {
-          "filename": {"type": "string"},
-          "status": {"type": "string"},
-          "reason": {"type": "string"},
-          "coverage": {"type": "string"},
-          "reviewed_sections": {"type": "array", "items": {"type": "string"}},
-          "blocked_fields": {"type": "array", "items": {"type": "string"}},
+          "filename": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "coverage": {
+            "type": "string"
+          },
+          "reviewed_sections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "blocked_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "evidence": {
             "type": "array",
             "$comment": "Hallazgos explícitos por archivo. La cita corta debe localizarse en página, párrafo, tabla, hoja/celda o geometría.",
             "items": {
               "type": "object",
-              "required": ["topic", "value", "location", "excerpt"],
+              "required": [
+                "topic",
+                "value",
+                "location",
+                "excerpt"
+              ],
               "properties": {
-                "topic": {"type": "string"},
-                "value": {"type": "string"},
-                "location": {"type": "string"},
-                "excerpt": {"type": "string"}
+                "topic": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "location": {
+                  "type": "string"
+                },
+                "excerpt": {
+                  "type": "string"
+                }
               }
             }
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "visual_interpretation": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "$comment": "T-41: el tamaño exacto que muestra Gmail para el adjunto. El puente lo compara con el de Gmail para verificar que Work reportó cada archivo; sin él el archivo no se puede verificar."
+          },
+          "read_via": {
+            "type": "string",
+            "enum": [
+              "attachment",
+              "raw_mime"
+            ],
+            "$comment": "T-41, opcional: cómo abrió Work el original (lector de adjuntos o mensaje en formato raw)."
           }
         }
       }
@@ -139,10 +372,21 @@
       "items": {
         "type": "object",
         "properties": {
-          "topic": {"type": "string"},
-          "details": {"type": "string"},
-          "sources": {"type": "array", "items": {"type": "string"}},
-          "status": {"type": "string"}
+          "topic": {
+            "type": "string"
+          },
+          "details": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          }
         }
       }
     },
@@ -151,13 +395,40 @@
       "items": {
         "type": "object",
         "properties": {
-          "description": {"type": "string"},
-          "source": {"type": "string"},
-          "status": {"type": "string"}
+          "description": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
         }
       }
     },
-    "draft_reply": {"type": "string", "$comment": "Lo agrega el puente: el correo limpio que sigue al bloque JSON."},
-    "draft_id": {"type": "string", "$comment": "Lo agrega el puente: el borrador de Gmail que contiene el bloque."}
+    "draft_reply": {
+      "type": "string",
+      "$comment": "Lo agrega el puente: el correo limpio que sigue al bloque JSON."
+    },
+    "draft_id": {
+      "type": "string",
+      "$comment": "Lo agrega el puente: el borrador de Gmail que contiene el bloque."
+    },
+    "DRIVE_PREFLIGHT": {
+      "type": "object"
+    },
+    "reading_audit": {
+      "type": "object"
+    },
+    "related_threads": {
+      "type": "array"
+    },
+    "analysis_complete": {
+      "type": "boolean"
+    },
+    "applicability": {
+      "type": "object"
+    }
   }
 }

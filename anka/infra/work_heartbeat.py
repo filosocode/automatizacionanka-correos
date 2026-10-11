@@ -118,7 +118,8 @@ def bridge_state() -> tuple[str, str]:
     if rejected:
         return "attention", (
             f"Puente Work activo (Gmail revisado a las {when}), pero {len(rejected)} borrador(es) de Work no "
-            "cumplen el contrato y no se importaron. El detalle y qué hacer están en el Resumen.")
+            "cumplen el contrato y no se importaron; el caso queda solo con los datos del correo, en revisión técnica. "
+            "El detalle y qué hacer están en el Resumen.")
     return "ok", (
         f"Puente Work activo: Gmail revisado a las {when} ({_ago(age)}), "
         f"{beat.get('drafts', 0)} borradores, {beat.get('updated', 0)} actualizados."

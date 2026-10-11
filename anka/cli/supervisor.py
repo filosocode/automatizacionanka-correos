@@ -33,7 +33,7 @@ REMINDER_EVERY = 300                # segundos entre revisiones de recordatorios
 MODE_RECHECK = 30          # segundos entre lecturas de config.json para saber si el puente debe estar activo
 WATCH_EVERY = 3                     # segundos entre revisiones de cambios y de procesos
 CHILD_PYTHON = sys.executable.replace("pythonw.exe", "python.exe")
-MARKERS = ("app.py review-ui", "work_dashboard_sync.py", "supervisor.py")
+MARKERS = ("app.py review-ui", "work_dashboard_sync.py", "supervisor.py", "app.py work-drive-sync")
 
 
 def code_snapshot(root: Path = ROOT) -> dict[str, float]:
@@ -102,6 +102,15 @@ def work_mode() -> bool:
         return False
 
 
+def work_drive_enabled() -> bool:
+    """¿Se activó explícitamente el preparador de expedientes del modo Work?"""
+    try:
+        config = settings.load_config()
+        return config.get("active_mode") == "chatgpt_work" and config.get("work_drive_enabled", False)
+    except (ErrorDeAnka, OSError, ValueError):
+        return False
+
+
 class Child:
     """Un proceso hijo vigilado: se inicia, se detiene y se reinicia con espera creciente si falla."""
     def __init__(self, name: str, args: list[str]):
@@ -156,10 +165,12 @@ def servicio() -> int:
     stop_old_instances()
     dashboard = Child("Dashboard", ["app.py", "review-ui", "--no-browser"])
     bridge = Child("Puente Work", ["work_dashboard_sync.py", "--seconds", "30"])
-    children = [dashboard, bridge]
+    preparer = Child("Expedientes Work", ["app.py", "work-drive-sync", "--watch-seconds", "60"])
+    children = [dashboard, bridge, preparer]
     snapshot = code_snapshot()
     last_reminders = 0.0
     mode_checked, in_work_mode = 0.0, False   # config.json se relee cada MODE_RECHECK s, no en cada vuelta
+    prepare_enabled = False
     log.info("Anka iniciado: dashboard en http://127.0.0.1:8765/")
     try:
         while True:
@@ -169,11 +180,17 @@ def servicio() -> int:
                 return EXIT_RELANZAR                # el `finally` detiene a los hijos; el guardián lanza el código nuevo
             if time.time() - mode_checked >= MODE_RECHECK:
                 mode_checked, in_work_mode = time.time(), work_mode()
+                prepare_enabled = work_drive_enabled()
             if in_work_mode:
                 bridge.check()
             elif bridge.process:
                 bridge.stop()                        # cambió a otro modo: el puente sobra
                 bridge.stopped = False
+            if prepare_enabled:
+                preparer.check()
+            elif preparer.process:
+                preparer.stop()
+                preparer.stopped = False
             dashboard.check()
             if backup_due():
                 run_backup()

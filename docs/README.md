@@ -2,12 +2,18 @@
 
 | Documento | Para quién | Qué contiene |
 |---|---|---|
+| [WORK_DRIVE_OCR.md](WORK_DRIVE_OCR.md) | Quien configura Work | Preparación automática de adjuntos de Gmail y extracción OCR en Drive |
+| `INVESTIGACION_MEJORAS.md` (borrador local, si existe) | Quien desarrolla | Investigación local previa; no forma parte de esta implementación |
 | [INVENTARIO_FORMATOS_HISTORICO_TE.md](INVENTARIO_FORMATOS_HISTORICO_TE.md) | Quien mantiene los lectores | Formatos y límites de extracción |
 | [`../README.md`](../README.md) | Quien llega por primera vez | Qué es, cómo se instala y se usa |
 | [`GUIA_COMERCIAL.md`](GUIA_COMERCIAL.md) | El comercial | Cómo usar el dashboard en el día a día |
 | [`FLUJO_FASE1.md`](FLUJO_FASE1.md) | Todos | El flujo de la Fase 1, paso a paso |
 | [`MODO_OPERACION.md`](MODO_OPERACION.md) | Quien opera | Los tres modos (Ollama, API, Work) y cómo cambiar |
 | [`PILOTO_ACEPTACION.md`](PILOTO_ACEPTACION.md) | Quien prueba | Checklist de la prueba de aceptación en Work |
+| [`PROMPT_WORK_ANKA_V6.txt`](PROMPT_WORK_ANKA_V6.txt) | Quien configura la tarea de Work | Candidato V6 (T-41): Work lee los adjuntos directamente desde Gmail, sin Drive; cada adjunto se reporta con nombre y `size_bytes` y el puente lo verifica. Se prueba primero en una conversación aparte |
+| [`PROMPT_WORK_ANKA_PRECISO_V4_6.txt`](PROMPT_WORK_ANKA_PRECISO_V4_6.txt) | Quien revisa antecedentes | Versión anterior a la V5, conservada como antecedente |
+| [`PROMPT_WORK_ANKA_PRECISO_V4_7.txt`](PROMPT_WORK_ANKA_PRECISO_V4_7.txt) | Quien revisa antecedentes | Versión anterior a la V5 (unos 19 500 caracteres), conservada como antecedente |
+| [`PROMPT_WORK_ANKA_V5.txt`](PROMPT_WORK_ANKA_V5.txt) | Quien configura la tarea de Work | Candidato corto (T-39): unos 11 000 caracteres con un JSON de ejemplo que una prueba valida contra el esquema; Work solo declara qué segmentos leyó. Aún no es el de la tarea: se prueba primero en una conversación aparte |
 | [`PROMPT_WORK_ANKA_RIGUROSO_V2.txt`](PROMPT_WORK_ANKA_RIGUROSO_V2.txt) | Quien configura Work | Prompt vigente con contrato de evidencia y preguntas auditables para copiar en la tarea |
 | [PROMPT_WORK_ANKA.txt](PROMPT_WORK_ANKA.txt) | Quien revisa antecedentes | Prompt histórico inicial |
 | [PROMPT_WORK_ANKA_RIGUROSO.txt](PROMPT_WORK_ANKA_RIGUROSO.txt) | Quien revisa antecedentes | Prompt histórico riguroso |

@@ -29,6 +29,8 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `activities` | Edicion y exportacion de la tabla de actividades (sin acceso a Gmail ni Drive). |
+| `caso_minimo` | El caso mínimo para un borrador de Work sin análisis válido, con solo lo verificable en Gmail (T-36). |
+| `verificacion_de_evidencia` | Comprobación mecánica de que lo que Work puso en la tabla está en los textos del expediente (T-38). |
 | `analisis` | La forma del análisis de una solicitud: lo que el modelo (o Work) devuelve y el dashboard guarda como JSON. |
 | `attachments` | Límites y evidencia de adjuntos en memoria. |
 | `lectores_texto` | Lectura en memoria de texto, HTML y RTF. |
@@ -63,12 +65,14 @@ La descripción es la primera frase de su docstring.
 |---|---|
 | `backup` | Copias de seguridad de la base del dashboard: local y en Drive (sin credenciales ni token). |
 | `google_services` | Cliente de Gmail y Drive: credenciales, servicios y carpetas. |
+| `drive_exchange` | Intercambio de archivos propios en Drive con claves estables, paginación y bloqueo local. |
 | `llm` | Análisis del correo con el motor elegido (Ollama u OpenAI). |
 | `logging_setup` | Registro de la aplicación: consola con todo el detalle, archivo sin datos de clientes. |
 | `mail` | Correo en Gmail: lo que habla con la API (descargar adjuntos, enviar, crear borradores, listar hilos). |
 | `modes` | Modo de operación (local, api, chatgpt_work) y su automatización asociada. |
 | `settings` | Ajustes y carpeta de datos local (fuera del repositorio). |
 | `store` | Persistencia SQLite del estado de solicitudes y novedades del dashboard. |
+| `instantaneas_de_manifiesto` | Copia local mínima del manifiesto que publica el preparador, para verificar la lectura que declara Work (T-37). |
 | `work_heartbeat` | Latido del puente Gmail → dashboard (modo chatgpt_work): permite saber si está vivo. |
 
 ### `anka/servicios/`
@@ -77,6 +81,7 @@ La descripción es la primera frase de su docstring.
 |---|---|
 | `envios` | Reserva persistente y reconciliación de envíos del dashboard. |
 | `lectura_por_tramos` | Análisis de un hilo con lectura completa aunque no quepa en el modelo (T-25). |
+| `lectura_de_adjuntos` | Verifica la lectura de Work contra los adjuntos que Gmail tiene en el hilo y deja su texto local para T-38 (T-41). |
 | `reintentos` | Registro de los hilos que fallaron y de cuándo reintentarlos (T-26). |
 
 | Módulo | Para qué sirve |
@@ -100,6 +105,7 @@ La descripción es la primera frase de su docstring.
 | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
 | `work_import` | Importación del borrador de ChatGPT Work al dashboard (`dashboard_upsert`). |
 | `work_attachment_packet` | Prepara localmente manifiesto de evidencia y textos de adjuntos segmentados para que una persona los aporte a la tarea de Work. |
+| `work_drive` | Expedientes de recepción versionados de Gmail a Drive, con originales y extracción para Work. |
 
 ### `anka/web/`
 
@@ -122,6 +128,7 @@ La descripción es la primera frase de su docstring.
 | `app` | Línea de comandos de Anka: `python app.py <comando>`. |
 | `supervisor` | Lanzador único: arranca dashboard y puente, los reinicia si se caen o si cambia el código (y se reinicia a sí mismo), y hace la copia de seguridad diaria. |
 | `work_sync` | Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. |
+| `work_drive` | Proceso de preparación de expedientes, separado del puente de borradores. |
 
 ## Clases y funciones: cuándo cada una
 Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funciones donde no:

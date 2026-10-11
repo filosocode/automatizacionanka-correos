@@ -73,6 +73,16 @@ La misma logica debe guiar el bot local, el modo API y el modo ChatGPT Work.
 
 ## Adjuntos
 
+**Con el prompt V6 (T-41) Work lee los adjuntos directamente desde Gmail y no se necesita el preparador de abajo:** el puente compara
+el nombre y el tamaño de cada adjunto que Work reporta con los que Gmail tiene en el hilo y nombra los que falten. Pega
+`docs/PROMPT_WORK_ANKA_V6.txt` en la tarea de Work y deja `work_drive_enabled` en `false`. Lo que sigue describe el camino anterior
+(V5 y antes), que se retirará cuando V6 esté probado en Work.
+
+En `chatgpt_work` se puede activar el preparador Gmail → OCR → Drive (T-34). Es un proceso de documentos,
+no otro analizador comercial: Work sigue decidiendo el alcance y el borrador. El preparador requiere una raíz
+de recepción y una búsqueda explícitas; publica originales, versiones, segmentos y manifiesto por hilo.
+Véase [configuración y prueba](WORK_DRIVE_OCR.md). La tarea de Work debe actualizarse para consultar ese manifiesto.
+
 El bot extrae texto y cobertura verificable de TXT, CSV, JSON, XML, KML/KMZ, GeoJSON, GPX, planes QGroundControl (.plan/.waypoints), DJI WPML en KMZ, PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT/ODS/ODP, RTF, HTML, imágenes y documentos compatibles dentro de ZIP. El OCR local inspecciona imágenes, páginas PDF escaneadas y figuras incrustadas; formatos Office antiguos se convierten con LibreOffice cuando está instalado. Shapefiles se leen desde ZIP cuando incluyen .shp, .shx y .dbf. Las capturas inline de firma no bloquean el análisis. DWG/DXF, OCR ilegible, gráficos estructurados y todo contenido que no pueda convertirse quedan identificados para revisión manual.
 
 Una referencia a trabajos anteriores sin su alcance adjunto se registra como dependencia pendiente. Las cifras o requisitos incompatibles entre fuentes se registran como contradicciones. Ambos casos impiden crear automáticamente la carpeta del proyecto hasta que comercial o técnica los resuelva.

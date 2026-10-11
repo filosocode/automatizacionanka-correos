@@ -33,6 +33,7 @@ KNOWN_CONFIG_KEYS = {
     "active_mode", "gmail_query", "own_addresses", "test_sender_addresses", "forwarded_reply_policy", "llm",
     "required_fields", "commercial_filter_terms", "drive_parent_id", "folder_prefix",
     "work_sync_account",
+    "work_drive_enabled", "work_drive_parent_id", "work_drive_query",
 }
 FORWARDED_POLICIES = {"internal_reviewer", "original_sender"}
 PROVIDERS = {"ollama", "openai"}
@@ -63,6 +64,7 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
         problems.append("required_fields es obligatorio (puede ser una lista vacía).")
     elif not _is_text_list(config["required_fields"]):
         problems.append("required_fields debe ser una lista de textos.")
+    problems.extend(_work_drive_problems(config))
     if config.get("forwarded_reply_policy", "internal_reviewer") not in FORWARDED_POLICIES:
         problems.append("forwarded_reply_policy debe ser 'internal_reviewer' u 'original_sender'.")
 
@@ -71,6 +73,27 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
         problems.append("llm debe ser un objeto con al menos provider.")
         return problems
     problems.extend(_engine_problems(engine, mode))
+    return problems
+
+
+def _work_drive_problems(config: Mapping[str, Any]) -> list[str]:
+    problems = []
+    if not isinstance(config.get("work_drive_enabled", False), bool):
+        problems.append("work_drive_enabled debe ser booleano.")
+    for key in ("work_drive_parent_id", "work_drive_query"):
+        value = config.get(key, "")
+        if not isinstance(value, str):
+            problems.append(f"{key} debe ser texto.")
+        elif config.get("work_drive_enabled") and not value.strip():
+            problems.append(f"{key} es obligatorio al activar expedientes de Work.")
+    if config.get("work_drive_enabled"):
+        if config.get("active_mode") != "chatgpt_work":
+            problems.append("work_drive_enabled requiere active_mode 'chatgpt_work'.")
+        if config.get("work_drive_parent_id") == config.get("drive_parent_id"):
+            problems.append("work_drive_parent_id debe ser una carpeta de recepción distinta de drive_parent_id.")
+        account = config.get("work_sync_account", "")
+        if not isinstance(account, str) or "@" not in account:
+            problems.append("work_sync_account es obligatorio al activar expedientes de Work.")
     return problems
 
 

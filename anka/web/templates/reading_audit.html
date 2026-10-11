@@ -1,0 +1,19 @@
+{% if preflight or audit.get('verification') %}
+<details class="notice" open>
+  <summary><strong>Lectura y aplicabilidad</strong></summary>
+  <p>Lectura: {{ reading.get('status') or 'no indicado' }}. Interpretación visual: {{ reading.get('visual') or 'no indicado' }}.</p>
+  {% if audit.get('verification') %}
+  <p class="meta">Adjuntos comprobados contra Gmail: {{ audit.get('verification').replace('_', ' ') }}
+    ({{ (audit.get('attachments_expected') or [])|length }} en el hilo).</p>
+  {% else %}
+  <p class="meta">Correo: {{ preflight.get('email_segments_read', 'no indicado') }} / {{ preflight.get('email_segments_available', 'no indicado') }} segmentos.
+    Adjuntos: {{ preflight.get('attachment_segments_read', 'no indicado') }} / {{ preflight.get('attachment_segments_available', 'no indicado') }}.
+    Revisión: {{ preflight.get('manifest_revision') or 'no indicada' }}.</p>
+  {% endif %}
+  <p>Aplicabilidad comercial: {{ applicability.get('status') or 'consultar evidencia y revisión interna' }}.
+    {{ applicability.get('reason') or '' }}</p>
+  {% if blocked %}<p><strong>Lectura sin verificar. No se muestran resultados de actividades ni preguntas hasta revisar {{ 'los adjuntos contra Gmail' if audit.get('verification') else 'el manifiesto y todos los segmentos requeridos' }}.</strong></p>
+  {% elif complete is sameas false %}<p>Análisis final pendiente. Puede haber lectura realizada con aplicabilidad o revisión visual aún sin confirmar.</p>{% endif %}
+  {% for warning in reading.get('warnings') or [] %}<p>{{ warning }}</p>{% endfor %}
+</details>
+{% endif %}

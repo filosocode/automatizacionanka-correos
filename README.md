@@ -67,6 +67,11 @@ El programa no cambia automáticamente de proveedor si falla el seleccionado. As
 
 ## Uso
 
+`python app.py work-drive-sync`: prepara automáticamente los adjuntos de Gmail y su extracción OCR en expedientes
+versionados de Drive para Work. Requiere activación explícita y una carpeta de recepción separada; el supervisor
+lo ejecuta en otro proceso cada 60 segundos. Configuración, límites y lectura desde Work:
+[Expedientes OCR en Drive](docs/WORK_DRIVE_OCR.md). No envía correos ni modifica casos comerciales.
+
 `python app.py auth`: autoriza la cuenta de Google (también se puede hacer desde el dashboard con el botón «Reautorizar Google» cuando la autorización vence).
 
 `python app.py drive-tree`: muestra las carpetas del nivel raíz y un nivel inferior, con sus IDs, para elegir la carpeta de arranque.

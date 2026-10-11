@@ -16,7 +16,7 @@ from typing import Any
 
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
-from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
+from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado, unidades_en_cantidad
 from anka.dominio.correo import decode_websafe
 from anka.dominio.reception import unresolved_scope_issues
 from anka.dominio.status import QuoteStatus, reconocer_estado_de_work
@@ -26,7 +26,7 @@ from anka.servicios.change_control import apply_guard
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.quotes import save_quote_metadata
 from anka.dominio.caso import CLIENT_TYPES, SECTORS
-from anka.dominio.work_contract import attachment_coverage_warnings, question_evidence_warnings
+from anka.dominio.work_contract import attachment_coverage_warnings, question_evidence_warnings, reading_summary
 
 log = get_logger(__name__)
 
@@ -141,10 +141,39 @@ def _work_analysis(payload: dict) -> Analisis:
     """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
     source = payload.get("source", "")
     reply_text = str(payload.get("draft_reply") or "").strip()
+    if payload.get("analysis_complete") is False:
+        reply_text = ""  # un registro interno bloqueado no propone un correo para enviar al cliente
     modelo = _declarado(payload.get("model"), MAX_MODELO)
     version = _declarado(payload.get("skill_version"), MAX_VERSION)
-    warnings = (question_evidence_warnings(payload) + attachment_coverage_warnings(payload)
+    raw_activities = payload.get("activities", [])
+    unit_warnings = []
+    unit_dependencies = []
+    if isinstance(raw_activities, list):
+        for index, row in enumerate(raw_activities):
+            if not isinstance(row, dict):
+                continue
+            units = unidades_en_cantidad(row.get("quantity"))
+            if len(units) > 1:
+                label = str(row.get("activity") or f"fila {index + 1}")
+                details = ", ".join(sorted(units))
+                message = (f"Actividad «{label}»: la cantidad mezcla varias unidades ({details}); "
+                           "revisar y separar las magnitudes antes de cerrar el alcance.")
+                unit_warnings.append(message)
+                unit_dependencies.append({"description": message, "source": row.get("fuente") or source,
+                                          "status": "pendiente"})
+    coverage_warnings = attachment_coverage_warnings(payload)
+    reading = reading_summary(payload)
+    visual_dependencies = [{"description": warning, "source": source, "status": "pendiente"}
+                           for warning in coverage_warnings if "lectura visual no certificada" in warning]
+    warnings = (question_evidence_warnings(payload) + coverage_warnings + unit_warnings
                 + [str(aviso) for aviso in payload.get("_avisos_del_puente") or []])
+    dependencies = _list_or_wrapped(payload.get("scope_dependencies", []), lambda text: {
+        "description": text, "source": source, "status": "pendiente"})
+    if not isinstance(dependencies, list):
+        dependencies = []
+    reading_dependencies = [{"description": warning, "source": "DRIVE_PREFLIGHT / reading_audit",
+                             "status": "pendiente"} for warning in reading["warnings"]]
+    dependencies = [*dependencies, *unit_dependencies, *visual_dependencies, *reading_dependencies]
     return {
         "is_quote_request": payload["status"] != "Descartada",
         "project_name": payload["project_name"],
@@ -155,8 +184,7 @@ def _work_analysis(payload: dict) -> Analisis:
         "evidence_register": payload.get("evidence_register", []),
         "question_quality_warnings": warnings,
         "other_questions": _work_missing_data(payload.get("missing_data", [])),
-        "scope_dependencies": _list_or_wrapped(payload.get("scope_dependencies", []), lambda text: {
-            "description": text, "source": source, "status": "pendiente"}),
+        "scope_dependencies": dependencies,
         "contradictions": _list_or_wrapped(payload.get("contradictions", []), lambda text: {
             "topic": "dato técnico", "details": text, "sources": [], "status": "pendiente"}),
         "attachments": _list_or_wrapped(payload.get("attachments", []), lambda text: {
@@ -164,8 +192,16 @@ def _work_analysis(payload: dict) -> Analisis:
         "work_reply": ({"text": reply_text, "draft_id": str(payload.get("draft_id") or "")}
                        if reply_text else {}),
         "received_at": payload.get("received_at", ""),
+        "work_message_id": payload.get("message_id") or "",
         "gmail_url": payload.get("gmail_url", ""),
         "engine": payload.get("engine", ""),
+        "DRIVE_PREFLIGHT": payload.get("DRIVE_PREFLIGHT") or {},
+        "reading_audit": payload.get("reading_audit") or {},
+        "reading_summary": reading,
+        "evidence_check": payload.get("evidence_check") or {},
+        "related_threads": payload.get("related_threads") or [],
+        "applicability": payload.get("applicability") or {},
+        **({"analysis_complete": payload["analysis_complete"]} if "analysis_complete" in payload else {}),
         **({"work_model": modelo} if modelo else {}),
         **({"work_skill_version": version} if version else {}),
         "routing": {
@@ -181,6 +217,8 @@ def _work_analysis(payload: dict) -> Analisis:
 def _internal_status(payload: dict, analysis: Analisis) -> str:
     """Estado interno que corresponde al borrador de Work."""
     status = _WORK_STATUS_MAP.get(payload["status"], payload["status"])
+    if payload.get("analysis_complete") is False or analysis.get("reading_summary", {}).get("status") == "pendiente":
+        return QuoteStatus.REVIEW
     if status in (QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED
                   ) and unresolved_scope_issues(analysis):
         # Igual que el piloto de Python (decide_analysis): con dependencias o contradicciones

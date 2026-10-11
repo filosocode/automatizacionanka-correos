@@ -182,9 +182,9 @@ def _readable(filename: str, mime_type: str) -> bool:
     )
 
 
-# Marcas que dejan los lectores en el texto cuando una parte legible del archivo NO se pudo extraer. «COBERTURA VISUAL
-# PARCIAL» no está aquí a propósito: significa que el OCR se ejecutó y su texto ya está en el resultado (T-24).
+# Extraer texto por OCR no certifica la interpretación de tablas y figuras (T-24, T-34).
 _MARCAS_DE_LECTURA_PARCIAL = (
+    "COBERTURA VISUAL PARCIAL",
     "LECTURA PARCIAL",
     "CONTENIDO VISUAL NO INSPECCIONADO",
     "CONTENIDO GRÁFICO",
