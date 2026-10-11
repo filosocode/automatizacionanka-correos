@@ -45,6 +45,9 @@ def numeros_del_texto(texto: str) -> set[float]:
     encontrados: set[float] = set()
     for token in NUMERO.findall(texto):
         encontrados |= valores(token)
+        if "," in token or token.count(".") > 1:
+            # `-74.19,4.93; -74.18,4.93`: la coma puede separar una lista y no ser un decimal; vale también esa lectura
+            encontrados |= {round(float(cifra), 6) for cifra in re.findall(r"\d+(?:\.\d+)?", token)}
     return encontrados
 
 

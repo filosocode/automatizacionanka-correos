@@ -343,11 +343,44 @@ class ComprobacionNumericaTests(unittest.TestCase):
         resultado = comprobar_tabla(self.tabla("-74.9999,4.779,2584.3"), self.TEXTOS)
         self.assertEqual(resultado["estado"], "con_diferencias")
 
+    def test_las_coordenadas_en_pares_lon_lat_separados_por_punto_y_coma_se_leen_una_a_una(self):
+        # el formato real de mi lector: «Muestras (longitud, latitud): -74.19000000,4.93000000; -74.18650000,4.92500000»
+        textos = {"correo": "", "adjuntos": [{"filename": "zonas.kml", "coverage": "completa", "source_id": "x", "text":
+                  "Muestras (longitud, latitud): -74.19000000,4.93000000; -74.18650000,4.92500000\n"
+                  "Altitud registrada en coordenadas: mín. 2985.000, máx. 2985.000"}]}
+        tabla = {"activities": [], "fields": [], "attachments": [{"filename": "zonas.kml", "evidence": [{
+            "topic": "Punto", "value": "x", "location": "p", "excerpt": "-74.1865,4.925,2985.0"}]}]}
+        self.assertEqual(comprobar_tabla(tabla, textos)["diferencias"], [])
+        tabla["attachments"][0]["evidence"][0]["excerpt"] = "-74.1111,4.925,2985.0"
+        self.assertEqual(comprobar_tabla(tabla, textos)["estado"], "con_diferencias")
+
     def test_un_extracto_con_palabras_se_sigue_comprobando_literal(self):
         resultado = comprobar_tabla(self.tabla("Área: 126,51 ha"), self.TEXTOS)
         self.assertEqual(resultado["diferencias"], [])
         resultado = comprobar_tabla(self.tabla("Área total: 126,51 ha"), self.TEXTOS)
         self.assertEqual(resultado["estado"], "con_diferencias")
+
+
+# Cubre: T-24, T-41
+class LectorDeKmlTests(unittest.TestCase):
+    KML = (b'<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>'
+           b'<name>Areas de operacion</name><description>Archivo SIMULADO para pruebas. Datos ficticios.</description>'
+           b'<Folder><name>Zona A</name><description>Cota media 2950 m</description>'
+           b'<Placemark><name>P1</name><Point><coordinates>-74.1865,4.925,2985</coordinates></Point></Placemark>'
+           b'</Folder></Document></kml>')
+
+    def test_el_nombre_y_la_descripcion_del_documento_y_de_las_carpetas_no_se_pierden(self):
+        from anka.dominio.lectores_geograficos import kml_text_file
+        texto = kml_text_file("zonas.kml", self.KML)
+        for esperado in ("Contenedor Document: Areas de operacion", "Archivo SIMULADO para pruebas. Datos ficticios.",
+                         "Contenedor Folder: Zona A", "Cota media 2950 m", "Elemento: P1"):
+            self.assertIn(esperado, texto)
+
+    def test_un_kml_sin_nombre_ni_descripcion_en_los_contenedores_no_agrega_lineas(self):
+        from anka.dominio.lectores_geograficos import kml_text_file
+        simple = (b'<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><name>P1</name>'
+                  b'<Point><coordinates>-74.1,4.9,0</coordinates></Point></Placemark></Document></kml>')
+        self.assertNotIn("Contenedor", kml_text_file("s.kml", simple))
 
 
 if __name__ == "__main__":

@@ -563,7 +563,10 @@ el texto que extrae Python y los otros 2 (coordenadas del KML) iguales en valor,
    buzón cada minuto bajando hilos completos. T-38 sigue siendo solo avisos, con un cambio: **los números se comparan por valor**, no
    por texto (`-74.304` = `-74.30400000`; `126,51` = `126.51`), y un número con separador ambiguo (`1.234`, `1,234`) se acepta si
    coincide con cualquiera de sus lecturas. Un extracto que son solo cifras (`-74.3025,4.779,2584.3`) se comprueba por valor, leyendo la
-   coma como decimal o como separador de lista. Sin ese cambio las coordenadas de un KML darían diferencias falsas.
+   coma como decimal o como separador de lista, y el texto del archivo se lee igual (los pares `lon,lat; lon,lat` que escribe el lector
+   de KML se toman número a número). Sin ese cambio las coordenadas de un KML darían diferencias falsas. El lector de KML incluye además
+   el nombre y la descripción del `Document` y de cada `Folder` (ahí suelen ir el proyecto y avisos como «datos ficticios»), que antes se
+   perdían porque solo se leían los `Placemark`.
 6. **Sin `DRIVE_PREFLIGHT` no se oculta el caso.** Un caso de Work que no trae `DRIVE_PREFLIGHT` ni verificación (un borrador anterior sin
    expediente, o un caso viejo) ya no desaparece de la pantalla por eso; un borrador V6 se verifica por el punto 3. Solo se oculta un caso
    con verificación `incompleta` (o, mientras existan, uno de V5 cuyo `DRIVE_PREFLIGHT` o cuyos segmentos no cuadran, como en T-37); uno

@@ -91,7 +91,7 @@ class PromptV6Tests(unittest.TestCase):
         # Cubre: T-39, T-41
         contenido = texto_v6()
         self.assertLess(len(contenido), 12000)
-        self.assertTrue(contenido.rstrip().endswith("FIN_PROMPT_ANKA_V6.0"))
+        self.assertTrue(contenido.rstrip().endswith("FIN_PROMPT_ANKA_V6.1"))
         self.assertIn("[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]", contenido)
         for palabra in ("DRIVE_PREFLIGHT", "MANIFIESTO", "reading_audit", "segmento"):
             self.assertNotIn(palabra, contenido)
@@ -107,7 +107,7 @@ class PromptV6Tests(unittest.TestCase):
         datos = ejemplo_v6()
         self.assertEqual(validate(datos), [])
         self.assertTrue(set(load_schema()["required"]) <= set(datos))
-        self.assertEqual(datos["skill_version"], "PRECISO_V6.0")
+        self.assertEqual(datos["skill_version"], "PRECISO_V6.1")
         self.assertTrue(usa_verificacion_por_adjuntos(datos))
         self.assertTrue(datos["attachments"])
         for adjunto in datos["attachments"]:
@@ -128,6 +128,29 @@ class PromptV6Tests(unittest.TestCase):
         analisis = work_import._work_analysis(datos)
         self.assertEqual(len(analisis["activities"]), 1)
         self.assertEqual(analisis["question_quality_warnings"], [])
+
+    def test_define_el_vocabulario_de_evidencia_que_valida_el_puente(self):
+        # Cubre: T-41
+        contenido = texto_v6()
+        for palabra in ("explicit", "partial", "absent", "unreadable", "contradictory", "unconfirmed",
+                        "client", "anka", "contractor", "unknown"):
+            self.assertIn(palabra, contenido)
+        for hallazgo in ejemplo_v6()["evidence_register"]:     # y su propio ejemplo la respeta
+            self.assertIn(hallazgo["status"], {"explicit", "partial", "absent", "unreadable", "contradictory",
+                                               "unconfirmed"})
+            self.assertIn(hallazgo["owner"], {"client", "anka", "contractor", "unknown"})
+
+    def test_dice_cuando_usar_cada_estado_de_pregunta_y_no_usa_servicios_externos(self):
+        # Cubre: T-41
+        contenido = texto_v6()
+        for frase in ("«Requiere aclaraciones del cliente»: hay preguntas ask_client",
+                      "«Faltan datos»: falta información", "«Borrador preparado»: solo hay un borrador",
+                      "Usar visores, convertidores ni servicios externos"):
+            self.assertIn(frase, contenido)
+
+    def test_pide_un_solo_borrador_al_final(self):
+        # Cubre: T-41
+        self.assertIn("UNA sola vez, al final, ya completo y con el bloque JSON", texto_v6())
 
     def test_el_puente_verifica_el_ejemplo_contra_gmail(self):
         # Cubre: T-41

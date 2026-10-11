@@ -110,6 +110,7 @@ def kml_text_file(name: str, content: bytes) -> str:
     root = ElementTree.fromstring(content)
     placemarks = [node for node in root.iter() if local_name(node.tag) == "Placemark"]
     lines = [f"Archivo KML: {name}", f"Elementos geográficos: {len(placemarks)}"]
+    lines.extend(_kml_container_lines(root))
     lines.extend(_kml_overlay_lines(root))
     all_coordinates: list[tuple[float, float]] = []
     for number, placemark in enumerate(placemarks, 1):
@@ -128,6 +129,26 @@ def _extent_text(coordinates: list[tuple[float, float]]) -> str:
     xs = [x for x, _ in coordinates]
     ys = [y for _, y in coordinates]
     return f"{min(xs):.8f}, {min(ys):.8f}, {max(xs):.8f}, {max(ys):.8f}"
+
+
+def _kml_container_lines(root: ElementTree.Element) -> list[str]:
+    """Nombre y descripción del `Document` y de cada `Folder`: ahí suelen ir el proyecto y las advertencias del archivo.
+
+    Antes solo se leían los `Placemark` y una descripción general como «Archivo simulado, datos ficticios» se perdía.
+    """
+    lines = []
+    for node in root.iter():
+        if local_name(node.tag) not in {"Document", "Folder"}:
+            continue
+        label = child_text(node, "name")
+        description = child_text(node, "description")
+        if not label and not description:
+            continue
+        lines.append(f"Contenedor {local_name(node.tag)}: {label or 'sin nombre'}")
+        if description:
+            clean = html.unescape(re.sub(r"<[^>]+>", " ", description))
+            lines.append(f"Descripción: {' '.join(clean.split())[:500]}")
+    return lines
 
 
 def _kml_overlay_lines(root: ElementTree.Element) -> list[str]:

@@ -16,7 +16,7 @@ from anka.infra.attachments import extract_attachment_text_for_work_packet
 from anka.infra.logging_setup import get_logger
 
 log = get_logger(__name__)
-VERSION_DE_TEXTOS = "gmail-v1"   # sube cuando cambia cómo se extrae el texto: invalida los textos guardados
+VERSION_DE_TEXTOS = "gmail-v2"   # sube cuando cambia cómo se extrae el texto: invalida los textos guardados
 
 
 def _huella_del_hilo(mensajes: list[dict], adjuntos: list[dict]) -> str:
