@@ -22,7 +22,8 @@ from anka.infra.logging_setup import configure_logging, get_logger
 from anka.dominio.status import reconocer_estado_de_work
 from anka.dominio.verificacion_de_evidencia import avisos_de, comprobar_tabla
 from anka.dominio.work_contract import (
-    corregir_descuidos_de_tipo, reconciliar_lectura, usa_verificacion_por_adjuntos, validate,
+    corregir_descuidos_de_tipo, empieza_con_el_encabezado_interno, reconciliar_lectura, usa_verificacion_por_adjuntos,
+    validate,
 )
 from anka.infra import instantaneas_de_manifiesto
 from anka.infra import settings
@@ -71,11 +72,11 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
         if START not in text:
             # A Work-style draft without its dashboard JSON cannot be linked to a safe analysis.
             # Report it instead of silently ignoring the customer-facing text.
-            if text.lstrip().startswith("[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]"):
+            if empieza_con_el_encabezado_interno(text):
                 raise ValueError(f"{SIN_BLOQUE} ANKA_DASHBOARD_JSON_V1.")
             continue
         # Solo el bloque interno inicial, nunca un bloque citado en respuestas.
-        if not text.lstrip().startswith("[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]"):
+        if not empieza_con_el_encabezado_interno(text):
             raise ValueError("El bloque JSON no está en una sección interna inicial válida.")
         if text.count(START) != 1 or text.count(END) != 1:
             raise ValueError("Hay bloques JSON repetidos o incompletos.")

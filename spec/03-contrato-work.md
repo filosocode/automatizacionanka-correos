@@ -18,7 +18,7 @@ y verifica la vigencia contra Gmail. La preparación es optativa; no cambia los 
 del borrador. Work registra revisión/segmentos leídos en reason/reviewed_sections de cada adjunto. La edición local
 de la skill no configura por sí sola la tarea activa. Véase [guía](../docs/WORK_DRIVE_OCR.md).
 ```
-[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]
+[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]   ← el puente tolera tildes, mayúsculas y espacios (T-43)
 … correo original, resumen, actividades y preguntas (para la persona) …
 [ANKA_DASHBOARD_JSON_V1]
 { … el JSON del contrato … }

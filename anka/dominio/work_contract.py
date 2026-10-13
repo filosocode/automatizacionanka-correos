@@ -553,3 +553,20 @@ def archivos_sin_verificar(analysis: Analisis) -> list[str]:
     audit = analysis.get("reading_audit") or {}
     archivos = audit.get("attachment_files_pending") or audit.get("attachment_files_unknown") or []
     return [str(a) for a in archivos] if isinstance(archivos, list) else []
+
+
+ENCABEZADO_INTERNO = "[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]"
+
+
+def _forma_simple(texto: str) -> str:
+    """El texto sin tildes ni caracteres de formato, con espacios colapsados, guiones como «-» y en minúsculas."""
+    plano = unicodedata.normalize("NFKD", texto)
+    plano = "".join(c for c in plano if not unicodedata.combining(c) and unicodedata.category(c) != "Cf")
+    plano = re.sub(r"[‐-―−]", "-", plano)
+    return re.sub(r"\s+", " ", plano).strip().casefold()
+
+
+def empieza_con_el_encabezado_interno(texto: str) -> bool:
+    """¿El borrador empieza con la línea fija de la sección interna (T-43)? Tolera tildes, mayúsculas y espacios."""
+    primera_linea = texto.lstrip().split("\n", 1)[0]
+    return _forma_simple(primera_linea).startswith(_forma_simple(ENCABEZADO_INTERNO))

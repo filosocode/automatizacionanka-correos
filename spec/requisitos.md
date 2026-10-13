@@ -697,3 +697,20 @@ reaparecían mezclados con el caso nuevo. Y no había forma de volver a probar d
    - Se niega si el puente está corriendo (hay que cerrar el lanzador).
    - **No toca** Gmail, Drive, `config.json`, el token ni las credenciales, ni `evidence/` ni `backups/`. Avisa de que los correos de
      prueba, los borradores de Work y las carpetas de Drive siguen ahí y Work los verá como historial relacionado.
+
+### T-43 · El puente acepta el encabezado del borrador aunque Work le cambie tildes, mayúsculas o espacios
+**Estado: implementado** (pruebas en `tests/test_encabezado_de_work.py`). Decisión: D-76.
+
+**Motivo.** El 2026-10-13 un borrador completo, con su bloque JSON válido, se rechazó («El bloque JSON no está en una sección interna
+inicial válida») porque Work escribió `[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCIÓN]` con tilde. El puente comparaba el encabezado
+letra por letra y el caso quedó como un caso mínimo. Es el mismo descuido que ya se tolera con las etiquetas de estado.
+
+**Qué debe cumplirse**
+1. **Se tolera la forma, no el fondo.** El borrador sigue debiendo empezar con la línea del encabezado, pero se comparan sin tildes, sin
+   distinguir mayúsculas, con los espacios colapsados y con cualquier guion tipográfico como «-». Aplica tanto a decidir si el borrador
+   es de Anka como a exigir que el bloque JSON esté en la sección inicial.
+2. **Sigue sin aceptarse lo inseguro.** Un bloque JSON dentro de un texto que no empieza con el encabezado (por ejemplo, uno citado en una
+   respuesta) se rechaza igual que antes; un borrador con el encabezado y sin bloque se sigue reportando; los bloques repetidos o
+   incompletos también.
+3. **El prompt lo pide sin tilde.** El prompt de Work dice que la línea se copia tal cual, sin tilde en «SECCION». Con 1 ya no es
+   imprescindible, pero evita que se repita.
