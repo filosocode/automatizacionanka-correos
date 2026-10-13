@@ -7,7 +7,31 @@ una clave mal escrita se detecta al verificar y no cuando alguien ya usa el sist
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from enum import StrEnum
 from typing import TypedDict
+
+
+class Modo(StrEnum):
+    """Los tres modos de operación (`active_mode`); al ser `str`, cada uno se compara igual que su texto."""
+
+    LOCAL = "local"                 # Ollama en este equipo
+    API = "api"                     # API de OpenAI
+    CHATGPT_WORK = "chatgpt_work"   # Work es el único analizador; Python no lee Gmail por su cuenta
+
+
+MODOS = frozenset(modo.value for modo in Modo)
+MODO_POR_DEFECTO = Modo.LOCAL      # el que se asume si `config.json` no dice ninguno
+
+
+def modo_activo(config: Mapping[str, object]) -> str:
+    """El texto de `active_mode` tal como está en la configuración, o el modo por defecto si falta."""
+    return str(config.get("active_mode", MODO_POR_DEFECTO))
+
+
+def es_modo_work(config: Mapping[str, object]) -> bool:
+    """¿Está activo el modo ChatGPT Work? Solo entonces corre el puente de borradores."""
+    return config.get("active_mode") == Modo.CHATGPT_WORK
 
 
 class ConfigLlm(TypedDict, total=False):

@@ -94,8 +94,8 @@ def _read_raw(gmail: Any, message_id: str) -> tuple[bytes, str]:
         if part.get_content_type() in ("text/plain", "text/html"):
             try:
                 parts.append(str(part.get_content()))
-            except (LookupError, ValueError):
-                pass
+            except (LookupError, ValueError) as exc:   # codificación desconocida o dañada: se omite esa parte
+                log.debug("Mensaje %s: una parte de texto no se pudo decodificar (%s)", message_id, type(exc).__name__)
     return data, "\n".join(parts)
 
 

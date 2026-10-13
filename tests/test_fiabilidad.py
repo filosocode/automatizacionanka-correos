@@ -200,8 +200,10 @@ class RetentionTests(unittest.TestCase):
 
     setUp = RecoveryTests.setUp
 
+    AHORA = datetime(2026, 6, 1, 12, 0).astimezone()   # reloj fijo: la antigüedad no depende de la hora real
+
     def seed(self, key, state, days_old):
-        created = (datetime.now().astimezone() - timedelta(days=days_old)).isoformat()
+        created = (self.AHORA - timedelta(days=days_old)).isoformat()
         db = store.connect()
         db.execute("INSERT INTO mail_operations VALUES (?, 't', 'a@x.com', ?, ?, 'g', ?, '')",
                    (key, f"<{key}@anka.local>", state, created))
@@ -219,7 +221,10 @@ class RetentionTests(unittest.TestCase):
         self.seed("viejo-enviado", "sent", envios.RETENCION_DIAS + 1)
         self.seed("reciente-enviado", "sent", 5)
         self.seed("viejo-incierto", "pending", envios.RETENCION_DIAS + 30)
-        envios.reservar("T9", "z@example.com", "Hola")
+        purgar = envios.purgar_confirmados
+        with patch.object(envios, "purgar_confirmados", side_effect=lambda db: purgar(db, ahora=self.AHORA)) as llamado:
+            envios.reservar("T9", "z@example.com", "Hola")
+        llamado.assert_called_once()                   # reservar purga en la misma transacción
         remaining = self.keys()
         self.assertNotIn("viejo-enviado", remaining)
         self.assertIn("reciente-enviado", remaining)

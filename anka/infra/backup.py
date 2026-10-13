@@ -132,8 +132,8 @@ def run_backup(use_drive: bool = True, drive: Any = None) -> dict:
                 log.warning("La copia local quedó, pero no se subió a Drive: %s", result["error"])
     try:
         (settings.DATA_DIR / LAST_FILE).write_text(json.dumps(result), encoding="utf-8")
-    except OSError:
-        pass
+    except OSError as exc:   # sin el registro la copia se repite en la siguiente vuelta: no se pierde nada
+        log.warning("No se pudo anotar la última copia (%s); se volverá a intentar", type(exc).__name__)
     return result
 
 

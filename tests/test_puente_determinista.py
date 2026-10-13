@@ -143,6 +143,81 @@ class CasoMinimoTests(unittest.TestCase):
         self.assertEqual(caso_minimo("T1", recibido(subject=""), "x")["project_name"], "no indicado")
 
 
+class BorradorSinBloqueTests(unittest.TestCase):
+    """Un borrador sin JSON no es un fallo si el hilo ya tiene análisis o si es reciente (T-36, D-69)."""
+
+    AHORA = 1_760_000_000_000   # ms; el borrador se crea en este instante
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.checkpoint = Path(self.temp.name) / "state.json"
+        self.cache: dict = {}
+
+    def pasada(self, gmail, segundos_despues=0):
+        with patch.object(sync, "_ahora_ms", return_value=self.AHORA + segundos_despues * 1000):
+            return sync.sync_once(gmail, work_import.dashboard_upsert, self.checkpoint, self.cache,
+                                  {"ankacomercialia@gmail.com"})
+
+    def sin_json(self, message_id="aux"):
+        borrador = borrador_sin_json(message_id=message_id)
+        borrador["internalDate"] = str(self.AHORA)
+        return borrador
+
+    def caso(self, thread="T1"):
+        db = connect()
+        try:
+            return db.execute("SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread,)).fetchone()
+        finally:
+            db.close()
+
+    def test_el_borrador_auxiliar_junto_al_completo_se_ignora_y_no_deja_aviso(self):
+        # Cubre: T-36
+        gmail = GmailConHilos({"d1": draft_message(payload()), "d2": self.sin_json()}, {"T1": [recibido()]})
+        resultado = self.pasada(gmail, segundos_despues=3)
+        self.assertEqual(resultado["rejected"], [])                                  # el encabezado no dice «por revisar»
+        analisis = json.loads(self.caso()["analysis_json"])
+        self.assertEqual([a["activity"] for a in analisis["activities"]], ["a"])      # el análisis completo se conserva
+        self.assertFalse(any("no pudo leer" in a for a in analisis["question_quality_warnings"]))
+
+    def test_un_borrador_auxiliar_posterior_a_un_analisis_ya_importado_se_ignora(self):
+        # Cubre: T-36
+        self.pasada(GmailConHilos({"d1": draft_message(payload())}, {"T1": [recibido()]}))
+        resultado = self.pasada(GmailConHilos({"d2": self.sin_json()}, {"T1": [recibido()]}), segundos_despues=3600)
+        self.assertEqual(resultado["rejected"], [])
+        self.assertEqual(len(json.loads(self.caso()["analysis_json"])["activities"]), 1)
+
+    def test_un_borrador_reciente_sin_json_espera_y_pasado_el_plazo_se_trata_como_siempre(self):
+        # Cubre: T-36
+        gmail = GmailConHilos({"d1": self.sin_json()}, {"T1": [recibido()]})
+        resultado = self.pasada(gmail, segundos_despues=60)               # Work puede estar terminando
+        self.assertEqual((resultado["rejected"], resultado["updated"]), ([], 0))
+        self.assertIsNone(self.caso())
+        resultado = self.pasada(gmail, segundos_despues=sync.GRACIA_SIN_BLOQUE_S + 5)   # nunca llegó el completo
+        self.assertEqual(len(resultado["rejected"]), 1)
+        self.assertEqual(self.caso()["status"], QuoteStatus.REVIEW)
+
+    def test_el_borrador_completo_que_llega_durante_la_espera_evita_el_caso_minimo(self):
+        # Cubre: T-36
+        gmail = GmailConHilos({"d1": self.sin_json()}, {"T1": [recibido()]})
+        self.pasada(gmail, segundos_despues=60)
+        gmail.items["d2"] = draft_message(payload(), message_id="gm2")
+        resultado = self.pasada(gmail, segundos_despues=90)
+        self.assertEqual(resultado["rejected"], [])
+        self.assertEqual(len(json.loads(self.caso()["analysis_json"])["activities"]), 1)
+
+    def test_un_json_roto_no_espera_el_plazo(self):
+        # Cubre: T-36
+        roto = draft_message({"thread_id": "T1"}, message_id="roto")      # JSON presente pero incumple el contrato
+        roto["internalDate"] = str(self.AHORA)
+        resultado = self.pasada(GmailConHilos({"d1": roto}, {"T1": [recibido()]}), segundos_despues=5)
+        self.assertEqual(len(resultado["rejected"]), 1)
+        self.assertIn("Contrato de Work no cumplido", resultado["rejected"][0]["reason"])
+
+
 def instantanea(revision="rev-2", mensajes=("in1",)):
     return {"thread_id": "T1", "revision": revision, "message_ids": list(mensajes),
             "email_segments": [{"id": "e1", "name": "aaaa-0001.txt"}],

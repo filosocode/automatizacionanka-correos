@@ -6,6 +6,7 @@ import json
 import time
 from datetime import datetime
 
+from anka.dominio.configuracion import es_modo_work
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra.drive_exchange import preparation_lock
@@ -23,7 +24,7 @@ def run(watch_seconds: int = 0, thread_id: str | None = None) -> dict:
     with preparation_lock(settings.DATA_DIR / "work_drive.lock"):
         while True:
             config = settings.load_config()
-            if not config.get("work_drive_enabled") or config.get("active_mode") != "chatgpt_work":
+            if not config.get("work_drive_enabled") or not es_modo_work(config):
                 return {"status": "desactivado"}
             try:
                 gmail, drive = services()

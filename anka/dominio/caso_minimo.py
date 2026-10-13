@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from email.utils import parseaddr
 
+from anka.dominio.configuracion import Modo
 from anka.dominio.correo import header
 
 ESTADO_MINIMO = "Requiere revisión técnica interna"
@@ -36,7 +37,7 @@ def caso_minimo(thread_id: str, mensaje: dict, motivo: str) -> dict | None:
     return {
         "thread_id": thread_id, "message_id": mensaje["id"], "client_email": correo.lower(),
         "client_name": nombre.strip(), "project_name": _asunto(header(mensaje, "Subject")),
-        "status": ESTADO_MINIMO, "engine": "chatgpt_work", "analysis_complete": False,
+        "status": ESTADO_MINIMO, "engine": Modo.CHATGPT_WORK.value, "analysis_complete": False,
         "summary": "Caso creado con los datos del correo: Work no entregó un análisis válido para este hilo.",
         "received_at": datetime.fromtimestamp(marca / 1000).astimezone().isoformat(),
         "received_at_source": "Gmail internalDate", "_source_internal_date": marca,

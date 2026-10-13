@@ -6,7 +6,7 @@ import copy
 import base64
 import json
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from unittest.mock import patch
 
 from anka.cli import work_sync
@@ -85,7 +85,8 @@ class AuditTests(unittest.TestCase):
         from anka.web.templating import render
         sin_nombres = pantalla_caso._texto_de_lectura_pendiente({"reading_audit": {}})
         self.assertNotIn("Falta leer", sin_nombres)
-        self.assertIn("Vuelve a ejecutar la tarea de Work", sin_nombres)
+        self.assertIn("volver a ejecutar la tarea de Work", sin_nombres)
+        self.assertIn("Ya revisé estos archivos yo", sin_nombres)   # U-29: siempre hay una salida
         texto = pantalla_caso._texto_de_lectura_pendiente(
             {"reading_audit": {"attachment_files_pending": ["plano.kml", "<b>x</b>.pdf"]}})
         self.assertIn("Falta leer: plano.kml, <b>x</b>.pdf.", texto)
@@ -115,7 +116,7 @@ class VerifiedGmail(FakeGmail):
         return _Exec(self.origins[id])
 
 
-_ORIGIN_STAMP = int(datetime(2026, 10, 10, 12, tzinfo=timezone.utc).timestamp() * 1000)
+_ORIGIN_STAMP = int(datetime(2026, 10, 10, 12, tzinfo=UTC).timestamp() * 1000)
 
 
 def origin(mid, stamp=_ORIGIN_STAMP):

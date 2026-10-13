@@ -17,6 +17,7 @@ import sys
 import time
 from pathlib import Path
 
+from anka.dominio.configuracion import es_modo_work
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra.backup import backup_due, run_backup
@@ -44,8 +45,8 @@ def code_snapshot(root: Path = ROOT) -> dict[str, float]:
     for path in files:
         try:
             snapshot[str(path)] = path.stat().st_mtime
-        except OSError:
-            pass
+        except OSError as exc:   # borrado o renombrado mientras se recorría: el siguiente recorrido lo verá bien
+            log.debug("Sin fecha de %s (%s); no cuenta para detectar cambios", path.name, type(exc).__name__)
     return snapshot
 
 
@@ -97,7 +98,7 @@ def stop_old_instances() -> int:
 def work_mode() -> bool:
     """¿Está activo el modo ChatGPT Work? (solo en ese modo hace falta el puente de borradores)."""
     try:
-        return settings.load_config().get("active_mode") == "chatgpt_work"
+        return es_modo_work(settings.load_config())
     except (ErrorDeAnka, OSError, ValueError):
         return False
 
@@ -106,7 +107,7 @@ def work_drive_enabled() -> bool:
     """¿Se activó explícitamente el preparador de expedientes del modo Work?"""
     try:
         config = settings.load_config()
-        return config.get("active_mode") == "chatgpt_work" and config.get("work_drive_enabled", False)
+        return es_modo_work(config) and bool(config.get("work_drive_enabled", False))
     except (ErrorDeAnka, OSError, ValueError):
         return False
 

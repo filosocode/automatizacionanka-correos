@@ -48,7 +48,7 @@ class PromptCortoTests(unittest.TestCase):
 
     def test_los_estados_del_prompt_son_los_del_esquema(self):
         # Cubre: T-39
-        linea = next(l for l in texto().splitlines() if l.startswith("Nueva solicitud ·"))
+        linea = next(x for x in texto().splitlines() if x.startswith("Nueva solicitud ·"))
         self.assertEqual({e.strip() for e in linea.split("·")}, set(load_schema()["properties"]["status"]["enum"]))
         self.assertIn(ejemplo()["status"], linea)
 

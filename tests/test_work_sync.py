@@ -23,6 +23,16 @@ from anka.infra.store import case_events
 from anka.servicios.quotes import connect
 from anka.dominio.status import QuoteStatus
 
+AHORA = datetime(2026, 6, 1, 9, 30, 0).astimezone()   # reloj fijo de las pruebas que miden tiempos
+
+
+class RelojFijo(datetime):
+    """`datetime` cuyo `now()` es siempre AHORA (para inyectarlo en el módulo que mide la demora)."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return AHORA if tz is None else AHORA.astimezone(tz)
+
 
 def b64(text):
     return base64.urlsafe_b64encode(text.encode("utf-8")).decode("ascii")
@@ -100,8 +110,9 @@ class BridgeTests(unittest.TestCase):
         # Cubre: T-29
         from anka.infra import store
         mensaje = draft_message(payload())
-        mensaje["internalDate"] = str(int((datetime.now().timestamp() - 45) * 1000))     # el borrador tiene 45 s
-        self.run_sync(FakeGmail({"d1": mensaje}))
+        mensaje["internalDate"] = str(int((AHORA.timestamp() - 45) * 1000))     # el borrador tiene 45 s
+        with patch.object(work_import, "datetime", RelojFijo):                   # llega al dashboard en AHORA
+            self.run_sync(FakeGmail({"d1": mensaje}))
         db = store.connect()
         try:
             resumen = db.execute("SELECT summary FROM case_events WHERE thread_id='T1' AND kind='analysis'").fetchone()[0]
@@ -109,7 +120,7 @@ class BridgeTests(unittest.TestCase):
             db.close()
         self.assertIn("El borrador estaba en Gmail desde las", resumen)
         segundos = int(resumen.split("llegó al dashboard ")[1].split(" s")[0])
-        self.assertTrue(45 <= segundos <= 60, segundos)
+        self.assertEqual(segundos, 45)                  # reloj inyectado: no depende de cuánto tarde la prueba
 
     def test_resaving_a_draft_without_changing_it_is_not_imported_again(self):
         # Cubre: T-29
@@ -500,9 +511,12 @@ class HeartbeatTests(unittest.TestCase):
         patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
         patcher.start()
         self.addCleanup(patcher.stop)
+        reloj = patch.object(work_heartbeat, "_now", return_value=AHORA)   # la edad del latido se mide contra AHORA
+        reloj.start()
+        self.addCleanup(reloj.stop)
 
     def beat(self, seconds_ago, **extra):
-        data = {"at": (datetime.now().astimezone() - timedelta(seconds=seconds_ago)
+        data = {"at": (AHORA - timedelta(seconds=seconds_ago)
                        ).isoformat(timespec="seconds"), "pid": 1, "interval": 60,
                 "drafts": 3, "updated": 1, "failures": 0, "error": "", **extra}
         (Path(self.temp.name) / work_heartbeat.HEARTBEAT_FILE).write_text(json.dumps(data))

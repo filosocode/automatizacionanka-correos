@@ -63,8 +63,9 @@ class BackupTests(unittest.TestCase):
         self.assertTrue(backup.backup_due())
         result = backup.run_backup(use_drive=False)
         self.assertEqual(result["error"], "")
-        self.assertFalse(backup.backup_due())
-        self.assertTrue(backup.backup_due(datetime.now().astimezone() + timedelta(hours=25)))
+        hecha = datetime.fromisoformat(result["at"])          # el reloj se inyecta desde la hora de la copia
+        self.assertFalse(backup.backup_due(hecha + timedelta(hours=23)))
+        self.assertTrue(backup.backup_due(hecha + timedelta(hours=25)))
 
     def test_drive_failure_keeps_local_copy_and_reports_error(self):
         drive = MagicMock()

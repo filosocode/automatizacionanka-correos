@@ -10,10 +10,12 @@ from collections.abc import Callable
 from datetime import datetime
 
 from anka.infra import settings
+from anka.infra.logging_setup import get_logger
 
 HEARTBEAT_FILE = "work_sync_heartbeat.json"
 DEFAULT_INTERVAL = 30
 WAKE_FILE = "work_sync_wake"
+log = get_logger(__name__)
 
 
 def _now() -> datetime:
@@ -37,8 +39,8 @@ def write_heartbeat(interval: int, drafts: int = 0, updated: int = 0, failures: 
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(data), encoding="utf-8")
         temporary.replace(path)
-    except OSError:
-        pass
+    except OSError as exc:   # el latido es informativo: el puente sigue y lo reescribe en el siguiente ciclo
+        log.warning("No se pudo escribir el latido del puente (%s)", type(exc).__name__)
 
 
 def read_heartbeat() -> dict | None:
@@ -139,8 +141,8 @@ def wait_for_next_cycle(seconds: int, sleep: Callable[[float], None] = time.slee
         if path.exists():
             try:
                 path.unlink()
-            except OSError:
-                pass
+            except OSError as exc:   # otro proceso la consumió o está bloqueada: igual se revisa ahora
+                log.debug("No se pudo borrar la petición de revisar ya (%s)", type(exc).__name__)
             return True
         sleep(1)
     return False

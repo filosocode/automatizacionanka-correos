@@ -7,12 +7,14 @@ import hashlib
 import html
 import json
 import re
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn
 
 from anka.servicios.gmail_followup import sync_thread_activity
+from anka.dominio.configuracion import es_modo_work
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.caso_minimo import caso_minimo
 from anka.dominio.correo import header, inbound_messages, normalized_address
@@ -23,10 +25,16 @@ from anka.dominio.work_contract import (
     corregir_descuidos_de_tipo, reconciliar_lectura, usa_verificacion_por_adjuntos, validate,
 )
 from anka.infra import instantaneas_de_manifiesto
+from anka.infra import settings
+from anka.infra.google_services import services
+from anka.infra.settings import load_config
 from anka.infra.work_heartbeat import other_bridge_running, wait_for_next_cycle, write_heartbeat
 from anka.servicios.lectura_de_adjuntos import verificar_lectura
+from anka.servicios.work_import import dashboard_upsert
 
 MOTIVO_MAX = 300
+SIN_BLOQUE = "Borrador de Anka sin el bloque obligatorio"
+GRACIA_SIN_BLOQUE_S = 600   # Work completa el borrador en 1-2 minutos; 10 dan margen sin ocultar un fallo real
 
 
 @dataclass(frozen=True)
@@ -64,7 +72,7 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
             # A Work-style draft without its dashboard JSON cannot be linked to a safe analysis.
             # Report it instead of silently ignoring the customer-facing text.
             if text.lstrip().startswith("[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]"):
-                raise ValueError("Borrador de Anka sin el bloque obligatorio ANKA_DASHBOARD_JSON_V1.")
+                raise ValueError(f"{SIN_BLOQUE} ANKA_DASHBOARD_JSON_V1.")
             continue
         # Solo el bloque interno inicial, nunca un bloque citado en respuestas.
         if not text.lstrip().startswith("[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]"):
@@ -191,6 +199,32 @@ def _extract_verified(gmail: Any, message: dict, draft_id: str,
     return payload, json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
+def _ahora_ms() -> int:
+    """La hora actual en milisegundos, como la marca de un borrador de Gmail (se sustituye en las pruebas)."""
+    return int(time.time() * 1000)
+
+
+def _rechazos_vigentes(rejected: list[dict], candidates: dict, state: dict) -> list[dict]:
+    """Los borradores rechazados que hay que mostrar y convertir en caso mínimo (T-36).
+
+    Un borrador sin bloque JSON no es un fallo cuando el hilo ya tiene un análisis válido (es el borrador auxiliar
+    que Work deja junto al completo) ni mientras sea reciente (Work puede estar terminando). Los demás rechazos, como
+    un JSON roto o campos inválidos, se muestran de inmediato: esperar no los arregla.
+    """
+    minimos = state.get("_minimos", {})
+    ahora = _ahora_ms()
+    vigentes = []
+    for item in rejected:
+        if item["reason"].startswith(SIN_BLOQUE):
+            thread = item["thread"]
+            if thread in candidates or (state.get(thread) and thread not in minimos):
+                continue
+            if ahora - int(item["stamp"] or 0) < GRACIA_SIN_BLOQUE_S * 1000:
+                continue
+        vigentes.append(item)
+    return vigentes
+
+
 def _se_puede_recordar(found: object) -> bool:
     """¿Se guarda este resultado en la caché? No si la lectura quedó sin verificar por un fallo de Gmail."""
     return not (isinstance(found, tuple) and found[0].get("_lectura_sin_verificar"))
@@ -237,6 +271,84 @@ def _anotar_minimo(minimos: dict, creados: dict[str, str], thread: str) -> None:
         minimos.pop(thread, None)
 
 
+def _cargar_estado(checkpoint: Path) -> dict:
+    """El estado guardado de la última pasada (huellas, orígenes y casos mínimos por hilo), o vacío si no hay."""
+    return json.loads(checkpoint.read_text(encoding="utf-8")) if checkpoint.exists() else {}
+
+
+def _guardar_estado(checkpoint: Path, state: dict) -> None:
+    """Guarda el estado de forma atómica (archivo temporal y reemplazo): un corte no deja un JSON a medias."""
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    temporary = checkpoint.with_suffix(".tmp")
+    temporary.write_text(json.dumps(state), encoding="utf-8")
+    temporary.replace(checkpoint)
+
+
+def _olvidar_borradores_retirados(cache: dict, drafts: list[dict]) -> None:
+    """Quita de la caché los borradores que ya no están en Gmail (enviados o borrados)."""
+    for stale in set(cache) - {draft["id"] for draft in drafts}:
+        del cache[stale]
+
+
+def _leer_borrador(gmail: Any, draft: dict, cache: dict, instantaneas: Path,
+                   propias: set[str]) -> tuple[str | None, int, object]:
+    """(message_id, marca, hallazgo) de un borrador: de la caché si Gmail no lo cambió; si no, lo baja y lo verifica.
+
+    Un contenido que incumple el contrato queda como `Rechazado`: reintentar no lo arregla, así que se recuerda por
+    mensaje y se vuelve a revisar solo cuando Gmail da un mensaje nuevo (la persona o Work lo corrigieron).
+    """
+    message_id = draft.get("message", {}).get("id")
+    cached = cache.get(draft["id"])
+    if cached and message_id and cached[0] == message_id:
+        return message_id, cached[1], cached[2]
+    message = gmail.users().drafts().get(userId="me", id=draft["id"], format="full").execute()["message"]
+    stamp = int(message.get("internalDate", "0"))
+    found: object
+    try:
+        found = _extract_verified(gmail, message, draft["id"], instantaneas, propias)
+    except ValueError as exc:
+        found = Rechazado(str(exc)[:MOTIVO_MAX])
+        log.warning("Borrador %s: rechazado (%s)", draft["id"], type(exc).__name__, exc_info=True)
+        print(f"Borrador {draft['id']}: rechazado ({exc}).", flush=True)
+    if message_id and _se_puede_recordar(found):
+        cache[draft["id"]] = (message_id, stamp, found)
+    return message_id, stamp, found
+
+
+def _clasificar(draft: dict, message_id: str | None, stamp: int, found: object,
+                candidates: dict[str, tuple[int, tuple[dict, str]]], rejected: list[dict]) -> None:
+    """Anota el borrador como rechazado o como candidato de su hilo (gana el más nuevo según `_should_replace`)."""
+    if isinstance(found, Rechazado):
+        rejected.append({"draft": draft["id"], "thread": draft.get("message", {}).get("threadId", ""),
+                         "reason": found.motivo, "message": message_id or "", "stamp": stamp})
+    elif isinstance(found, tuple):
+        thread = found[0]["thread_id"]
+        previous = candidates.get(thread)
+        if previous is None or _should_replace(_origin_metadata(found[0], stamp),
+                                               _origin_metadata(previous[1][0], previous[0])):
+            candidates[thread] = (stamp, found)
+
+
+def _hace_falta_importar(state: dict, thread: str, origin: dict, digest: str) -> bool:
+    """¿Es más nuevo que lo ya importado y con otro contenido? Si no, importarlo sería retroceder o repetir."""
+    previous_origin = state.get("_origins", {}).get(thread)
+    if previous_origin and not _should_replace(origin, previous_origin):
+        return False
+    return state.get(thread) != digest
+
+
+def _codificar_para_importar(payload: dict, raw: str, stamp: int) -> str:
+    """El contrato en base64, con la hora en que el borrador apareció en Gmail (`draft_at`).
+
+    Esa hora viaja aparte del contenido (no entra en la huella): la importación la compara con su hora de llegada para
+    medir la demora del puente (T-29).
+    """
+    hora = _hora_del_borrador(stamp)
+    if hora:
+        raw = json.dumps({**payload, "draft_at": hora}, ensure_ascii=False, sort_keys=True)
+    return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+
 def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
               cache: dict | None = None, propias: set[str] | None = None) -> dict:
     """Una pasada. `cache` (draft_id -> (message_id, stamp, hallazgo)) evita bajar de nuevo
@@ -248,72 +360,35 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
     cache = {} if cache is None else cache
     propias = {DEFAULT_ACCOUNT} if propias is None else propias
     instantaneas = checkpoint.parent / "manifiestos"
-    state = json.loads(checkpoint.read_text(encoding="utf-8")) if checkpoint.exists() else {}
+    state = _cargar_estado(checkpoint)
     drafts = _list_drafts(gmail)
-    for stale in set(cache) - {draft["id"] for draft in drafts}:
-        del cache[stale]
+    _olvidar_borradores_retirados(cache, drafts)
     candidates: dict[str, tuple[int, tuple[dict, str]]] = {}
     failures = 0
     rejected: list[dict] = []
     for draft in drafts:
         try:
-            message_id = draft.get("message", {}).get("id")
-            cached = cache.get(draft["id"])
-            if cached and message_id and cached[0] == message_id:
-                _, stamp, found = cached
-            else:
-                message = gmail.users().drafts().get(userId="me", id=draft["id"], format="full").execute()["message"]
-                stamp = int(message.get("internalDate", "0"))
-                try:
-                    found = _extract_verified(gmail, message, draft["id"], instantaneas, propias)
-                except ValueError as exc:
-                    # Contenido que incumple el contrato: reintentar no lo arregla. Se rechaza una vez por mensaje y se
-                    # vuelve a revisar solo cuando Gmail da un mensaje nuevo (la persona o Work lo corrigieron).
-                    found = Rechazado(str(exc)[:MOTIVO_MAX])
-                    log.warning("Borrador %s: rechazado (%s)", draft["id"], type(exc).__name__, exc_info=True)
-                    print(f"Borrador {draft['id']}: rechazado ({exc}).", flush=True)
-                if message_id and _se_puede_recordar(found):
-                    cache[draft["id"]] = (message_id, stamp, found)
-            if isinstance(found, Rechazado):
-                rejected.append({"draft": draft["id"], "thread": draft.get("message", {}).get("threadId", ""),
-                                 "reason": found.motivo, "message": message_id or "", "stamp": stamp})
-            elif found:
-                thread = found[0]["thread_id"]
-                previous = candidates.get(thread)
-                if previous is None or _should_replace(_origin_metadata(found[0], stamp),
-                                                       _origin_metadata(previous[1][0], previous[0])):
-                    candidates[thread] = (stamp, found)
+            message_id, stamp, found = _leer_borrador(gmail, draft, cache, instantaneas, propias)
+            _clasificar(draft, message_id, stamp, found, candidates, rejected)
         except Exception as exc:
             failures += 1
             log.warning("Borrador %s: no importado (%s)", draft["id"], type(exc).__name__, exc_info=True)
             print(f"Borrador {draft['id']}: no importado ({type(exc).__name__}: {exc}).", flush=True)
+    rejected = _rechazos_vigentes(rejected, candidates, state)
     minimos = state.setdefault("_minimos", {})
     pendientes_minimos = _casos_minimos(gmail, rejected, candidates, state, propias)
     updated = 0
     for thread, (stamp, (payload, raw)) in candidates.items():
         origin = _origin_metadata(payload, stamp)
-        previous_origin = state.get("_origins", {}).get(thread)
-        if previous_origin and not _should_replace(origin, previous_origin):
-            continue
         digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-        if state.get(thread) == digest:
+        if not _hace_falta_importar(state, thread, origin, digest):
             continue
         try:
-            # La hora en que el borrador apareció en Gmail viaja aparte del contenido (no entra en la huella `digest`):
-            # la importación la compara con su hora de llegada para medir la demora del puente (T-29).
-            hora = _hora_del_borrador(stamp)
-            if hora:
-                payload = {**payload, "draft_at": hora}
-                raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-            encoded = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
-            upsert(encoded)
+            upsert(_codificar_para_importar(payload, raw, stamp))
             state[thread] = digest
             state.setdefault("_origins", {})[thread] = origin
             _anotar_minimo(minimos, pendientes_minimos, thread)
-            checkpoint.parent.mkdir(parents=True, exist_ok=True)
-            temporary = checkpoint.with_suffix(".tmp")
-            temporary.write_text(json.dumps(state), encoding="utf-8")
-            temporary.replace(checkpoint)
+            _guardar_estado(checkpoint, state)
             updated += 1
             print(f"Dashboard actualizado: {thread}", flush=True)
         except (Exception, SystemExit) as exc:
@@ -341,21 +416,18 @@ def main() -> None:
         parser.error("--seconds debe ser al menos 30")
     # Sin consola (arranque con Windows) los errores quedaban solo en stdout y se perdían: ahora van al registro.
     configure_logging(console=False)
-    from anka.infra.settings import DATA_DIR, load_config
-    from anka.infra.google_services import services
-    from anka.servicios.work_import import dashboard_upsert
-    if load_config().get("active_mode") != "chatgpt_work":
+    if not es_modo_work(load_config()):
         fatal("Sincronización detenida: active_mode no es chatgpt_work.")
     if not args.once and other_bridge_running():
         fatal("Ya hay otro puente activo (ver work_sync_heartbeat.json). No se inicia un segundo.")
     account = load_config().get("work_sync_account", DEFAULT_ACCOUNT).lower()
-    checkpoint = DATA_DIR / "work_dashboard_sync_state.json"
+    checkpoint = settings.DATA_DIR / "work_dashboard_sync_state.json"
     cache: dict = {}
     seen: set[str] = set()
     gmail = None
     print("Sincronización Work activa. Solo lectura de Gmail y escritura en dashboard local.", flush=True)
     while True:
-        if load_config().get("active_mode") != "chatgpt_work":
+        if not es_modo_work(load_config()):
             fatal("Sincronización detenida por cambio de modo.")
         result: dict[str, Any] = {"drafts": 0, "updated": 0, "failures": 0, "events": 0, "rejected": []}
         error = ""
