@@ -56,25 +56,59 @@ def _decode_work_payload(payload_base64: str) -> tuple[str, dict]:
     try:
         raw = decode_websafe(payload_base64).decode("utf-8")
         payload = json.loads(raw)
-    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        # un «\ud800» suelto es JSON válido pero no se puede guardar como texto: se rechaza aquí, no al guardar
+        json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    except (ValueError, UnicodeError, TypeError) as exc:
         raise ErrorDeAnka(f"Registro de dashboard no válido: {exc}") from exc
-    required = {"thread_id", "status", "client_email", "project_name"}
-    missing = sorted(field for field in required if not str(payload.get(field, "")).strip())
+    if not isinstance(payload, dict):
+        raise ErrorDeAnka("Registro de dashboard no válido: el contrato debe ser un objeto JSON.")
+    required = ("client_email", "project_name", "status", "thread_id")
+    missing = sorted(field for field in required
+                     if not isinstance(payload.get(field), str) or not payload[field].strip())
     if missing:
-        raise ErrorDeAnka("Faltan campos del dashboard: " + ", ".join(missing))
+        raise ErrorDeAnka("Faltan campos del dashboard (o no son texto): " + ", ".join(missing))
     status, aviso = reconocer_estado_de_work(payload["status"])
-    payload["status"] = status or payload["status"]
+    if status is None:
+        # T-33: fuera de la lista cerrada y de los sinónimos conservadores se rechaza (igual que en el puente)
+        escrito = _declarado(payload["status"], 80)
+        raise ErrorDeAnka(f"Estado de Work no reconocido en el campo status: «{escrito}».")
+    payload["status"] = status
+    for campo, tipos in _TIPOS_DE_CAMPOS.items():
+        if payload.get(campo) is not None and not isinstance(payload[campo], tipos):
+            raise ErrorDeAnka(f"Registro de dashboard no válido: el campo {campo} tiene un tipo no admitido.")
     if aviso:
-        payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso]
+        payload["_avisos_del_puente"] = [*_como_lista(payload.get("_avisos_del_puente")), aviso]
     return raw, payload
+
+
+# Campos opcionales cuyo tipo se comprueba al importar (T-31): un texto donde va una lista se sigue aceptando, pero un
+# número o un booleano no se puede interpretar y se rechaza con su motivo, en vez de romper la importación.
+_TIPOS_DE_CAMPOS: dict[str, type | tuple[type, ...]] = {
+    "activities": (list, str), "cited_codes": (list, str), "missing_data": (list, str, dict),
+    "scope_dependencies": (list, str), "contradictions": (list, str), "attachments": (list, str, dict),
+    "_avisos_del_puente": (list, str),
+}
+
+
+def _como_lista(valor: Any) -> list:
+    """Una lista del borrador: un texto suelto es un elemento; `None` o vacío, ninguno."""
+    if isinstance(valor, list):
+        return valor
+    if isinstance(valor, str):
+        return [valor] if valor.strip() else []
+    return []
 
 
 def _work_activities(payload: dict) -> list:
     """Tabla de actividades del borrador, aceptando también un texto suelto o filas que son solo texto."""
-    activities = payload.get("activities", [])
+    activities = payload.get("activities")
+    if not isinstance(activities, (list, str)):
+        activities = []          # `null` en un campo opcional es lo mismo que no escribirlo
     if isinstance(activities, list):
         normalized = []
         for item in activities:
+            if item is None:
+                continue         # una fila vacía no es una actividad (no se escribe «None» en la tabla)
             if not isinstance(item, dict):
                 normalized.append(item)
                 continue
@@ -166,7 +200,7 @@ def _work_analysis(payload: dict) -> Analisis:
     visual_dependencies = [{"description": warning, "source": source, "status": "pendiente"}
                            for warning in coverage_warnings if "lectura visual no certificada" in warning]
     warnings = (question_evidence_warnings(payload) + coverage_warnings + unit_warnings
-                + [str(aviso) for aviso in payload.get("_avisos_del_puente") or []])
+                + [str(aviso) for aviso in _como_lista(payload.get("_avisos_del_puente"))])
     dependencies = _list_or_wrapped(payload.get("scope_dependencies", []), lambda text: {
         "description": text, "source": source, "status": "pendiente"})
     if not isinstance(dependencies, list):
@@ -216,7 +250,8 @@ def _work_analysis(payload: dict) -> Analisis:
 
 def _internal_status(payload: dict, analysis: Analisis) -> str:
     """Estado interno que corresponde al borrador de Work."""
-    status = _WORK_STATUS_MAP.get(payload["status"], payload["status"])
+    # el estado ya se validó al decodificar; si aun así no se reconoce, decide una persona (nunca se guarda tal cual)
+    status = _WORK_STATUS_MAP.get(payload["status"], QuoteStatus.REVIEW)
     if payload.get("analysis_complete") is False or analysis.get("reading_summary", {}).get("status") == "pendiente":
         return QuoteStatus.REVIEW
     if status in (QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED
@@ -250,9 +285,12 @@ def _demora_del_puente(payload: dict) -> str:
     """Cuánto pasó entre que el borrador de Work apareció en Gmail y que llegó al dashboard (T-29); '' si no se sabe."""
     try:
         desde = datetime.fromisoformat(str(payload.get("draft_at") or ""))
-    except ValueError:
+        if desde.tzinfo is None:
+            # sin zona horaria no se sabe cuánto pasó; el dato es solo informativo y no descarta el borrador
+            return ""
+        segundos = max(0, int((datetime.now().astimezone() - desde).total_seconds()))
+    except (ValueError, OverflowError):
         return ""
-    segundos = max(0, int((datetime.now().astimezone() - desde).total_seconds()))
     log.info("%s: el borrador de Work tardó %d s en llegar al dashboard", payload.get("thread_id"), segundos)
     return f" El borrador estaba en Gmail desde las {desde:%H:%M:%S}; llegó al dashboard {segundos} s después."
 
@@ -265,7 +303,7 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
     apply_guard(
         db, thread_id, analysis, str(payload.get("requested_by_email") or ""),
         str(payload.get("requested_by_name") or ""),
-        [str(code) for code in payload.get("cited_codes") or []], message_id,
+        [str(code) for code in _como_lista(payload.get("cited_codes"))], message_id,
         str(payload.get("subject") or payload.get("project_name") or ""),
         str(payload.get("summary") or "")[:160], "work")
     row = db.execute(

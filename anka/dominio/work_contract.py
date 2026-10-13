@@ -14,6 +14,8 @@ from typing import Any
 import re
 import unicodedata
 
+from anka.dominio.analisis import Analisis
+
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "spec" / "contrato_work.schema.json"
 
 _TYPES: dict[str, type | tuple[type, ...]] = {
@@ -292,31 +294,61 @@ def usa_verificacion_por_adjuntos(payload: dict) -> bool:
 
     Los borradores anteriores (V5 y antes, con expediente en Drive) siguen su camino de siempre hasta que se retire.
     """
-    version = re.match(r"PRECISO_V(\d+)", str(payload.get("skill_version") or ""))
+    if not isinstance(payload, dict):
+        return False
+    # hasta tres cifras: una versión absurda («PRECISO_V999…9») no debe romper la conversión a entero
+    version = re.match(r"PRECISO_V(\d{1,3})(?!\d)", str(payload.get("skill_version") or ""), re.ASCII)
     return version is not None and int(version.group(1)) >= 6
 
 
+SIN_NOMBRE = "(adjunto sin nombre)"
+
+
+def _nombre_visible(nombre: object) -> str:
+    """El nombre de un adjunto tal como se muestra en un aviso: un texto en una línea, nunca la forma de una lista."""
+    texto = " ".join(nombre.split()) if isinstance(nombre, str) else ""
+    return texto or SIN_NOMBRE
+
+
 def _nombre_de_adjunto(nombre: object) -> str:
-    """El nombre de un adjunto para compararlo: sin mayúsculas ni espacios de más."""
-    return " ".join(str(nombre or "").casefold().split())
+    """El nombre de un adjunto para compararlo: en forma Unicode NFC, sin mayúsculas ni espacios de más.
+
+    Gmail y Work pueden escribir la misma tilde compuesta («á») o descompuesta («a» + acento): es el mismo archivo.
+    """
+    if not isinstance(nombre, str):
+        return ""
+    return " ".join(unicodedata.normalize("NFC", nombre).casefold().split())
+
+
+def _tamano_en_bytes(tamano: object) -> int | None:
+    """El tamaño de un adjunto como entero: acepta `10`, `10.0` o `"10"`; `None` si no es un entero no negativo."""
+    if isinstance(tamano, bool):
+        return None
+    if isinstance(tamano, float):
+        return int(tamano) if tamano.is_integer() and tamano >= 0 else None
+    if isinstance(tamano, str) and re.fullmatch(r"\s*\d{1,15}\s*", tamano, re.ASCII):
+        return int(tamano)
+    if isinstance(tamano, int) and tamano >= 0:
+        return tamano
+    return None
 
 
 def _clave_de_adjunto(nombre: object, tamano: object) -> tuple[str, int | None]:
     """Cómo se reconoce un adjunto: su nombre normalizado y su tamaño en bytes (`None` si no es un entero)."""
-    if isinstance(tamano, int) and not isinstance(tamano, bool):
-        return _nombre_de_adjunto(nombre), tamano
-    return _nombre_de_adjunto(nombre), None
+    return _nombre_de_adjunto(nombre), _tamano_en_bytes(tamano)
 
 
-def verificar_adjuntos(payload: dict, adjuntos_gmail: list[dict] | None) -> list[str]:
+def verificar_adjuntos(payload: dict, adjuntos_gmail: list[dict] | None,
+                       incrustadas: list[dict] | None = None) -> list[str]:
     """Comprueba que Work reportó cada adjunto que Gmail tiene en el hilo, por nombre y tamaño (T-41).
 
     `adjuntos_gmail` son los adjuntos reales del hilo (`filename`, `size`); `None` si no se pudo consultar Gmail.
+    `incrustadas` son las imágenes del cuerpo (`imagenes_incrustadas`): no se exigen, pero tampoco son desconocidas.
     Deja el resultado en `reading_audit` (`verification`: verificada / incompleta / sin_verificar, y los archivos que
     faltan o que Gmail no tiene) y, si la lectura no está verificada, `analysis_complete` en falso. Devuelve un
     aviso por diferencia.
     """
-    audit = dict(payload.get("reading_audit") or {})
+    audit = _diccionario(payload.get("reading_audit"))
     avisos: list[str] = []
     pendientes: list[str] = []
     desconocidos: list[str] = []
@@ -325,16 +357,22 @@ def verificar_adjuntos(payload: dict, adjuntos_gmail: list[dict] | None) -> list
         avisos.append("Lectura sin verificar: no se pudo consultar Gmail; se reintentará en la siguiente revisión.")
     else:
         # dos adjuntos con el mismo nombre y tamaño son el mismo archivo reenviado: cuentan como uno
-        esperados = {_clave_de_adjunto(a["filename"], a.get("size")): a for a in adjuntos_gmail}
-        reportados = [item for item in payload.get("attachments") or []
+        esperados = {_clave_de_adjunto(a.get("filename"), a.get("size")): a
+                     for a in adjuntos_gmail if isinstance(a, dict)}
+        atendidos = payload.get("attachments")
+        reportados = [item for item in (atendidos if isinstance(atendidos, list) else [])
                       if isinstance(item, dict) and item.get("status") != "ignorado"]
-        leidos = {_clave_de_adjunto(item.get("filename"), item.get("size_bytes")) for item in reportados
-                  if item.get("coverage")}
-        pendientes = [a["filename"] for clave, a in esperados.items() if clave not in leidos]
-        nombres = {clave[0] for clave in esperados}
-        desconocidos = [str(item.get("filename")) for item in reportados
+        # sin un tamaño entero el archivo no se puede verificar (T-41, punto 2), aunque Gmail tampoco lo diera
+        leidos = {clave for clave in (_clave_de_adjunto(item.get("filename"), item.get("size_bytes"))
+                                      for item in reportados if item.get("coverage")) if clave[1] is not None}
+        pendientes = [_nombre_visible(a.get("filename")) for clave, a in esperados.items() if clave not in leidos]
+        # una imagen incrustada (logo, foto pegada en el cuerpo) existe en Gmail aunque no sea un adjunto por leer
+        nombres = {clave[0] for clave in esperados} | {_nombre_de_adjunto(i.get("filename"))
+                                                      for i in incrustadas or [] if isinstance(i, dict)}
+        desconocidos = [_nombre_visible(item.get("filename")) for item in reportados
                         if _nombre_de_adjunto(item.get("filename")) not in nombres]
-        audit["attachments_expected"] = [{"filename": a["filename"], "size_bytes": a.get("size")}
+        audit["attachments_expected"] = [{"filename": _nombre_visible(a.get("filename")),
+                                          "size_bytes": _tamano_en_bytes(a.get("size"))}
                                          for a in esperados.values()]
         verificacion = "incompleta" if pendientes or desconocidos else "verificada"
         if pendientes:
@@ -350,6 +388,11 @@ def verificar_adjuntos(payload: dict, adjuntos_gmail: list[dict] | None) -> list
         payload["analysis_complete"] = False
         avisos.append("El análisis no se da por completo: la lectura de los adjuntos no está verificada contra Gmail.")
     return avisos
+
+
+def _diccionario(valor: object) -> dict:
+    """Copia de un objeto del borrador; `{}` si Work escribió otra cosa (un texto, una lista)."""
+    return dict(valor) if isinstance(valor, dict) else {}
 
 
 def _avisos_de_verificacion(audit: dict) -> list[str]:
@@ -368,15 +411,16 @@ def _avisos_de_verificacion(audit: dict) -> list[str]:
 
 def reading_summary(payload: dict) -> dict[str, Any]:
     """Resume lectura declarada y coherencia del preflight sin certificar comprensión visual (T-35)."""
-    audit = payload.get("reading_audit") or {}
-    preflight = payload.get("DRIVE_PREFLIGHT") or {}
+    audit = _diccionario(payload.get("reading_audit"))
+    preflight = _diccionario(payload.get("DRIVE_PREFLIGHT"))
     if audit.get("verification"):
         warnings = _avisos_de_verificacion(audit)
     elif not preflight:
         return {"status": "no indicado", "warnings": [], "visual": "no indicado"}
     else:
         warnings = _avisos_de_segmentos(payload, preflight, audit)
-    attachments = payload.get("attachments") or []
+    declarados = payload.get("attachments")
+    attachments = [item for item in (declarados if isinstance(declarados, list) else []) if isinstance(item, dict)]
     visual_pending = any(item.get("visual_interpretation") == "no_certificada" for item in attachments)
     if visual_pending:
         warnings.append("Interpretación visual pendiente; la extracción no la certifica.")
@@ -419,11 +463,12 @@ def reconciliar_lectura(payload: dict, instantanea: dict | None) -> list[str]:
     segmentos dice haber leído, reducidos a los que existen. Devuelve un aviso por cada diferencia y, si la lectura no
     está verificada, deja `analysis_complete` en falso. Sin instantánea del mismo hilo no toca nada.
     """
-    if not instantanea or instantanea.get("thread_id") != payload.get("thread_id"):
+    if (not isinstance(payload, dict) or not isinstance(instantanea, dict) or not instantanea.get("thread_id")
+            or instantanea.get("thread_id") != payload.get("thread_id")):
         return []
     avisos: list[str] = []
-    preflight = dict(payload.get("DRIVE_PREFLIGHT") or {})
-    audit = dict(payload.get("reading_audit") or {})
+    preflight = _diccionario(payload.get("DRIVE_PREFLIGHT"))
+    audit = _diccionario(payload.get("reading_audit"))
     revision = instantanea.get("revision")
     declarada = preflight.get("manifest_revision")
     mensajes = list(instantanea.get("message_ids") or [])
@@ -465,3 +510,46 @@ def reconciliar_lectura(payload: dict, instantanea: dict | None) -> list[str]:
         payload["analysis_complete"] = False
         avisos.append("El análisis no se da por completo: la lectura no está verificada contra el manifiesto.")
     return avisos
+
+
+def lectura_sin_verificar(analysis: Analisis) -> bool:
+    """¿La lectura que Work declaró no se pudo verificar? (T-41; en V5 y antes, el preflight del expediente en Drive).
+
+    Con la verificación contra Gmail es `incompleta`; un borrador del expediente en Drive se da por sin verificar si
+    falla su preflight o la auditoría de segmentos. Sin ninguna de las dos no hay nada que verificar. No mira si una
+    persona ya la revisó (U-29): eso lo decide quien muestra la pantalla.
+    """
+    if analysis.get("engine") != "chatgpt_work":
+        return False
+    audit = analysis.get("reading_audit") or {}
+    if audit.get("verification"):
+        return bool(audit["verification"] == "incompleta")
+    preflight = analysis.get("DRIVE_PREFLIGHT") or {}
+    if not preflight:
+        return False
+    if not preflight.get("manifest_revision"):
+        return True
+    message_id = analysis.get("work_message_id")
+    if message_id and message_id not in (preflight.get("message_ids") or []):
+        return True
+    for kind in ("email", "attachment"):
+        available = preflight.get(kind + "_segments_available")
+        read_count = preflight.get(kind + "_segments_read")
+        expected = audit.get(kind + "_segment_ids_expected")
+        read_ids = audit.get(kind + "_segment_ids_read")
+        if not isinstance(available, int) or not isinstance(read_count, int) or read_count != available:
+            return True
+        if not isinstance(expected, list) or not isinstance(read_ids, list):
+            return available > 0
+        if len(set(expected)) != len(expected) or len(set(read_ids)) != len(read_ids):
+            return True
+        if set(expected) != set(read_ids) or len(read_ids) != read_count:
+            return True
+    return False
+
+
+def archivos_sin_verificar(analysis: Analisis) -> list[str]:
+    """Los archivos que quedaron sin leer o que Work nombró y Gmail no tiene (vacío si no se sabe cuáles)."""
+    audit = analysis.get("reading_audit") or {}
+    archivos = audit.get("attachment_files_pending") or audit.get("attachment_files_unknown") or []
+    return [str(a) for a in archivos] if isinstance(archivos, list) else []

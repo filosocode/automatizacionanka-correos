@@ -104,6 +104,13 @@ class RevisionManual(TypedDict, total=False):
     questions: list[str]
 
 
+class RevisionDeLectura(TypedDict, total=False):
+    """Una persona revisó por su cuenta los archivos que Anka no pudo verificar (U-29)."""
+
+    at: str
+    files: list[str]     # los archivos que seguían sin verificar cuando la persona asumió la revisión
+
+
 class EdicionManual(TypedDict, total=False):
     """Marca de que una persona editó la tabla: un reproceso del modelo no la pisa."""
 
@@ -141,6 +148,7 @@ class Analisis(TypedDict, total=False):
     engine: str
     DRIVE_PREFLIGHT: dict[str, Any]
     reading_audit: dict[str, Any]
+    reading_review: RevisionDeLectura   # U-29: la lectura la revisó una persona; solo lo escribe el dashboard
     reading_summary: dict[str, Any]
     evidence_check: dict[str, Any]   # T-38: lo que se comprobó de la tabla de Work contra los textos del expediente
     related_threads: list[dict[str, Any]]

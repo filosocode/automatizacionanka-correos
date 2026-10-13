@@ -287,6 +287,21 @@ class PuenteConVerificacionTests(unittest.TestCase):
         self.assertEqual(self.guardado()["reading_audit"]["verification"], "verificada")
         self.assertIs(self.guardado()["analysis_complete"], True)
 
+    def test_una_imagen_pegada_que_work_reporta_no_bloquea_y_el_reinicio_del_puente_destraba_el_caso(self):
+        foto = ("foto_referencia_1.jpg", "jpegdatos", "image/jpeg", "inline")
+        datos = borrador(reportado(NOTAS[0], NOTAS[1]), reportado(foto[0], foto[1]))
+        gmail = GmailConAdjuntos({"d1": draft_message(datos)}, {})
+        gmail.hilos["T1"] = [mensaje("m1", [NOTAS, foto])]
+        # con la regla anterior la imagen pegada no existía para el puente: el caso quedaba bloqueado
+        with patch("anka.servicios.lectura_de_adjuntos.imagenes_incrustadas", return_value=[]):
+            self.pasada(gmail, {})
+        self.assertEqual(self.guardado()["reading_audit"]["attachment_files_unknown"], ["foto_referencia_1.jpg"])
+        self.assertTrue(pantalla_caso._reading_is_blocked(self.guardado()))
+        # el puente reinicia con el código nuevo (caché vacía): el mismo borrador se vuelve a verificar sin Work
+        self.pasada(gmail, {})
+        self.assertEqual(self.guardado()["reading_audit"]["verification"], "verificada")
+        self.assertFalse(pantalla_caso._reading_is_blocked(self.guardado()))
+
     def test_un_borrador_anterior_sin_drive_ni_verificacion_no_se_oculta(self):
         # un caso de Work sin DRIVE_PREFLIGHT ya no desaparece de la pantalla por eso
         self.pasada(FakeGmailSolo({"d1": draft_message(payload(skill_version="PRECISO_V5.0"))}), {})

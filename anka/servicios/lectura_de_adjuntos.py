@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from anka.dominio.attachments import MAX_ATTACHMENT_BYTES
-from anka.dominio.correo import adjuntos_recibidos, decode_websafe, inbound_messages, message_text
+from anka.dominio.correo import (
+    adjuntos_recibidos, decode_websafe, imagenes_incrustadas, inbound_messages, message_text,
+)
 from anka.dominio.verificacion_de_evidencia import avisos_de, comprobar_tabla
 from anka.dominio.work_contract import verificar_adjuntos
 from anka.infra import instantaneas_de_manifiesto
@@ -89,7 +91,8 @@ def verificar_lectura(gmail: Any, payload: dict, propias: set[str], directorio: 
         log.warning("No se pudo consultar el hilo %s para verificar la lectura", payload.get("thread_id"),
                     exc_info=True)
         return verificar_adjuntos(payload, None), False
-    avisos = verificar_adjuntos(payload, adjuntos)
+    # una imagen pegada en el cuerpo no se exige, pero si Work la reporta no es un adjunto «que Gmail no tiene»
+    avisos = verificar_adjuntos(payload, adjuntos, imagenes_incrustadas(thread, propias))
     try:
         resultado = comprobar_tabla(payload, _textos_del_hilo(gmail, thread, adjuntos, propias, directorio))
     except Exception:   # la comprobación de la tabla es un apoyo: nunca debe frenar la importación

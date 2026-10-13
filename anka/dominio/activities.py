@@ -31,12 +31,22 @@ def normalize_estado(value: object) -> str:
     «confirmado; soporte pendiente» o «confirmado en fuentes; revisión pendiente» no están
     confirmados del todo: si el texto menciona algo pendiente o por aclarar, es `pendiente`.
     """
-    text = str(value or "").casefold()
+    text = " ".join(str(value or "").casefold().split())
     if "contradic" in text:
         return "contradictorio"
-    if any(mark in text for mark in ("pendiente", "revisi", "requiere", "aclar", "falta", "no indicad")):
+    if any(mark in text for mark in _MARCAS_DE_DUDA):
         return "pendiente"
     return "confirmado" if text.startswith("confirmado") else "pendiente"
+
+
+# Textos que, junto a «confirmado», dicen que el dato aún no está confirmado del todo (R12). Los verbos van con su
+# preposición («por verificar», «a validar») para que «confirmado, verificado» siga siendo confirmado.
+_MARCAS_DE_DUDA = (
+    "pendiente", "revisi", "revisar", "requiere", "aclar", "falta", "no indicad",
+    "por verific", "a verific", "sin verific", "por valid", "a valid", "sin valid",
+    "por defin", "a defin", "sin defin", "por confirm", "sin confirm", "sin soporte",
+    "supuest", "asumid", "dudos", "estimad",
+)
 _UNIDADES = {
     "ha": "ha", "hectarea": "ha", "hectareas": "ha", "hectárea": "ha", "hectáreas": "ha",
     "km": "km", "kilometro": "km", "kilometros": "km", "kilómetro": "km", "kilómetros": "km",
@@ -117,8 +127,8 @@ def parse_activities_form(form: dict[str, list[str]]) -> list[Actividad]:
 
 def _cell(value: object) -> str:
     text = "" if value is None else str(value)
-    # evita que Excel interprete el texto como formula
-    return "'" + text if text[:1] in ("=", "+", "-", "@") else text
+    # evita que Excel interprete el texto como fórmula, también si va precedida de espacios o tabuladores («\t=1»)
+    return "'" + text if text.lstrip(" \t\r\n")[:1] in ("=", "+", "-", "@") else text
 
 
 def build_workbook(quotes: Sequence[Mapping[str, Any]]) -> bytes:
