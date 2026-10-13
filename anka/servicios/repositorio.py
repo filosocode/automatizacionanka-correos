@@ -110,6 +110,14 @@ def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
     )
 
 
+# Lo que se borra al eliminar un caso (T-42). Se conservan como evidencia el historial, las solicitudes de cambio
+# (alimentan el acta) y el registro de lo enviado.
+TABLAS_DEL_CASO = ("dashboard_notifications", "quote_metadata", "case_messages", "case_followup", "table_versions",
+                   "analysis_failures", "quotes")
+TABLAS_CON_DOS_HILOS = ("case_links", "project_dismissals")
+TABLAS_QUE_SE_CONSERVAN = ("case_events", "case_changes", "mail_operations")
+
+
 class RepositorioDeCasos:
     """Lee y escribe casos y sus datos propios (conversación, historial, personas, datos comerciales)."""
 
@@ -318,9 +326,10 @@ class RepositorioDeCasos:
             db.commit()
 
     def eliminar(self, thread_ids: list[str]) -> list[str]:
-        """Borra solicitud, datos comerciales y novedades de los hilos que existan y devuelve cuáles eran.
+        """Borra todo lo del caso (solicitud, datos, mensajes, versiones, vínculos…) y devuelve qué hilos existían.
 
-        El historial (`case_events`) se conserva como evidencia: queda anotado que el caso se eliminó.
+        Se conservan como evidencia el historial (`case_events`, con la anotación de que se eliminó), las solicitudes de
+        cambio (`case_changes`, alimentan el acta) y el registro de lo que se envió (`mail_operations`) (T-42).
         """
         ids = list(dict.fromkeys(thread_ids))
         if not ids:
@@ -335,8 +344,11 @@ class RepositorioDeCasos:
                     record_event(db, thread_id, "deleted", "dashboard",
                                  f"{datetime.now().astimezone().isoformat(timespec='seconds')}-{uuid4().hex[:6]}",
                                  "El caso se eliminó del dashboard; su historial se conserva en el archivo.")
-                for table in ("dashboard_notifications", "quote_metadata", "quotes"):
+                for table in TABLAS_DEL_CASO:
                     db.execute(f"DELETE FROM {table} WHERE thread_id IN ({found_marks})", found)
+                for table in TABLAS_CON_DOS_HILOS:     # el hilo puede estar en cualquiera de los dos lados
+                    db.execute(f"DELETE FROM {table} WHERE thread_id IN ({found_marks}) "
+                               f"OR other_thread_id IN ({found_marks})", found + found)
             db.commit()
         return found
 

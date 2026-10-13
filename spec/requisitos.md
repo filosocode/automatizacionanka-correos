@@ -675,3 +675,25 @@ grande, para conocer el límite del conector con el correo `raw`.
   un PDF de las presentaciones; leer DXF con una librería es una dependencia nueva que requiere su propia decisión.
 - Si Work puede hacer cálculos de comprobación (áreas, perímetros) marcados como derivados; la V5 dice «no calcules ni conviertas».
 - El límite de tamaño del correo `raw` en el conector.
+
+### T-42 · Eliminar un caso no deja restos, y se puede reiniciar todo para probar desde cero
+**Estado: implementado** (pruebas en `tests/test_reinicio.py`). Decisión: D-74.
+
+**Motivo.** «Eliminar seleccionadas» borraba la solicitud, los datos comerciales y las novedades, pero dejaba mensajes, versiones de la
+tabla, vínculos entre hilos, cambios pendientes, seguimiento y fallos de análisis. Si el mismo hilo volvía a entrar, esos restos
+reaparecían mezclados con el caso nuevo. Y no había forma de volver a probar desde cero sin tocar la base a mano.
+
+**Qué debe cumplirse**
+1. **Eliminar un caso borra todo lo suyo** salvo la evidencia: la solicitud, los datos comerciales, las novedades, los mensajes, las
+   versiones de la tabla, el seguimiento, los fallos de análisis y los vínculos y descartes de proyecto donde el hilo sea cualquiera de
+   los dos lados. Se conservan `case_events` (el historial, con la anotación de que se eliminó), `case_changes` (las solicitudes de
+   cambio, que alimentan el acta) y `mail_operations` (el registro de lo que se envió). Una prueba recorre las tablas de la base y falla si aparece una tabla nueva con
+   `thread_id` que no esté en una de las dos listas.
+2. **Reiniciar para probar desde cero** (`python -m anka.infra.reinicio`):
+   - Sin opciones solo **muestra** qué se borraría (filas por tabla, archivos, casos con carpeta en Drive) y no cambia nada.
+   - Con `--confirmar` primero hace una **copia de seguridad** (la de `backup`, restaurable con `--restore`); si la copia falla, no
+     borra nada. Después vacía todas las tablas de la base, borra el estado del puente (`work_dashboard_sync_state.json`) y las
+     carpetas derivadas (`review_queue`, `manifiestos`, `cache_hallazgos`).
+   - Se niega si el puente está corriendo (hay que cerrar el lanzador).
+   - **No toca** Gmail, Drive, `config.json`, el token ni las credenciales, ni `evidence/` ni `backups/`. Avisa de que los correos de
+     prueba, los borradores de Work y las carpetas de Drive siguen ahí y Work los verá como historial relacionado.

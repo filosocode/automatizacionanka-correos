@@ -64,6 +64,7 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `backup` | Copias de seguridad de la base del dashboard: local y en Drive (sin credenciales ni token). |
+| `reinicio` | Reinicio de los datos locales para volver a probar desde cero: vista previa, copia de seguridad y vaciado. |
 | `google_services` | Cliente de Gmail y Drive: credenciales, servicios y carpetas. |
 | `drive_exchange` | Intercambio de archivos propios en Drive con claves estables, paginación y bloqueo local. |
 | `llm` | Análisis del correo con el motor elegido (Ollama u OpenAI). |
