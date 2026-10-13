@@ -6,6 +6,7 @@ las rutas reales de `server.py`: una ruta sin documentar o documentada de más h
 
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass, fields
 from typing import Any, get_type_hints
 
@@ -266,6 +267,11 @@ OPERACIONES: tuple[Operacion, ...] = (
               "suficiente. No envía nada.", "guarda",
               (_ID, Campo("accion", "Qué hacer al volver atrás.", requerido=True,
                           opciones=("reconsiderar", "suficiente"))), "redirect"),
+    Operacion("post", "/reading-accept", "Acciones del caso", "Asumir la revisión de archivos sin verificar",
+              "Cuando la lectura de Work no se pudo verificar contra Gmail (p. ej. un plano CAD que ningún lector "
+              "abre), una persona declara que revisó esos archivos y el caso sigue su curso. No cambia el estado, no "
+              "envía nada y deja constancia en el historial. Un análisis nuevo de Work reemplaza la marca.", "guarda",
+              (_ID,), "redirect"),
     Operacion("post", "/links-dismiss", "Acciones del caso", "Descartar varias sugerencias de vínculo",
               "Descarta las sugerencias seleccionadas para este caso. Conserva los mensajes originales y los casos "
               "de sus hilos; no los une ni los elimina.", "guarda",
@@ -398,7 +404,7 @@ def _respuestas_get(operacion: Operacion) -> dict[str, Any]:
     return {"200": {"description": "Página HTML.", "content": {"text/html": {"schema": {"type": "string"}}}}}
 
 
-def _operacion(operacion: Operacion, csrf_token: str) -> dict[str, Any]:
+def _operacion(operacion: Operacion) -> dict[str, Any]:
     efecto = EFECTOS[operacion.efecto]
     resultado: dict[str, Any] = {
         "tags": [operacion.etiqueta], "summary": operacion.resumen,
@@ -410,8 +416,7 @@ def _operacion(operacion: Operacion, csrf_token: str) -> dict[str, Any]:
         resultado["parameters"] = [_parameter(c) for c in operacion.campos]
         resultado["responses"] = _respuestas_get(operacion)
         return resultado
-    properties = {"csrf_token": {"type": "string", "default": csrf_token, "description":
-                                 "Token de seguridad vigente (ya viene relleno). Sin él la petición se rechaza (403)."}}
+    properties = {"csrf_token": {"type": "string", "description": CSRF_DESCRIPCION}}
     properties.update({c.nombre: _form_property(c) for c in operacion.campos})
     required = ["csrf_token"] + [c.nombre for c in operacion.campos if c.requerido]
     media: dict[str, Any] = {"schema": {"type": "object", "properties": properties, "required": required}}
@@ -430,7 +435,8 @@ Dashboard **local** de Anka: páginas HTML y acciones por formulario. Esta pági
 1. Empieza por **Lectura (JSON)**: `GET /api/salud` dice si todo conecta (200) o qué falla (503) y
    `GET /api/casos` lista los casos.
 2. Copia un `thread_id` y pruébalo en `GET /api/casos/{thread_id}` o en `GET /case`.
-3. Para una **acción** (`POST`), pulsa *Try it out*: el `csrf_token` ya viene relleno. Completa los campos y *Execute*.
+3. Para una **acción** (`POST`), pulsa *Try it out*: en `/docs` el `csrf_token` ya viene relleno. Completa los campos
+   y *Execute*.
    La respuesta real es `303` hacia la pantalla del caso; el navegador la sigue y Swagger muestra esa página.
 
 ### Cuidado
@@ -439,14 +445,19 @@ Las operaciones marcadas con **⚠** actúan de verdad: envían correos reales, 
 
 ### Seguridad
 Solo se atiende desde la propia máquina (`Host` local). Los `POST` exigen `Origin` del mismo servidor y el `csrf_token`.
+Este JSON **no incluye el token** (se puede copiar o importar en otra herramienta sin llevarse el secreto); la página
+`/docs` lo rellena desde la propia página (D-71).
 """
 
+CSRF_DESCRIPCION = ("Token de seguridad del dashboard. En `/docs` viene relleno; fuera de él, cópialo del campo "
+                    "oculto `csrf_token` de cualquier formulario del dashboard. Sin él la petición se rechaza (403).")
 
-def build_spec(csrf_token: str) -> dict[str, Any]:
-    """El documento OpenAPI 3 completo; el `csrf_token` vigente se incluye como valor por defecto de los `POST`."""
+
+def build_spec() -> dict[str, Any]:
+    """El documento OpenAPI 3 completo. No lleva el `csrf_token`: lo pone la página `/docs` (D-71)."""
     paths: dict[str, dict[str, Any]] = {}
     for operacion in OPERACIONES:
-        paths.setdefault(operacion.ruta, {})[operacion.metodo] = _operacion(operacion, csrf_token)
+        paths.setdefault(operacion.ruta, {})[operacion.metodo] = _operacion(operacion)
     return {
         "openapi": "3.0.3",
         "info": {"title": "Anka · Dashboard local", "version": "1.0.0", "description": _DESCRIPCION.strip()},
@@ -471,15 +482,22 @@ def build_spec(csrf_token: str) -> dict[str, Any]:
     }
 
 
-def docs_page() -> str:
-    """La página de Swagger UI (carga el CSS y el JS fijados y con huella de integridad)."""
+def docs_page(csrf_token: str, nonce: str) -> str:
+    """La página de Swagger UI (CSS y JS fijados y con huella de integridad).
+
+    El token va en la propia página, como en cualquier formulario del dashboard, y el script lo pone como valor por
+    defecto del `csrf_token` de cada `POST` antes de mostrar la especificación. El único script en línea lleva el
+    `nonce` de la CSP de esta respuesta; los estilos van en un `<style>` (Swagger UI también los pone en línea).
+    """
     css, css_sri = SWAGGER_CSS
     js, js_sri = SWAGGER_JS
+    token = html.escape(csrf_token, quote=True)
     return f"""<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="anka-csrf" content="{token}">
   <title>API - Anka</title>
   <link rel="stylesheet" href="{css}" integrity="{css_sri}" crossorigin="anonymous">
   <style>
@@ -493,12 +511,22 @@ def docs_page() -> str:
     · <a href="/openapi.json">openapi.json</a></div>
   <div id="swagger-ui"></div>
   <script src="{js}" integrity="{js_sri}" crossorigin="anonymous"></script>
-  <script>
-    window.ui = SwaggerUIBundle({{
-      url: "/openapi.json", dom_id: "#swagger-ui", deepLinking: true, filter: true,
-      docExpansion: "list", defaultModelsExpandDepth: -1, tryItOutEnabled: true,
-      displayRequestDuration: true
-    }});
+  <script nonce="{html.escape(nonce, quote=True)}">
+    (function () {{
+      const token = document.querySelector('meta[name="anka-csrf"]').content;
+      fetch("/openapi.json", {{cache: "no-store"}}).then(r => r.json()).then(spec => {{
+        Object.values(spec.paths).forEach(ruta => {{
+          const formulario = ruta.post && ruta.post.requestBody.content["application/x-www-form-urlencoded"];
+          const campo = formulario && formulario.schema.properties.csrf_token;
+          if (campo) campo.default = token;
+        }});
+        window.ui = SwaggerUIBundle({{
+          spec: spec, dom_id: "#swagger-ui", deepLinking: true, filter: true, validatorUrl: null,
+          docExpansion: "list", defaultModelsExpandDepth: -1, tryItOutEnabled: true,
+          displayRequestDuration: true
+        }});
+      }});
+    }})();
   </script>
 </body>
 </html>

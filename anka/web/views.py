@@ -33,12 +33,17 @@ def mode_selector(current: str | None, api_key_set: bool = True) -> Markup:
     return render("mode_selector.html", current=current, labels=labels)
 
 
+# Qué enlace de la navegación es la página actual (aria-current, U-28). Las demás páginas no marcan ninguno.
+NAV_ACTUAL = {"Resumen comercial": "/", "Solicitudes": "/requests", "Descartadas": "/discarded", "Archivo": "/archive"}
+
+
 def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
                 mode: str | None = None, api_key_set: bool = True) -> str:
     """Página completa: encabezado, avisos, selector de modo y el contenido recibido."""
     return str(render(
         "layout.html", title=title, body=body, message=message, unread_count=unread_count,
         mode_selector=mode_selector(mode, api_key_set), is_work=(mode == "chatgpt_work"),
+        nav_actual=NAV_ACTUAL.get(title, ""),
     ))
 
 

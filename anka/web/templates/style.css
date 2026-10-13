@@ -116,10 +116,15 @@ nav a {
   border-radius: 6px; font-weight: 600; font-size: 14px;
 }
 nav a:hover { background: var(--surface-2); color: var(--ink); }
+nav a[aria-current="page"] { background: var(--accent-soft); color: var(--ink); box-shadow: inset 0 -3px 0 var(--accent); }
+.skip-link { position: absolute; left: 12px; top: -60px; z-index: 20; padding: 10px 14px; border-radius: 6px;
+  background: var(--panel); color: var(--ink); font-weight: 650; border: 2px solid var(--focus); }
+.skip-link:focus { top: 12px; }
+main:focus { outline: none; }
 .nav-count {
-  display: inline-grid; place-items: center; min-width: 20px; height: 20px;
-  margin-left: 5px; padding: 0 5px; border-radius: 10px;
-  background: var(--danger); color: white; font-size: 11px; font-weight: 750;
+  display: inline-grid; place-items: center; min-width: 22px; height: 22px;
+  margin-left: 5px; padding: 0 6px; border-radius: 11px; min-height: 22px;
+  background: var(--danger); color: #fff; font-size: 13px; font-weight: 750;
 }
 h1 { margin: 0; font-size: 24px; font-weight: 680; letter-spacing: 0; }
 h2 { margin: 0 0 12px; font-size: 18px; }
@@ -154,7 +159,10 @@ main { width: min(1240px, 100%); margin: 0 auto; padding: 28px 24px 48px; }
 .button:hover, button:hover { background: var(--accent-dark); }
 .secondary { background: var(--surface-2); color: var(--ink); }
 .secondary:hover { background: var(--surface-3); }
-.danger { background: var(--warn); }
+/* Rojo solo para lo destructivo (eliminar); el ámbar es de los avisos (.warn, .notice). U-28 */
+.button.danger, button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.button.danger:hover, button.danger:hover { background: var(--danger); filter: brightness(.92); }
+button.danger:disabled { opacity: .45; cursor: not-allowed; }
 .notice {
   margin-bottom: 18px;
   padding: 12px 14px;
@@ -194,8 +202,6 @@ main { width: min(1240px, 100%); margin: 0 auto; padding: 28px 24px 48px; }
 .chip-filter[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .bulk-bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
 .check-all { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
-button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
-button.danger:disabled { opacity: .45; cursor: not-allowed; }
 .case-row .button { min-height: 44px; padding: 8px 11px; justify-content: center; }
 .meta { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
 .badge {
@@ -391,3 +397,96 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 /* Preguntas del caso: una tarjeta por pregunta con su selector (U-22) */
 .pregunta { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; background: var(--surface-2); }
 .pregunta select { max-width: 100%; }
+
+/* Pantalla del caso sin atributos style (U-28) */
+.subhead { margin-top: 20px; }
+.toolbar.spaced { margin-top: 14px; }
+.toolbar.spaced-sm { margin-top: 8px; }
+.spaced-top { margin-top: 14px; }
+.scroll-x { overflow-x: auto; }
+.inline-form { display: inline; }
+.pregunta textarea { min-height: 56px; }
+textarea.caja-corta { min-height: 70px; }
+textarea.caja-media { min-height: 90px; }
+textarea.caja-correo { min-height: 260px; }
+.check-line { display: flex; gap: 8px; align-items: center; }
+.decision-arriba { margin-bottom: 18px; border-color: var(--accent); }
+.glosario { margin: -10px 0 14px; }
+.glosario dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0;
+  padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+.glosario dt { font-weight: 700; }
+.glosario dd { margin: 0; color: var(--muted); }
+.armar-correo { margin-bottom: 12px; }
+/* Enviar va aparte del borrador: es definitivo (U-28) */
+.send-zone { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
+  margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px;
+  background: var(--surface-2); }
+.send-zone > div { display: grid; gap: 2px; flex: 1 1 260px; }
+button.send-action { background: var(--panel); color: var(--accent-dark); border: 2px solid var(--accent); }
+button.send-action:hover { background: var(--accent-soft); }
+button.send-action:disabled { opacity: .6; cursor: progress; }
+.google-settings form.urgente button { background: var(--bad-bg); color: var(--bad-ink); }
+/* Diálogo de confirmación propio (U-28) */
+.confirm-dialog { max-width: min(520px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); color: var(--ink); box-shadow: 0 12px 32px rgba(0, 0, 0, .25); }
+.confirm-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.confirm-dialog form { display: grid; gap: 12px; padding: 18px 20px; }
+.confirm-dialog h2 { margin: 0; }
+.confirm-dialog p { margin: 0; }
+.confirm-detalle { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; margin: 0; padding: 10px 12px;
+  background: var(--surface-2); border-radius: 6px; font-size: 14px; }
+.confirm-detalle dt { font-weight: 700; color: var(--muted); }
+.confirm-detalle dd { margin: 0; overflow-wrap: anywhere; }
+.confirm-acciones { justify-content: flex-end; }
+
+/* Tabla de actividades (U-14, U-21); antes venía en su propio bloque <style> */
+.act-table textarea, .act-table select { width: 100%; min-width: 120px; font: inherit; font-size: 13px; }
+.act-table td { padding: 4px; vertical-align: top; }
+.act-table textarea.vacio { background: var(--surface-2); color: var(--muted); }
+.act-table select.estado-confirmado { background: var(--ok-bg); color: var(--ok-ink); }
+.act-table select.estado-pendiente { background: var(--caution-bg); color: var(--caution-ink); }
+.act-table select.estado-contradictorio { background: var(--bad-bg); color: var(--bad-ink); }
+.act-table tr.nueva td { border-top: 2px dashed var(--line); }
+.act-table .del { white-space: nowrap; font-size: 12px; color: var(--muted); }
+/* Cuadrícula: las cinco columnas miden lo mismo y todas las cajas de una fila tienen la misma altura, la que pida el texto
+   más largo (field-sizing: content). Por defecto no hace falta desplazarse; si arrastras la esquina de una caja, toda su
+   fila toma esa altura (lo hace el script de la página) y la caja se desplaza por dentro cuando el texto no cabe. */
+.act-table { display: block; min-width: 760px; }
+.act-table thead, .act-table tbody { display: block; }
+.act-table .act-head, .act-table .act-main { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) 84px; gap: 8px; }
+.act-table th { display: block; text-align: left; padding: 4px 2px; }
+.act-table .act-main > td { display: flex; flex-direction: column; padding: 0; min-width: 0; }
+.act-table textarea { flex: 1 1 auto; min-width: 0; min-height: 76px; height: auto; padding: 8px 10px; resize: vertical;
+  overflow: auto; field-sizing: content; line-height: 1.4; }
+.act-table select { flex: 1 1 auto; min-width: 0; min-height: 76px; height: auto; padding: 8px 10px; }
+.act-table .cant-par { display: flex; flex: 1 1 auto; gap: 6px; }
+.act-table .cant-par textarea:last-child { flex: 0 0 40%; }
+.act-table .del { justify-content: flex-start; padding-top: 8px; }
+.act-table .del label { display: flex; flex-direction: row; align-items: center; gap: 6px; }
+.act-table .del input { flex: 0 0 auto; width: 18px; min-width: 0; height: 18px; margin: 0; }
+@supports not (field-sizing: content) { .act-table textarea { height: 76px; } }
+.act-table tbody.act-row { border-bottom: 1px solid var(--line); }
+.act-table tr.act-more { display: block; }
+.act-table tr.act-more td { display: block; padding: 0 0 10px; }
+.act-table tr.act-more summary { cursor: pointer; color: var(--muted); font-size: 13px; min-height: 32px; }
+.act-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.act-grid label { display: flex; flex-direction: column; }
+.act-grid textarea { font-weight: 400; }
+/* Quitar: la fila se ve marcada hasta que se guarde. */
+.act-table .del { white-space: normal; }
+.act-table .del label { align-items: flex-start; }
+.act-table .q-on { display: none; color: var(--bad-ink); font-size: 12px; line-height: 1.3; }
+.act-table .del input:checked ~ .q-off { display: none; }
+.act-table .del input:checked ~ .q-on { display: inline; }
+.act-row.por-quitar .act-main textarea, .act-row.por-quitar .act-main select { opacity: .5; text-decoration: line-through; }
+/* Barra de guardado: dice qué cambió; el motivo solo se pide cuando hay cambios. */
+.save-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.save-bar.con-cambios { border-color: var(--warn-line); background: var(--warn-bg); }
+.save-status { flex: 1 1 260px; font-size: 14px; color: var(--muted); }
+.save-bar.con-cambios .save-status { color: var(--warn-ink); font-weight: 600; }
+.save-bar .reason { margin-left: 0; }
+#guardar-tabla:disabled { opacity: .5; cursor: not-allowed; }
+.sheet-box > .toolbar { margin-bottom: 6px; }
+.kpis-arriba { margin-top: 24px; }
+.sin-margen-abajo { margin-bottom: 0; }

@@ -124,7 +124,7 @@ class HealthRoute(unittest.TestCase):
 
     def test_it_is_documented_with_its_503(self):
         from anka.web import openapi
-        operation = openapi.build_spec("t")["paths"]["/api/salud"]["get"]
+        operation = openapi.build_spec()["paths"]["/api/salud"]["get"]
         self.assertIn("503", operation["responses"])
         self.assertEqual(operation["responses"]["200"]["content"]["application/json"]["schema"],
                          {"$ref": "#/components/schemas/Salud"})

@@ -1,6 +1,68 @@
 <form method="post" id="visto" action="/notifications/seen" hidden><input type="hidden" name="thread_id" value="{{ thread_id }}"></form>
 <div class="page-head"><div><h1>{{ project_name }}</h1><p>{{ summary }}</p></div><a class="button secondary" href="/requests">Volver</a></div>
+<details class="more glosario">
+  <summary>¿Qué significan «T», «T&amp;E» y los términos de lectura?</summary>
+  <dl>
+    <dt>T</dt><dd>El código de la oferta (año y consecutivo, por ejemplo T26145). Se emite cuando la información está validada; desde entonces todo cambio debe citarlo.</dd>
+    <dt>T&amp;E</dt><dd>La misma oferta cuando el cliente ya la aprobó (por ejemplo T&amp;E26145).</dd>
+    <dt>Lectura realizada</dt><dd>El correo y sus adjuntos se leyeron. No quiere decir que todo lo leído sirva para esta oferta.</dd>
+    <dt>Aplicabilidad</dt><dd>Si lo leído aplica a esta solicitud (un plano de otro proyecto, por ejemplo, no aplica). La confirma una persona de Anka.</dd>
+  </dl>
+</details>
 {{ next_step }}
+{% if analysis_blocked %}
+<section class="section" id="lectura-revisada">
+  <h2>¿Ya revisaste estos archivos tú?</h2>
+  <p class="meta">Algunos archivos necesitan revisión interna aunque el motor no los lea (por ejemplo, un plano CAD). Eso no tiene por qué detener el trabajo: si ya los revisaste, continúa y el caso queda marcado como revisado por ti. Si no, puedes volver a ejecutar la tarea de Work sobre este hilo. Esto no envía nada al cliente.</p>
+  <form method="post" action="/reading-accept" class="toolbar spaced-sm">
+    <input type="hidden" name="thread_id" value="{{ thread_id }}">
+    <button type="submit" class="secondary" data-confirm="Quedará registrado que Anka no verificó estos archivos y que los revisaste tú. Se mostrarán los resultados de Work y podrás decidir cómo seguir. ¿Confirmas?">Ya revisé estos archivos yo</button>
+  </form>
+</section>
+{% endif %}
+{% if reading_review_note %}<div class="notice" id="lectura-revisada-nota">{{ reading_review_note }}</div>{% endif %}
+{% if can_resolve %}
+<section class="section decision-arriba" id="decision">
+  <h2>¿Cómo seguimos?</h2>
+  <p class="meta">Cuando termines de revisar (por ejemplo, abriste el plano CAD), elige una de las dos salidas. Ninguna envía nada al cliente. Si llega un mensaje nuevo en el hilo, el caso se vuelve a evaluar. <a href="#attachments-review">Ver los archivos y lo que falta resolver</a>.</p>
+  <form method="post" action="/review-decision">
+    <input type="hidden" name="thread_id" value="{{ thread_id }}">
+    <h3>La información es suficiente</h3>
+    <p class="meta">Pasa a «Información validada» y podrás emitir la T y crear la carpeta del proyecto en Drive.</p>
+    <div class="toolbar"><button type="submit" name="decision" value="sufficient"
+      data-confirm="El caso pasará a «información suficiente» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Ya lo revisé: información suficiente (crear carpeta en Drive)</button></div>
+    <h3 class="subhead">Preguntas: decide qué hacer con cada una</h3>
+    <p class="meta">Elige para cada pregunta si se la haces al cliente, si la resuelve Anka por dentro o si no hace falta. Puedes
+      cambiar el texto y agregar las tuyas. Al preparar el correo solo entran las que elijas para el cliente (después las puedes
+      ajustar junto al correo); las internas quedan en «Qué falta resolver». Nada se envía sin «Enviar ahora».</p>
+    {% for pregunta in preguntas %}
+    <div class="pregunta">
+      <input type="hidden" name="q_id" value="{{ pregunta.id }}">
+      <label>Pregunta
+        <textarea name="q_text_{{ pregunta.id }}" rows="2">{{ pregunta.texto }}</textarea>
+      </label>
+      <label>Qué hacer
+        <select name="q_decision_{{ pregunta.id }}">
+          <option value="ask_client"{% if pregunta.elegida == 'ask_client' %} selected{% endif %}>Preguntar al cliente</option>
+          <option value="internal"{% if pregunta.elegida == 'internal' %} selected{% endif %}>Resolver internamente</option>
+          <option value="discard"{% if pregunta.elegida == 'discard' %} selected{% endif %}>Descartar</option>
+        </select>
+      </label>
+      <p class="meta">{{ pregunta.origen_texto }}{% if pregunta.decidida %} · decidida por ti{% else %} · el análisis sugiere {{ pregunta.sugerencia }}{% endif %}</p>
+    </div>
+    {% else %}
+    <p class="meta">El análisis no dejó preguntas candidatas. Si necesitas preguntarle algo al cliente, escríbelo abajo.</p>
+    {% endfor %}
+    <label>Agregar mis propias preguntas para el cliente (una por línea)
+      <textarea name="q_nuevas" class="caja-corta" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?"></textarea>
+    </label>
+    <div class="toolbar spaced">
+      <button type="submit" class="secondary" name="decision" value="ask_client">Preparar el correo con las preguntas elegidas</button>
+      <button type="submit" class="secondary" name="decision" value="internal_only">Guardar mis decisiones sin preguntar al cliente</button>
+    </div>
+  </form>
+</section>
+{% endif %}
 {{ project_panel }}
 <div class="layout">
   {{ stepper }}
@@ -11,7 +73,7 @@
     <p class="meta">Revisa los archivos y pendientes de Anka antes de validar el alcance o enviar preguntas al cliente.</p>
     {{ attachments_table }}
     {{ reading_panel }}
-    <h3 style="margin-top:20px">Qué falta resolver</h3>
+    <h3 class="subhead">Qué falta resolver</h3>
     {{ review_tasks }}
   </section>
   <section class="section">
@@ -21,48 +83,6 @@
     {{ activities_editor }}
   </section>
   {% if manual_review %}<div class="notice">{{ manual_review }}</div>{% endif %}
-  {% if can_resolve %}
-  <section class="section" id="decision">
-    <h2>¿Cómo seguimos?</h2>
-    <p class="meta">Cuando termines de revisar (por ejemplo, abriste el plano CAD), elige una de las dos salidas. Ninguna envía nada al cliente. Si llega un mensaje nuevo en el hilo, el caso se vuelve a evaluar.</p>
-    <form method="post" action="/review-decision">
-      <input type="hidden" name="thread_id" value="{{ thread_id }}">
-      <h3>La información es suficiente</h3>
-      <p class="meta">Pasa a «Información validada» y podrás emitir la T y crear la carpeta del proyecto en Drive.</p>
-      <div class="toolbar"><button type="submit" name="decision" value="sufficient"
-        data-confirm="El caso pasará a «información suficiente» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Ya lo revisé: información suficiente (crear carpeta en Drive)</button></div>
-      <h3 style="margin-top:20px">Preguntas: decide qué hacer con cada una</h3>
-      <p class="meta">Elige para cada pregunta si se la haces al cliente, si la resuelve Anka por dentro o si no hace falta. Puedes
-        cambiar el texto y agregar las tuyas. Al preparar el correo solo entran las que elijas para el cliente; las internas
-        quedan en «Qué falta resolver». Nada se envía sin «Enviar ahora».</p>
-      {% for pregunta in preguntas %}
-      <div class="pregunta">
-        <input type="hidden" name="q_id" value="{{ pregunta.id }}">
-        <label>Pregunta
-          <textarea name="q_text_{{ pregunta.id }}" rows="2" style="min-height:56px">{{ pregunta.texto }}</textarea>
-        </label>
-        <label>Qué hacer
-          <select name="q_decision_{{ pregunta.id }}">
-            <option value="ask_client"{% if pregunta.elegida == 'ask_client' %} selected{% endif %}>Preguntar al cliente</option>
-            <option value="internal"{% if pregunta.elegida == 'internal' %} selected{% endif %}>Resolver internamente</option>
-            <option value="discard"{% if pregunta.elegida == 'discard' %} selected{% endif %}>Descartar</option>
-          </select>
-        </label>
-        <p class="meta">{{ pregunta.origen_texto }}{% if pregunta.decidida %} · decidida por ti{% else %} · el análisis sugiere {{ pregunta.sugerencia }}{% endif %}</p>
-      </div>
-      {% else %}
-      <p class="meta">El análisis no dejó preguntas candidatas. Si necesitas preguntarle algo al cliente, escríbelo abajo.</p>
-      {% endfor %}
-      <label>Agregar mis propias preguntas para el cliente (una por línea)
-        <textarea name="q_nuevas" style="min-height:70px" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?"></textarea>
-      </label>
-      <div class="toolbar" style="margin-top:12px">
-        <button type="submit" class="secondary" name="decision" value="ask_client">Preparar el correo con las preguntas elegidas</button>
-        <button type="submit" class="secondary" name="decision" value="internal_only">Guardar mis decisiones sin preguntar al cliente</button>
-      </div>
-    </form>
-  </section>
-  {% endif %}
   {% if analysis_blocked and email == 'form' %}
   <section class="section" id="respuesta"><h2>Respuesta al cliente</h2><div class="notice">En pausa: no se prepara ni se habilita una respuesta basada en este análisis hasta completar la lectura del mensaje y sus adjuntos.</div></section>
   {% elif email != 'technical' %}
@@ -75,36 +95,46 @@
 {% if review.sent_at and review.status == 'ready_review' %}<div class='notice'>Ya se envió una respuesta el {{ review.sent_at }}. El paso de la carpeta en Drive sigue disponible más arriba.</div>{% endif %}
 {% if review.draft_id %}<div class='notice'>Ya existe un borrador en Gmail. Al guardarlo de nuevo se actualizará.</div>{% elif not review.get('quote_code') %}<div class='notice'><strong>Respuesta sugerida lista.</strong> Todavía no está guardada ni enviada en Gmail.</div>{% endif %}
 {% if puede_volver %}<div class="notice"><strong>¿Cambiaste de idea?</strong> El correo todavía no salió, así que puedes cambiar las preguntas o desistir de preguntar.
-  <form method="post" action="/review-reopen" class="toolbar" style="margin-top:8px">
+  <form method="post" action="/review-reopen" class="toolbar spaced-sm">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <button type="submit" name="accion" value="reconsiderar" class="secondary">Volver a elegir las preguntas</button>
     <button type="submit" name="accion" value="suficiente" class="secondary"
       data-confirm="El caso pasará a «información suficiente» sin preguntar nada al cliente y podrás emitir la T. ¿Confirmas?">No preguntar: la información es suficiente</button>
   </form></div>{% endif %}
-<form method="get" action="/case#respuesta" class="armar-correo">
-  <input type="hidden" name="thread_id" value="{{ thread_id }}">
-  <input type="hidden" name="template" value="preguntas">
-  <label>Preguntas para el cliente (una por línea)
-    <textarea name="preguntas" style="min-height:90px" placeholder="¿Cuál es el datum del levantamiento?&#10;Plazo de entrega esperado">{{ armar_preguntas }}</textarea>
-  </label>
-  <p class="meta">Escribe lo que quieres preguntar y arma el correo con la plantilla de siempre; luego lo editas antes de enviarlo. No se envía nada.</p>
-  <button type="submit" class="secondary">Armar correo con estas preguntas</button>
-</form>
+<details class="more armar-correo" id="armar"{% if not email_body %} open{% endif %}>
+  <summary>Cambiar las preguntas del correo</summary>
+  <form method="get" action="/case#respuesta">
+    <input type="hidden" name="thread_id" value="{{ thread_id }}">
+    <input type="hidden" name="template" value="preguntas">
+    <label>Preguntas para el cliente (una por línea)
+      <textarea name="preguntas" class="caja-media" placeholder="¿Cuál es el datum del levantamiento?&#10;Plazo de entrega esperado">{{ armar_preguntas }}</textarea>
+    </label>
+    <p class="meta">{% if puede_volver and armar_preguntas %}Son las que elegiste para el cliente; cámbialas aquí o vuelve a elegirlas una por una. {% endif %}Escribe lo que quieres preguntar y arma el correo con la plantilla de siempre; reemplaza el texto del cuadro y luego lo editas antes de enviarlo. No se envía nada.</p>
+    <button type="submit" class="secondary" id="armar-correo">Armar correo con estas preguntas</button>
+  </form>
+</details>
 <form method="post">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   {% if compose_to %}<input type="hidden" name="to" value="{{ compose_to }}">
   <input type="hidden" name="change_id" value="{{ compose_change_id }}">{% endif %}
   {% if compose_purpose %}<input type="hidden" name="purpose" value="{{ compose_purpose }}">{% endif %}
   <label>Respuesta para {{ compose_to or review.recipient }}
-    <textarea name="body" id="cuerpo-correo" style="min-height:260px" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
+    <textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
   </label>
   <p class="meta" id="aviso-espera" aria-live="polite"></p>
-  <label class="meta" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta">
+  <label class="meta check-line"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta">
     Esperar su respuesta aunque el correo no tenga preguntas</label>
-  <div class="toolbar" style="margin-top:14px">
+  <div class="toolbar spaced">
     <button type="submit" formaction="/draft">Guardar borrador en Gmail</button>
-    <button type="submit" formaction="/send" class="danger"
-      data-confirm="Se enviará este correo a {{ compose_to or review.recipient }} en el mismo hilo. ¿Confirmas el envío?">Enviar ahora</button>
+    <span class="meta">Queda en Gmail para revisarlo; no sale nada al cliente.</span>
+  </div>
+  <div class="send-zone">
+    <div><strong>Enviar al cliente</strong>
+      <span class="meta">Es definitivo: el correo sale a {{ compose_to or review.recipient }} en el mismo hilo. Antes de enviarlo te pedimos confirmar.</span></div>
+    <button type="submit" formaction="/send" class="send-action"
+      data-confirm="Se enviará este correo a {{ compose_to or review.recipient }} en el mismo hilo. ¿Confirmas el envío?"
+      data-resumen="envio" data-para="{{ compose_to or review.recipient }}" data-asunto="{{ asunto_respuesta }}"
+      data-confirm-boton="Sí, enviar ahora">Enviar ahora</button>
   </div>
 </form>
     {% elif email == 'waiting' %}
@@ -120,13 +150,15 @@
     {% else %}
 <p class='meta'>Esta solicitud no admite respuesta desde el dashboard en su estado actual.</p>
     {% endif %}
-    <div style="margin-top:14px">{% if sufficient and not review.get('quote_code') %}<div class='notice'><strong>Recepción completa.</strong> La información puede pasar a revisión interna. Este dashboard todavía no prepara precios ni cotizaciones.</div>{% endif %}</div>
+    <div class="spaced-top">{% if sufficient and not review.get('quote_code') %}<div class='notice'><strong>Recepción completa.</strong> La información puede pasar a revisión interna. Este dashboard todavía no prepara precios ni cotizaciones.</div>{% endif %}</div>
   </section>
   {% if plegar_respuesta %}</details>{% endif %}
   {% endif %}
   {{ code_panel }}
   {% if review.status == 'ready_review' %}
-  <section class="section" id="carpeta">
+  {% set carpeta_plegada = not drive_pending and not review.quote_code %}
+  {% if carpeta_plegada %}<details class="more" id="carpeta"><summary>Carpeta del proyecto en Drive (se crea sola; abrir para decidir a mano)</summary>{% endif %}
+  <section class="section"{% if not carpeta_plegada %} id="carpeta"{% endif %}>
     <h2>Carpeta del proyecto en Drive</h2>
     <p class="meta">Se crea sola al enviar la respuesta al cliente, con el cliente de «Información comercial». Se reutiliza la carpeta del cliente si existe; el cliente nuevo se crea solo si no hay una igual ni parecida, y si hay una solicitud parecida (nombre o mismo archivo) no se duplica. Si algo de eso lo impide, aquí puedes decidir a mano.</p>
     {% if drive_pending %}<div class='notice'>{{ drive_pending }}</div>{% endif %}
@@ -135,9 +167,10 @@
       <div class="filters"><label>Carpeta del cliente<input name="client_name" value="{{ review.client_name_saved }}" required></label></div>
       <label><input type="checkbox" name="new_client" value="1"> Es un cliente nuevo: crear su carpeta</label>
       <label><input type="checkbox" name="allow_similar" value="1"> Es un proyecto distinto: crear la carpeta aunque haya una parecida</label>
-      <div class="toolbar" style="margin-top:12px"><button type="submit">Crear carpeta del proyecto</button></div>
+      <div class="toolbar spaced"><button type="submit">Crear carpeta del proyecto</button></div>
     </form>
   </section>
+  {% if carpeta_plegada %}</details>{% endif %}
   {% elif review.status == 'ready' and review.folder_id %}
   <section class="section" id="carpeta">
     <h2>Carpeta del proyecto en Drive</h2>
@@ -163,8 +196,8 @@
     <label>Tipo de cliente<select name="client_type">{% for value in client_types %}<option value='{{ value }}'{% if value == review.client_type %} selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
     <label>Sector<select name="sector">{% for value in sectors %}<option value='{{ value }}'{% if value == review.sector %} selected{% endif %}>{{ value }}</option>{% endfor %}</select></label>
   </div>
-  <label>Notas comerciales<textarea name="notes" style="min-height:90px">{{ review.notes }}</textarea></label>
-  <div class="toolbar" style="margin-top:12px"><button type="submit">Guardar datos comerciales</button></div>
+  <label>Notas comerciales<textarea name="notes" class="caja-media">{{ review.notes }}</textarea></label>
+  <div class="toolbar spaced"><button type="submit">Guardar datos comerciales</button></div>
 </form></section>
   <section class="section">
     <div class="section-head"><h2>Contexto comercial interno</h2><span class="badge info">Solo Anka</span></div>
@@ -177,7 +210,7 @@
   <section class="section">
     <h2>Enrutamiento y validaciones</h2>
     <pre>{{ routing_summary }}</pre>
-    <h2 style="margin-top:16px;">Asuntos pendientes</h2>
+    <h2 class="subhead">Asuntos pendientes</h2>
     <pre>{{ issues_summary }}</pre>
   </section>
   {{ timeline }}

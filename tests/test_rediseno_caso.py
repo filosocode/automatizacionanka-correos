@@ -192,21 +192,24 @@ class TablaYLenguaje(unittest.TestCase):
 
     def test_cantidad_y_unidad_juntas_y_cajas_del_mismo_tamano_sin_barras(self) -> None:
         # Cubre: U-14
-        html = str(activities_editor("h1", [self.ACTIVIDAD]))
-        par = html[html.index('<div class="cant-par">'):html.index("</div>", html.index('<div class="cant-par">'))]
+        editor = str(activities_editor("h1", [self.ACTIVIDAD]))
+        par = editor[editor.index('<div class="cant-par">'):editor.index("</div>", editor.index('<div class="cant-par">'))]
         self.assertIn("name='a0_quantity'", par)
         self.assertIn("name='a0_unit'", par)                                     # juntas, en el mismo contenedor
-        self.assertIn("grid-template-columns: repeat(5, minmax(0, 1fr)) 84px", html)   # cinco columnas iguales
-        self.assertIn("field-sizing: content", html)                             # la caja se ajusta a su texto
-        self.assertIn("resize: vertical", html)                                  # se puede cambiar desde la esquina
-        self.assertIn("overflow: auto", html)                                    # y se desplaza por dentro si el texto no cabe
-        self.assertNotIn("overflow: hidden", html)
-        self.assertIn('id="ajustar-cajas"', html)                                # y hay vuelta al tamaño automático
-        self.assertIn("flex: 1 1 auto", html)                                    # todas las de la fila igualan la altura
-        self.assertNotIn("resize: none", html)
-        self.assertNotIn("height: 68px", html)                                   # ni alturas distintas por columna
-        self.assertNotIn("width: 29%", html)                                     # ni una columna más ancha que otra
-        self.assertIn('role="row"', html)                                        # la cuadrícula conserva la semántica de tabla
+        self.assertNotIn("<style>", editor)                                      # sus estilos están en style.css (U-28)
+        self.assertIn('id="ajustar-cajas"', editor)                              # y hay vuelta al tamaño automático
+        self.assertIn('role="row"', editor)                                      # la cuadrícula conserva la semántica de tabla
+        css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
+        css = css[css.index("/* Tabla de actividades"):]                         # el bloque de la tabla
+        self.assertIn("grid-template-columns: repeat(5, minmax(0, 1fr)) 84px", css)   # cinco columnas iguales
+        self.assertIn("field-sizing: content", css)                              # la caja se ajusta a su texto
+        self.assertIn("resize: vertical", css)                                   # se puede cambiar desde la esquina
+        self.assertIn("overflow: auto", css)                                     # y se desplaza por dentro si el texto no cabe
+        self.assertNotIn("overflow: hidden", css)
+        self.assertIn("flex: 1 1 auto", css)                                     # todas las de la fila igualan la altura
+        self.assertNotIn("resize: none", css)
+        self.assertNotIn("height: 68px", css)                                    # ni alturas distintas por columna
+        self.assertNotIn("width: 29%", css)                                      # ni una columna más ancha que otra
 
     def test_el_script_iguala_la_fila_al_arrastrar_la_esquina_y_puede_volver_al_ajuste(self) -> None:
         # Cubre: U-14
@@ -242,8 +245,9 @@ class TablaYLenguaje(unittest.TestCase):
         # Cubre: U-21
         html = str(activities_editor("h1", [self.ACTIVIDAD]))
         self.assertIn('<span class="q-on">Se quitará al guardar. Deshacer</span>', html)
-        self.assertIn(".act-row.por-quitar .act-main textarea", html)            # atenuada y tachada
-        self.assertIn("text-decoration: line-through", html)
+        css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".act-row.por-quitar .act-main textarea", css)             # atenuada y tachada
+        self.assertIn("text-decoration: line-through", css)
         layout = (RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8")
         for pieza in ("getElementById('barra-guardado')", "motivo.hidden = !hay", "guardar.disabled = !hay",
                       "classList.toggle('por-quitar', c.checked)", "guardar.dataset.confirm", "Se quitará ", "Se quitarán ",

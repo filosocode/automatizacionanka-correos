@@ -20,6 +20,7 @@ from pathlib import Path
 from datetime import datetime
 from unittest.mock import patch
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra import store
 from anka.servicios import followup_reminders as fup
@@ -337,7 +338,7 @@ class ErrorPageTests(unittest.TestCase):
 
     def test_error_text_from_an_exception_is_escaped(self):
         body = ("csrf_token=" + seguridad.CSRF_TOKEN).encode()
-        boom = RuntimeError(f"<img src=x onerror={MARK}(1)>")
+        boom = ErrorDeAnka(f"<img src=x onerror={MARK}(1)>")  # mensaje pensado para la persona
         with patch("anka.web.acciones.checked_run", side_effect=boom):
             with self.assertLogs("anka.web.server", "ERROR") as logs:
                 sent = self.request("POST", "/refresh", body)
@@ -348,13 +349,25 @@ class ErrorPageTests(unittest.TestCase):
         self.assertIn("Error atendiendo POST /refresh", logs.output[0])
         self.assertIsNotNone(logs.records[0].exc_info)  # el traceback ya no se pierde
 
+    def test_unexpected_error_detail_is_not_shown_to_the_browser(self):
+        body = ("csrf_token=" + seguridad.CSRF_TOKEN).encode()
+        boom = RuntimeError("detalle interno C:\\ruta\\secreta")
+        with patch("anka.web.acciones.checked_run", side_effect=boom):
+            with self.assertLogs("anka.web.server", "ERROR") as logs:
+                sent = self.request("POST", "/refresh", body)
+        self.assertEqual(sent["status"], 500)
+        self.assertNotIn("ruta", sent["page"])
+        self.assertIn("código de error", sent["page"])
+        self.assertIsNotNone(logs.records[0].exc_info)  # el detalle va solo al registro
+
     def test_get_that_raises_returns_a_500_page_and_logs_the_traceback(self):
         failure = RuntimeError("falla al armar el resumen")
         with patch("anka.web.paginas.render_index", side_effect=failure):
             with self.assertLogs("anka.web.server", "ERROR") as logs:
                 sent = self.request("GET", "/?message=hola")
         self.assertEqual(sent["status"], 500)
-        self.assertIn("falla al armar el resumen", sent["page"])
+        self.assertNotIn("falla al armar el resumen", sent["page"])  # el detalle no sale al navegador
+        self.assertIn("código de error", sent["page"])
         self.assertIn("Error atendiendo GET /", logs.output[0])
         self.assertNotIn("message=hola", logs.output[0])  # la consulta no se registra
         self.assertIsNotNone(logs.records[0].exc_info)

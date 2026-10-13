@@ -23,6 +23,8 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
     "https://www.googleapis.com/auth/gmail.send",
+    # Drive completo a propósito: se crean carpetas dentro de `drive_parent_id`, que Anka no creó; `drive.file` no la
+    # vería. Riesgo aceptado y alternativa en spec/05-decisiones.md (D-72).
     "https://www.googleapis.com/auth/drive",
 ]
 

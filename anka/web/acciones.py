@@ -33,8 +33,8 @@ from anka.servicios.change_control import (
 )
 from anka.servicios.quotes import (
     dismiss_pending_links, dismiss_pending_links_many, mark_notifications_read, rescue_discarded, volver_a_decidir,
-    merge_project_thread, resolve_link, resolve_model_proposal, resolve_technical_review, save_quote_metadata,
-    separate_project_thread,
+    aceptar_lectura_revisada, merge_project_thread, resolve_link, resolve_model_proposal, resolve_technical_review,
+    save_quote_metadata, separate_project_thread,
 )
 from anka.servicios.ediciones import save_activities
 
@@ -151,6 +151,13 @@ def _post_review_decision(form: Form) -> str:
     # Tras decidir, directo al paso que sigue: el correo, o la emisión de la T; guardar decisiones no cambia de paso.
     anchor = {"ask_client": "#respuesta", "sufficient": "#emitir-t"}.get(decision, "")
     return _to_case(thread_id, message, anchor)
+
+
+def _post_reading_accept(form: Form) -> str:
+    """Una persona asume la revisión de los archivos que Anka no pudo verificar (U-29)."""
+    thread_id = field(form, "thread_id")
+    message = _guidance(lambda: aceptar_lectura_revisada(thread_id), ValueError)
+    return _to_case(thread_id, message, "")
 
 
 def _post_review_reopen(form: Form) -> str:
@@ -283,6 +290,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/rescue": _post_rescue,
     "/review-decision": _post_review_decision,
     "/review-reopen": _post_review_reopen,
+    "/reading-accept": _post_reading_accept,
     "/followup": _post_followup,
     "/project-merge": _post_project_merge,
     "/project-separate": _post_project_separate,

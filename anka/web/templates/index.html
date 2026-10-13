@@ -10,7 +10,7 @@
   <a class="button secondary" href="/requests">Ver los {{ hidden_count }} en Solicitudes</a>{% endif %}
   {% else %}<div class='empty'>Todo al día. Los casos que esperan al cliente o están cotizando no requieren acción por ahora.</div>{% endif %}
 </section>
-<div class="grid kpis" style="margin-top:24px">
+<div class="grid kpis kpis-arriba">
   <div class="kpi"><div class="kpi-label">Requieren acción</div><div class="kpi-value">{{ action_count }}</div><div class="kpi-note">Lo de arriba</div></div>
   <div class="kpi"><div class="kpi-label">Esperando al cliente</div><div class="kpi-value">{{ waiting }}</div><div class="kpi-note">Ya les escribiste</div></div>
   <div class="kpi"><div class="kpi-label">Cotizando (con T)</div><div class="kpi-value">{{ quoting }}</div><div class="kpi-note">T emitida, aún sin aprobar</div></div>

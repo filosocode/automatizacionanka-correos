@@ -20,6 +20,7 @@ from anka.dominio.analisis import Actividad, Analisis
 from anka.dominio.novedades import REQUIEREN_ACCION
 from anka.dominio.preguntas import DESCARTAR, candidatas, con_decisiones, decidir, internas, para_el_cliente
 from anka.dominio.reception import reception_assessment
+from anka.dominio.work_contract import archivos_sin_verificar, lectura_sin_verificar
 from anka.dominio.status import (
     REVIEW_QUEUE_STATUSES, QuoteStatus, sql_in,
 )
@@ -599,6 +600,34 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
         db.close()
     log.info("%s: volvió a la decisión técnica antes de enviar (%s)", thread_id, accion)
     return mensaje
+
+
+def aceptar_lectura_revisada(thread_id: str) -> str:
+    """Una persona asume la revisión de los archivos que Anka no pudo verificar y el caso sigue su curso (U-29).
+
+    No cambia el estado ni envía nada: levanta el bloqueo de la pantalla y deja constancia en el historial de quién lo
+    hizo, cuándo y sobre qué archivos. Un análisis nuevo de Work reemplaza esta marca y se verifica de nuevo.
+    """
+    db = connect()
+    try:
+        row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        if not row:
+            raise ValueError("La solicitud ya no existe.")
+        analysis = load_analysis(row["analysis_json"])
+        if not lectura_sin_verificar(analysis) or analysis.get("reading_review"):
+            raise ValueError("La lectura de este caso no está pendiente de verificar.")
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        archivos = archivos_sin_verificar(analysis)
+        analysis["reading_review"] = {"at": now, "files": archivos}
+        actualizar_caso(db, thread_id, updated_at=now, analysis_json=json.dumps(analysis, ensure_ascii=False))
+        cuales = f": {', '.join(archivos)}" if archivos else ""
+        record_event(db, thread_id, "reading_reviewed", "dashboard", f"{now}-{uuid4().hex[:6]}",
+                     f"Una persona asumió la revisión de los archivos que Anka no pudo verificar{cuales}.", now)
+        db.commit()
+    finally:
+        db.close()
+    log.info("%s: una persona asumió la revisión de la lectura sin verificar", thread_id)
+    return "Listo: la lectura quedó como revisada por ti. Ya puedes ver los resultados de Work y decidir cómo seguir."
 
 
 def resolve_technical_review(

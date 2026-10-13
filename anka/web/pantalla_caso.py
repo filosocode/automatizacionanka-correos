@@ -18,6 +18,7 @@ from markupsafe import Markup
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
+from anka.dominio.work_contract import lectura_sin_verificar
 from anka.web.views import (
     attachments_table, reception_assessment_panel, activities_editor, question_audit_panel,
     question_quality_panel, review_tasks_panel,
@@ -336,8 +337,12 @@ def _project_panel(thread_id: str) -> Markup:
     return render("project_suggestion.html", thread_id=thread_id, candidates=candidates)
 
 
-def _next_step_banner(review: Caso, work_mode: bool) -> Markup:
-    """Un solo aviso arriba del caso: lo más importante que sigue, con su botón si lo hay."""
+def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True) -> Markup:
+    """Un solo aviso arriba del caso: lo más importante que sigue, con su botón si lo hay.
+
+    `hay_correo` es si la pantalla dibuja el cuadro «Respuesta al cliente» (`#respuesta`): en revisión técnica
+    interna no se dibuja y «Ir al correo» no llevaría a ninguna parte.
+    """
     if any(c["state"] == "pending" for c in review.get("changes", [])):
         return _change_banner(review)
     todo = _change_todo(review)
@@ -372,7 +377,7 @@ def _next_step_banner(review: Caso, work_mode: bool) -> Markup:
             "next_step.html", tone="warn", title="El cliente no ha respondido",
             text="Lleva 3 días hábiles esperando. Envía un recordatorio o activa el seguimiento automático.",
             action_href="#seguimiento", action_label="Ver seguimiento")
-    if review["status"] in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
+    if hay_correo and review["status"] in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
         return render(
             "next_step.html", tone="info", title="Revisa el correo y envíalo",
             text="Nada sale al cliente hasta que pulses «Enviar ahora».",
@@ -476,6 +481,28 @@ def _puede_volver_atras(review: Caso, analysis: Analisis) -> bool:
     if decision.get("decision") != "ask_client":
         return False
     return not (review.get("sent_at") and str(review["sent_at"]) >= str(decision.get("at") or ""))
+
+
+def _preguntas_para_armar(analysis: Analisis, template: str, escritas: str, puede_volver: bool) -> str:
+    """El campo «Preguntas para el cliente» (U-24): lo escrito, o las elegidas mientras el correo no salió.
+
+    Así las preguntas siguen un solo camino (U-28): se deciden en «¿Cómo seguimos?» y se ajustan en este mismo campo.
+    """
+    if template == "preguntas":
+        return escritas
+    if not puede_volver:
+        return ""
+    elegidas = (analysis.get("manual_review") or {}).get("questions") or []
+    return "\n".join(str(p) for p in elegidas)
+
+
+def _asunto_de_respuesta(thread_id: str) -> str:
+    """El asunto con que saldría la respuesta («Re: …» del último correo del cliente), para confirmar el envío."""
+    recibido = next((m for m in case_conversation(thread_id) if m.get("direction") == "received"), None)
+    asunto = str((recibido or {}).get("subject") or "").strip()
+    if not asunto:
+        return ""
+    return asunto if asunto.lower().startswith("re:") else f"Re: {asunto}"
 
 
 def _codigo_para_el_contacto(review: Caso) -> str:
@@ -593,38 +620,20 @@ def _code_text(review: Mapping[str, Any]) -> str:
 
 
 def _reading_is_blocked(analysis: Analisis) -> bool:
-    """Oculta resultados de Work solo cuando su lectura no se pudo verificar.
+    """Oculta resultados de Work solo cuando su lectura no se pudo verificar y nadie la revisó por su cuenta (U-29)."""
+    return lectura_sin_verificar(analysis) and not analysis.get("reading_review")
 
-    Con la verificación contra Gmail (T-41) es `incompleta`; un borrador del expediente en Drive (V5 y antes) se oculta
-    si falla su preflight o la auditoría de segmentos. Sin ninguna de las dos no se oculta nada.
-    """
-    if analysis.get("engine") != "chatgpt_work":
-        return False
-    audit = analysis.get("reading_audit") or {}
-    if audit.get("verification"):
-        return bool(audit["verification"] == "incompleta")
-    preflight = analysis.get("DRIVE_PREFLIGHT") or {}
-    if not preflight:
-        return False
-    if not preflight.get("manifest_revision"):
-        return True
-    message_id = analysis.get("work_message_id")
-    if message_id and message_id not in (preflight.get("message_ids") or []):
-        return True
-    for kind in ("email", "attachment"):
-        available = preflight.get(kind + "_segments_available")
-        read_count = preflight.get(kind + "_segments_read")
-        expected = audit.get(kind + "_segment_ids_expected")
-        read_ids = audit.get(kind + "_segment_ids_read")
-        if not isinstance(available, int) or not isinstance(read_count, int) or read_count != available:
-            return True
-        if not isinstance(expected, list) or not isinstance(read_ids, list):
-            return available > 0
-        if len(set(expected)) != len(expected) or len(set(read_ids)) != len(read_ids):
-            return True
-        if set(expected) != set(read_ids) or len(read_ids) != read_count:
-            return True
-    return False
+
+def _nota_de_lectura_revisada(analysis: Analisis) -> str:
+    """Aviso permanente de que la lectura la revisó una persona y no Anka (U-29); vacío si no aplica."""
+    revision = analysis.get("reading_review")
+    if not revision or not lectura_sin_verificar(analysis):
+        return ""
+    cuando = (revision.get("at") or "")[:16].replace("T", " ")
+    archivos = revision.get("files") or []
+    cuales = f" ({', '.join(archivos)})" if archivos else ""
+    return (f"Lectura revisada por una persona el {cuando}: Anka no pudo verificar estos archivos{cuales}. "
+            "Los resultados son los que declaró Work; confirma lo que dependa de esos archivos.")
 
 
 def _texto_de_lectura_pendiente(analysis: Analisis) -> str:
@@ -635,7 +644,8 @@ def _texto_de_lectura_pendiente(analysis: Analisis) -> str:
         f" Work reportó adjuntos que Gmail no tiene: {', '.join(str(a) for a in archivos)}." if archivos else "")
     que = ("los adjuntos contra Gmail" if audit.get("verification") else "el manifiesto y los segmentos")
     return (f"No se mostrarán resultados ni se habilitarán decisiones hasta verificar {que}." + falta
-            + " Vuelve a ejecutar la tarea de Work sobre este hilo: un análisis completo reemplaza a este.")
+            + " Puedes volver a ejecutar la tarea de Work sobre este hilo (un análisis completo reemplaza a este)"
+            " o, si ya revisaste tú los archivos, continuar sin esperar con «Ya revisé estos archivos yo».")
 
 
 def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: dict, config: Configuracion,
@@ -647,7 +657,10 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
     return {
         "assessment_panel": Markup("") if reading_blocked else reception_assessment_panel(assessment),
         "internal_context": _internal_context_panel(review["client_name"]),
-        "activities_editor": (Markup("<div class='notice'><strong>Pendiente de lectura.</strong> No se muestran actividades hasta que Work confirme la lectura de los segmentos del mensaje y sus adjuntos.</div>") if reading_blocked else activities_editor(
+        "activities_editor": (Markup(
+            "<div class='notice'><strong>Pendiente de lectura.</strong> No se muestran actividades hasta que Work "
+            "confirme la lectura de los segmentos del mensaje y sus adjuntos.</div>"
+        ) if reading_blocked else activities_editor(
             thread_id, analysis.get("activities", []), list(EDIT_REASONS.items()),
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
@@ -658,7 +671,9 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
                                 audit=analysis.get("reading_audit") or {},
                                 applicability=analysis.get("applicability") or {},
                                 complete=analysis.get("analysis_complete"), blocked=reading_blocked),
-        "review_tasks": (Markup("<p class='meta'>Las preguntas y decisiones quedan ocultas hasta que se complete la lectura.</p>") if reading_blocked else review_tasks_panel(
+        "review_tasks": (Markup(
+            "<p class='meta'>Las preguntas y decisiones quedan ocultas hasta que se complete la lectura.</p>"
+        ) if reading_blocked else review_tasks_panel(
             analysis.get("question_audit", []),
             other_questions=analysis.get("other_questions", []),
             attachments=analysis.get("attachments", []),
@@ -669,8 +684,10 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             decisiones=analysis.get("preguntas") or (),
         )),
         "question_audit": Markup("") if reading_blocked else question_audit_panel(analysis.get("question_audit", [])),
-        "question_quality": Markup("") if reading_blocked else question_quality_panel(analysis.get("question_quality_warnings", [])),
+        "question_quality": (Markup("") if reading_blocked
+                             else question_quality_panel(analysis.get("question_quality_warnings", []))),
         "manual_review": _manual_review_note(analysis.get("manual_review")),
+        "reading_review_note": _nota_de_lectura_revisada(analysis),
         "conversation": _conversation_panel(thread_id),
         "stepper": _stepper(review),
         "followup": _followup_panel(review),
@@ -680,9 +697,12 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "next_step": (render("next_step.html", tone="warn", title="Lectura pendiente",
                               text=_texto_de_lectura_pendiente(analysis),
                               action_href="#attachments-review", action_label="Ver bloqueo")
-                      if reading_blocked else _next_step_banner(review, config.get("active_mode") == "chatgpt_work")),
+                      if reading_blocked else _next_step_banner(
+                          review, config.get("active_mode") == "chatgpt_work",
+                          hay_correo=assessment.get("status") != "technical_review")),
         "project_panel": Markup("") if reading_blocked else _project_panel(thread_id),
-        "proposal_panel": Markup("") if reading_blocked or not proposal else render("proposal.html", changes=proposal, thread_id=thread_id),
+        "proposal_panel": (Markup("") if reading_blocked or not proposal
+                           else render("proposal.html", changes=proposal, thread_id=thread_id)),
         "timeline": _timeline_panel(thread_id, review, analysis, events, integrity_ok, event_count),
     }
 
@@ -712,6 +732,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT or any(
         event["kind"] == "sent" for event in events)
     preguntas = _preguntas_del_caso(analysis, assessment) if technical and not reading_blocked else []
+    puede_volver = _puede_volver_atras(review, analysis)
     body = render(
         "case.html",
         review=review, thread_id=thread_id,
@@ -731,12 +752,13 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
                          else _routing_summary(analysis)),
         issues_summary=("Lectura pendiente: todavía no se evalúan faltantes ni contradicciones." if reading_blocked
                         else issues_summary),
-        armar_preguntas=preguntas_texto if template == "preguntas" else "",
+        armar_preguntas=_preguntas_para_armar(analysis, template, preguntas_texto, puede_volver),
+        asunto_respuesta=_asunto_de_respuesta(thread_id),
         email=email, email_body=email_body, recipient_error=recipient_error, blank_reply=blank_reply,
         sufficient=not reading_blocked and assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=review["status"] == QuoteStatus.REVIEW and not reading_blocked,
-        puede_volver=_puede_volver_atras(review, analysis),
+        puede_volver=puede_volver,
         preguntas=preguntas, preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")

@@ -34,7 +34,8 @@ from anka.web.acciones import POST_ROUTES, field, int_field
 from anka.web.api import a_json, resumen_de_caso
 from anka.web import pantalla_caso
 from anka.web.seguridad import (
-    CSRF_TOKEN, add_csrf_tokens, is_local_host_header, is_same_origin,
+    CSRF_TOKEN, CuerpoNoValido, add_csrf_tokens, cabeceras_de_seguridad, csp_docs, es_mensaje_para_la_persona,
+    id_de_error, is_local_host_header, is_same_origin, longitud_del_cuerpo, nombre_seguro,
 )
 
 log = get_logger(__name__)
@@ -69,17 +70,18 @@ STREAM_CHECK = 1.0          # cada cuánto mira si cambió algo (una consulta li
 STREAM_KEEPALIVE = 15       # latido para que nada corte una conexión inactiva
 _streams = threading.BoundedSemaphore(MAX_STREAMS)
 
+MAX_CAMPOS = 10_000         # campos de un formulario: la tabla más grande (200 filas × 11) cabe de sobra
+
 
 class ReviewHandler(BaseHTTPRequestHandler):
     """Servidor HTTP local del dashboard: páginas por GET y acciones por POST con token."""
     def _send_bytes(self, status: int, content_type: str, data: bytes,
                     extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(status)
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
-        self.send_header("Content-Type", content_type)
-        self.send_header("Cache-Control", "no-store")
-        for name, value in (extra_headers or {}).items():
+        headers = cabeceras_de_seguridad()
+        headers["Content-Type"] = content_type
+        headers.update(extra_headers or {})       # p. ej. la CSP propia de /docs o el nombre del Excel
+        for name, value in headers.items():
             self.send_header(name, value)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
@@ -92,9 +94,23 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self._send_bytes(status, "application/json; charset=utf-8", a_json(value))
 
     def _read_form(self) -> dict[str, list[str]]:
-        length = int(self.headers.get("Content-Length", "0"))
-        data = self.rfile.read(length).decode("utf-8")
-        return urllib.parse.parse_qs(data)
+        """El formulario del POST; sin longitud válida, de más de 2 MiB o mal codificado lanza `CuerpoNoValido`."""
+        length = longitud_del_cuerpo(self.headers.get("Content-Length"))
+        try:
+            data = self.rfile.read(length).decode("utf-8")
+            return urllib.parse.parse_qs(data, max_num_fields=MAX_CAMPOS)
+        except ValueError as exc:   # UnicodeDecodeError o demasiados campos
+            raise CuerpoNoValido(400, "El formulario no se pudo leer.") from exc
+
+    def _error_inesperado(self, metodo: str, ruta: str, exc: Exception) -> None:
+        """Un fallo del servidor: la persona ve un mensaje genérico con un código; el detalle queda solo en el registro.
+
+        Un `ErrorDeAnka` sí muestra su texto, porque se escribió para la persona (D-17)."""
+        codigo = id_de_error()
+        log.exception("Error atendiendo %s %s (código %s)", metodo, ruta, codigo)
+        texto = (f"{exc} " if es_mensaje_para_la_persona(exc) else "Ocurrió un error inesperado. ")
+        texto += f"Si se repite, avisa con el código de error {codigo}."
+        self._send_html(paginas.page("Error", render("empty.html", text=texto)), 500)
 
     def _reject(self, reason: str) -> None:
         origin = getattr(self, "client_address", ("?",))[0]
@@ -111,8 +127,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self._rechazada("GET", self.path.split("?")[0], exc)
         except Exception as exc:
-            log.exception("Error atendiendo GET %s", self.path.split("?")[0])
-            self._send_html(paginas.page("Error", render("empty.html", text=str(exc))), 500)
+            self._error_inesperado("GET", self.path.split("?")[0], exc)
 
     def _get(self) -> None:
         if not is_local_host_header(self.headers.get("Host", "")):
@@ -163,7 +178,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return self._send_html(
                 paginas.page("No encontrado", render("empty.html", text="La solicitud no existe.")), 404)
         stamp = datetime.now().strftime("%Y%m%d-%H%M")
-        name = f"actividades-{thread_id[:8] or 'todas'}-{stamp}.xlsx"
+        caso = (nombre_seguro(thread_id)[:8] or "caso") if thread_id else "todas"   # el id viene de la URL
+        name = f"actividades-{caso}-{stamp}.xlsx"
         self._send_bytes(
             200, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", build_workbook(quotes),
             {"Content-Disposition": f'attachment; filename="{name}"'})
@@ -185,9 +201,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return self._send_json({"error": "Demasiadas pestañas conectadas."}, 503)
         try:
             self.send_response(200)
+            for name, value in cabeceras_de_seguridad().items():
+                self.send_header(name, value)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Frame-Options", "DENY")
             self.end_headers()
             self.wfile.write(b"retry: 3000\n\n")
             last, quiet, started = None, 0.0, time.monotonic()
@@ -239,10 +255,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self._send_json(caso)
 
     def _get_docs(self, query: dict[str, list[str]]) -> None:
-        self._send_bytes(200, "text/html; charset=utf-8", openapi.docs_page().encode("utf-8"))
+        # La página lleva el token como cualquier pantalla con formularios; `/openapi.json` ya no (D-71).
+        nonce = secrets.token_urlsafe(16)
+        self._send_bytes(200, "text/html; charset=utf-8", openapi.docs_page(CSRF_TOKEN, nonce).encode("utf-8"),
+                         {"Content-Security-Policy": csp_docs(nonce)})
 
     def _get_openapi(self, query: dict[str, list[str]]) -> None:
-        self._send_json(openapi.build_spec(CSRF_TOKEN))
+        self._send_json(openapi.build_spec())
 
     def do_POST(self) -> None:
         """Valida host, origen y token y ejecuta la acción de `POST_ROUTES`; redirige al resultado."""
@@ -252,7 +271,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
         if not is_same_origin(self.headers.get("Origin", ""), host):
             return self._reject("Origen no permitido.")
         path = urllib.parse.urlparse(self.path).path
-        form = self._read_form()
+        try:
+            form = self._read_form()
+        except CuerpoNoValido as exc:
+            log.warning("POST %s rechazado (%s): %s", path, exc.status, exc)
+            self.close_connection = True          # el cuerpo no se leyó: no se reutiliza la conexión
+            return self._send_html(paginas.page("No se pudo completar", render("empty.html", text=str(exc))),
+                                   exc.status)
         if not secrets.compare_digest(field(form, "csrf_token"), CSRF_TOKEN):
             return self._reject("Token de seguridad inválido. Recarga la página e inténtalo de nuevo.")
         action = POST_ROUTES.get(path)
@@ -266,18 +291,24 @@ class ReviewHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self._rechazada("POST", path, exc)
         except Exception as exc:
-            log.exception("Error atendiendo POST %s", path)
-            self._send_html(paginas.page("Error", render("empty.html", text=str(exc))), 500)
+            self._error_inesperado("POST", path, exc)
 
     def _rechazada(self, metodo: str, ruta: str, exc: ValueError) -> None:
         """Una petición que la aplicación rechaza con su motivo (caso inexistente, dato no válido) no es un fallo del
-        servidor: se responde 400 con el mensaje y se anota como aviso, con su traza por si ocultara un error propio."""
+        servidor: se responde 400 con el mensaje y se anota como aviso, con su traza por si ocultara un error propio.
+
+        Solo se muestra el texto si Anka lo escribió para la persona; el de Python o de una librería se cambia por uno
+        genérico (D-71)."""
         log.warning("%s %s rechazada: %s", metodo, ruta, exc, exc_info=True)
-        self._send_html(paginas.page("No se pudo completar", render("empty.html", text=str(exc))), 400)
+        texto = str(exc) if es_mensaje_para_la_persona(exc) else "Los datos enviados no son válidos."
+        self._send_html(paginas.page("No se pudo completar", render("empty.html", text=texto)), 400)
 
     def _redirect(self, location: str) -> None:
         self.send_response(303)
+        for name, value in cabeceras_de_seguridad().items():
+            self.send_header(name, value)
         self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
         self.end_headers()
 
     def log_message(self, format: str, *args: Any) -> None:
