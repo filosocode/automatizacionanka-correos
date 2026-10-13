@@ -83,6 +83,13 @@ def _preguntas_del_caso(analysis: Analisis, assessment: dict) -> list[dict[str, 
     ]
 
 
+def _preguntas_sugeridas(analysis: Analisis, assessment: dict) -> list[str]:
+    """Las preguntas que el análisis sugiere hacerle al cliente, mientras la persona no haya decidido nada (U-30)."""
+    if analysis.get("manual_review") or analysis.get("preguntas"):
+        return []
+    return [p["texto"] for p in _preguntas_del_caso(analysis, assessment) if p["elegida"] == "ask_client"]
+
+
 def _link_banner(review: Mapping[str, Any]) -> Markup:
     links = review["links"]
     contacts = case_contacts(review["recipient"], review["analysis"])
@@ -731,7 +738,10 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     # «Enviada» se cumple venga el envío del dashboard, de Gmail o de Work.
     sent_complete = review["status"] == QuoteStatus.RESPONSE_SENT or any(
         event["kind"] == "sent" for event in events)
-    preguntas = _preguntas_del_caso(analysis, assessment) if technical and not reading_blocked else []
+    espera_decision = review["status"] == QuoteStatus.REVIEW and not reading_blocked
+    # U-30: las preguntas se ven siempre que el caso espera tu decisión, aunque la recepción no sea técnica
+    preguntas = _preguntas_del_caso(analysis, assessment) if espera_decision else []
+    sugeridas = _preguntas_sugeridas(analysis, assessment) if not reading_blocked else []
     puede_volver = _puede_volver_atras(review, analysis)
     body = render(
         "case.html",
@@ -757,7 +767,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         email=email, email_body=email_body, recipient_error=recipient_error, blank_reply=blank_reply,
         sufficient=not reading_blocked and assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
-        can_resolve=review["status"] == QuoteStatus.REVIEW and not reading_blocked,
+        can_resolve=espera_decision, preguntas_sugeridas=sugeridas,
         puede_volver=puede_volver,
         preguntas=preguntas, preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,

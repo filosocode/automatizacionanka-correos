@@ -602,6 +602,25 @@ tarea de Work no arregla eso, así que el caso quedaba sin salida.
 6. **Un análisis nuevo de Work la reemplaza.** La marca vive en el análisis; un borrador nuevo se verifica de nuevo y, si sigue sin
    verificarse, vuelve a ofrecer el botón.
 
+### U-30 · Mientras el caso espera tu decisión, siempre se ven las preguntas del análisis
+**Estado: implementado** (pruebas en `tests/test_preguntas_visibles.py`). Decisión: D-75. Acota U-22 y U-24.
+
+**Motivo.** Un caso quedó en «revisión» (Work lo dejó en «Requiere revisión técnica interna») pero la evaluación de recepción del dashboard
+decía «suficiente para revisión interna». Los selectores de pregunta solo se pintaban cuando esa evaluación era técnica, así que
+«¿Cómo seguimos?» decía «El análisis no dejó preguntas candidatas» aunque había 7 (4 sugeridas para el cliente), y el cuadro «Respuesta
+al cliente» quedaba en blanco sin forma de generar las preguntas.
+
+**Qué debe cumplirse**
+1. **Los selectores salen siempre que el caso espera tu decisión** (estado «revisión» y lectura no bloqueada), sea cual sea la
+   evaluación de recepción. Cada pregunta trae lo que sugiere el análisis ya elegido, y «Preparar el correo con las preguntas elegidas»
+   arma el correo con las que elijas para el cliente.
+2. **El aviso «El análisis no dejó preguntas candidatas» solo sale si de verdad no hay ninguna** (ni del análisis, ni de la auditoría de
+   preguntas, ni de la recepción).
+3. **«Usar las preguntas sugeridas».** En «Respuesta al cliente», mientras no hayas decidido nada y el análisis sugiera preguntas para el
+   cliente, un botón carga esas preguntas en el campo «Preguntas para el cliente» y arma el correo (el mismo camino de U-24, con la plantilla
+   de siempre). No envía nada; el correo se revisa y se envía con «Enviar ahora» (R8). El botón desaparece cuando ya hay preguntas en el campo
+   o ya decidiste.
+
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
 **Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la
 primera con el prompt V6.1 (2026-10-11, D-69) leyó el hilo y dejó el borrador completo; faltan el KMZ, el ZIP y el adjunto grande (ver «Prueba
