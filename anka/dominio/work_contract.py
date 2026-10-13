@@ -292,13 +292,20 @@ def _avisos_de_segmentos(payload: dict, preflight: dict, audit: dict) -> list[st
 def usa_verificacion_por_adjuntos(payload: dict) -> bool:
     """¿El borrador es de un prompt que lee desde Gmail (V6 en adelante) y se verifica por nombre y tamaño (T-41)?
 
-    Los borradores anteriores (V5 y antes, con expediente en Drive) siguen su camino de siempre hasta que se retire.
+    Manda la versión que declara (`PRECISO_V6…` en adelante). Sin versión declarada decide la huella de V6: adjuntos que
+    traen todos su tamaño exacto en bytes (T-44). Los borradores anteriores (V5 y antes, con expediente en Drive) siguen
+    su camino de siempre hasta que se retire.
     """
     if not isinstance(payload, dict):
         return False
     # hasta tres cifras: una versión absurda («PRECISO_V999…9») no debe romper la conversión a entero
     version = re.match(r"PRECISO_V(\d{1,3})(?!\d)", str(payload.get("skill_version") or ""), re.ASCII)
-    return version is not None and int(version.group(1)) >= 6
+    if version is not None:
+        return int(version.group(1)) >= 6
+    adjuntos = payload.get("attachments")
+    return isinstance(adjuntos, list) and bool(adjuntos) and all(
+        isinstance(a, dict) and isinstance(a.get("size_bytes"), int) and not isinstance(a.get("size_bytes"), bool)
+        for a in adjuntos)
 
 
 SIN_NOMBRE = "(adjunto sin nombre)"

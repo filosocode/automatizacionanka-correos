@@ -714,3 +714,18 @@ letra por letra y el caso quedó como un caso mínimo. Es el mismo descuido que 
    incompletos también.
 3. **El prompt lo pide sin tilde.** El prompt de Work dice que la línea se copia tal cual, sin tilde en «SECCION». Con 1 ya no es
    imprescindible, pero evita que se repita.
+
+### T-44 · Un borrador de V6 que omite `skill_version` se verifica igual contra Gmail
+**Estado: implementado** (pruebas en `tests/test_version_de_work.py`). Decisión: D-77. Acota T-41.
+
+**Motivo.** El 2026-10-13 un borrador de V6.1, con los adjuntos en formato V6 (`size_bytes`, `read_via`), omitió `skill_version` porque el prompt
+dice «omite lo desconocido». El puente lo tomó por un borrador anterior, lo verificó contra el manifiesto de Drive (que V6 ya no usa) y el caso quedó
+en «Lectura pendiente: falta leer el PDF», aunque Work había leído el original desde Gmail.
+
+**Qué debe cumplirse**
+1. **La versión declarada manda.** `PRECISO_V6` o posterior se verifica contra Gmail (T-41); `PRECISO_V5` o anterior sigue con el manifiesto (T-34,
+   T-37). Una versión declarada de V5 no se reinterpreta aunque sus adjuntos traigan `size_bytes`.
+2. **Sin versión declarada** (ausente, vacía o «no indicado»), la huella de V6 decide: si el borrador trae adjuntos y **todos** llevan su tamaño exacto
+   en bytes (`size_bytes` entero, algo que V5 y anteriores no emiten), se verifica contra Gmail. Sin adjuntos o con alguno sin `size_bytes`, sigue el camino
+   de siempre.
+3. **El prompt lo exige.** El prompt de Work dice que `skill_version` es obligatorio y se copia tal cual (`PRECISO_V6.1`).

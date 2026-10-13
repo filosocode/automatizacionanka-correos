@@ -100,6 +100,7 @@ El JSON, con este formato (todo en español salvo las claves; omite lo desconoci
 [/ANKA_DASHBOARD_JSON_V1]
 
 Reglas del JSON
+- skill_version es obligatorio y va exactamente como en el ejemplo: PRECISO_V6.1. Nunca lo omitas ni lo cambies.
 - thread_id es el del hilo de Gmail; message_id el del mensaje del cliente que analizas, nunca el del borrador. client_email verificado (si el remitente es un reenviador, dilo en summary). received_at es la recepción verificable, no la hora del análisis.
 - unresolved es texto (el residuo pendiente) o cadena vacía, nunca true/false.
 - attachments: un elemento por CADA adjunto del hilo, con filename y size_bytes exactos de Gmail (read_via: «attachment» o «raw_mime»). El puente compara nombre y tamaño con Gmail: un adjunto que falte, o con otro tamaño, deja el análisis incompleto.
