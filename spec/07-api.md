@@ -71,11 +71,13 @@ Cómo funciona:
   Solo `authorize_interactive()` (botón o `python app.py auth`) abre el consentimiento.
 - La verificación se guarda 5 minutos (1 si falló) y no congela la pantalla: sin internet el estado es
   `desconocido` y no se ofrece reautorizar por eso.
-- El puente de Work se reconecta solo en su siguiente ciclo (hasta 60 segundos) después de reautorizar.
+- El puente de Work se reconecta solo en su siguiente ciclo (hasta 30 segundos, T-30) después de reautorizar.
 
 ## Cómo se prueba una acción (POST)
 1. Abre `http://127.0.0.1:8765/docs`.
-2. Elige la operación y pulsa **Try it out**. El campo `csrf_token` ya viene relleno con el token vigente.
+2. Elige la operación y pulsa **Try it out**. El campo `csrf_token` ya viene relleno con el token vigente: lo pone la
+   página `/docs`, no el JSON. Fuera de Swagger (Postman, `curl`), copia el valor del campo oculto `csrf_token` de
+   cualquier formulario del dashboard; `/openapi.json` no lo incluye (D-71).
 3. Completa los campos (p. ej. `thread_id` de un caso de prueba) y pulsa **Execute**.
 4. La respuesta real es `303` con `Location` hacia la pantalla del caso con un mensaje; el navegador sigue la
    redirección, así que Swagger muestra la página resultante (estado `200`). El mensaje también queda en la URL.
@@ -85,6 +87,16 @@ Las acciones con «⚠» actúan de verdad (envían correo, crean carpetas, elim
 ## Reglas que no cambian
 - Las peticiones `POST` exigen `Host` local, `Origin` igual al del servidor y el `csrf_token` (T-07). Swagger UI
   se sirve desde el mismo origen, así que las cumple sin configuración.
+- `/openapi.json` **no lleva el token**: se puede copiar o importar en otra herramienta sin llevarse el secreto
+  (D-71). `/docs` lo toma de su propia página y su único script en línea va autorizado por un `nonce` de la CSP.
+- Un `POST` de más de **2 MiB** responde `413`; un `Content-Length` no numérico o negativo, un cuerpo que no es UTF-8
+  o con más de 10.000 campos, `400`.
+- Toda respuesta (páginas, JSON, `303`, `/eventos`) lleva `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: same-origin`, `Cache-Control: no-store`, `X-Frame-Options: DENY` y una CSP: en las páginas
+  `default-src 'self'` con scripts y estilos en línea (las plantillas los usan; no hay manejadores de eventos en
+  línea), en `/docs` además el CDN de Swagger UI y el `nonce`.
+- Un `500` muestra «Ocurrió un error inesperado» con un **código de error** de 8 caracteres; el detalle está en el
+  registro junto a ese código. Un `400` muestra el motivo solo si es un mensaje de Anka para la persona.
 - La documentación **se genera de las rutas reales** (`GET_ROUTES` y `POST_ROUTES`): una prueba falla si hay una
   ruta sin documentar o documentada que ya no existe.
 - La única dependencia externa es Swagger UI (`swagger-ui-dist`, versión fijada y con huella de integridad SRI),

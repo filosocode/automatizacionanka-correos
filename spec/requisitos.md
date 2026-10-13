@@ -88,6 +88,11 @@ seguridad diaria (local y en Drive, sin credenciales). El estado del puente es v
 ### T-07 · Seguridad del dashboard
 Solo atiende en local; los formularios llevan un token que sobrevive a los reinicios; no hay manejadores de eventos
 en línea; los datos de clientes se escapan y no pueden crear etiquetas ni scripts.
+Además (D-71): `/openapi.json` no incluye el token (lo pone `/docs`); toda respuesta, incluidas las redirecciones y
+`/eventos`, lleva `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Cache-Control: no-store` y una
+CSP `default-src 'self'`; un `POST` de más de 2 MiB se rechaza con 413 y uno con longitud no válida o mal codificado
+con 400; un error inesperado muestra un mensaje genérico con un código y nunca el detalle interno; el nombre del
+archivo descargado solo lleva `[A-Za-z0-9_-]`.
 
 ### T-08 · Privacidad del registro
 Los registros no guardan contenido de correos ni datos de clientes; las direcciones de correo se enmascaran.
@@ -218,6 +223,7 @@ La extracción textual no certifica interpretación visual. Si el análisis comp
 La cantidad de una actividad no repite su unidad (`544.5` + `ha`, no `544.5 ha` + `ha`).
 
 ### T-34 · Expedientes de recepción Gmail → OCR → Drive para Work
+*Sustituido para el prompt V6 por T-41; se retira cuando T-41 esté probado en Work.*
 Un proceso optativo y separado del puente de borradores prepara expedientes bajo una carpeta de recepción configurada,
 con una búsqueda Gmail explícita y cuenta verificada. No envía correos, no clasifica solicitudes ni crea carpetas comerciales.
 Cada hilo tiene un expediente y cada versión conserva mensaje, adjunto, SHA-256, originales, texto completo segmentado,
@@ -382,7 +388,8 @@ Para saber si una demora es de Work (que tarda en dejar el borrador en Gmail) o 
 anota la hora en que el borrador apareció en Gmail y la importación la compara con su hora de llegada. El historial del caso
 lo dice en el hecho «Work analizó el caso»: «El borrador estaba en Gmail desde las HH:MM:SS; llegó al dashboard N s después»,
 y el registro técnico guarda el mismo dato. Esa hora no forma parte de la huella del contenido: reguardar un borrador sin
-cambiarlo no lo reimporta. Si no se conoce la hora, el hecho queda como antes.
+cambiarlo no lo reimporta. Si no se conoce la hora (o llega sin zona horaria, y no se puede saber cuánto pasó), el hecho
+queda como antes y el borrador se importa igual: el dato es solo informativo.
 
 ### T-31 · Las entradas inválidas se responden con claridad
 Una petición que la aplicación rechaza con su motivo (un caso que ya no existe, un dato no válido) responde 400 con ese mensaje y se
@@ -390,6 +397,13 @@ anota como aviso, no como error del servidor (500); un fallo propio del código 
 mal escrito en la dirección (`change_id=abc`) se toma como «ninguno» y no muestra el texto interno de Python. El nombre de una
 carpeta de Drive tiene un tope de 150 caracteres y no se corta una palabra a la mitad. La importación de Work sigue aceptando un texto
 donde se espera una lista (Work lo hace a veces); el contrato completo se exige en el puente, que es la entrada de producción.
+Aun así, la importación nunca termina en un error de Python: un contrato que no es un objeto JSON, un campo obligatorio que no es
+texto (`status: true`, `client_email: [...]`), un texto con sustitutos sueltos (`\ud800`) o un campo de lista con un número
+(`activities: 5`, `cited_codes: 5`) se rechazan con su motivo (`ErrorDeAnka`); `null` en un campo opcional es lo mismo que no
+escribirlo. Un estado fuera de la lista cerrada se rechaza también aquí (T-33), nunca se guarda tal cual. Los datos de Gmail
+incompletos (cabecera sin nombre, cuerpo ausente, base64 mal formado, tamaño o fecha que no son números, adjunto sin nombre)
+se leen como vacíos; el texto de un correo HTML no incluye lo que va en `<script>`, `<style>` ni comentarios, y un `<` suelto
+no lo recorta. El final del id del hilo en el nombre de una carpeta solo conserva letras, cifras, `-` y `_`.
 
 ### T-32 · Saber con qué modelo y qué versión del prompt analizó Work
 El contrato admite dos campos opcionales: `model` (el modelo que declara la interfaz de ChatGPT Work para la tarea) y `skill_version`
@@ -405,6 +419,8 @@ piden datos: «Requiere revisión técnica interna», «Faltan datos» o «Requi
 variante como un estado que avanza el caso («Alcance completo», «Información suficiente», «Borrador preparado») ni como «Descartada»:
 adivinar mal ahí adelantaría o escondería una solicitud. Cuando se acepta un sinónimo, el caso lo dice en sus advertencias
 («Work escribió el estado «X»; se tomó como «Y»»). Cualquier otro valor se rechaza como hasta ahora y se ve en el Resumen.
+Al comparar, además de tildes, mayúsculas y espacios, se ignoran las formas de ancho completo (NFKC) y los caracteres invisibles
+de ancho cero; un valor que no es texto no se reconoce.
 
 ### T-30 · Revisar Gmail ahora y un ciclo más corto del puente
 El puente revisa Gmail cada 30 segundos (antes 60; es el mínimo permitido). En modo ChatGPT Work el botón «Revisar ahora» del
@@ -479,6 +495,30 @@ correo y si el caso quedará esperando; una casilla «Esperar su respuesta aunqu
 (TR-26). Un acuse mientras queden preguntas decididas como internas devuelve el caso a «Falta tu decisión técnica» (TR-25),
 para que ese trabajo no salga de la cola de la persona.
 
+### U-28 · Pantalla del caso más clara: un camino para las preguntas, confirmaciones propias y accesibilidad
+Ajustes de usabilidad que no cambian qué se guarda ni qué se envía:
+1. **Un solo camino para las preguntas del correo.** En revisión técnica las preguntas se deciden en «¿Cómo seguimos?» (U-22),
+   que va justo debajo del aviso de siguiente paso. Después, en «Respuesta al cliente», el campo «Preguntas para el cliente»
+   (U-24) llega con las preguntas que se eligieron mientras el correo no haya salido (U-27), para cambiarlas ahí mismo. Si el
+   cuadro del correo ya tiene texto, ese campo queda plegado («Cambiar las preguntas del correo»), y si la persona ya editó el
+   correo, rearmarlo pide confirmar que se reemplaza lo escrito.
+2. **Guardar el borrador es la acción principal; enviar es aparte.** «Guardar borrador en Gmail» es el botón primario y «Enviar
+   ahora» va en una zona propia que dice que el envío es definitivo. El envío sigue pidiendo confirmación (R8), que muestra el
+   destinatario, el asunto, cuántas preguntas lleva (lo mismo que el aviso previo) y que no lleva adjuntos.
+3. **Confirmaciones propias y accesibles.** Las acciones con confirmación (`data-confirm`) abren un diálogo propio (`<dialog>`
+   modal, con foco en «Cancelar», Escape para cancelar y el foco de vuelta en el botón). Si el navegador no lo admite se usa la
+   confirmación nativa; sin JavaScript el formulario funciona como antes. No se agregan scripts ni manejadores en línea.
+4. **Un solo botón «Reautorizar Google»**, en Ajustes; el aviso «Google desconectado» del encabezado lleva a él.
+5. **Colores con un solo significado:** el rojo (`danger`) es solo para lo destructivo (eliminar); el ámbar, para avisos.
+6. **Accesibilidad:** la navegación marca la página actual (`aria-current`), hay un enlace «Saltar al contenido», la tabla de
+   actividades conserva sus `role` de tabla (no son redundantes: la cuadrícula cambia su `display` y algunos navegadores
+   pierden entonces la semántica nativa), los contadores y avisos pequeños miden al menos 12 px y
+   el botón de tema dice el tema actual y a cuál cambia.
+7. **Ayuda breve** para los términos propios («T», «T&E», «aplicabilidad», «lectura realizada»): un glosario plegable en el caso.
+8. **Menos estilos en línea:** la pantalla del caso no usa atributos `style` y la tabla de actividades no trae su propio bloque de
+   estilos (todo está en la hoja de estilos de siempre).
+9. La carpeta del proyecto en Drive se pliega mientras es solo una alternativa manual (sin código y sin un aviso de Drive pendiente).
+
 ### T-35 · Trazabilidad de lectura y origen de Work
 El puente conserva el preflight y la auditoría de lectura, distingue aplicabilidad, verifica el origen en Gmail para V4.5 y evita regresiones por borradores antiguos.
 
@@ -490,6 +530,16 @@ actividades, sin preguntas y sin texto para el cliente; sus pendientes dicen que
 (campos del contrato, nunca contenido del cliente) y qué hacer (pedir a Work que reanalice el hilo). No inventa ningún dato.
 Nunca reemplaza un análisis ya importado de ese hilo, ni vuelve a crear un caso que una persona eliminó mientras el borrador no
 cambie. En cuanto Work deja un borrador válido, este reemplaza al caso mínimo. El Resumen sigue listando el borrador rechazado.
+
+Dos excepciones para un borrador **sin el bloque JSON** (no para uno con JSON roto o con campos inválidos, que sigue rechazándose de
+inmediato), porque Work a veces deja un borrador auxiliar o uno a medias que no es un fallo:
+1. **Si el hilo ya tiene un análisis válido** (en esta pasada o importado antes), ese borrador se ignora: no se lista como rechazado ni
+   crea un caso mínimo. Es el segundo borrador que Work deja a los pocos segundos del completo, con un resumen en prosa y sin JSON.
+2. **Mientras tenga menos de 10 minutos**, tampoco se rechaza ni crea el caso mínimo: Work puede estar terminando. En cuanto pasa ese
+   tiempo sin un borrador válido, se trata como siempre (se lista y crea el caso mínimo). Con ello el dashboard no dice «Work no pudo»
+   cuando Work solo está a medias.
+Un borrador rechazado de un mensaje nuevo en un hilo ya analizado queda oculto por la excepción 1 hasta que Work deje su borrador
+válido; el mensaje nuevo se sigue viendo como novedad del hilo (U-25). Motivo: D-69.
 
 ### T-37 · La lectura que declara Work se verifica contra el manifiesto del preparador
 Cuando el preparador (T-34) publica un expediente, guarda una instantánea local mínima de su manifiesto (hilo, revisión, `message_ids`
@@ -520,7 +570,7 @@ no extraído), un dato que no se encuentra se marca «no comprobable» y no como
 (`evidence_check`: estado, cuántas comprobaciones, diferencias, no comprobables). Sin textos del hilo no se comprueba nada.
 
 ### T-39 · El prompt de Work es corto y su ejemplo cumple el contrato
-El prompt de la tarea de Work cabe en unos 11 000 caracteres (la V4.7 tiene 19 500), no depende de la skill para el formato de salida e incluye un
+El prompt de la tarea de Work cabe en unos 12 000 caracteres (la V4.7 tiene 19 500; la V6.1, 11 800), no depende de la skill para el formato de salida e incluye un
 JSON de ejemplo completo. Una prueba extrae ese ejemplo del archivo del prompt y comprueba que cumple el esquema
 (`spec/contrato_work.schema.json`), de modo que el ejemplo no se desactualiza sin que falle una prueba. Work solo declara qué
 segmentos leyó; la revisión, los conteos y los pendientes los calcula el puente (T-37).
@@ -531,9 +581,31 @@ lo preparó con éxito, salvo que falten sus copias locales (T-37, T-38). En cad
 empieza por los que nunca ha preparado; los demás esperan a la siguiente pasada. Si Gmail rechaza una petición por cuota, termina la
 pasada sin insistir ni contar cada hilo restante como fallo, y lo deja anotado en su estado. Pedir un hilo concreto lo prepara siempre.
 
+### U-29 · «Ya revisé estos archivos yo»: la lectura sin verificar no detiene el trabajo
+**Estado: implementado** (pruebas en `tests/test_lectura_revisada.py`). Decisión: D-73. Acota T-41.
+
+**Motivo.** T-41 oculta los resultados y las decisiones mientras la lectura de Work no se verifica contra Gmail. Hay archivos que ningún
+lector abre (un plano CAD: `read_attachment_supported: false`) y otros que Anka debe revisar por dentro aunque el motor los lea. Repetir la
+tarea de Work no arregla eso, así que el caso quedaba sin salida.
+
+**Qué debe cumplirse**
+1. **Siempre hay una salida.** Mientras la lectura esté sin verificar, la pantalla del caso muestra, bajo el aviso, «¿Ya revisaste estos
+   archivos tú?» con el botón «Ya revisé estos archivos yo» (con confirmación) y recuerda que también se puede volver a ejecutar la tarea de
+   Work. Aplica a cualquier causa: archivos sin leer, archivos que Work nombró y Gmail no tiene, o un expediente de Drive incompleto (V5).
+2. **Qué hace.** Levanta el bloqueo: se ven los resultados de Work y se habilitan las decisiones. No cambia el estado del caso, no envía
+   nada al cliente (R8) y no marca la lectura como verificada.
+3. **Deja huella.** Guarda en el análisis `reading_review` (`at`, `files`: los archivos que seguían sin verificar) y un evento
+   `reading_reviewed` en el historial (quién, cuándo y sobre qué archivos).
+4. **No se esconde.** Mientras la marca exista, el caso muestra el aviso permanente «Lectura revisada por una persona…», con los
+   archivos, y dice que los resultados son los que declaró Work.
+5. **Solo si hace falta.** Si la lectura no está pendiente, o ya se asumió, la acción responde con un mensaje claro y no cambia nada.
+6. **Un análisis nuevo de Work la reemplaza.** La marca vive en el análisis; un borrador nuevo se verifica de nuevo y, si sigue sin
+   verificarse, vuelve a ofrecer el botón.
+
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
-**Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **falta la prueba manual en Work con el
-prompt V6**. Rige para los borradores del prompt V6 en adelante (`skill_version` `PRECISO_V6…`); los de V5 y anteriores siguen con T-34, T-37 y
+**Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la
+primera con el prompt V6.1 (2026-10-11, D-69) leyó el hilo y dejó el borrador completo; faltan el KMZ, el ZIP y el adjunto grande (ver «Prueba
+manual»). Rige para los borradores del prompt V6 en adelante (`skill_version` `PRECISO_V6…`); los de V5 y anteriores siguen con T-34, T-37 y
 T-40 hasta que se retiren. Decisión: D-68.
 
 **Motivo.** El 2026-10-11 un caso real quedó oculto («Lectura pendiente») porque Work no abrió 1 de los 4 segmentos que el preparador
@@ -552,7 +624,11 @@ el texto que extrae Python y los otros 2 (coordenadas del KML) iguales en valor,
    puente obtiene de Gmail la lista de adjuntos de los mensajes recibidos del hilo (nombre y tamaño; no descarga su contenido) y no cuenta
    las imágenes inline de firma. Un adjunto queda **verificado** si Work lo reporta con el mismo nombre y el mismo tamaño y una cobertura
    distinta de `null` (un adjunto sin `coverage` cuenta como no leído); dos adjuntos con el mismo nombre y tamaño son el mismo
-   archivo reenviado y cuentan como uno. Lo que Work marca con `status: ignorado` no cuenta como adjunto desconocido. Si falta alguno, difiere un tamaño o Work reporta uno que Gmail no
+   archivo reenviado y cuentan como uno. «El mismo nombre» se compara en forma Unicode NFC y sin mayúsculas (una tilde compuesta
+   o descompuesta es la misma letra); «el mismo tamaño» acepta `10`, `10.0` o `"10"`. Un adjunto de Gmail sin nombre se nombra
+   «(adjunto sin nombre)» y queda pendiente. Una imagen con `Content-Disposition: attachment` es un adjunto del cliente aunque
+   traiga `Content-ID` (Outlook lo pone a todas); solo es imagen de firma si es `inline` o, sin disposición, trae `Content-ID`.
+   Una imagen incrustada que Work reporta no cuenta como «adjunto que Gmail no tiene». Lo que Work marca con `status: ignorado` no cuenta como adjunto desconocido. Si falta alguno, difiere un tamaño o Work reporta uno que Gmail no
    tiene, la lectura queda incompleta: `analysis_complete` pasa a falso, el caso a revisión técnica interna, el aviso del caso nombra
    los archivos y los resultados siguen ocultos hasta que un análisis posterior de Work los verifique (el mismo mecanismo de
    reemplazo de T-37). La lista se guarda con el caso: se consulta una vez por borrador importado, no en cada pasada.

@@ -1,11 +1,16 @@
 # Contrato con ChatGPT Work
 
-La tarea de ChatGPT Work no ejecuta cÃ³digo de este repositorio: analiza los correos y deja en Gmail un **borrador**
+La tarea de ChatGPT Work no ejecuta código de este repositorio: analiza los correos y deja en Gmail un **borrador**
 cuyo texto interno lleva un bloque JSON. El puente (`work_dashboard_sync.py`) lo lee y lo importa al dashboard.
-Requisito: **T-02**. La definiciÃ³n formal es [`contrato_work.schema.json`](contrato_work.schema.json): se valida en el
+Requisito: **T-02**. La definición formal es [`contrato_work.schema.json`](contrato_work.schema.json): se valida en el
 puente.
 
 ## El borrador
+
+**Desde el prompt V6 (T-41) Work no usa Drive**: lee los adjuntos directamente en Gmail (si el lector del conector no admite el
+formato, extrae el original del correo en formato `raw`) y reporta por cada adjunto su nombre, `size_bytes` y, opcional, `read_via`.
+El puente compara esa lista con los adjuntos que Gmail tiene en el hilo (nombre y tamaño) y deja la lectura incompleta si falta alguno
+o un tamaño difiere; `DRIVE_PREFLIGHT` y los campos `*_segment_*` ya no se exigen. Lo siguiente (T-34) rige solo para V5 y anteriores.
 
 T-34 añade un canal explícito Gmail → extracción Python → Drive: el preparador publica `anka-work-drive-v1`
 con originales, segmentos completos y manifiesto vigente por hilo. Work lo consulta usando su conexión Drive
@@ -14,17 +19,17 @@ del borrador. Work registra revisión/segmentos leídos en reason/reviewed_secti
 de la skill no configura por sí sola la tarea activa. Véase [guía](../docs/WORK_DRIVE_OCR.md).
 ```
 [REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]
-â€¦ correo original, resumen, actividades y preguntas (para la persona) â€¦
+… correo original, resumen, actividades y preguntas (para la persona) …
 [ANKA_DASHBOARD_JSON_V1]
-{ â€¦ el JSON del contrato â€¦ }
+{ … el JSON del contrato … }
 [/ANKA_DASHBOARD_JSON_V1]
-Hola, â€¦ (el correo limpio para el cliente)
+Hola, … (el correo limpio para el cliente)
 ```
-- El bloque debe estar **una sola vez** y dentro de la secciÃ³n interna inicial; nunca se copia desde correos citados.
-- Lo que sigue al bloque es el **correo para el cliente**: el dashboard lo muestra en Â«Respuesta al clienteÂ» y, al
-  enviar, **usa ese mismo borrador** (asÃ­ no queda uno huÃ©rfano con la secciÃ³n interna).
-- Si ese texto trae el mensaje anterior citado, el dashboard muestra, guarda y envÃ­a solo la respuesta nueva. La
-  conversaciÃ³n completa permanece en el historial del caso, y el correo conserva las cabeceras que lo unen al hilo
+- El bloque debe estar **una sola vez** y dentro de la sección interna inicial; nunca se copia desde correos citados.
+- Lo que sigue al bloque es el **correo para el cliente**: el dashboard lo muestra en «Respuesta al cliente» y, al
+  enviar, **usa ese mismo borrador** (así no queda uno huérfano con la sección interna).
+- Si ese texto trae el mensaje anterior citado, el dashboard muestra, guarda y envía solo la respuesta nueva. La
+  conversación completa permanece en el historial del caso, y el correo conserva las cabeceras que lo unen al hilo
   original de Gmail.
 
 ## Campos
@@ -49,8 +54,8 @@ Recomendados: `client_name`, `summary`, `received_at`, `gmail_url`, `activities`
 el importador los normaliza a etiquetas legibles para el dashboard.
 Cada `activities[].fuente` y `fields[].source` debe identificar el correo o archivo y, para adjuntos, el localizador
 concreto. Cada adjunto puede incluir `evidence`: objetos `topic`, `value`, `location` y `excerpt` con hallazgos
-explÃ­citos y citas breves. Work debe revisar cada archivo por separado y contrastarlo con el correo y los demÃ¡s
-archivos. KML/KMZ, GeoJSON y GPX pueden registrar geometrías, coordenadas y extensiones. Las longitudes de rutas explícitas se pueden calcular como aproximaciones y deben rotularse como cálculos, nunca como cantidades declaradas o aprobadas para cotizar. No derivar áreas, precisión ni sistema de referencia. Una lectura parcial o no disponible debe indicar su lÃ­mite.
+explícitos y citas breves. Work debe revisar cada archivo por separado y contrastarlo con el correo y los demás
+archivos. KML/KMZ, GeoJSON y GPX pueden registrar geometrías, coordenadas y extensiones. Las longitudes de rutas explícitas se pueden calcular como aproximaciones y deben rotularse como cálculos, nunca como cantidades declaradas o aprobadas para cotizar. No derivar áreas, precisión ni sistema de referencia. Una lectura parcial o no disponible debe indicar su límite.
 Control de cambios (R11): `requested_by_email`, `requested_by_name`,
 `attachments[].coverage` indica `completa`, `parcial` o `no_legible`; `reviewed_sections` enumera las partes inspeccionadas.
 `activities[].notes` debe ser accionable: para un faltante, indica qué dato falta, qué fuente se revisó y el siguiente paso; para una contradicción, enumera valores y fuentes con localizadores, aclara qué parámetro está en conflicto, qué decisión falta y qué rol debe resolverla. No inventa responsables nominales ni traslada al cliente una decisión técnica interna.
@@ -111,22 +116,24 @@ esta validación.
 guardarlas en el dashboard.
 
 ## Estado
-`status` es una de las etiquetas oficiales del esquema; **se acepta sin tildes ni mayÃºsculas** y se normaliza. El estado
+`status` es una de las etiquetas oficiales del esquema; **se acepta sin tildes ni mayúsculas** y se normaliza. El estado
 de cada actividad sigue R12.
 
-## QuÃ© hace el dashboard con el JSON
+## Qué hace el dashboard con el JSON
 - Mapea `status` al estado interno (`transiciones.json`, filas `work_import`).
-- Aplica R11: con T asignada, la tabla solo se actualiza si lo escribiÃ³ el contacto registrado y cita el cÃ³digo;
+- Aplica R11: con T asignada, la tabla solo se actualiza si lo escribió el contacto registrado y cita el código;
   si no, lo propuesto queda como propuesta pendiente.
 - Normaliza el estado de las filas (R12) y guarda el correo limpio como borrador propuesto.
-- Verifica la lectura que declara Work contra el manifiesto del preparador (T-37): revisión, mensajes, conteos y IDs esperados y
+- Con el prompt V6 verifica la lectura contra los adjuntos de Gmail por nombre y tamaño (T-41); con V5 y anteriores, contra el manifiesto
+  del preparador (T-37): revisión, mensajes, conteos y IDs esperados y
   pendientes salen del manifiesto; de Work solo se toma qué segmentos dice haber leído. Lo que no se pueda verificar deja
   `analysis_complete` en falso y el caso en revisión técnica interna.
 - Si el borrador no cumple el contrato y el hilo aún no tiene análisis, crea un caso mínimo con remitente, asunto y fecha del correo
-  (T-36); un borrador válido posterior lo reemplaza.
+  (T-36); un borrador válido posterior lo reemplaza. Un borrador sin bloque JSON se ignora si el hilo ya tiene análisis válido o si tiene
+  menos de 10 minutos (T-36, D-69); un JSON roto se rechaza de inmediato.
 
 ## Cambiar el contrato
 1. Edita el esquema (y este documento si cambia el sentido).
 2. Actualiza `docs/INSTRUCCIONES.txt` (lo que se pega en la tarea de ChatGPT): `tests/test_contrato_work.py` falla si un campo del
-   esquema no estÃ¡ documentado ahÃ­.
+   esquema no está documentado ahí.
 3. Actualiza la skill de Work (`SKILL.md`) y revisa el piloto manual (`docs/PILOTO_ACEPTACION.md`).
