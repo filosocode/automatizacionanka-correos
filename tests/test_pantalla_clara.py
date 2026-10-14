@@ -89,18 +89,18 @@ class BorradorPrimeroYEnvioAparte(Base):
         # Cubre: U-28, R8
         self.preguntar()
         pagina = pantalla_caso.render_case("t-1")
-        borrador = re.search(r'<button type="submit" formaction="/draft"[^>]*>', pagina).group(0)
-        self.assertNotIn("class=", borrador)                              # el botón primario
-        zona = pagina[pagina.index('class="send-zone"'):]
+        borrador = re.search(r'<button type="submit" class="secondary" formaction="/draft"[^>]*>', pagina).group(0)
+        self.assertIn('class="secondary"', borrador)                      # guardar el borrador ya no es el principal (U-31)
+        zona = pagina[pagina.index('class="correo-form"'):]
         enviar = re.search(r'<button type="submit" formaction="/send"[^>]*>', zona, re.S).group(0)
-        self.assertIn('class="send-action"', enviar)
+        self.assertIn('class="send-action"', enviar)                      # «Enviar al cliente» es la acción principal
         self.assertNotIn("danger", enviar)                                # enviar no es destructivo
         self.assertIn("data-confirm=", enviar)                            # y sigue pidiendo confirmación (R8)
         self.assertIn('data-resumen="envio"', enviar)
         self.assertIn('data-para="cliente@empresa.co"', enviar)
         self.assertIn('data-asunto="Re: Cotización levantamiento"', enviar)
-        self.assertIn("Es definitivo", zona)
-        self.assertLess(pagina.index('formaction="/draft"'), pagina.index('class="send-zone"'))
+        self.assertIn("definitivo", zona)
+        self.assertLess(pagina.index('formaction="/send"'), pagina.index('formaction="/draft"'))
 
 
 class ConfirmacionPropia(unittest.TestCase):

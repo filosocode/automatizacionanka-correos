@@ -490,7 +490,7 @@ class RelatedThreadTests(unittest.TestCase):
         self.assertIn("en otro hilo", page)
         self.assertIn("Preparar respuesta", page)
         self.assertIn("Validar contacto", page)
-        self.assertIn("Enviar ahora", page)                  # un caso cerrado con aviso admite respuesta
+        self.assertIn("Enviar al cliente", page)                # un caso cerrado con aviso admite respuesta
         self.assertIn("autorizado(a) para solicitar cambios", verify)
 
     def test_closed_case_without_notices_stays_blocked(self):

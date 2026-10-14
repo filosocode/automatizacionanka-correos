@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 3** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78, D-79, D-80, D-81. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 4** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -638,9 +638,9 @@ la carpeta de Drive.
    «Por completar», «Contradictoria») y el motivo en letra pequeña cuando falta algo. Encima, la línea «N actividades · M por completar» (o «todas completas»). Con más de 8 filas se ven 8
    y «Ver todas (N)»; las incompletas siempre se ven. El botón «Editar tabla» abre la tabla completa de siempre (las 10 columnas, con «Más datos»); allí siguen el guardado con motivo,
    «Quitar», la exportación y el historial de cambios de U-21. Lo que cambia es qué se ve primero; qué se guarda, no.
-4. **Archivos y tareas de revisión: resumen de una línea siempre visible** («3 archivos · 1 sin leer») antes de la tabla; lo que no se pudo
-   leer o requiere revisión interna se muestra abierto, y lo leído queda plegado. Respeta la intención de D-36 (nada de evidencia escondida
-   cuando exige una acción) y reemplaza su «todas las fichas muestran adjuntos y tareas» por «todas las fichas muestran el resumen y lo pendiente».
+4. **Archivos y tareas de revisión en la pestaña «Archivos»**, como en el prototipo (D-82, que reemplaza a D-36 y D-78). La pestaña lleva en su nombre cuántos archivos hay y cuántos están por
+   revisar («Archivos (3) · 1 por revisar»), muestra primero lo que no se pudo leer y deja lo leído plegado, y trae también «Qué falta resolver» y «Lectura y aplicabilidad». Abre sola
+   (es la pestaña activa al cargar) cuando hay archivos por revisar o la lectura está pendiente; si no, abre «Conversación». Un enlace a «#attachments-review» abre su pestaña.
 5. **Un solo cuadro de texto con las inquietudes del análisis.** Al elegir «Hay que preguntarle al cliente», la tarjeta muestra un único cuadro «Preguntas para el cliente (una por línea)»,
    ya escrito con todas las inquietudes que el análisis sugiere para el cliente (las de Anka, que son internas, no van). La persona borra las que no hagan falta, corrige las que quiera
    y escribe las suyas; «Continuar» arma el correo con lo que quede, sin más pasos (el mismo camino de U-24). Debajo, una línea dice cuántos puntos resuelve Anka por dentro («Qué falta
@@ -656,8 +656,8 @@ la carpeta de Drive.
    como acción principal; la decisión de abajo queda deshabilitada hasta entonces, igual que hoy.
 10. **Detalle técnico.** Datos comerciales, contexto interno, enrutamiento, asuntos pendientes y revisión de preguntas pasan a una sección plegada «Detalle técnico» al final del caso; la
     trazabilidad (historial) queda en su propia pestaña. Nada se elimina ni cambia de contenido.
-11. **Orden de lectura.** Aviso «Ahora» → decisión → archivos y revisiones pendientes → «Actividades detectadas» → conversación con el cliente → seguimiento → respuesta →
-    emisión de la T → carpeta → detalle técnico. La conversación sigue completa y a un desplazamiento; solo pasa a estar después de la tabla (reemplaza el orden de la regla 2 de `04-ux.md`).
+11. **Orden de lectura.** Encabezado → pasos → tarjeta «Ahora» → «Actividades detectadas» → seguimiento (si espera al cliente) → pestañas «Conversación», «Archivos», «Historial» y «Detalle
+    técnico» → lo demás que aún aplica (respuesta opcional, carpeta). Reemplaza el orden de la regla 2 de `04-ux.md`.
 12. **Resumen de la tabla.** Sobre la tabla, una línea «N actividades · M por completar» (o «todas completas»); `M` cuenta las que no están «confirmado» (R12). La explicación larga de los
     estados queda plegada en «Cómo leer los estados».
 13. **Aspecto de «Ahora» (como el prototipo).** La decisión de revisión técnica es una tarjeta destacada con la etiqueta «Ahora», borde de color y el título «¿Cómo seguimos?». Las salidas son
@@ -666,14 +666,25 @@ la carpeta de Drive.
     «Con esto alcanza» sigue pidiendo confirmación (U-28.3). Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
     marca, pendientes en gris, y el actual con el texto en negrita.
 
+14. **Encabezado del prototipo.** «← Solicitudes», el nombre del proyecto, una línea «cliente · correo · recibido el …» y la insignia del estado. El párrafo largo de resumen sale del
+    encabezado: en la decisión pasa a la tarjeta como «Qué pide:» (máximo unas 320 letras).
+15. **La tarjeta «Ahora» existe en todos los pasos.** Es una sola, la primera tras los pasos: la decisión (revisar), el correo por enviar, la emisión de la T o el aviso del estado
+    (esperando al cliente, T emitida, carpeta lista). Lleva la etiqueta «Ahora», no se pega al desplazarse (reemplaza esa parte de U-09) y, si otra tarjeta ya dice lo mismo, el aviso de
+    siguiente paso no se dibuja.
+16. **El correo es la tarjeta del prototipo.** «Para», un cuadro «Mensaje (puedes editarlo)» y tres acciones: «Enviar al cliente» (principal; sigue pidiendo confirmación con destinatario y
+    asunto, R8), «Guardar borrador en Gmail» y «Cambiar las preguntas» (abre el armado de U-24). Reemplaza el punto 2 de U-28 (guardar borrador ya no es el botón principal; el envío sigue
+    siendo definitivo y confirmado).
+17. **Pestañas.** «Conversación», «Archivos», «Historial» y «Detalle técnico» (datos comerciales, contexto interno, evaluación de recepción, revisión de preguntas, enrutamiento y asuntos
+    pendientes). Funcionan con teclado (flechas) y, sin JavaScript, todos los paneles se ven uno tras otro.
+
 **Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
 - E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
 - E1 · El «?» del glosario está junto a los pasos, abre T, T&E, Lectura realizada y Aplicabilidad, y ya no hay un glosario antes del encabezado de pasos.
-- E1 · Orden: aviso, decisión, archivos y revisiones pendientes, actividades, conversación, respuesta, emisión de la T y trazabilidad (en ese orden).
+- E1 · Orden: pasos, tarjeta «Ahora», actividades y, después, las pestañas (conversación, archivos, historial y detalle técnico); la conversación ya no va antes de la tabla.
 - E1 · Con 4 actividades de las que 2 no están confirmadas, la tabla dice «4 actividades · 2 por completar»; con todas confirmadas, «todas completas»; sin actividades, no hay línea.
 - E1 · La explicación de los estados está plegada («Cómo leer los estados») y las acciones de guardar, exportar y el historial de cambios no cambian (U-21).
-- E2 · Los archivos se resumen en una línea («3 archivos · 1 sin leer»); lo no leído o por revisar se ve abierto y lo leído, plegado.
-- E2 · Con lectura sin verificar, el aviso «Ahora» dice «Lectura pendiente» y su botón «Elegir cómo seguir» lleva a «¿Ya revisaste estos archivos tú?», justo debajo y antes de las actividades, con «Ya revisé estos archivos yo»; no hay decisión ni envío (U-29).
+- E2 · Los archivos y «Qué falta resolver» están en la pestaña «Archivos», que dice «N por revisar» en su nombre y es la activa si hay algo por revisar; lo no leído se ve abierto y lo leído, plegado.
+- E2 · Con lectura sin verificar, el aviso «Ahora» dice «Lectura pendiente» y su botón «Elegir cómo seguir» lleva a «¿Ya revisaste estos archivos tú?», justo debajo, con «Ya revisé estos archivos yo»; no hay decisión ni envío (U-29).
 - E2 · Con más de 8 actividades se ven 8 y «Ver todas (N)»; las incompletas siempre se ven y las filas escondidas se guardan igual. «Detalle técnico» ya es la sección plegada «Detalles y trazabilidad del caso»: conserva su nombre y su contenido.
 - E3a · La decisión es una tarjeta «Ahora» con dos opciones de una sola elección (`name="decision"`: `sufficient`, `ask_client`) y un único botón «Continuar»; ya no hay botones de envío sueltos ni tercera opción.
 - E3a · Con preguntas sugeridas para el cliente, «Hay que preguntarle al cliente» viene marcada y el cuadro único las trae una por línea; sin ellas no viene marcada ninguna opción.
@@ -683,6 +694,11 @@ la carpeta de Drive.
 - E3b · Con el cuadro vacío, «Continuar» pide escribir al menos una pregunta. Lo escrito se conserva al volver a decidir antes de enviar (U-27).
 - E3b · La vista compacta de actividades tiene tres columnas con etiqueta y motivo; «Editar tabla» abre la tabla completa y guardar funciona como antes.
 - E3b · Mientras la tarjeta «Ahora» con la decisión está en la página, el aviso «Falta tu decisión de revisión técnica» no se dibuja (lo dice la tarjeta) y no se queda pegado arriba.
+- E4 · El encabezado muestra «← Solicitudes», el proyecto, «cliente · correo · recibido el …» y la insignia del estado; no trae el párrafo de resumen.
+- E4 · Cada paso tiene su tarjeta «Ahora»: revisar (decisión con «Qué pide»), correo (formulario), información validada (emisión de la T), y aviso para esperando, T emitida y carpeta; nunca dos.
+- E4 · El aviso de siguiente paso no se pega al desplazarse y no se dibuja junto a una tarjeta que ya dice lo mismo.
+- E4 · La tarjeta de correo trae «Para», «Mensaje», «Enviar al cliente» (principal, con confirmación y resumen), «Guardar borrador en Gmail» y «Cambiar las preguntas»; enviar y guardar hacen lo mismo que antes.
+- E4 · Hay cuatro pestañas con sus paneles, y la activa al cargar es «Archivos» si hay algo por revisar y «Conversación» si no.
 - E3 · «Información validada» es el único nombre del estado en lista, aviso, pasos y botones; «Recepción completa» e «información suficiente» ya no se muestran como etiqueta del caso.
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

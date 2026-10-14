@@ -1,4 +1,4 @@
-<section class="section code-panel" id="emitir-t">
+<section class="section code-panel{% if not code and can_assign %} ahora{% endif %}" id="emitir-t">
   {% if code %}
   <div class="section-head"><h2>Código de la oferta</h2><span class="badge info">{{ stage_label }}</span></div>
   <p><strong class="code">{{ code }}</strong>
@@ -11,6 +11,7 @@
   </form>
   {% endif %}
   {% elif can_assign %}
+  <div class="eyebrow">Ahora</div>
   <div class="section-head"><h2>Listo para cotizar: emitir la T</h2><span class="badge">Información validada</span></div>
   <p class="meta">La información ya está validada. Al emitir la T damos por recibido el proyecto, en un solo paso: se genera el código, se crea la carpeta en Drive con los documentos del cliente y la tabla de actividades, y se envía a {{ contact }} el correo con la T y cómo sigue el proceso. Todo cambio debe citar el código.</p>
   <form method="post" action="/code-issue">

@@ -109,7 +109,7 @@ class EnLaPantalla(unittest.TestCase):
         db.close()
 
     def cuadro(self, pagina):
-        return pagina.split('name="body"')[1].split("</textarea>")[0].split(">", 1)[1]
+        return pagina.split('id="cuerpo-correo"')[1].split("</textarea>")[0].split(">", 1)[1]
 
     def test_the_box_is_offered_in_every_stage_where_you_can_write_to_the_client(self):
         # Cubre: U-24

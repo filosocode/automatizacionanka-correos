@@ -45,11 +45,11 @@ class EmisionDeLaT(unittest.TestCase):
         self.assertLess(primario, html.index("Otras opciones"))
         self.assertGreater(plegado, html.index("<details"))
 
-    def test_aviso_de_siguiente_paso_queda_fijo(self) -> None:
-        # Cubre: U-09
+    def test_aviso_de_siguiente_paso_ya_no_queda_fijo(self) -> None:
+        # Cubre: U-09, U-31
         css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
-        regla = next(linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea)
-        self.assertIn("position: sticky", regla)
+        self.assertFalse([linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea])
+        self.assertIn("position: static", css)
 
 
 def _caso(hilo: str, estado: QuoteStatus, **extra: object) -> dict:

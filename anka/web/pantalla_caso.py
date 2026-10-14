@@ -20,7 +20,7 @@ from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
 from anka.dominio.work_contract import lectura_sin_verificar
 from anka.web.views import (
-    attachments_panel, reception_assessment_panel, activities_editor, question_audit_panel,
+    adjunto_requiere_atencion, attachments_panel, reception_assessment_panel, activities_editor, question_audit_panel,
     question_quality_panel, review_tasks_panel,
 )
 from anka.dominio.status import (
@@ -753,6 +753,18 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     sugeridas = _preguntas_sugeridas(analysis, assessment) if not reading_blocked else []
     puede_volver = _puede_volver_atras(review, analysis)
     cuadro_preguntas = _cuadro_de_preguntas(analysis, preguntas)
+    plegar_respuesta = bool(review.get("quote_code")) or (
+        review.informacion_validada and review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING})
+    puede_emitir = (review.informacion_validada and not review.get("quote_code")
+                    and review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING})
+    # Una sola tarjeta «Ahora» (U-31): lectura pendiente, decisión, correo, emisión de la T o el aviso del estado.
+    slot = ("lectura" if reading_blocked else "decision" if espera_decision
+            else "correo" if email == "form" and not plegar_respuesta
+            else "codigo" if puede_emitir else "aviso")
+    archivos = analysis.get("attachments", [])
+    por_revisar = sum(1 for a in archivos if isinstance(a, Mapping) and adjunto_requiere_atencion(a))
+    etiqueta_archivos = f"Archivos ({len(archivos)})" + (f" · {por_revisar} por revisar" if por_revisar else "")
+    recibido = (review.get("first_seen_at") or "")[:10]
     body = render(
         "case.html",
         review=review, thread_id=thread_id,
@@ -764,8 +776,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         service_family=assessment.get("service_family", "Por clasificar"),
         suggestion_complete=review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING},
         draft_complete=bool(review["draft_id"] or sent_complete),
-        plegar_respuesta=bool(review.get("quote_code")) or (
-            review.informacion_validada and review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING}),
+        plegar_respuesta=plegar_respuesta, slot=slot, recibido=recibido, etiqueta_archivos=etiqueta_archivos,
+        tab_inicial="archivos" if por_revisar or reading_blocked else "conversacion",
         sent_complete=sent_complete, no_reply_needed=review["status"] in {QuoteStatus.READY, QuoteStatus.IGNORED},
         client_types=CLIENT_TYPES, sectors=SECTORS,
         routing_summary=("Pendiente de verificar la lectura del expediente." if reading_blocked

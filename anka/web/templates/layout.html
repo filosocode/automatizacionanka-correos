@@ -151,6 +151,41 @@
       });
     })();
     (function () {
+      // Pestañas del caso (U-31): con JavaScript se muestra un panel a la vez; sin él, todos se ven uno tras otro.
+      document.querySelectorAll('[data-tabs]').forEach(raiz => {
+        const pestanas = Array.from(raiz.querySelectorAll('[role="tab"]'));
+        const panel = pestana => document.getElementById(pestana.getAttribute('aria-controls'));
+        function mostrar(elegida) {
+          pestanas.forEach(p => {
+            const activa = p === elegida;
+            p.setAttribute('aria-selected', String(activa));
+            p.tabIndex = activa ? 0 : -1;
+            const destino = panel(p);
+            if (destino) destino.hidden = !activa;
+          });
+        }
+        function porEnlace() {   // un enlace a algo que está dentro de una pestaña la abre
+          const destino = location.hash && document.getElementById(location.hash.slice(1));
+          const contenedor = destino && destino.closest('[role="tabpanel"]');
+          const pestana = contenedor && pestanas.find(p => p.getAttribute('aria-controls') === contenedor.id);
+          if (pestana) mostrar(pestana);
+        }
+        pestanas.forEach(p => {
+          p.addEventListener('click', () => mostrar(p));
+          p.addEventListener('keydown', evento => {
+            const paso = evento.key === 'ArrowRight' ? 1 : evento.key === 'ArrowLeft' ? -1 : 0;
+            if (!paso) return;
+            const siguiente = pestanas[(pestanas.indexOf(p) + paso + pestanas.length) % pestanas.length];
+            siguiente.focus();
+            mostrar(siguiente);
+          });
+        });
+        mostrar(pestanas.find(p => p.getAttribute('aria-selected') === 'true') || pestanas[0]);
+        porEnlace();
+        window.addEventListener('hashchange', porEnlace);
+      });
+    })();
+    (function () {
       // El aviso de siguiente paso se pega justo debajo del encabezado fijo, sin taparlo.
       const encabezado = document.querySelector('header');
       function medirEncabezado() {

@@ -2,6 +2,7 @@
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -92,23 +93,23 @@ class GlosarioConInterrogacion(Base):
 
 
 class OrdenDeLectura(Base):
-    def test_aviso_decision_archivos_actividades_y_luego_la_conversacion(self) -> None:
+    def test_pasos_tarjeta_actividades_y_luego_las_pestanas(self) -> None:
         # Cubre: U-31
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
-        orden = ['class="next-step', 'id="decision"', 'id="attachments-review"', "Actividades detectadas",
-                 "Conversación con el cliente", "Detalles y trazabilidad del caso"]
+        orden = ['class="process-step', 'id="decision"', "Actividades detectadas", 'role="tablist"', 'id="p-conv"',
+                 'id="attachments-review"', 'id="p-hist"', 'id="p-det"']
         posiciones = [pagina.index(titulo) for titulo in orden]
         self.assertEqual(posiciones, sorted(posiciones))
 
-    def test_con_respuesta_y_emision_el_orden_sigue_de_arriba_a_abajo(self) -> None:
+    def test_con_la_informacion_validada_la_emision_de_la_t_es_la_tarjeta_de_arriba(self) -> None:
         # Cubre: U-31
         self.crear(estado=QuoteStatus.READY_REVIEW)
         pagina = pantalla_caso.render_case("t-1")
-        orden = ["Actividades detectadas", "Conversación con el cliente", "Respuesta al cliente",
-                 "Listo para cotizar: emitir la T", "Detalles y trazabilidad del caso"]
+        orden = ['id="emitir-t"', "Actividades detectadas", 'role="tablist"', 'id="respuesta"']
         posiciones = [pagina.index(titulo) for titulo in orden]
         self.assertEqual(posiciones, sorted(posiciones))
+        self.assertIn('class="section code-panel ahora" id="emitir-t"', pagina)
 
 
 class ResumenDeLaTabla(Base):
@@ -151,7 +152,7 @@ class ArchivosEnUnaLinea(Base):
         self.crear(adjuntos=[adjunto("solicitud.pdf"), adjunto("lote.kmz"), adjunto("planos.dwg", "bloqueado")])
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn("3 archivos · 1 por revisar", pagina)
-        seccion = pagina[pagina.index('id="attachments-review"'):pagina.index("Actividades detectadas")]
+        seccion = pagina[pagina.index('id="attachments-review"'):pagina.index('id="p-hist"')]
         fuera = seccion.split('<details class="more archivos-leidos"')[0]
         self.assertIn("planos.dwg", fuera)
         self.assertNotIn("solicitud.pdf", fuera)
@@ -179,7 +180,8 @@ class ArchivosEnUnaLinea(Base):
         self.crear(adjuntos=[adjunto("planos.dwg", "bloqueado")])
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn("Revisar el adjunto planos.dwg", pagina)
-        self.assertLess(pagina.index("Qué falta resolver"), pagina.index("Actividades detectadas"))
+        panel = pagina[pagina.index('id="attachments-review"'):pagina.index('id="p-hist"')]
+        self.assertIn("Qué falta resolver", panel)                  # las tareas viven en la pestaña de archivos
 
 
 class YaRevisePrimero(Base):
@@ -370,7 +372,7 @@ class CuadroUnico(Base):
         # El aviso sigue en el HTML (U-09, U-28) pero no se dibuja ni se pega arriba mientras la tarjeta «Ahora» está.
         self.assertIn('class="next-step', pagina)
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
-        self.assertIn(".next-step:has(+ .decision-arriba) { display: none; }", css)
+        self.assertIn(".next-step:has(~ .ahora) { display: none; }", css)
 
 
 class PasosComoBarra(Base):
@@ -379,8 +381,123 @@ class PasosComoBarra(Base):
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
         self.assertIn(".process-step::before", css)
         self.assertIn(".process-step.current", css)
-        self.assertIn(".decision-arriba.ahora", css)
+        self.assertIn(".section.ahora", css)
         self.assertIn(".opcion:has(input:checked)", css)
+
+
+def _pestanas(pagina: str) -> str:
+    inicio = pagina.index('role="tablist"')
+    return pagina[inicio:pagina.index('id="p-det"', inicio)]
+
+
+class CabeceraDelPrototipo(Base):
+    def test_trae_atras_proyecto_cliente_correo_fecha_y_estado_sin_el_resumen_largo(self) -> None:
+        # Cubre: U-31
+        self.crear()
+        pagina = pantalla_caso.render_case("t-1")
+        cabecera = pagina[pagina.index('class="caso-cabecera"'):pagina.index('class="section stepper"')]
+        self.assertIn("← Solicitudes", cabecera)
+        self.assertIn("Proyecto Norte", cabecera)
+        self.assertIn("cliente@empresa.co", cabecera)
+        self.assertIn("recibido el", cabecera)
+        self.assertIn('class="badge"', cabecera)
+        self.assertNotIn("Levantamiento topográfico solicitado.", cabecera)       # el resumen largo ya no va aquí
+        self.assertIn("<b>Qué pide:</b> Levantamiento topográfico solicitado.", tarjeta(pagina))
+
+
+class UnaSolaTarjetaAhora(Base):
+    def test_cada_paso_tiene_exactamente_una_tarjeta_ahora(self) -> None:
+        # Cubre: U-31
+        casos = {"revisar": QuoteStatus.REVIEW, "correo": QuoteStatus.REVIEW_PENDING, "validada": QuoteStatus.READY_REVIEW,
+                 "espera": QuoteStatus.WAITING}
+        for nombre, estado in casos.items():
+            with self.subTest(paso=nombre):
+                self.crear(f"t-{nombre}", estado=estado)
+                if nombre == "espera":
+                    db = store.open_db(Path(self.temp.name))
+                    db.execute("UPDATE quotes SET sent_at='2026-10-02T10:00:00-05:00', draft_body='Hola' WHERE thread_id=?",
+                               (f"t-{nombre}",))
+                    db.commit()
+                    db.close()
+                pagina = pantalla_caso.render_case(f"t-{nombre}")
+                tarjetas = len(re.findall(r'<section class="section[^"]* ahora"', pagina))
+                aviso = pagina.count('class="next-step')
+                self.assertEqual(tarjetas + (1 if nombre == "espera" else 0), 1)
+                if tarjetas:
+                    self.assertIn(".next-step:has(~ .ahora) { display: none; }",
+                                  (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
+                self.assertLessEqual(aviso, 1)
+
+    def test_el_aviso_es_una_tarjeta_ahora_que_no_se_pega(self) -> None:
+        # Cubre: U-31
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn('.next-step::before { content: "Ahora";', css)
+        self.assertFalse([linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea])
+
+
+class CorreoComoPrototipo(Base):
+    def test_la_tarjeta_trae_para_mensaje_y_tres_acciones_con_enviar_como_principal(self) -> None:
+        # Cubre: U-31
+        self.crear(estado=QuoteStatus.REVIEW_PENDING)
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn('<section class="section ahora" id="respuesta">', pagina)
+        self.assertLess(pagina.index('id="respuesta"'), pagina.index("Actividades detectadas"))
+        correo = pagina[pagina.index('class="correo-form"'):]
+        correo = correo[:correo.index("</form>")]
+        self.assertIn('<div class="para">cliente@empresa.co</div>', correo)
+        self.assertIn("Mensaje (puedes editarlo)", correo)
+        enviar = re.search(r'<button type="submit" formaction="/send"[^>]*>', correo, re.S).group(0)
+        self.assertIn('class="send-action"', enviar)
+        self.assertIn("data-confirm=", enviar)
+        self.assertIn('data-resumen="envio"', enviar)
+        self.assertIn(">Enviar al cliente<", correo)
+        self.assertRegex(correo, r'<button type="submit" class="secondary" formaction="/draft">Guardar borrador en Gmail')
+        self.assertIn('<a class="button secondary" href="#armar">Cambiar las preguntas</a>', correo)
+        self.assertLess(correo.index('formaction="/send"'), correo.index('formaction="/draft"'))
+
+    def test_enviar_y_guardar_siguen_siendo_las_mismas_rutas(self) -> None:
+        # Cubre: U-31
+        self.crear(estado=QuoteStatus.REVIEW_PENDING)
+        correo = pantalla_caso.render_case("t-1")
+        self.assertEqual(correo.count('formaction="/send"'), 1)
+        self.assertEqual(correo.count('formaction="/draft"'), 1)
+
+
+class Pestanas(Base):
+    def test_hay_cuatro_pestanas_con_sus_paneles(self) -> None:
+        # Cubre: U-31
+        self.crear()
+        pagina = pantalla_caso.render_case("t-1")
+        pestanas = _pestanas(pagina)
+        for rotulo in ("Conversación", "Archivos (", "Historial", "Detalle técnico"):
+            self.assertIn(rotulo, pestanas)
+        self.assertEqual(len(re.findall(r'role="tab"', pestanas)), 4)
+        for panel in ('id="p-conv"', 'id="attachments-review"', 'id="p-hist"', 'id="p-det"'):
+            self.assertIn(panel, pagina)
+        self.assertIn("Conversación con el cliente", pagina[pagina.index('id="p-conv"'):pagina.index('id="attachments-review"')])
+        self.assertIn("Información comercial", pagina[pagina.index('id="p-det"'):])
+
+    def test_archivos_dice_cuantos_hay_por_revisar_y_es_la_activa(self) -> None:
+        # Cubre: U-31
+        self.crear(adjuntos=[adjunto("solicitud.pdf"), adjunto("planos.dwg", "bloqueado")])
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn("Archivos (2) · 1 por revisar", pagina)
+        self.assertRegex(pagina, r'id="t-arch" aria-controls="attachments-review" aria-selected="true"')
+        self.assertRegex(pagina, r'id="t-conv" aria-controls="p-conv" aria-selected="false"')
+
+    def test_sin_nada_por_revisar_abre_la_conversacion(self) -> None:
+        # Cubre: U-31
+        self.crear(adjuntos=[adjunto("solicitud.pdf")])
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn("Archivos (1)", pagina)
+        self.assertNotIn("Archivos (1) · ", pagina)
+        self.assertRegex(pagina, r'id="t-conv" aria-controls="p-conv" aria-selected="true"')
+
+    def test_el_script_abre_la_pestana_de_un_enlace_y_responde_a_las_flechas(self) -> None:
+        # Cubre: U-31
+        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        for pieza in ("data-tabs", "ArrowRight", "closest('[role=\"tabpanel\"]')", "hashchange"):
+            self.assertIn(pieza, layout)
 
 
 if __name__ == "__main__":

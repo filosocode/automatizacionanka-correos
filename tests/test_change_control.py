@@ -385,7 +385,7 @@ class TechnicalReviewFlowTests(Base):
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T9")
             acuse = pantalla_caso.render_case("T9", template="acuse")
-        box = page.split('name="body"')[1].split("</textarea>")[0]
+        box = page.split('id="cuerpo-correo"')[1].split("</textarea>")[0]
         self.assertEqual(box.split(">", 1)[1].strip(), "")            # en blanco
         self.assertIn("usa un acuse de recibo sugerido", page)
         self.assertIn("Confirmamos que la hemos recibido", acuse)     # el acuse sigue disponible
@@ -593,8 +593,8 @@ class GuidedFlowTests(Base):
     def test_sections_follow_a_top_to_bottom_thread(self):
         self.set_status(QuoteStatus.READY_REVIEW)
         page = self.page()
-        order = ["Actividades detectadas", "Conversación con el cliente", "Respuesta al cliente",
-                 "Listo para cotizar: emitir la T", "Detalles y trazabilidad del caso", "Seguimiento"]
+        order = ["Listo para cotizar: emitir la T", "Actividades detectadas", "Conversación con el cliente",
+                 "Evaluación de recepción", "Respuesta al cliente"]       # U-31: la tarjeta «Ahora» manda; lo demás va en pestañas
         positions = [page.index(title) for title in order]
         self.assertEqual(positions, sorted(positions))
 
@@ -727,12 +727,12 @@ class UxFixesTests(Base):
         change_control.promote_to_te("T1")
         self.assertIn("T&amp;E26145 · oferta aprobada", self._aviso())
 
-    def test_el_aviso_se_pega_bajo_el_encabezado_y_la_medida_viene_del_encabezado(self):
-        # Cubre: U-17
+    def test_el_aviso_ya_no_se_pega_y_la_medida_del_encabezado_sigue_disponible(self):
+        # Cubre: U-17, U-31
         base = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
         css = (base / "style.css").read_text(encoding="utf-8")
-        regla = next(linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea)
-        self.assertIn("top: calc(var(--header-h, 0px) + 8px)", regla)
+        self.assertFalse([linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea])
+        self.assertIn(".next-step:has(~ .ahora) { display: none; }", css)   # el aviso no repite a la tarjeta «Ahora»
         layout = (base / "layout.html").read_text(encoding="utf-8")
         self.assertIn("'--header-h'", layout)
         self.assertIn("addEventListener('resize', medirEncabezado)", layout)
@@ -740,7 +740,7 @@ class UxFixesTests(Base):
     def test_la_respuesta_se_pliega_con_la_informacion_validada_o_con_t(self):
         # Cubre: U-18
         self.set_status(QuoteStatus.REVIEW_PENDING)
-        self.assertIn('<section class="section" id="respuesta">', self._pagina())      # sin validar: a la vista
+        self.assertIn('<section class="section ahora" id="respuesta">', self._pagina())  # sin validar: es la tarjeta «Ahora»
         self.set_status(QuoteStatus.READY)
         validada = self._pagina()
         self.assertIn('<details class="more respuesta-plegada" id="respuesta">', validada)
