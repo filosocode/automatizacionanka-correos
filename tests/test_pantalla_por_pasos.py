@@ -32,12 +32,14 @@ class Base(unittest.TestCase):
 
     def crear(self, thread_id: str = "t-1", estado: QuoteStatus = QuoteStatus.REVIEW,
               actividades: list[dict] | None = None, adjuntos: list[dict] | None = None,
-              lectura_pendiente: str = "") -> None:
+              lectura_pendiente: str = "", preguntas: list[str] | None = None) -> None:
         analisis = complete_analysis(location="")
         if actividades is not None:
             analisis["activities"] = actividades
         if adjuntos is not None:
             analisis["attachments"] = adjuntos
+        if preguntas is not None:
+            analisis["other_questions"] = preguntas
         if lectura_pendiente:
             analisis["engine"] = "chatgpt_work"
             analisis["reading_audit"] = {"verification": "incompleta", "attachment_files_pending": [lectura_pendiente]}
@@ -229,6 +231,79 @@ class TablaLarga(Base):
         extra = pagina.split('<tbody class="act-row extra">')[1]
         self.assertIn("name='a8_activity'", extra)
         self.assertIn('name="row_count" value="10"', pagina)
+
+
+def tarjeta(pagina: str) -> str:
+    inicio = pagina.index('id="decision"')
+    return pagina[inicio:pagina.index("</section>", inicio)]
+
+
+class TarjetaAhora(Base):
+    def test_la_decision_es_una_tarjeta_con_tres_opciones_y_un_solo_boton(self) -> None:
+        # Cubre: U-31
+        self.crear()
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn('class="section decision-arriba ahora" id="decision"', pagina)
+        decision = tarjeta(pagina)
+        self.assertIn(">Ahora<", decision)
+        for valor in ("sufficient", "ask_client", "internal_only"):
+            self.assertIn(f'<input type="radio" name="decision" value="{valor}"', decision)
+        self.assertIn("Con esto alcanza", decision)
+        self.assertIn("Hay que preguntarle al cliente", decision)
+        self.assertEqual(decision.count('type="submit"'), 1)
+        self.assertIn('id="continuar-decision"', decision)
+
+    def test_con_preguntas_sugeridas_viene_marcada_preguntar_y_se_ven(self) -> None:
+        # Cubre: U-31
+        self.crear(preguntas=["¿Cuál es el datum del levantamiento?"])
+        decision = tarjeta(pantalla_caso.render_case("t-1"))
+        self.assertRegex(decision, r'value="ask_client"[^>]*checked')
+        self.assertIn("¿Cuál es el datum del levantamiento?", decision)
+
+    def test_sin_preguntas_sugeridas_no_viene_marcada_ninguna(self) -> None:
+        # Cubre: U-31
+        analisis = complete_analysis(location="Bogotá")          # información completa: el análisis no sugiere preguntar
+        db = store.open_db(Path(self.temp.name))
+        store.save(db, "t-1", "m-1", QuoteStatus.REVIEW, "cliente@empresa.co", analisis)
+        db.commit()
+        db.close()
+        decision = tarjeta(pantalla_caso.render_case("t-1"))
+        self.assertNotRegex(decision, r'<input[^>]*checked')
+
+    def test_solo_con_esto_alcanza_pide_confirmacion(self) -> None:
+        # Cubre: U-31
+        self.crear()
+        decision = tarjeta(pantalla_caso.render_case("t-1"))
+        boton = decision[decision.index('id="continuar-decision"') - 200:decision.index("</button>", decision.index('id="continuar-decision"'))]
+        self.assertIn('data-confirm-para="sufficient"', boton)
+        self.assertIn("data-confirm=", boton)
+        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        self.assertIn("confirmPara", layout)
+
+    def test_cada_opcion_hace_lo_mismo_que_antes(self) -> None:
+        # Cubre: U-31
+        from anka.web import acciones
+        self.crear("t-s")
+        acciones._post_review_decision({"thread_id": ["t-s"], "decision": ["sufficient"]})
+        self.assertTrue(quotes.get_quote("t-s").informacion_validada)
+        self.crear("t-a", preguntas=["¿Cuál es el datum del levantamiento?"])
+        acciones._post_review_decision({"thread_id": ["t-a"], "decision": ["ask_client"],
+                                        "questions": ["¿Cuál es el datum del levantamiento?"]})
+        self.assertFalse(quotes.get_quote("t-a").informacion_validada)
+        self.assertEqual(quotes.get_quote("t-a")["status"], QuoteStatus.REVIEW_PENDING)
+        self.crear("t-i", preguntas=["¿Cuál es el datum del levantamiento?"])
+        acciones._post_review_decision({"thread_id": ["t-i"], "decision": ["internal_only"]})
+        self.assertEqual(quotes.get_quote("t-i")["status"], QuoteStatus.REVIEW)
+
+
+class PasosComoBarra(Base):
+    def test_los_pasos_se_dibujan_como_barra_de_avance(self) -> None:
+        # Cubre: U-31
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".process-step::before", css)
+        self.assertIn(".process-step.current", css)
+        self.assertIn(".decision-arriba.ahora", css)
+        self.assertIn(".opcion:has(input:checked)", css)
 
 
 if __name__ == "__main__":

@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 y 2** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78, D-79. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 3** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78, D-79. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -658,6 +658,11 @@ la carpeta de Drive.
     emisión de la T → carpeta → detalle técnico. La conversación sigue completa y a un desplazamiento; solo pasa a estar después de la tabla (reemplaza el orden de la regla 2 de `04-ux.md`).
 12. **Resumen de la tabla.** Sobre la tabla, una línea «N actividades · M por completar» (o «todas completas»); `M` cuenta las que no están «confirmado» (R12). La explicación larga de los
     estados queda plegada en «Cómo leer los estados».
+13. **Aspecto de «Ahora» (como el prototipo).** La decisión de revisión técnica es una tarjeta destacada con la etiqueta «Ahora», borde de color y el título «¿Cómo seguimos?». Las salidas son
+    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente», más una tercera, discreta, «Solo guardar mis decisiones». Hay un único botón
+    «Continuar». Las preguntas del análisis se ven al elegir «Hay que preguntarle al cliente» y esa opción viene marcada cuando el análisis sugiere preguntas para el cliente (U-30). Elegir
+    «Con esto alcanza» sigue pidiendo confirmación (U-28.3). Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
+    marca, pendientes en gris, y el actual con el texto en negrita.
 
 **Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
 - E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
@@ -668,7 +673,11 @@ la carpeta de Drive.
 - E2 · Los archivos se resumen en una línea («3 archivos · 1 sin leer»); lo no leído o por revisar se ve abierto y lo leído, plegado.
 - E2 · Con lectura sin verificar, el aviso «Ahora» dice «Lectura pendiente» y su botón «Elegir cómo seguir» lleva a «¿Ya revisaste estos archivos tú?», justo debajo y antes de las actividades, con «Ya revisé estos archivos yo»; no hay decisión ni envío (U-29).
 - E2 · Con más de 8 actividades se ven 8 y «Ver todas (N)»; las incompletas siempre se ven y las filas escondidas se guardan igual. «Detalle técnico» ya es la sección plegada «Detalles y trazabilidad del caso»: conserva su nombre y su contenido.
-- E3 · Cada pregunta trae la casilla «Preguntar al cliente»; al desmarcarla ofrece «Lo resuelve Anka» (por omisión) y «Descartar»; «Preparar el correo» solo lleva las marcadas.
+- E3a · La decisión es una tarjeta «Ahora» con tres opciones de una sola elección (`name="decision"`: `sufficient`, `ask_client`, `internal_only`) y un único botón «Continuar»; ya no hay tres botones de envío.
+- E3a · Con preguntas sugeridas para el cliente, «Hay que preguntarle al cliente» viene marcada y las preguntas se ven; sin ellas no viene marcada ninguna opción.
+- E3a · «Continuar» pide confirmación solo si está elegida «Con esto alcanza»; con «Hay que preguntarle al cliente» o «Solo guardar mis decisiones» no.
+- E3a · Enviar el formulario con cada opción produce el mismo resultado que antes (mismo estado, mismas preguntas, mismo historial).
+- E3b · Cada pregunta trae la casilla «Preguntar al cliente»; al desmarcarla ofrece «Lo resuelve Anka» (por omisión) y «Descartar»; «Preparar el correo» solo lleva las marcadas.
 - E3 · «Información validada» es el único nombre del estado en lista, aviso, pasos y botones; «Recepción completa» e «información suficiente» ya no se muestran como etiqueta del caso.
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

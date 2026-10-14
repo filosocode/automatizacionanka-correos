@@ -143,8 +143,8 @@ class ReviewDecisionTests(unittest.TestCase):
         self.assertIn("¿Cómo seguimos?", page)
         self.assertNotIn("Respuesta en pausa", page)
         self.assertNotIn('id="respuesta"', page)
-        self.assertIn("Ya lo revisé", page)
-        self.assertIn("Preparar el correo con las preguntas elegidas", page)
+        self.assertIn("Con esto alcanza", page)
+        self.assertIn("Hay que preguntarle al cliente", page)
 
     def test_las_preguntas_para_el_cliente_se_cuentan_en_vez_de_repetirse(self):
         # Cubre: U-12

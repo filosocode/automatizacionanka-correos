@@ -14,43 +14,54 @@
 {% endif %}
 {% if reading_review_note %}<div class="notice" id="lectura-revisada-nota">{{ reading_review_note }}</div>{% endif %}
 {% if can_resolve %}
-<section class="section decision-arriba" id="decision">
+<section class="section decision-arriba ahora" id="decision">
+  <div class="eyebrow">Ahora</div>
   <h2>¿Cómo seguimos?</h2>
-  <p class="meta">Cuando termines de revisar (por ejemplo, abriste el plano CAD), elige una de las dos salidas. Ninguna envía nada al cliente. Si llega un mensaje nuevo en el hilo, el caso se vuelve a evaluar. <a href="#attachments-review">Ver los archivos y lo que falta resolver</a>.</p>
-  <form method="post" action="/review-decision">
+  <p class="meta">Ninguna opción envía nada al cliente. Si llega un mensaje nuevo en el hilo, el caso se vuelve a evaluar. <a href="#attachments-review">Ver los archivos y lo que falta resolver</a>.</p>
+  {% set sugiere_preguntar = preguntas | selectattr('elegida', 'equalto', 'ask_client') | list | length > 0 %}
+  <form method="post" action="/review-decision" class="decision-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
-    <h3>La información es suficiente</h3>
-    <p class="meta">Pasa a «Información validada» y podrás emitir la T y crear la carpeta del proyecto en Drive.</p>
-    <div class="toolbar"><button type="submit" name="decision" value="sufficient"
-      data-confirm="El caso pasará a «información suficiente» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Ya lo revisé: información suficiente (crear carpeta en Drive)</button></div>
-    <h3 class="subhead">Preguntas: decide qué hacer con cada una</h3>
-    <p class="meta">Elige para cada pregunta si se la haces al cliente, si la resuelve Anka por dentro o si no hace falta. Puedes
-      cambiar el texto y agregar las tuyas. Al preparar el correo solo entran las que elijas para el cliente (después las puedes
-      ajustar junto al correo); las internas quedan en «Qué falta resolver». Nada se envía sin «Enviar ahora».</p>
-    {% for pregunta in preguntas %}
-    <div class="pregunta">
-      <input type="hidden" name="q_id" value="{{ pregunta.id }}">
-      <label>Pregunta
-        <textarea name="q_text_{{ pregunta.id }}" rows="2">{{ pregunta.texto }}</textarea>
-      </label>
-      <label>Qué hacer
-        <select name="q_decision_{{ pregunta.id }}">
-          <option value="ask_client"{% if pregunta.elegida == 'ask_client' %} selected{% endif %}>Preguntar al cliente</option>
-          <option value="internal"{% if pregunta.elegida == 'internal' %} selected{% endif %}>Resolver internamente</option>
-          <option value="discard"{% if pregunta.elegida == 'discard' %} selected{% endif %}>Descartar</option>
-        </select>
-      </label>
-      <p class="meta">{{ pregunta.origen_texto }}{% if pregunta.decidida %} · decidida por ti{% else %} · el análisis sugiere {{ pregunta.sugerencia }}{% endif %}</p>
+    <div class="opciones" role="radiogroup" aria-label="Cómo seguir con este caso">
+      <label class="opcion"><input type="radio" name="decision" value="sufficient" required>
+        <span><strong>Con esto alcanza</strong>
+        <small>Pasa a «Información validada»: podrás emitir la T y crear la carpeta del proyecto en Drive.</small></span></label>
+      <label class="opcion"><input type="radio" name="decision" value="ask_client" required{% if sugiere_preguntar %} checked{% endif %}>
+        <span><strong>Hay que preguntarle al cliente</strong>
+        <small>Eliges qué preguntas hacer y se arma el correo para que lo revises.</small></span></label>
+      <label class="opcion discreta"><input type="radio" name="decision" value="internal_only" required>
+        <span><strong>Solo guardar mis decisiones</strong>
+        <small>Sin preguntar al cliente por ahora; las preguntas internas quedan en «Qué falta resolver».</small></span></label>
     </div>
-    {% else %}
-    <p class="meta">El análisis no dejó preguntas candidatas. Si necesitas preguntarle algo al cliente, escríbelo abajo.</p>
-    {% endfor %}
-    <label>Agregar mis propias preguntas para el cliente (una por línea)
-      <textarea name="q_nuevas" class="caja-corta" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?"></textarea>
-    </label>
+    <div class="preguntas-bloque">
+      <h3 class="subhead">Preguntas: decide qué hacer con cada una</h3>
+      <p class="meta">Elige para cada pregunta si se la haces al cliente, si la resuelve Anka por dentro o si no hace falta. Puedes
+        cambiar el texto y agregar las tuyas. Al preparar el correo solo entran las que elijas para el cliente (después las puedes
+        ajustar junto al correo); las internas quedan en «Qué falta resolver». Nada se envía sin «Enviar ahora».</p>
+      {% for pregunta in preguntas %}
+      <div class="pregunta">
+        <input type="hidden" name="q_id" value="{{ pregunta.id }}">
+        <label>Pregunta
+          <textarea name="q_text_{{ pregunta.id }}" rows="2">{{ pregunta.texto }}</textarea>
+        </label>
+        <label>Qué hacer
+          <select name="q_decision_{{ pregunta.id }}">
+            <option value="ask_client"{% if pregunta.elegida == 'ask_client' %} selected{% endif %}>Preguntar al cliente</option>
+            <option value="internal"{% if pregunta.elegida == 'internal' %} selected{% endif %}>Resolver internamente</option>
+            <option value="discard"{% if pregunta.elegida == 'discard' %} selected{% endif %}>Descartar</option>
+          </select>
+        </label>
+        <p class="meta">{{ pregunta.origen_texto }}{% if pregunta.decidida %} · decidida por ti{% else %} · el análisis sugiere {{ pregunta.sugerencia }}{% endif %}</p>
+      </div>
+      {% else %}
+      <p class="meta">El análisis no dejó preguntas candidatas. Si necesitas preguntarle algo al cliente, escríbelo abajo.</p>
+      {% endfor %}
+      <label>Agregar mis propias preguntas para el cliente (una por línea)
+        <textarea name="q_nuevas" class="caja-corta" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?"></textarea>
+      </label>
+    </div>
     <div class="toolbar spaced">
-      <button type="submit" class="secondary" name="decision" value="ask_client">Preparar el correo con las preguntas elegidas</button>
-      <button type="submit" class="secondary" name="decision" value="internal_only">Guardar mis decisiones sin preguntar al cliente</button>
+      <button type="submit" id="continuar-decision" data-confirm-para="sufficient"
+        data-confirm="El caso pasará a «información suficiente» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Continuar</button>
     </div>
   </form>
 </section>

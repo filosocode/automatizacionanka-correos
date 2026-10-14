@@ -280,7 +280,7 @@ class InjectionTests(Pages):
                 # data-confirm, required y pattern son atributos propios del código, nunca de datos
                 # (pattern valida el número de la T, que solo aparece con la información validada).
                 # `open` lo pone el código en el aviso plegable «Parece el mismo proyecto»; nunca viene de datos.
-                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "pattern", "open"})
+                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "data-confirm-para", "required", "checked", "pattern", "open"})
                 self.assertEqual(parsed.scripts, legit_scripts[name])
 
     def test_hostile_page_does_not_add_scripts_beyond_the_legitimate_ones(self):

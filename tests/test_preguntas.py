@@ -190,7 +190,7 @@ class CasoCompletoTests(unittest.TestCase):
         pagina = pantalla_caso.render_case("t-1")
         self.assertEqual(pagina.count('<div class="pregunta">'), 5)
         self.assertNotIn('value="ask_client" selected', pagina)
-        self.assertIn("Guardar mis decisiones sin preguntar al cliente", pagina)
+        self.assertIn("Solo guardar mis decisiones", pagina)
         self.assertIn("Agregar mis propias preguntas", pagina)
 
     def test_choosing_questions_builds_the_email_with_them_instead_of_the_work_acknowledgement(self):

@@ -234,11 +234,14 @@ button.danger:disabled { opacity: .45; cursor: not-allowed; }
 .notification-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
 .notification strong { display: block; margin-bottom: 3px; }
 .notification .button { min-height: 44px; padding: 7px 10px; }
-.process { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
-.process-step { padding: 12px; background: var(--surface-2); border-left: 3px solid var(--line); }
-.process-step.done { background: var(--accent-soft); border-left-color: var(--accent); }
-.process-step.current { background: var(--warn-bg); border-left-color: var(--warn); }
-.process-step strong { display: block; font-size: 13px; }
+.process { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+.process-step { position: relative; padding: 16px 0 0; background: none; border: 0; }
+.process-step::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 6px; border-radius: 3px; background: var(--surface-3); }
+.process-step.done::before { background: var(--accent); }
+.process-step.current::before { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.process-step strong { display: block; font-size: 13px; color: var(--muted); }
+.process-step.done strong { color: var(--ink); }
+.process-step.current strong { color: var(--ink); font-weight: 800; }
 .process-step span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
 .insight strong { display: block; margin-bottom: 3px; }
 .filters {
@@ -411,6 +414,23 @@ textarea.caja-media { min-height: 90px; }
 textarea.caja-correo { min-height: 260px; }
 .check-line { display: flex; gap: 8px; align-items: center; }
 .decision-arriba { margin-bottom: 18px; border-color: var(--accent); }
+.decision-arriba.ahora { border: 2px solid var(--accent); border-radius: 14px; padding: 22px; display: grid; gap: 14px; }
+.decision-arriba.ahora h2 { margin: 0; font-size: 21px; line-height: 1.25; }
+.decision-arriba.ahora .meta { margin: 0; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--accent-dark); }
+.decision-form { display: grid; gap: 14px; }
+.opciones { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.opcion { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 14px 16px; border: 2px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); cursor: pointer; font-weight: 500; font-size: 15px; }
+.opcion input[type=radio] { width: 20px; height: 20px; min-height: 0; padding: 0; margin: 3px 0 0; accent-color: var(--accent); }
+.opcion strong { display: block; font-size: 16px; }
+.opcion small { display: block; color: var(--muted); font-size: 13px; font-weight: 400; margin-top: 2px; }
+.opcion:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.opcion:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
+.opcion.discreta { grid-column: 1 / -1; border-style: dashed; padding: 10px 14px; }
+.opcion.discreta strong { font-size: 14px; }
+.preguntas-bloque { display: grid; gap: 12px; }
+.decision-form:not(:has(input[value="ask_client"]:checked)) .preguntas-bloque { display: none; }
+@media (max-width: 640px) { .opciones { grid-template-columns: 1fr; } .decision-arriba.ahora { padding: 16px; } }
 .paso-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 14px; }
 .paso-n { margin: 0; font-weight: 700; color: var(--muted); font-size: 13px; letter-spacing: .02em; }
 .glosario { margin: 0; }
