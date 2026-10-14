@@ -687,7 +687,9 @@ class CssOrdenado(Base):
         bloques = {"claro": css[css.index(":root {"):css.index("@media (prefers-color-scheme: dark)")],
                    "oscuro": css[css.index(':root[data-theme="dark"]'):css.index("* { box-sizing")]}
         for tema, bloque in bloques.items():
-            token = lambda nombre: re.search(rf"--{nombre}:\s*(#[0-9a-fA-F]{{6}})", bloque).group(1)     # noqa: E731
+            def token(nombre: str, bloque: str = bloque) -> str:
+                return re.search(rf"--{nombre}:\s*(#[0-9a-fA-F]{{6}})", bloque).group(1)      # type: ignore[union-attr]
+
             for fondo in ("panel", "input-bg"):
                 with self.subTest(tema=tema, fondo=fondo):
                     self.assertGreaterEqual(_contraste(token("control-line"), token(fondo)), 3.0)
