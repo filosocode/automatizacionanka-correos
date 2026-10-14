@@ -83,7 +83,6 @@ def _notifications_panel(notifications: list[dict], plegar: bool = False) -> Mar
 
 
 REPLY_LABEL = "Cliente respondió · por analizar"
-COLA_MAXIMA = 5
 # Etiqueta de `case_stage` → (urgencia, verbo del botón, ancla del paso dentro del caso). Menor urgencia, primero.
 _ACCION_POR_ETAPA: dict[str, tuple[int, str, str]] = {
     REPLY_LABEL: (0, "Revisar respuesta", ""),
@@ -134,7 +133,8 @@ def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False, mis
     _, verb, anchor = accion_de_caso(quote)
     code = quote.get("quote_code")
     return render(
-        "queue_row.html", position=position, is_new=is_new, mismos=mismos,
+        "queue_row.html", position=position, is_new=is_new, mismos=mismos, etapa=grupo_de_etapa(quote),
+        primaria=position == 1 and bool(case_stage(quote)[1]),
         project=quote["analysis"].get("project_name") or "Solicitud sin nombre",
         client_name=quote["client_name"], reason=case_stage(quote)[0], verb=verb,
         code=code_label(code, quote.get("code_stage") or "T") if code else "",
@@ -152,7 +152,7 @@ def _work_rejected_panel() -> Markup:
 
 
 def render_index(message: str = "") -> str:
-    """Resumen: «qué hacer hoy», novedades y las métricas de las solicitudes."""
+    """«Mis casos» (U-32): la lista de todos los casos, del más urgente al menos, con novedades y estadísticas."""
     quotes = all_quotes()
     notifications = unread_notifications(8)
     unread_threads = {item["thread_id"] for item in notifications}
@@ -160,21 +160,24 @@ def render_index(message: str = "") -> str:
     clients = Counter(q["client_name"] for q in quotes if q["client_name"])
     stages = {q["thread_id"]: case_stage(q) for q in quotes}
     grupo_de = {q["thread_id"]: g for g in agrupar_solicitudes(quotes, separated_project_pairs()) for q in g.miembros}
-    cola: list[tuple[Mapping[str, Any], Grupo]] = []
-    for q in cola_de_hoy(quotes):                       # un proyecto ocupa una sola entrada: la de su hilo más urgente
-        if all(grupo_de[q["thread_id"]] is not g for _, g in cola):
-            cola.append((q, grupo_de[q["thread_id"]]))
-    todo_cases = [q for q, _ in cola]
-    en_cola = {m["thread_id"] for _, g in cola[:COLA_MAXIMA] for m in g.miembros}
+    por_atender = cola_de_hoy(quotes)
+    resto = sorted((q for q in quotes if not case_stage(q)[1]), key=lambda q: -fecha_de_recepcion(q))
+    unidades: list[tuple[Mapping[str, Any], Grupo]] = []
+    for q in por_atender + resto:                       # un proyecto ocupa una sola fila: la de su hilo más urgente
+        if all(grupo_de[q["thread_id"]] is not g for _, g in unidades):
+            unidades.append((q, grupo_de[q["thread_id"]]))
+    en_lista = {m["thread_id"] for _, g in unidades for m in g.miembros}
     body = render(
         "index.html",
         sync_text=sync_status_text(),
         work_rejected=_work_rejected_panel(),
         notifications=_notifications_panel(notifications, plegar=bool(notifications) and all(
-            item["thread_id"] in en_cola for item in notifications)),
+            item["thread_id"] in en_lista for item in notifications)),
         total=len(quotes),
         unique_clients=len({q["client_email"].casefold() for q in quotes if q["client_email"]}),
-        action_count=len(todo_cases),
+        action_count=sum(1 for q, _ in unidades if case_stage(q)[1]),
+        etapas=[(key, label, sum(grupo_de_etapa(q) == key for q in quotes)) for key, label in ETAPAS_FILTRO],
+        inicial="atender" if por_atender else "",
         waiting=sum(stages[q["thread_id"]][0] == "Esperando al cliente" for q in quotes),
         quoting=sum(bool(q.get("quote_code")) and q.get("code_stage") != "TE" for q in quotes),
         approved=sum(q.get("code_stage") == "TE" for q in quotes),
@@ -183,8 +186,7 @@ def render_index(message: str = "") -> str:
         client_types=metric_rows(Counter(q["client_type"] for q in quotes)),
         insights=_dashboard_insights(quotes, services, clients),
         todo=[queue_row(q, n, q["thread_id"] in unread_threads, mismos=len(g.miembros) - 1)
-              for n, (q, g) in enumerate(cola[:COLA_MAXIMA], 1)],
-        hidden_count=max(len(todo_cases) - COLA_MAXIMA, 0),
+              for n, (q, g) in enumerate(unidades, 1)],
     )
     return page("Mis casos", body, message)
 

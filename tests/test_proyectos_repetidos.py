@@ -155,7 +155,7 @@ class VistaAgrupada(unittest.TestCase):
         html = self._pagina(paginas.render_index)
         self.assertEqual(html.count('class="queue-row"'), 2)                             # el proyecto y el suelto
         self.assertIn("+2 hilo(s) más del mismo proyecto", html)
-        self.assertIn("2 caso(s) por atender", html)
+        self.assertIn("2 por atender", html)
 
     def test_el_script_despliega_filtra_y_ordena_los_grupos(self) -> None:
         # Cubre: U-19

@@ -34,8 +34,10 @@ class Base(unittest.TestCase):
 
     def crear(self, thread_id: str = "t-1", estado: QuoteStatus = QuoteStatus.REVIEW,
               actividades: list[dict] | None = None, adjuntos: list[dict] | None = None,
-              lectura_pendiente: str = "", preguntas: list[str] | None = None) -> None:
+              lectura_pendiente: str = "", preguntas: list[str] | None = None, proyecto: str = "") -> None:
         analisis = complete_analysis(location="")
+        if proyecto:
+            analisis["project_name"] = proyecto
         if actividades is not None:
             analisis["activities"] = actividades
         if adjuntos is not None:
@@ -676,6 +678,73 @@ def _contraste(a: str, b: str) -> float:
         return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b_)
     claro, oscuro = sorted((luminancia(a), luminancia(b)), reverse=True)
     return (claro + 0.05) / (oscuro + 0.05)
+
+
+class PaginaPrincipalEsLaLista(Base):
+    def lista(self, **extra) -> str:
+        from anka.web import paginas
+        return paginas.render_index(**extra)
+
+    def test_lista_todos_los_casos_con_un_boton_con_verbo_por_fila(self) -> None:
+        # Cubre: U-32
+        self.crear("t-a", estado=QuoteStatus.REVIEW, proyecto="Proyecto A")
+        self.crear("t-b", estado=QuoteStatus.REVIEW_PENDING, proyecto="Proyecto B")
+        self.crear("t-c", estado=QuoteStatus.IGNORED, proyecto="Proyecto C")
+        separados = {frozenset(par) for par in (("t-a", "t-b"), ("t-a", "t-c"), ("t-b", "t-c"))}     # tres proyectos distintos
+        with patch("anka.web.paginas.separated_project_pairs", return_value=separados):
+            pagina = self.lista()
+        self.assertIn('<h1 class="titulo-principal">Mis casos</h1>', pagina)
+        self.assertGreaterEqual(pagina.count('class="queue-row"'), 2)
+        for hilo in ("t-a", "t-b"):
+            self.assertIn(f"/case?thread_id={hilo}", pagina)
+        self.assertNotIn("Qué hacer hoy", pagina)
+        self.assertEqual(len(re.findall(r'<li class="queue-row"[^>]*>.*?</li>', pagina, re.S)),
+                         len(re.findall(r'<li class="queue-row"[^>]*>.*?<a class="button[^"]*" href="[^"]+">\w', pagina, re.S)))
+
+    def test_los_chips_traen_los_numeros_y_todos(self) -> None:
+        # Cubre: U-32
+        self.crear("t-a", estado=QuoteStatus.REVIEW)
+        pagina = self.lista()
+        chips = pagina[pagina.index("data-filtro-etapas"):pagina.index('id="casos"')]
+        for etiqueta in ("Por atender", "Esperando al cliente", "Listas para la T", "En cotización"):
+            self.assertIn(etiqueta, chips)
+        self.assertRegex(chips, r'data-etapa="" aria-pressed="false">Todos <b>1</b>')
+        self.assertIn('data-inicial="atender"', chips)
+
+    def test_sin_casos_por_atender_entra_en_todos(self) -> None:
+        # Cubre: U-32
+        self.crear("t-a", estado=QuoteStatus.WAITING)
+        from datetime import datetime
+        db = store.open_db(Path(self.temp.name))
+        db.execute("UPDATE quotes SET sent_at=?, draft_body='Hola' WHERE thread_id='t-a'",
+                   (datetime.now().astimezone().isoformat(timespec="seconds"),))
+        db.commit()
+        db.close()
+        self.assertIn('data-inicial=""', self.lista())
+
+    def test_el_orden_va_del_mas_urgente_al_menos(self) -> None:
+        # Cubre: U-32
+        self.crear("t-decidir", estado=QuoteStatus.REVIEW, proyecto="Proyecto A")
+        self.crear("t-listo", estado=QuoteStatus.READY_REVIEW, proyecto="Proyecto B")
+        with patch("anka.web.paginas.separated_project_pairs", return_value={frozenset(("t-decidir", "t-listo"))}):
+            pagina = self.lista()
+        self.assertLess(pagina.index("t-listo"), pagina.index("t-decidir"))        # emitir la T (3) va antes que decidir (4)
+
+    def test_el_script_filtra_por_etapa_y_avisa_si_no_hay(self) -> None:
+        # Cubre: U-32
+        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        for pieza in ("[data-filtro-etapas]", "fila.dataset.etapa === etapa", "getElementById('sin-casos')", "chips.dataset.inicial"):
+            self.assertIn(pieza, layout)
+        self.assertIn(".queue-row[hidden]", (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
+
+    def test_buscar_o_exportar_y_el_aviso_de_work_siguen_en_la_pagina(self) -> None:
+        # Cubre: U-32
+        self.crear("t-a", estado=QuoteStatus.REVIEW)
+        rechazado = [{"draft": "r-1", "thread": "t-a", "reason": "x"}]
+        with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
+            pagina = self.lista()
+        self.assertIn('href="/requests">Buscar o exportar</a>', pagina)
+        self.assertIn("Un borrador de Work no se pudo leer", pagina)
 
 
 class MisCasos(Base):

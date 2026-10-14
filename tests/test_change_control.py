@@ -776,13 +776,14 @@ class UxFixesTests(Base):
         self.set_status(QuoteStatus.REVIEW_PENDING)
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = paginas.render_index()
-        self.assertIn("Qué hacer hoy", page)
+        self.assertIn("Mis casos", page)
+        self.assertIn("por atender, del más urgente al menos", page)
         self.assertIn("Por aclarar con el cliente", page)
         self.assertIn("Ver estadísticas", page)                           # las gráficas quedan plegadas
         self.assertLess(page.index("Por aclarar con el cliente"), page.index("Ver estadísticas"))
         self.set_status(QuoteStatus.WAITING)
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
-            self.assertIn("No hay nada pendiente de tu parte", paginas.render_index())
+            self.assertIn("nada pendiente de tu parte", paginas.render_index())
 
     # 5. encabezado
     def test_header_hides_the_mode_picker_in_settings_and_the_useless_refresh_in_work(self):

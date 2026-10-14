@@ -182,6 +182,22 @@
       });
     })();
     (function () {
+      // «Mis casos» (U-32): los chips de etapa muestran solo las filas de esa etapa; al entrar, la que dice data-inicial.
+      const chips = document.querySelector('[data-filtro-etapas]');
+      const filas = Array.from(document.querySelectorAll('#casos .queue-row'));
+      if (!chips) return;
+      const botones = Array.from(chips.querySelectorAll('.chip-filter'));
+      function elegir(etapa) {
+        botones.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.etapa === etapa)));
+        let visibles = 0;
+        filas.forEach(fila => { const ver = !etapa || fila.dataset.etapa === etapa; fila.hidden = !ver; if (ver) visibles += 1; });
+        const vacio = document.getElementById('sin-casos');
+        if (vacio) vacio.hidden = visibles !== 0;
+      }
+      botones.forEach(b => b.addEventListener('click', () => elegir(b.dataset.etapa)));
+      elegir(chips.dataset.inicial || '');
+    })();
+    (function () {
       // Pestañas del caso (U-31): con JavaScript se muestra un panel a la vez; sin él, todos se ven uno tras otro.
       document.querySelectorAll('[data-tabs]').forEach(raiz => {
         const pestanas = Array.from(raiz.querySelectorAll('[role="tab"]'));

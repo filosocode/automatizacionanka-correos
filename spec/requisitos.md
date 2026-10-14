@@ -691,7 +691,8 @@ la carpeta de Drive.
 20. **Ningún estado se queda sin tarjeta «Ahora» (D-88).** Todo caso muestra una tarjeta o un aviso de siguiente paso. Los que antes no tenían: «Descartada» (cómo rescatarla), «Hilo no
     disponible», «Respuesta enviada» sin espera (cómo escribir otro correo), «Envío interrumpido» (revisar antes de reenviar) y, para cualquier otro, el nombre del estado, «Este caso no necesita nada
     de ti ahora» y «Volver a Mis casos».
-21. **Lo escrito no se pierde si la acción falla (D-89).** En enviar, guardar borrador, emitir la T, decidir con preguntas y guardar la tabla, lo que la persona escribió se guarda en memoria
+
+21. **Lo escrito no se pierde si la acción falla (D-89).** En enviar, guardar borrador, emitir la T, decidir con preguntas y guardar la tabla, lo que la persona escribió se guarda en memoria
     (nunca en disco, 15 minutos, hasta 50 casos, sin el token de seguridad) antes de procesarlo. Si la acción falla con un aviso o con un error del servidor, al volver al caso el mensaje, el número de
     la T, el cuadro de preguntas o la tabla vuelven a su sitio, con el aviso «Lo que escribiste sigue aquí», y la página de error dice que lo escrito se conserva. Si la acción sale bien, o el caso ya no
     admite ese formulario, se olvida.
@@ -736,7 +737,7 @@ la carpeta de Drive.
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).
 
 ### U-32 · Una sola entrada, «Mis casos», sin barra de pestañas
-**Estado: en implementación, paso 1** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisión: D-91. Reemplaza lo que U-28.6 decía de la navegación; no quita ninguna función de U-11, U-13, U-16, U-19 ni U-25.
+**Estado: en implementación, pasos 1 y 2** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-91, D-92. Reemplaza lo que U-28.6 decía de la navegación; no quita ninguna función de U-11, U-13, U-16, U-19 ni U-25.
 
 **Motivo.** La persona responsable del producto no quiere la barra «Resumen / Solicitudes / Descartadas / Archivo»: pide un flujo amigable, práctico, sin tantas variaciones ni desvíos. Tres agentes de
 evaluación (UX, técnico y gestión, 2026-10-14) encontraron que Resumen y Solicitudes responden lo mismo, que solo una o dos de las cuatro pestañas sirven al trabajo diario y que Archivo (casos eliminados,
@@ -750,12 +751,19 @@ con identificadores ilegibles) es de auditoría. La persona respondió que resca
 3. **Un solo «volver».** Desde un caso, «← Mis casos» lleva a la entrada; los avisos de los casos sin acción dicen «Volver a Mis casos».
 4. **Accesibilidad.** La marca lleva `aria-current="page"` en «Mis casos»; su nombre accesible dice cuántos casos tienen novedades.
 
-**Paso 2 (solo si sigue molestando la lista doble, después de usar el paso 1):** fusionar Resumen y Solicitudes en esa entrada, con la cola arriba y la lista filtrable debajo, y que `/requests` redirija.
+**Paso 2 (pedido por la persona el mismo día, D-92): la página principal es la lista de casos.** La página de inicio («Mis casos», con el título grande) lista todos los casos, uno por fila, del más urgente al menos y,
+a igual urgencia, el más reciente; un proyecto con varios hilos ocupa una sola fila. Cada fila dice el proyecto, el cliente, en qué paso está (con los nombres de U-31.7) y trae un botón con verbo («Aclarar», «Decidir», «Emitir la T»,
+«Abrir») que lleva al caso; desde el caso, «← Mis casos» regresa a la lista. Encima de la lista, chips de etapa que son los contadores de antes («Por atender», «Esperando al cliente», «Listas para la T», «En cotización») y «Todos»;
+al entrar está elegido «Por atender» si hay casos que esperan a la persona y «Todos» si no. Las novedades y el aviso de borradores de Work van en la misma página; las estadísticas siguen plegadas. «Buscar o exportar» lleva a la
+página `/requests` de siempre (búsqueda, orden, tipo de cliente, eliminar en lote y exportar a Excel), que no cambia. Reemplaza lo de U-11 sobre la cola de cinco casos y el botón «Ver los N en Solicitudes».
 
 **Casos de aceptación**
 - E1 · El encabezado no tiene `<nav>` ni los enlaces «Resumen», «Solicitudes» y «Archivo»; la marca enlaza a `/` y marca la página actual; el contador de novedades está en la marca.
 - E1 · La página de inicio se titula «Mis casos»; toda página trae «Correos descartados» al pie; «Ajustes» trae «Casos eliminados (archivo)»; las tres direcciones antiguas siguen existiendo.
 - E1 · «← Mis casos» en el caso y «Volver a Mis casos» en los avisos llevan a `/`.
+- E2 · «Mis casos» lista todos los casos (no solo cinco), ordenados por urgencia y luego por fecha, con un solo botón con verbo por fila; un proyecto con varios hilos ocupa una fila; el título es un `h1` grande.
+- E2 · Los chips de etapa traen el número de casos de cada una y «Todos»; al entrar está elegido «Por atender» si hay casos por atender y «Todos» si no; elegir un chip muestra solo esas filas y, si no hay, dice que no hay casos en esa etapa.
+- E2 · «Buscar o exportar» lleva a `/requests`; las novedades y el aviso de borradores de Work siguen en la página.
 
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
 **Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la

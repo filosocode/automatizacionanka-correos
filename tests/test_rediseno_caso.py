@@ -87,14 +87,14 @@ class ColaDeHoy(unittest.TestCase):
         # Cubre: U-11
         self.assertEqual(paginas.accion_de_caso(_caso("h", QuoteStatus.MISSING))[1], "Abrir")
 
-    def test_el_resumen_limita_la_cola_y_avisa_del_resto(self) -> None:
-        # Cubre: U-11
+    def test_mis_casos_lista_todos_los_casos_sin_limite(self) -> None:
+        # Cubre: U-32
         casos = [_caso(f"t{n}", QuoteStatus.REVIEW) for n in range(7)]
         from unittest import mock
         with mock.patch.object(paginas, "all_quotes", return_value=casos),                 mock.patch.object(paginas, "unread_notifications", return_value=[]),                 mock.patch.object(paginas, "sync_status_text", return_value=""),                 mock.patch.object(paginas, "page", side_effect=lambda titulo, cuerpo, mensaje="": str(cuerpo)):
             html = paginas.render_index()
-        self.assertEqual(html.count('class="queue-row"'), paginas.COLA_MAXIMA)
-        self.assertIn("Hay 2 caso(s) más", html)
+        self.assertEqual(html.count('class="queue-row"'), 7)                    # ya no hay tope de cinco (D-92)
+        self.assertNotIn("caso(s) más", html)
 
 
 class ListaDeSolicitudes(unittest.TestCase):
@@ -340,15 +340,15 @@ class ResumenYControles(unittest.TestCase):
         # Cubre: U-11
         casos = [_caso("a", QuoteStatus.REVIEW), _caso("b", QuoteStatus.READY)]
         repetida = self._resumen(casos, [self._novedad("a")])
-        self.assertIn("ya aparecen en tu cola de hoy", repetida)
+        self.assertIn("ya aparecen en tu lista de casos", repetida)
         self.assertIn("Marcar como revisadas", repetida)                # el botón sigue dentro del plegado
         ajena = self._resumen(casos, [self._novedad("otro")])
-        self.assertNotIn("ya aparecen en tu cola de hoy", ajena)       # una novedad que no está en la cola queda a la vista
+        self.assertNotIn("ya aparecen en tu lista de casos", ajena)       # una novedad que no está en la cola queda a la vista
 
-    def test_el_resto_de_la_cola_es_un_boton(self) -> None:
-        # Cubre: U-11
+    def test_buscar_o_exportar_lleva_a_la_pagina_de_siempre(self) -> None:
+        # Cubre: U-32
         html = self._resumen([_caso(f"t{n}", QuoteStatus.REVIEW) for n in range(7)], [])
-        self.assertIn('<a class="button secondary" href="/requests">Ver los 2 en Solicitudes</a>', html)
+        self.assertIn('<a class="button secondary" href="/requests">Buscar o exportar</a>', html)
 
     def test_controles_de_44_px_y_botones_de_etapa_con_espacio(self) -> None:
         # Cubre: U-14
