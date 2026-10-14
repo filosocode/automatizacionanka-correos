@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -686,6 +686,8 @@ la carpeta de Drive.
     b) Ningún formulario de escritura se envía dos veces: tras el primer envío se ignoran los siguientes y el botón queda bloqueado (antes solo «Enviar»). c) Si el mensaje del correo está
     editado y la persona intenta salir de la página, el navegador avisa. d) «+ Agregar» abre el editor de la tabla aunque ya se hubiera abierto y cerrado. e) El mensaje de éxito o de error
     se queda a la vista tras saltar a un ancla y no reaparece al recargar. f) Ningún texto apunta a un título que ya no existe.
+19. **El Resumen no empieza con jerga (D-87).** El aviso de borradores de Work que el puente no pudo leer va debajo de la cola «Qué hacer hoy», no encima, con un título en lenguaje llano («Un borrador de Work
+    no se pudo leer»), una frase de qué pasó y qué hacer, el botón «Ver el caso» cuando el caso existe, y el identificador del borrador, el hilo y el motivo técnico plegados en «Ver el detalle técnico».
 
 **Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
 - E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
@@ -714,6 +716,7 @@ la carpeta de Drive.
 - E5 · «Editar tabla» y «+ Agregar» se dibujan como botones de contorno con texto del color de la marca.
 - E6 · Con una tarjeta «Ahora» el aviso estándar lleva `hidden`; sin ella se ve; el aviso de cambio, de enlaces y de respuesta por actualizar nunca lleva `hidden`.
 - E6 · Un formulario POST no se envía dos veces; con el correo editado el navegador pide confirmar al salir; «+ Agregar» abre el editor por script; el mensaje queda a la vista y su parámetro sale de la URL.
+- E8 · En el Resumen los casos por atender salen antes que el aviso de borradores de Work; el aviso dice «Un borrador de Work no se pudo leer» (o «N borradores… no se pudieron leer»), trae «Ver el caso» y deja el identificador y el motivo dentro de un detalle plegado.
 - E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; en revisión pendiente, «Por aclarar con el cliente»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

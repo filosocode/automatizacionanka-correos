@@ -607,6 +607,28 @@ class UnSoloNombreDeEstado(Base):
             self.assertEqual(canonical_work_status(etiqueta.lower()), etiqueta)
 
 
+class ResumenSinJerga(Base):
+    def test_el_aviso_de_borradores_va_debajo_de_la_cola_y_con_lenguaje_llano(self) -> None:
+        # Cubre: U-31
+        from anka.web import paginas
+        self.crear()
+        rechazado = [{"draft": "r-9", "thread": "t-1", "reason": "Hay bloques JSON repetidos o incompletos."}]
+        with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
+            pagina = paginas.render_index()
+        self.assertIn("Un borrador de Work no se pudo leer", pagina)
+        self.assertLess(pagina.index('class="queue"'), pagina.index('id="borradores-rechazados"'))
+        aviso = pagina[pagina.index('id="borradores-rechazados"'):]
+        aviso = aviso[:aviso.index("</section>")]
+        self.assertIn(">Ver el caso<", aviso)
+        visible = aviso[:aviso.index("<details")]
+        self.assertNotIn("JSON", visible)
+        self.assertNotIn("r-9", visible)
+        detalle = aviso[aviso.index("<details"):]
+        self.assertIn("Ver el detalle técnico", detalle)
+        self.assertIn("Borrador r-9", detalle)
+        self.assertIn("Hay bloques JSON repetidos o incompletos.", detalle)
+
+
 class SeguridadDelUsuario(Base):
     def test_el_aviso_de_decision_nunca_se_oculta_y_el_estandar_solo_con_tarjeta(self) -> None:
         # Cubre: U-31

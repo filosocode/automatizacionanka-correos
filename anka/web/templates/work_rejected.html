@@ -1,9 +1,12 @@
 <section class="section work-rejected" id="borradores-rechazados">
-  <h2>Borradores de Work que no se importaron</h2>
-  <p class="meta">El puente está activo, pero {{ items | length }} borrador(es) de Work no cumplen el contrato, así que no se importó su análisis: el caso se creó solo con los datos del correo (remitente, asunto y fecha) y queda en revisión técnica interna. Pídele a Work que lo vuelva a generar (o corrígelo en Gmail): se revisa solo cuando el borrador cambie y reemplaza ese caso.</p>
+  <h2>{% if items | length == 1 %}Un borrador de Work no se pudo leer{% else %}{{ items | length }} borradores de Work no se pudieron leer{% endif %}</h2>
+  <p class="meta">{% if items | length == 1 %}Ese caso se creó{% else %}Esos casos se crearon{% endif %} solo con los datos del correo (remitente, asunto y fecha) y {% if items | length == 1 %}quedó{% else %}quedaron{% endif %} <strong>por decidir</strong>. Pídele a Work que lo vuelva a generar o corrígelo en Gmail: se revisa solo cuando el borrador cambie y reemplaza ese caso.</p>
+  {% set con_caso = items | selectattr('case_href') | list %}
+  {% if con_caso %}<div class="acciones">{% for item in con_caso %}<a class="button secondary" href="{{ item.case_href }}">Ver el caso{% if items | length > 1 %} {{ loop.index }}{% endif %}</a>{% endfor %}</div>{% endif %}
+  <details class="more"><summary>Ver el detalle técnico</summary>
   <ul class="review-task-list">
     {% for item in items %}<li><strong>Borrador {{ item.draft }}</strong>{% if item.case_href %} · <a href="{{ item.case_href }}">ver el caso</a>{% elif item.thread %} · hilo {{ item.thread }} (aún sin caso){% endif %}
       <div class="meta">Motivo: {{ item.reason }}</div></li>
     {% endfor %}
-  </ul>
+  </ul></details>
 </section>

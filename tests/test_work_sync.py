@@ -552,7 +552,7 @@ class HeartbeatTests(unittest.TestCase):
         self.beat(20, rejected=[{"draft": "r-123", "thread": "hilo-sin-caso",
                                  "reason": "question_audit[0].unresolved debe ser de tipo string."}])
         panel = str(paginas._work_rejected_panel())
-        self.assertIn("Borradores de Work que no se importaron", panel)
+        self.assertIn("Un borrador de Work no se pudo leer", panel)
         self.assertIn("Borrador r-123", panel)
         self.assertIn("hilo hilo-sin-caso (aún sin caso)", panel)
         self.assertIn("question_audit[0].unresolved debe ser de tipo string.", panel)
