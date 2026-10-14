@@ -668,6 +668,51 @@ class TodoEstadoTieneAviso(Base):
                 self.assertIn(destino, aviso)
 
 
+def _contraste(a: str, b: str) -> float:
+    def luminancia(hexa: str) -> float:
+        r, g, b_ = (int(hexa.lstrip("#")[i:i + 2], 16) / 255 for i in (0, 2, 4))
+        f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4     # noqa: E731
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b_)
+    claro, oscuro = sorted((luminancia(a), luminancia(b)), reverse=True)
+    return (claro + 0.05) / (oscuro + 0.05)
+
+
+class CssOrdenado(Base):
+    def css(self) -> str:
+        return (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+
+    def test_el_borde_de_los_controles_pasa_3_a_1_en_los_dos_temas(self) -> None:
+        # Cubre: U-31
+        css = self.css()
+        bloques = {"claro": css[css.index(":root {"):css.index("@media (prefers-color-scheme: dark)")],
+                   "oscuro": css[css.index(':root[data-theme="dark"]'):css.index("* { box-sizing")]}
+        for tema, bloque in bloques.items():
+            token = lambda nombre: re.search(rf"--{nombre}:\s*(#[0-9a-fA-F]{{6}})", bloque).group(1)     # noqa: E731
+            for fondo in ("panel", "input-bg"):
+                with self.subTest(tema=tema, fondo=fondo):
+                    self.assertGreaterEqual(_contraste(token("control-line"), token(fondo)), 3.0)
+        self.assertGreaterEqual(css.count("--control-line:"), 3)
+        self.assertIn("border: 1px solid var(--control-line)", css)
+
+    def test_cada_selector_de_la_pantalla_se_define_una_vez(self) -> None:
+        # Cubre: U-31
+        css = self.css()
+        for selector in (".next-step", ".paso-cabecera", ".paso-n", ".pregunta", ".armar-correo", ".process-step strong", ".toolbar"):
+            with self.subTest(selector=selector):
+                self.assertEqual(len(re.findall(rf"(?m)^{re.escape(selector)} \{{", css)), 1)
+
+    def test_pantalla_angosta_y_movimiento_reducido(self) -> None:
+        # Cubre: U-31
+        css = self.css()
+        self.assertIn('.tablist [role="tab"], button.enlace, .seg, .ayuda, .acts-head .button, summary, .ver-todas-boton { width: auto; }', css)
+        self.assertIn(".act-table .act-main > td[data-etiqueta]::before { content: attr(data-etiqueta);", css)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", css)
+        self.crear(actividades=[actividad("Planimetría", "confirmado")])
+        pagina = pantalla_caso.render_case("t-1")
+        for etiqueta in ("Actividad", "Servicio o técnica", "Cantidad y unidad", "Estado", "Notas"):
+            self.assertIn(f'data-etiqueta="{etiqueta}"', pagina)
+
+
 class SeguridadDelUsuario(Base):
     def test_el_aviso_de_decision_nunca_se_oculta_y_el_estandar_solo_con_tarjeta(self) -> None:
         # Cubre: U-31
