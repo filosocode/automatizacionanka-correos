@@ -1,4 +1,16 @@
 <section class="section stepper">
+  <div class="paso-cabecera">
+    <p class="paso-n">Paso {{ current }} de 4</p>
+    <details class="more glosario">
+      <summary class="ayuda" aria-label="¿Qué significan T, T&amp;E y los términos de lectura?" title="¿Qué significan T, T&amp;E y los términos de lectura?">?</summary>
+      <dl>
+        <dt>T</dt><dd>El código de la oferta (año y consecutivo, por ejemplo T26145). Se emite cuando la información está validada; desde entonces todo cambio debe citarlo.</dd>
+        <dt>T&amp;E</dt><dd>La misma oferta cuando el cliente ya la aprobó (por ejemplo T&amp;E26145).</dd>
+        <dt>Lectura realizada</dt><dd>El correo y sus adjuntos se leyeron. No quiere decir que todo lo leído sirva para esta oferta.</dd>
+        <dt>Aplicabilidad</dt><dd>Si lo leído aplica a esta solicitud (un plano de otro proyecto, por ejemplo, no aplica). La confirma una persona de Anka.</dd>
+      </dl>
+    </details>
+  </div>
   <div class="process">
     {% for step in steps %}<div class="process-step {{ step.state }}"><strong>{{ loop.index }}. {{ step.title }}</strong><span>{{ step.note }}</span></div>
     {% endfor %}

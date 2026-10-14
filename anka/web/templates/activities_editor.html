@@ -1,8 +1,11 @@
 <form method="post" action="/activities">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   <input type="hidden" name="row_count" value="{{ row_count }}">
-  <p class="meta">Estado: <strong>confirmado</strong> = el dato está completo; <strong>pendiente</strong> = falta confirmar algo; <strong>contradictorio</strong> = las fuentes no coinciden. En Notas escribe qué falta o qué valores chocan, de dónde salen y quién lo resuelve (el cliente o el equipo de Anka). Abre «Más datos» para ver ubicación, entregable, plazo y fuente. Las cajas se ajustan a su texto; arrastra la esquina de una para cambiar la altura de su fila (si el texto no cabe, la caja se desplaza por dentro).
-  <button type="button" class="secondary" id="ajustar-cajas">Ajustar cajas al texto</button></p>
+  {% if resumen %}<p class="resumen-tabla"><strong>{{ resumen }}</strong></p>{% endif %}
+  <details class="more leer-estados"><summary>Cómo leer los estados</summary>
+  <p class="meta">Estado: <strong>confirmado</strong> = el dato está completo; <strong>pendiente</strong> = falta confirmar algo; <strong>contradictorio</strong> = las fuentes no coinciden. En Notas escribe qué falta o qué valores chocan, de dónde salen y quién lo resuelve (el cliente o el equipo de Anka). Abre «Más datos» para ver ubicación, entregable, plazo y fuente. Las cajas se ajustan a su texto; arrastra la esquina de una para cambiar la altura de su fila (si el texto no cabe, la caja se desplaza por dentro).</p></details>
+  <p class="meta"><button type="button" class="secondary" id="ajustar-cajas">Ajustar cajas al texto</button></p>
+
 {% macro campo(row, key, label, filas=2) %}<textarea name='a{{ row.index }}_{{ key }}' rows='{{ filas }}' aria-label='{{ label }}'{% if not row.by[key] or row.by[key] == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ row.by[key] }}</textarea>{% endmacro %}
   <div class="scroll-x"><table class="act-table" role="table"><thead><tr class="act-head" role="row"><th>Actividad</th><th>Servicio/técnica</th><th>Cantidad y unidad</th><th>Estado</th><th>Notas</th><th></th></tr></thead>
   {% for row in rows %}<tbody class="act-row"><tr class="act-main{% if row.is_new %} nueva{% endif %}" role="row">

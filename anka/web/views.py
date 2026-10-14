@@ -10,7 +10,7 @@ from typing import Any
 from markupsafe import Markup
 
 from anka.dominio.preguntas import INTERNA, identificador, limpiar
-from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS
+from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS, normalize_estado
 from anka.dominio.attachments import compactar_paginas
 from anka.web.templating import render
 
@@ -287,6 +287,15 @@ def _sin_cambios(ultima: Mapping[str, Any] | None) -> str:
     return f"Sin cambios por guardar · última versión: {ultima['version']} ({cuando})"
 
 
+def _resumen_de_actividades(activities: Sequence[Mapping[str, Any]]) -> str:
+    """«4 actividades · 2 por completar»: cuántas hay y cuántas no están confirmadas (R12). Vacío si no hay ninguna."""
+    if not activities:
+        return ""
+    faltan = sum(1 for item in activities if normalize_estado(item.get("estado")) != "confirmado")
+    cuantas = f"{len(activities)} actividad{'' if len(activities) == 1 else 'es'}"
+    return f"{cuantas} · {f'{faltan} por completar' if faltan else 'todas completas'}"
+
+
 def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
                       reasons: list[tuple[str, str]] | None = None, hoja: Mapping[str, Any] | None = None,
                       ultima: Mapping[str, Any] | None = None) -> Markup:
@@ -304,6 +313,7 @@ def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
     return render(
         "activities_editor.html",
         thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS,
+        resumen=_resumen_de_actividades(activities),
         reasons=reasons or [],
         sin_cambios=_sin_cambios(ultima),
         hoja={"url": "", "error": "", "tiene_carpeta": False, "actualizada": ""} | dict(hoja or {}),

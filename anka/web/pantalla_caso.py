@@ -299,7 +299,7 @@ def _stepper(review: Caso) -> Markup:
               "note": "Completado" if n < current else current_notes[n] if n == current else "Pendiente",
               "state": "done" if n < current else "current" if n == current else ""}
              for n in range(1, 5)]
-    return render("stepper.html", steps=steps)
+    return render("stepper.html", steps=steps, current=current)
 
 
 def _code_panel(review: Caso) -> Markup:

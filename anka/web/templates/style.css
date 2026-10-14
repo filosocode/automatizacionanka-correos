@@ -411,7 +411,14 @@ textarea.caja-media { min-height: 90px; }
 textarea.caja-correo { min-height: 260px; }
 .check-line { display: flex; gap: 8px; align-items: center; }
 .decision-arriba { margin-bottom: 18px; border-color: var(--accent); }
-.glosario { margin: -10px 0 14px; }
+.paso-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 14px; }
+.paso-n { margin: 0; font-weight: 700; color: var(--muted); font-size: 13px; letter-spacing: .02em; }
+.glosario { margin: 0; }
+.glosario[open] { flex: 1 1 100%; order: 3; }
+.glosario > summary.ayuda { justify-content: center; width: 44px; padding: 0; font-size: 14px; }
+.glosario > summary.ayuda::before { content: ""; }
+.resumen-tabla { margin: 0 0 6px; font-size: 15px; }
+.leer-estados { margin: 0 0 8px; }
 .glosario dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0;
   padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
 .glosario dt { font-weight: 700; }

@@ -621,6 +621,58 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    de siempre). No envía nada; el correo se revisa y se envía con «Enviar ahora» (R8). El botón desaparece cuando ya hay preguntas en el campo
    o ya decidiste.
 
+### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
+**Estado: en implementación, etapa 1** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78, D-79. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
+
+**Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
+fluidez: 11 secciones, 43 campos de texto, ayuda en prosa en casi cada sección, dos caminos para las mismas preguntas y mensajes distintos sobre
+la carpeta de Drive.
+
+**Qué debe cumplirse (acordado hasta ahora)**
+1. **Una tarjeta «Ahora»** bajo el encabezado, con lo que toca hacer en este paso y como máximo dos salidas. Sin envíos al cliente en la decisión (R8).
+2. **Los cuatro pasos reales arriba**, los de siempre: «Revisar y aclarar», «Información validada», «T emitida» y «T&E aprobada», con «Paso N de 4». No cambia
+   ningún estado ni transición (`transiciones.json`, `STATUS_LABELS` y `_case_stage` quedan como están). La carpeta de Drive no es un paso: se crea al emitir la T
+   (ver el requisito de emisión) y se anota en «T emitida» («carpeta creada»).
+3. **«Actividades detectadas» siempre visible** y compacta bajo la tarjeta: tres columnas (actividad, cantidad, estado), una línea de resumen
+   («N actividades · M por completar») y marca solo en las filas incompletas. La edición, el guardado con motivo y la exportación siguen como
+   en U-21; aquí solo cambia dónde y cómo se ven.
+4. **Archivos y tareas de revisión: resumen de una línea siempre visible** («3 archivos · 1 sin leer») antes de la tabla; lo que no se pudo
+   leer o requiere revisión interna se muestra abierto, y lo leído queda plegado. Respeta la intención de D-36 (nada de evidencia escondida
+   cuando exige una acción) y reemplaza su «todas las fichas muestran adjuntos y tareas» por «todas las fichas muestran el resumen y lo pendiente».
+5. **Un solo editor de preguntas en el paso «Revisar».** Cada pregunta trae una casilla «Preguntar al cliente» (marcada si el análisis lo sugiere) y su texto editable; al desmarcarla
+   aparece un selector pequeño «Lo resuelve Anka» (por defecto; pasa a «Qué falta resolver») o «Descartar». Siguen siendo las tres salidas de U-22, con un clic para el caso normal.
+   «Preparar el correo» arma el correo solo con las marcadas; cambiar las preguntas después, mientras el correo no haya salido, vuelve a este editor (U-27) y no hay un segundo
+   camino de edición.
+
+**Valores por omisión propuestos (se dan por buenos si nadie los objeta antes de programar)**
+6. **Glosario.** El glosario de U-28.7 deja de ser el primer bloque del caso: un «?» junto a «Paso N de 4» lo abre (mismos términos: T, T&E, lectura realizada, aplicabilidad).
+7. **Un solo nombre por estado.** «Información validada» es el nombre del estado en la lista, el aviso, los pasos y los botones; los botones de la decisión dicen «Con esto alcanza» y
+   «Hay que preguntarle al cliente». Desaparecen «información suficiente» y «Recepción completa» como etiquetas del caso (el texto del historial puede conservarlos).
+8. **Lectura sin verificar (U-29).** Si hay archivos que Anka no pudo verificar, la tarjeta «Ahora» lo dice primero y ofrece «Ya revisé estos archivos yo» (con su confirmación)
+   como acción principal; la decisión de abajo queda deshabilitada hasta entonces, igual que hoy.
+9. **Tabla larga.** «Actividades detectadas» muestra las primeras 8 filas y un «Ver todas (N)»; las filas incompletas siempre se muestran.
+10. **Detalle técnico.** Datos comerciales, contexto interno, enrutamiento, asuntos pendientes y revisión de preguntas pasan a una sección plegada «Detalle técnico» al final del caso; la
+    trazabilidad (historial) queda en su propia pestaña. Nada se elimina ni cambia de contenido.
+11. **Orden de lectura.** Aviso «Ahora» → decisión → archivos y revisiones pendientes → «Actividades detectadas» → conversación con el cliente → seguimiento → respuesta →
+    emisión de la T → carpeta → detalle técnico. La conversación sigue completa y a un desplazamiento; solo pasa a estar después de la tabla (reemplaza el orden de la regla 2 de `04-ux.md`).
+12. **Resumen de la tabla.** Sobre la tabla, una línea «N actividades · M por completar» (o «todas completas»); `M` cuenta las que no están «confirmado» (R12). La explicación larga de los
+    estados queda plegada en «Cómo leer los estados».
+
+**Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
+- E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
+- E1 · El «?» del glosario está junto a los pasos, abre T, T&E, Lectura realizada y Aplicabilidad, y ya no hay un glosario antes del encabezado de pasos.
+- E1 · Orden: aviso, decisión, archivos y revisiones pendientes, actividades, conversación, respuesta, emisión de la T y trazabilidad (en ese orden).
+- E1 · Con 4 actividades de las que 2 no están confirmadas, la tabla dice «4 actividades · 2 por completar»; con todas confirmadas, «todas completas»; sin actividades, no hay línea.
+- E1 · La explicación de los estados está plegada («Cómo leer los estados») y las acciones de guardar, exportar y el historial de cambios no cambian (U-21).
+- E2 · Los archivos se resumen en una línea («3 archivos · 1 sin leer»); lo no leído o por revisar se ve abierto y lo leído, plegado.
+- E2 · Con lectura sin verificar, la tarjeta «Ahora» ofrece «Ya revisé estos archivos yo» primero y la decisión no se puede enviar (U-29).
+- E2 · Con más de 8 actividades se ven 8 y «Ver todas (N)»; las incompletas siempre se ven. «Detalle técnico» agrupa lo técnico, plegado.
+- E3 · Cada pregunta trae la casilla «Preguntar al cliente»; al desmarcarla ofrece «Lo resuelve Anka» (por omisión) y «Descartar»; «Preparar el correo» solo lleva las marcadas.
+- E3 · «Información validada» es el único nombre del estado en lista, aviso, pasos y botones; «Recepción completa» e «información suficiente» ya no se muestran como etiqueta del caso.
+
+**Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).
+
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
 **Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la
 primera con el prompt V6.1 (2026-10-11, D-69) leyó el hilo y dejó el borrador completo; faltan el KMZ, el ZIP y el adjunto grande (ver «Prueba

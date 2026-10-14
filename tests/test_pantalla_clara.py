@@ -163,7 +163,8 @@ class Accesibilidad(unittest.TestCase):
         caso = (PLANTILLAS / "case.html").read_text(encoding="utf-8")
         self.assertNotIn("style=", caso)
         self.assertNotIn("<style>", (PLANTILLAS / "activities_editor.html").read_text(encoding="utf-8"))
-        glosario = caso[caso.index('class="more glosario"'):caso.index("</details>")]
+        pasos = (PLANTILLAS / "stepper.html").read_text(encoding="utf-8")   # el glosario va con los pasos (U-31)
+        glosario = pasos[pasos.index('class="more glosario"'):pasos.index("</details>")]
         for termino in ("<dt>T</dt>", "<dt>T&amp;E</dt>", "<dt>Lectura realizada</dt>", "<dt>Aplicabilidad</dt>"):
             self.assertIn(termino, glosario)
 

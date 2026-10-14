@@ -597,7 +597,7 @@ class GuidedFlowTests(Base):
     def test_sections_follow_a_top_to_bottom_thread(self):
         self.set_status(QuoteStatus.READY_REVIEW)
         page = self.page()
-        order = ["Conversación con el cliente", "Actividades detectadas", "Respuesta al cliente",
+        order = ["Actividades detectadas", "Conversación con el cliente", "Respuesta al cliente",
                  "Listo para cotizar: emitir la T", "Detalles y trazabilidad del caso", "Seguimiento"]
         positions = [page.index(title) for title in order]
         self.assertEqual(positions, sorted(positions))

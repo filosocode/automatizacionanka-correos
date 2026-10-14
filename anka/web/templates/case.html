@@ -1,14 +1,6 @@
 <form method="post" id="visto" action="/notifications/seen" hidden><input type="hidden" name="thread_id" value="{{ thread_id }}"></form>
 <div class="page-head"><div><h1>{{ project_name }}</h1><p>{{ summary }}</p></div><a class="button secondary" href="/requests">Volver</a></div>
-<details class="more glosario">
-  <summary>¿Qué significan «T», «T&amp;E» y los términos de lectura?</summary>
-  <dl>
-    <dt>T</dt><dd>El código de la oferta (año y consecutivo, por ejemplo T26145). Se emite cuando la información está validada; desde entonces todo cambio debe citarlo.</dd>
-    <dt>T&amp;E</dt><dd>La misma oferta cuando el cliente ya la aprobó (por ejemplo T&amp;E26145).</dd>
-    <dt>Lectura realizada</dt><dd>El correo y sus adjuntos se leyeron. No quiere decir que todo lo leído sirva para esta oferta.</dd>
-    <dt>Aplicabilidad</dt><dd>Si lo leído aplica a esta solicitud (un plano de otro proyecto, por ejemplo, no aplica). La confirma una persona de Anka.</dd>
-  </dl>
-</details>
+{{ stepper }}
 {{ next_step }}
 {% if analysis_blocked %}
 <section class="section" id="lectura-revisada">
@@ -65,9 +57,6 @@
 {% endif %}
 {{ project_panel }}
 <div class="layout">
-  {{ stepper }}
-  {{ conversation }}
-  {{ followup }}
   <section class="section" id="attachments-review">
     <h2>Archivos y revisiones pendientes</h2>
     <p class="meta">Revisa los archivos y pendientes de Anka antes de validar el alcance o enviar preguntas al cliente.</p>
@@ -82,6 +71,8 @@
     {{ edit_note }}
     {{ activities_editor }}
   </section>
+  {{ conversation }}
+  {{ followup }}
   {% if manual_review %}<div class="notice">{{ manual_review }}</div>{% endif %}
   {% if analysis_blocked and email == 'form' %}
   <section class="section" id="respuesta"><h2>Respuesta al cliente</h2><div class="notice">En pausa: no se prepara ni se habilita una respuesta basada en este análisis hasta completar la lectura del mensaje y sus adjuntos.</div></section>
