@@ -73,6 +73,7 @@ def _palabra(codigo: str) -> str:
     return _PALABRAS.get(codigo.strip().casefold().replace(" ", "_"), codigo)
 
 
+_NO_LEIDO = frozenset({"bloqueado", "no_legible", "unreadable"})
 _SIN_LEER = frozenset({"bloqueado", "lectura_parcial", "no_legible", "unreadable", "parcial", "partial"})
 
 
@@ -96,9 +97,15 @@ def attachments_panel(attachments: Sequence[Mapping[str, Any]]) -> Markup:
     else:
         cuantos = f"{len(items)} archivo{'' if len(items) == 1 else 's'}"
         resumen = f"{cuantos} · {f'{len(atencion)} por revisar' if atencion else 'todos leídos'}"
-    return render("attachments_panel.html", resumen=resumen, atencion=len(atencion),
-                  tabla_atencion=attachments_table(atencion) if atencion else Markup(""),
-                  leidos=len(leidos), tabla_leidos=attachments_table(leidos) if leidos else Markup(""))
+    filas = [{"nombre": str(item.get("filename") or "Sin nombre"), "atencion": True,
+              "etiqueta": ("No se pudo leer: ábrelo tú" if _codigo(item.get("status")) in _NO_LEIDO
+                           else "Lectura parcial: revísalo tú"),
+              "motivo": str(item.get("reason") or "")} for item in atencion]
+    filas += [{"nombre": str(item.get("filename") or "Sin nombre"), "atencion": False, "etiqueta": "Leído",
+               "motivo": ""}
+              for item in leidos]
+    return render("attachments_panel.html", resumen=resumen, filas=filas,
+                  detalle=attachments_table(atencion + leidos) if items else Markup(""))
 
 
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
@@ -330,7 +337,7 @@ def _vista_de_actividades(activities: Sequence[Mapping[str, Any]]) -> list[dict[
             valor for valor in (str(item.get("quantity") or "").strip(), str(item.get("unit") or "").strip())
             if valor and valor.casefold() != "no indicado")
         filas.append({"actividad": str(item.get("activity") or "Sin nombre"), "cantidad": cantidad or "—",
-                      "estado": estado, "etiqueta": _ETIQUETA_DEL_ESTADO[estado],
+                      "estado": estado, "etiqueta": _ETIQUETA_DEL_ESTADO[estado], "falta": estado != "confirmado",
                       "motivo": "" if estado == "confirmado" else str(item.get("notes") or "").strip(),
                       "extra": index >= MAX_FILAS_VISIBLES and estado == "confirmado"})
     return filas

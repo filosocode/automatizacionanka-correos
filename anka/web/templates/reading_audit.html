@@ -1,5 +1,5 @@
 {% if preflight or audit.get('verification') %}
-<details class="notice" open>
+<details class="notice"{% if blocked %} open{% endif %}>
   <summary><strong>Lectura y aplicabilidad</strong></summary>
   <p>Lectura: {{ reading.get('status') or 'no indicado' }}. Interpretación visual: {{ reading.get('visual') or 'no indicado' }}.</p>
   {% if audit.get('verification') %}

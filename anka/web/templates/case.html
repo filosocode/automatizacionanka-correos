@@ -133,10 +133,10 @@
 {% if slot == 'codigo' %}{{ code_panel }}{% endif %}
 {{ project_panel }}
 <div class="layout">
+  {{ proposal_panel }}
+  {{ edit_note }}
   <section class="section actividades">
-    <h2>Actividades detectadas</h2>
-    {{ proposal_panel }}
-    {{ edit_note }}
+    {% if analysis_blocked %}<h2>Actividades detectadas</h2>{% endif %}
     {{ activities_editor }}
   </section>
   {{ followup }}

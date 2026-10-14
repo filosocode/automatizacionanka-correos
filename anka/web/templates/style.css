@@ -457,8 +457,18 @@ textarea.caja-correo { min-height: 260px; }
 .act-resumen .chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--ok-bg); color: var(--ok-ink); white-space: nowrap; }
 .act-resumen .chip.pendiente, .act-resumen .chip.contradictorio { background: var(--warn-bg); color: var(--warn-ink); }
 .act-resumen .motivo { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
-.editar-tabla { margin-top: 10px; }
-.editar-tabla > summary { display: inline-flex; width: auto; }
+.toggle-oculto { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.acts-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 16px; margin-bottom: 8px; }
+.acts-head h2 { margin: 0; font-size: 18px; }
+.acts-head .resumen-tabla { margin: 2px 0 0; font-weight: 400; color: var(--muted); font-size: 14px; }
+.acts-head .acciones { gap: 8px; }
+.acts-head .button { font-size: 14px; }
+.toggle-oculto:checked ~ .acts-head label[for="editar-toggle"] { background: var(--accent-soft); border-color: var(--accent); }
+.toggle-oculto:focus-visible ~ .acts-head label[for="editar-toggle"] { outline: 3px solid var(--focus); outline-offset: 2px; }
+.editor-tabla { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.toggle-oculto:checked ~ .editor-tabla, .editor-tabla:target, .editor-tabla:has(:target) { display: block; }
+.act-resumen tr.falta td:first-child { box-shadow: inset 3px 0 0 var(--warn-ink); }
+.archivos-detalle { margin-top: 10px; }
 .resumen-tabla { margin: 0 0 6px; font-size: 15px; }
 .leer-estados { margin: 0 0 8px; }
 .glosario dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0;

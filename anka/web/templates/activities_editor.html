@@ -1,9 +1,13 @@
-{% if resumen %}<p class="resumen-tabla"><strong>{{ resumen }}</strong></p>
-{% if escondidas %}<input type="checkbox" id="ver-todas" class="ver-todas"><label for="ver-todas" class="button secondary ver-todas-boton"><span class="ver-si">Ver todas ({{ total }})</span><span class="ver-no">Ver menos</span></label>{% endif %}
+<input type="checkbox" id="editar-toggle" class="toggle-oculto">
+<div class="acts-head">
+  <div><h2>Actividades detectadas</h2>{% if resumen %}<p class="resumen-tabla">{{ resumen }}</p>{% endif %}</div>
+  <div class="acciones"><a class="button secondary" href="#editar-tabla">+ Agregar</a><label for="editar-toggle" class="button secondary">Editar tabla</label></div>
+</div>
+{% if resumen %}{% if escondidas %}<input type="checkbox" id="ver-todas" class="ver-todas"><label for="ver-todas" class="button secondary ver-todas-boton"><span class="ver-si">Ver todas ({{ total }})</span><span class="ver-no">Ver menos</span></label>{% endif %}
 <div class="scroll-x"><table class="act-resumen"><thead><tr><th>Actividad</th><th>Cantidad</th><th>Estado</th></tr></thead>
-<tbody>{% for fila in vista %}<tr class="fila-resumen{% if fila.extra %} extra{% endif %}"><td>{{ fila.actividad }}</td><td>{{ fila.cantidad }}</td><td><span class="chip {{ fila.estado }}">{{ fila.etiqueta }}</span>{% if fila.motivo %}<span class="motivo">{{ fila.motivo | truncate(160) }}</span>{% endif %}</td></tr>
+<tbody>{% for fila in vista %}<tr class="fila-resumen{% if fila.falta %} falta{% endif %}{% if fila.extra %} extra{% endif %}"><td>{{ fila.actividad }}</td><td>{{ fila.cantidad }}</td><td><span class="chip {{ fila.estado }}">{{ fila.etiqueta }}</span>{% if fila.motivo %}<span class="motivo">{{ fila.motivo | truncate(160) }}</span>{% endif %}</td></tr>
 {% endfor %}</tbody></table></div>{% endif %}
-<details class="more editar-tabla" id="editar-tabla"><summary class="button secondary">Editar tabla</summary>
+<div class="editor-tabla" id="editar-tabla">
 <form method="post" action="/activities">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   <input type="hidden" name="row_count" value="{{ row_count }}">
@@ -33,7 +37,6 @@
   </div>
   <p class="meta">Queda en el historial (versión, qué cambió y cuándo); no se envía nada al cliente. Una fila nueva se guarda solo si tiene datos.</p>
 </form>
-</details>
 <div class="sheet-box" id="hoja-google">
   <div class="toolbar">
     <strong>Exportar la tabla</strong>
@@ -51,4 +54,5 @@
   <details class="more"><summary>Cómo funciona la hoja de Google</summary>
   <p class="meta">Edita la tabla aquí, en el dashboard: lo que se escriba directamente en la hoja se sobrescribe en la próxima actualización (Google guarda las versiones anteriores en Archivo &gt; Historial de versiones). La hoja incluye también la solicitud inicial y el historial de cambios.</p>
   </details>
+</div>
 </div>

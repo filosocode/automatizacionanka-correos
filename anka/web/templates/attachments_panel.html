@@ -1,3 +1,5 @@
 <p class="resumen-tabla"><strong>{{ resumen }}</strong></p>
-{% if atencion %}{{ tabla_atencion }}{% endif %}
-{% if leidos %}<details class="more archivos-leidos"><summary>Archivos leídos ({{ leidos }})</summary>{{ tabla_leidos }}</details>{% endif %}
+{% if filas %}<div class="scroll-x"><table class="act-resumen"><thead><tr><th>Archivo</th><th>Qué pasó</th></tr></thead>
+<tbody>{% for fila in filas %}<tr class="fila-resumen{% if fila.atencion %} falta{% endif %}"><td>{{ fila.nombre }}</td><td><span class="chip {{ 'pendiente' if fila.atencion else 'confirmado' }}">{{ fila.etiqueta }}</span>{% if fila.motivo %}<span class="motivo">{{ fila.motivo | truncate(160) }}</span>{% endif %}</td></tr>
+{% endfor %}</tbody></table></div>
+<details class="more archivos-detalle"><summary>Ver el detalle técnico de los archivos</summary>{{ detalle }}</details>{% endif %}

@@ -147,26 +147,30 @@ def adjunto(nombre: str, estado: str = "extraido") -> dict:
 
 
 class ArchivosEnUnaLinea(Base):
-    def test_resume_y_deja_a_la_vista_solo_lo_que_hay_que_revisar(self) -> None:
+    def panel(self, pagina: str) -> str:
+        return pagina[pagina.index('id="attachments-review"'):pagina.index('id="p-hist"')]
+
+    def test_resume_y_lista_los_archivos_como_el_prototipo(self) -> None:
         # Cubre: U-31
         self.crear(adjuntos=[adjunto("solicitud.pdf"), adjunto("lote.kmz"), adjunto("planos.dwg", "bloqueado")])
-        pagina = pantalla_caso.render_case("t-1")
-        self.assertIn("3 archivos · 1 por revisar", pagina)
-        seccion = pagina[pagina.index('id="attachments-review"'):pagina.index('id="p-hist"')]
-        fuera = seccion.split('<details class="more archivos-leidos"')[0]
-        self.assertIn("planos.dwg", fuera)
-        self.assertNotIn("solicitud.pdf", fuera)
-        leidos = seccion.split('<details class="more archivos-leidos"')[1]
-        self.assertIn("Archivos leídos (2)", leidos)
-        self.assertIn("solicitud.pdf", leidos)
-        self.assertNotIn("open", leidos.split(">", 1)[0])
+        panel = self.panel(pantalla_caso.render_case("t-1"))
+        self.assertIn("3 archivos · 1 por revisar", panel)
+        tabla = panel[panel.index('class="act-resumen"'):panel.index("</table>")]
+        self.assertIn("<th>Archivo</th><th>Qué pasó</th>", tabla)
+        self.assertEqual(tabla.count('class="fila-resumen'), 3)
+        self.assertLess(tabla.index("planos.dwg"), tabla.index("solicitud.pdf"))       # lo que hay que revisar, primero
+        fila = tabla.split('<tr class="fila-resumen falta">')[1].split("</tr>")[0]
+        self.assertIn("planos.dwg", fila)
+        self.assertIn(">No se pudo leer: ábrelo tú<", fila)
+        self.assertEqual(tabla.count(">Leído<"), 2)
+        self.assertIn('<details class="more archivos-detalle">', panel)               # el detalle técnico, a un clic
 
     def test_si_todo_se_leyo_nada_pide_atencion(self) -> None:
         # Cubre: U-31
         self.crear(adjuntos=[adjunto("solicitud.pdf"), adjunto("lote.kmz")])
-        pagina = pantalla_caso.render_case("t-1")
-        self.assertIn("2 archivos · todos leídos", pagina)
-        self.assertIn("Archivos leídos (2)", pagina)
+        panel = self.panel(pantalla_caso.render_case("t-1"))
+        self.assertIn("2 archivos · todos leídos", panel)
+        self.assertNotIn("fila-resumen falta", panel)
 
     def test_un_archivo_y_ninguno(self) -> None:
         # Cubre: U-31
@@ -175,13 +179,12 @@ class ArchivosEnUnaLinea(Base):
         self.crear("t-2", adjuntos=[])
         self.assertIn("Sin archivos adjuntos", pantalla_caso.render_case("t-2"))
 
-    def test_las_tareas_de_revision_siguen_a_la_vista(self) -> None:
+    def test_las_tareas_de_revision_siguen_en_la_pestana(self) -> None:
         # Cubre: U-31
         self.crear(adjuntos=[adjunto("planos.dwg", "bloqueado")])
-        pagina = pantalla_caso.render_case("t-1")
-        self.assertIn("Revisar el adjunto planos.dwg", pagina)
-        panel = pagina[pagina.index('id="attachments-review"'):pagina.index('id="p-hist"')]
-        self.assertIn("Qué falta resolver", panel)                  # las tareas viven en la pestaña de archivos
+        panel = self.panel(pantalla_caso.render_case("t-1"))
+        self.assertIn("Revisar el adjunto planos.dwg", panel)
+        self.assertIn("Qué falta resolver", panel)
 
 
 class YaRevisePrimero(Base):
@@ -223,13 +226,23 @@ class TablaDelPrototipo(Base):
         # Cubre: U-31
         self.crear(actividades=self.filas(2))
         pagina = pantalla_caso.render_case("t-1")
-        self.assertIn('<details class="more editar-tabla"', pagina)
-        self.assertNotIn('class="more editar-tabla" open', pagina)
-        editor = pagina[pagina.index('class="more editar-tabla"'):]
+        cabecera = pagina[pagina.index('class="acts-head"'):pagina.index('class="act-resumen"')]
+        self.assertIn("<h2>Actividades detectadas</h2>", cabecera)
+        self.assertIn('<a class="button secondary" href="#editar-tabla">+ Agregar</a>', cabecera)
+        self.assertIn('<label for="editar-toggle" class="button secondary">Editar tabla</label>', cabecera)
+        self.assertRegex(pagina, r'<input type="checkbox" id="editar-toggle" class="toggle-oculto">')
+        self.assertNotIn('id="editar-toggle" class="toggle-oculto" checked', pagina)     # cerrada al cargar
+        editor = pagina[pagina.index('class="editor-tabla" id="editar-tabla"'):]
         for conservado in ("<th>Servicio/técnica</th>", "Guardar tabla", "Ver historial de cambios", "Descargar Excel",
                            "Más datos: ubicación, entregable, plazo y fuente"):
             self.assertIn(conservado, editor)
-        self.assertIn(">Editar tabla<", editor)
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".toggle-oculto:checked ~ .editor-tabla, .editor-tabla:target, .editor-tabla:has(:target)", css)
+        # el formulario y el cuadro de exportación están dentro del panel que se abre; fuera solo queda la vista compacta
+        self.assertGreater(pagina.index('action="/activities"'), pagina.index('id="editar-tabla"'))
+        self.assertGreater(pagina.index('id="hoja-google"'), pagina.index('action="/activities"'))
+        self.assertEqual(pagina.count("<details"), pagina.count("</details>"))
+        self.assertEqual(pagina.count("<div"), pagina.count("</div>"))
 
     def test_con_mas_de_ocho_se_ven_ocho_y_ver_todas(self) -> None:
         # Cubre: U-31
