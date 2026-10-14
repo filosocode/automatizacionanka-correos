@@ -195,16 +195,45 @@ class YaRevisePrimero(Base):
         self.assertNotIn('formaction="/send"', pagina)
 
 
-class TablaLarga(Base):
+class TablaDelPrototipo(Base):
     def filas(self, cuantas: int, incompletas: tuple[int, ...] = ()) -> list[dict]:
         return [actividad(f"Actividad {n}", "pendiente" if n in incompletas else "confirmado")
+                | ({"notes": "Falta el método de validación altimétrica."} if n in incompletas else {})
                 for n in range(1, cuantas + 1)]
+
+    def vista(self, pagina: str) -> str:
+        inicio = pagina.index('class="act-resumen"')
+        return pagina[inicio:pagina.index("</table>", inicio)]
+
+    def test_la_vista_compacta_tiene_tres_columnas_con_etiqueta_y_motivo(self) -> None:
+        # Cubre: U-31
+        self.crear(actividades=self.filas(3, incompletas=(2,)))
+        vista = self.vista(pantalla_caso.render_case("t-1"))
+        for titulo in ("Actividad", "Cantidad", "Estado"):
+            self.assertIn(f"<th>{titulo}</th>", vista)
+        self.assertEqual(vista.count("<th>"), 3)
+        self.assertIn("10 ha", vista)
+        self.assertIn(">Completa<", vista)
+        self.assertIn(">Por completar<", vista)
+        self.assertIn("Falta el método de validación altimétrica.", vista)
+
+    def test_editar_tabla_abre_la_tabla_completa_de_siempre(self) -> None:
+        # Cubre: U-31
+        self.crear(actividades=self.filas(2))
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn('<details class="more editar-tabla"', pagina)
+        self.assertNotIn('class="more editar-tabla" open', pagina)
+        editor = pagina[pagina.index('class="more editar-tabla"'):]
+        for conservado in ("<th>Servicio/técnica</th>", "Guardar tabla", "Ver historial de cambios", "Descargar Excel",
+                           "Más datos: ubicación, entregable, plazo y fuente"):
+            self.assertIn(conservado, editor)
+        self.assertIn(">Editar tabla<", editor)
 
     def test_con_mas_de_ocho_se_ven_ocho_y_ver_todas(self) -> None:
         # Cubre: U-31
         self.crear(actividades=self.filas(11))
         pagina = pantalla_caso.render_case("t-1")
-        self.assertEqual(pagina.count('class="act-row extra"'), 3)
+        self.assertEqual(pagina.count('class="fila-resumen extra"'), 3)
         self.assertIn("Ver todas (11)", pagina)
         self.assertIn('id="ver-todas"', pagina)
 
@@ -212,25 +241,20 @@ class TablaLarga(Base):
         # Cubre: U-31
         self.crear(actividades=self.filas(11, incompletas=(10, 11)))
         pagina = pantalla_caso.render_case("t-1")
-        self.assertEqual(pagina.count('class="act-row extra"'), 1)
-        self.assertIn("Ver todas (11)", pagina)
-        for fila in pagina.split('<tbody class="act-row extra">')[1:]:
-            self.assertIn("estado-confirmado", fila.split("</tbody>")[0])
+        self.assertEqual(pagina.count('class="fila-resumen extra"'), 1)
+        for fila in pagina.split('<tr class="fila-resumen extra">')[1:]:
+            self.assertIn(">Completa<", fila.split("</tr>")[0])
 
-    def test_hasta_ocho_no_hay_ver_todas(self) -> None:
+    def test_hasta_ocho_no_hay_ver_todas_y_el_editor_siempre_trae_todas(self) -> None:
         # Cubre: U-31
         self.crear(actividades=self.filas(8))
         pagina = pantalla_caso.render_case("t-1")
         self.assertNotIn("Ver todas", pagina)
-        self.assertNotIn('class="act-row extra"', pagina)
-
-    def test_las_filas_escondidas_igual_se_envian_al_guardar(self) -> None:
-        # Cubre: U-31
-        self.crear(actividades=self.filas(10))
-        pagina = pantalla_caso.render_case("t-1")
-        extra = pagina.split('<tbody class="act-row extra">')[1]
-        self.assertIn("name='a8_activity'", extra)
-        self.assertIn('name="row_count" value="10"', pagina)
+        self.assertNotIn('class="fila-resumen extra"', pagina)
+        self.crear("t-2", actividades=self.filas(11))
+        grande = pantalla_caso.render_case("t-2")
+        self.assertIn("name='a10_activity'", grande)
+        self.assertNotIn('class="act-row extra"', grande)
 
 
 def tarjeta(pagina: str) -> str:
@@ -239,26 +263,28 @@ def tarjeta(pagina: str) -> str:
 
 
 class TarjetaAhora(Base):
-    def test_la_decision_es_una_tarjeta_con_tres_opciones_y_un_solo_boton(self) -> None:
+    def test_la_decision_es_una_tarjeta_con_dos_opciones_y_un_solo_boton(self) -> None:
         # Cubre: U-31
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn('class="section decision-arriba ahora" id="decision"', pagina)
         decision = tarjeta(pagina)
         self.assertIn(">Ahora<", decision)
-        for valor in ("sufficient", "ask_client", "internal_only"):
+        for valor in ("sufficient", "ask_client"):
             self.assertIn(f'<input type="radio" name="decision" value="{valor}"', decision)
+        self.assertNotIn('value="internal_only"', decision)
         self.assertIn("Con esto alcanza", decision)
         self.assertIn("Hay que preguntarle al cliente", decision)
         self.assertEqual(decision.count('type="submit"'), 1)
         self.assertIn('id="continuar-decision"', decision)
 
-    def test_con_preguntas_sugeridas_viene_marcada_preguntar_y_se_ven(self) -> None:
+    def test_con_preguntas_sugeridas_viene_marcada_preguntar_y_el_cuadro_las_trae(self) -> None:
         # Cubre: U-31
         self.crear(preguntas=["¿Cuál es el datum del levantamiento?"])
         decision = tarjeta(pantalla_caso.render_case("t-1"))
         self.assertRegex(decision, r'value="ask_client"[^>]*checked')
-        self.assertIn("¿Cuál es el datum del levantamiento?", decision)
+        cuadro = decision.split('name="questions"')[1].split("</textarea>")[0]
+        self.assertIn("¿Cuál es el datum del levantamiento?", cuadro)
 
     def test_sin_preguntas_sugeridas_no_viene_marcada_ninguna(self) -> None:
         # Cubre: U-31
@@ -268,13 +294,14 @@ class TarjetaAhora(Base):
         db.commit()
         db.close()
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        self.assertNotRegex(decision, r'<input[^>]*checked')
+        self.assertNotRegex(decision, r"<input[^>]*\bchecked\b")
 
     def test_solo_con_esto_alcanza_pide_confirmacion(self) -> None:
         # Cubre: U-31
         self.crear()
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        boton = decision[decision.index('id="continuar-decision"') - 200:decision.index("</button>", decision.index('id="continuar-decision"'))]
+        inicio = decision.index('id="continuar-decision"')
+        boton = decision[inicio - 200:decision.index("</button>", inicio)]
         self.assertIn('data-confirm-para="sufficient"', boton)
         self.assertIn("data-confirm=", boton)
         layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
@@ -291,27 +318,51 @@ class TarjetaAhora(Base):
                                         "questions": ["¿Cuál es el datum del levantamiento?"]})
         self.assertFalse(quotes.get_quote("t-a").informacion_validada)
         self.assertEqual(quotes.get_quote("t-a")["status"], QuoteStatus.REVIEW_PENDING)
-        self.crear("t-i", preguntas=["¿Cuál es el datum del levantamiento?"])
-        acciones._post_review_decision({"thread_id": ["t-i"], "decision": ["internal_only"]})
-        self.assertEqual(quotes.get_quote("t-i")["status"], QuoteStatus.REVIEW)
 
 
-class PreguntasCompactas(Base):
-    def test_cada_pregunta_es_una_fila_con_tres_opciones_en_una_linea(self) -> None:
+INTERNA = "Inspeccionar geometrías DWG y magnitudes (revisión interna)"
+DATUM = "¿Cuál es el datum del levantamiento?"
+
+
+class CuadroUnico(Base):
+    def test_hay_un_solo_cuadro_y_ninguna_tarjeta_por_pregunta(self) -> None:
         # Cubre: U-31
-        self.crear(preguntas=["¿Cuál es el datum del levantamiento?"])
-        pagina = pantalla_caso.render_case("t-1")
-        filas = pagina.split('<div class="pregunta">')[1:]
-        self.assertTrue(filas)
-        fila = next(f for f in filas if "datum" in f).split("</fieldset>")[0]
-        identificador = fila.split('name="q_id" value="')[1].split('"')[0]
-        for valor, texto in (("ask_client", "Preguntar al cliente"), ("internal", "Lo resuelve Anka"), ("discard", "Descartar")):
-            self.assertIn(f'<input type="radio" name="q_decision_{identificador}" value="{valor}"', fila)
-            self.assertIn(texto, fila)
-        self.assertNotIn("<select", fila)
-        self.assertRegex(fila, r'value="ask_client"[^>]*checked')
+        self.crear(preguntas=[DATUM, "¿Qué plazo esperan?", INTERNA])
+        decision = tarjeta(pantalla_caso.render_case("t-1"))
+        self.assertEqual(decision.count("<textarea"), 1)
+        self.assertIn('name="questions"', decision)
+        for sobrante in ('name="q_id"', "q_decision_", 'class="pregunta"', "<select"):
+            self.assertNotIn(sobrante, decision)
 
-    def test_con_la_tarjeta_ahora_no_se_dibuja_el_aviso_repetido(self) -> None:
+    def test_el_cuadro_trae_solo_lo_que_se_le_pregunta_al_cliente_y_cuenta_lo_interno(self) -> None:
+        # Cubre: U-31
+        self.crear(preguntas=[DATUM, "¿Qué plazo esperan?", INTERNA])
+        decision = tarjeta(pantalla_caso.render_case("t-1"))
+        cuadro = decision.split('name="questions"')[1].split("</textarea>")[0]
+        self.assertIn(DATUM, cuadro)
+        self.assertIn("¿Qué plazo esperan?", cuadro)
+        self.assertNotIn("Inspeccionar geometrías", cuadro)
+        self.assertRegex(decision, r"1 punto[s]? (lo|los) resuelve[n]? Anka")
+
+    def test_con_el_cuadro_vacio_pide_escribir_una_pregunta(self) -> None:
+        # Cubre: U-31
+        from anka.web import acciones
+        self.crear(preguntas=[DATUM])
+        acciones._post_review_decision({"thread_id": ["t-1"], "decision": ["ask_client"], "questions": ["   "]})
+        self.assertEqual(quotes.get_quote("t-1")["status"], QuoteStatus.REVIEW)
+
+    def test_lo_que_se_borro_o_se_escribio_se_conserva_al_volver_a_decidir(self) -> None:
+        # Cubre: U-31
+        from anka.web import acciones
+        self.crear(preguntas=[DATUM, "¿Qué plazo esperan?"])
+        acciones._post_review_decision({"thread_id": ["t-1"], "decision": ["ask_client"],
+                                        "questions": ["¿Qué plazo esperan?\n¿Hay restricciones de acceso al predio?"]})
+        quotes.volver_a_decidir("t-1", "reconsiderar")
+        cuadro = tarjeta(pantalla_caso.render_case("t-1")).split('name="questions"')[1].split("</textarea>")[0]
+        self.assertIn("¿Hay restricciones de acceso al predio?", cuadro)
+        self.assertNotIn(DATUM, cuadro)
+
+    def test_el_aviso_amarillo_repetido_no_se_dibuja(self) -> None:
         # Cubre: U-31
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
@@ -320,21 +371,6 @@ class PreguntasCompactas(Base):
         self.assertIn('class="next-step', pagina)
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
         self.assertIn(".next-step:has(+ .decision-arriba) { display: none; }", css)
-
-    def test_cada_opcion_por_pregunta_se_guarda_como_antes(self) -> None:
-        # Cubre: U-31
-        from anka.web import acciones
-        self.crear(preguntas=["¿Cuál es el datum del levantamiento?"])
-        pagina = pantalla_caso.render_case("t-1")
-        fila = next(f for f in pagina.split('<div class="pregunta">')[1:] if "datum" in f)
-        identificador = fila.split('name="q_id" value="')[1].split('"')[0]
-        acciones._post_review_decision({"thread_id": ["t-1"], "decision": ["ask_client"], "q_id": [identificador],
-                                        f"q_decision_{identificador}": ["internal"],
-                                        f"q_text_{identificador}": ["¿Cuál es el datum del levantamiento?"],
-                                        "q_nuevas": ["¿Qué plazo esperan?"]})
-        vuelta = pantalla_caso.render_case("t-1")
-        self.assertIn("Qué falta resolver", vuelta)
-        self.assertIn("¿Qué plazo esperan?", vuelta)
 
 
 class PasosComoBarra(Base):

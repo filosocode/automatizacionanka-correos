@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 3** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78, D-79. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 3** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78, D-79, D-80, D-81. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -634,17 +634,19 @@ la carpeta de Drive.
 2. **Los cuatro pasos reales arriba**, los de siempre: «Revisar y aclarar», «Información validada», «T emitida» y «T&E aprobada», con «Paso N de 4». No cambia
    ningún estado ni transición (`transiciones.json`, `STATUS_LABELS` y `_case_stage` quedan como están). La carpeta de Drive no es un paso: se crea al emitir la T
    (ver el requisito de emisión) y se anota en «T emitida» («carpeta creada»).
-3. **«Actividades detectadas» siempre visible** y compacta bajo la tarjeta: tres columnas (actividad, cantidad, estado), una línea de resumen
-   («N actividades · M por completar») y marca solo en las filas incompletas. La edición, el guardado con motivo y la exportación siguen como
-   en U-21; aquí solo cambia dónde y cómo se ven.
+3. **«Actividades detectadas» siempre visible**, con la tabla del prototipo: una vista compacta de tres columnas (Actividad, Cantidad, Estado) y, en el estado, una etiqueta («Completa»,
+   «Por completar», «Contradictoria») y el motivo en letra pequeña cuando falta algo. Encima, la línea «N actividades · M por completar» (o «todas completas»). Con más de 8 filas se ven 8
+   y «Ver todas (N)»; las incompletas siempre se ven. El botón «Editar tabla» abre la tabla completa de siempre (las 10 columnas, con «Más datos»); allí siguen el guardado con motivo,
+   «Quitar», la exportación y el historial de cambios de U-21. Lo que cambia es qué se ve primero; qué se guarda, no.
 4. **Archivos y tareas de revisión: resumen de una línea siempre visible** («3 archivos · 1 sin leer») antes de la tabla; lo que no se pudo
    leer o requiere revisión interna se muestra abierto, y lo leído queda plegado. Respeta la intención de D-36 (nada de evidencia escondida
    cuando exige una acción) y reemplaza su «todas las fichas muestran adjuntos y tareas» por «todas las fichas muestran el resumen y lo pendiente».
-5. **Un solo editor de preguntas en el paso «Revisar».** Cada pregunta es una fila compacta: su texto editable y, en la misma fila, un control de tres opciones de una sola
-   elección: «Preguntar al cliente» (marcada si el análisis lo sugiere), «Lo resuelve Anka» (pasa a «Qué falta resolver») y «Descartar». Son las tres salidas de U-22 (`ask_client`,
-   `internal`, `discard`, el mismo contrato del formulario), con un clic y sin JavaScript. «Continuar» con «Hay que preguntarle al cliente» arma el correo solo con las marcadas;
-   cambiar las preguntas después, mientras el correo no haya salido, vuelve a este editor (U-27) y no hay un segundo camino de edición. El texto de ayuda largo de cada pregunta
-   se reduce a su origen en una línea.
+5. **Un solo cuadro de texto con las inquietudes del análisis.** Al elegir «Hay que preguntarle al cliente», la tarjeta muestra un único cuadro «Preguntas para el cliente (una por línea)»,
+   ya escrito con todas las inquietudes que el análisis sugiere para el cliente (las de Anka, que son internas, no van). La persona borra las que no hagan falta, corrige las que quiera
+   y escribe las suyas; «Continuar» arma el correo con lo que quede, sin más pasos (el mismo camino de U-24). Debajo, una línea dice cuántos puntos resuelve Anka por dentro («Qué falta
+   resolver»). Ya no hay una tarjeta por pregunta ni selectores por pregunta en la pantalla. Si el cuadro queda vacío, se pide escribir al menos una o elegir «Con esto alcanza». Al
+   volver a decidir antes de enviar (U-27), el cuadro trae lo que la persona había escrito. El contrato del formulario con las decisiones por pregunta (U-22: `q_id`, `q_decision_<id>`)
+   sigue aceptándose en el servidor y en la API, pero la pantalla ya no lo usa; reemplaza lo que U-22, U-26 y U-30 decían de los selectores en pantalla.
 
 **Valores por omisión propuestos (se dan por buenos si nadie los objeta antes de programar)**
 6. **Glosario.** El glosario de U-28.7 deja de ser el primer bloque del caso: un «?» junto a «Paso N de 4» lo abre (mismos términos: T, T&E, lectura realizada, aplicabilidad).
@@ -652,7 +654,6 @@ la carpeta de Drive.
    «Hay que preguntarle al cliente». Desaparecen «información suficiente» y «Recepción completa» como etiquetas del caso (el texto del historial puede conservarlos).
 8. **Lectura sin verificar (U-29).** Si hay archivos que Anka no pudo verificar, la tarjeta «Ahora» lo dice primero y ofrece «Ya revisé estos archivos yo» (con su confirmación)
    como acción principal; la decisión de abajo queda deshabilitada hasta entonces, igual que hoy.
-9. **Tabla larga.** «Actividades detectadas» muestra las primeras 8 filas y un «Ver todas (N)»; las filas incompletas siempre se muestran.
 10. **Detalle técnico.** Datos comerciales, contexto interno, enrutamiento, asuntos pendientes y revisión de preguntas pasan a una sección plegada «Detalle técnico» al final del caso; la
     trazabilidad (historial) queda en su propia pestaña. Nada se elimina ni cambia de contenido.
 11. **Orden de lectura.** Aviso «Ahora» → decisión → archivos y revisiones pendientes → «Actividades detectadas» → conversación con el cliente → seguimiento → respuesta →
@@ -660,8 +661,8 @@ la carpeta de Drive.
 12. **Resumen de la tabla.** Sobre la tabla, una línea «N actividades · M por completar» (o «todas completas»); `M` cuenta las que no están «confirmado» (R12). La explicación larga de los
     estados queda plegada en «Cómo leer los estados».
 13. **Aspecto de «Ahora» (como el prototipo).** La decisión de revisión técnica es una tarjeta destacada con la etiqueta «Ahora», borde de color y el título «¿Cómo seguimos?». Las salidas son
-    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente», más una tercera, discreta, «Solo guardar mis decisiones». Hay un único botón
-    «Continuar». Las preguntas del análisis se ven al elegir «Hay que preguntarle al cliente» y esa opción viene marcada cuando el análisis sugiere preguntas para el cliente (U-30). Elegir
+    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Hay un único botón
+    «Continuar». El cuadro de preguntas se ve al elegir «Hay que preguntarle al cliente» y esa opción viene marcada cuando el análisis sugiere preguntas para el cliente (U-30). Elegir
     «Con esto alcanza» sigue pidiendo confirmación (U-28.3). Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
     marca, pendientes en gris, y el actual con el texto en negrita.
 
@@ -674,11 +675,13 @@ la carpeta de Drive.
 - E2 · Los archivos se resumen en una línea («3 archivos · 1 sin leer»); lo no leído o por revisar se ve abierto y lo leído, plegado.
 - E2 · Con lectura sin verificar, el aviso «Ahora» dice «Lectura pendiente» y su botón «Elegir cómo seguir» lleva a «¿Ya revisaste estos archivos tú?», justo debajo y antes de las actividades, con «Ya revisé estos archivos yo»; no hay decisión ni envío (U-29).
 - E2 · Con más de 8 actividades se ven 8 y «Ver todas (N)»; las incompletas siempre se ven y las filas escondidas se guardan igual. «Detalle técnico» ya es la sección plegada «Detalles y trazabilidad del caso»: conserva su nombre y su contenido.
-- E3a · La decisión es una tarjeta «Ahora» con tres opciones de una sola elección (`name="decision"`: `sufficient`, `ask_client`, `internal_only`) y un único botón «Continuar»; ya no hay tres botones de envío.
-- E3a · Con preguntas sugeridas para el cliente, «Hay que preguntarle al cliente» viene marcada y las preguntas se ven; sin ellas no viene marcada ninguna opción.
-- E3a · «Continuar» pide confirmación solo si está elegida «Con esto alcanza»; con «Hay que preguntarle al cliente» o «Solo guardar mis decisiones» no.
-- E3a · Enviar el formulario con cada opción produce el mismo resultado que antes (mismo estado, mismas preguntas, mismo historial).
-- E3b · Cada pregunta es una fila con su texto y un control «Preguntar al cliente / Lo resuelve Anka / Descartar» (`q_decision_<id>`); viene marcado lo que sugiere el análisis o lo que la persona ya eligió (U-27); «Continuar» solo lleva al correo las de «Preguntar al cliente».
+- E3a · La decisión es una tarjeta «Ahora» con dos opciones de una sola elección (`name="decision"`: `sufficient`, `ask_client`) y un único botón «Continuar»; ya no hay botones de envío sueltos ni tercera opción.
+- E3a · Con preguntas sugeridas para el cliente, «Hay que preguntarle al cliente» viene marcada y el cuadro único las trae una por línea; sin ellas no viene marcada ninguna opción.
+- E3a · «Continuar» pide confirmación solo si está elegida «Con esto alcanza».
+- E3a · Enviar el formulario con «Con esto alcanza» o con «Hay que preguntarle al cliente» deja el mismo estado e historial que antes; con preguntas, el caso pasa a «Revisa el correo» con ellas.
+- E3b · No hay una tarjeta ni un selector por pregunta: hay un cuadro `questions` con las sugeridas una por línea, que solo incluye las que el análisis sugiere para el cliente; las internas se cuentan en una línea.
+- E3b · Con el cuadro vacío, «Continuar» pide escribir al menos una pregunta. Lo escrito se conserva al volver a decidir antes de enviar (U-27).
+- E3b · La vista compacta de actividades tiene tres columnas con etiqueta y motivo; «Editar tabla» abre la tabla completa y guardar funciona como antes.
 - E3b · Mientras la tarjeta «Ahora» con la decisión está en la página, el aviso «Falta tu decisión de revisión técnica» no se dibuja (lo dice la tarjeta) y no se queda pegado arriba.
 - E3 · «Información validada» es el único nombre del estado en lista, aviso, pasos y botones; «Recepción completa» e «información suficiente» ya no se muestran como etiqueta del caso.
 

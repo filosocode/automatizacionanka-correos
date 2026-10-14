@@ -106,11 +106,13 @@ class EnLaPantalla(unittest.TestCase):
         store.save(db, "t-1", "m-1", QuoteStatus.REVIEW, "cliente@empresa.co", analisis)
         db.close()
         pagina = pantalla_caso.render_case("t-1")
-        tarjetas = [t.split("</fieldset>")[0] for t in pagina.split('<div class="pregunta">')[1:]]
-        for nota, esperado in ((LIMITE_1, "internal"), (LIMITE_2, "internal"), (TAREA, "internal"), (PUNTO, "ask_client")):
+        decision = pagina.split('id="decision"')[1].split("</section>")[0]
+        cuadro = decision.split('name="questions"')[1].split("</textarea>")[0]
+        for nota, va_al_cliente in ((LIMITE_1, False), (LIMITE_2, False), (TAREA, False), (PUNTO, True)):
             with self.subTest(nota=nota[:40]):
-                tarjeta = next(t for t in tarjetas if nota.split(";")[0].split(".")[0] in t)
-                self.assertIn(f'value="{esperado}" checked', tarjeta)
+                clave = nota.split(";")[0].split(".")[0]
+                self.assertEqual(clave in cuadro, va_al_cliente)     # lo de Anka no va al cuadro del cliente (U-26, U-31)
+        self.assertIn("resuelven Anka por dentro", decision)
 
 
 if __name__ == "__main__":

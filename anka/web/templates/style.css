@@ -439,6 +439,7 @@ textarea.caja-correo { min-height: 260px; }
 .opcion.discreta { grid-column: 1 / -1; border-style: dashed; padding: 10px 14px; }
 .opcion.discreta strong { font-size: 14px; }
 .preguntas-bloque { display: grid; gap: 12px; }
+.preguntas-bloque textarea { min-height: 170px; }
 .decision-form:not(:has(input[value="ask_client"]:checked)) .preguntas-bloque { display: none; }
 @media (max-width: 640px) { .opciones { grid-template-columns: 1fr; } .decision-arriba.ahora { padding: 16px; } }
 .paso-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 14px; }
@@ -450,8 +451,16 @@ textarea.caja-correo { min-height: 260px; }
 .ver-todas { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .ver-todas-boton { margin: 0 0 8px; }
 .ver-todas:focus-visible + .ver-todas-boton { outline: 3px solid var(--focus); outline-offset: 2px; }
-.ver-todas:not(:checked) ~ .scroll-x .act-row.extra { display: none; }
+.ver-todas:not(:checked) ~ .scroll-x .fila-resumen.extra { display: none; }
 .ver-todas:not(:checked) + .ver-todas-boton .ver-no, .ver-todas:checked + .ver-todas-boton .ver-si { display: none; }
+.act-resumen { width: 100%; border-collapse: collapse; font-size: 15px; }
+.act-resumen th { text-align: left; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.act-resumen td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.act-resumen .chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--ok-bg); color: var(--ok-ink); white-space: nowrap; }
+.act-resumen .chip.pendiente, .act-resumen .chip.contradictorio { background: var(--warn-bg); color: var(--warn-ink); }
+.act-resumen .motivo { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
+.editar-tabla { margin-top: 10px; }
+.editar-tabla > summary { display: inline-flex; width: auto; }
 .resumen-tabla { margin: 0 0 6px; font-size: 15px; }
 .leer-estados { margin: 0 0 8px; }
 .glosario dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0;

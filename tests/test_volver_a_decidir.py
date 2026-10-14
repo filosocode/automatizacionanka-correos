@@ -72,10 +72,9 @@ class VolverAtras(Base):
         self.elegir({PUNTO: dominio.PREGUNTAR, NOTA: dominio.DESCARTAR})
         quotes.volver_a_decidir("t-1", "reconsiderar")
         pagina = pantalla_caso.render_case("t-1")
-        tarjetas = [t.split("</fieldset>")[0] for t in pagina.split('<div class="pregunta">')[1:]]
-        elegida = {nota: next(t for t in tarjetas if nota[:20] in t) for nota in (NOTA, PUNTO)}
-        self.assertIn('value="ask_client" checked', elegida[PUNTO])
-        self.assertIn('value="discard" checked', elegida[NOTA])
+        cuadro = pagina.split('id="decision"')[1].split('name="questions"')[1].split("</textarea>")[0]
+        self.assertIn(PUNTO[:20], cuadro)                              # lo elegido para el cliente vuelve al cuadro
+        self.assertNotIn(NOTA[:20], cuadro)                            # lo descartado ya no
 
     def test_the_person_can_then_choose_other_questions_and_prepare_the_email_again(self):
         self.elegir({PUNTO: dominio.PREGUNTAR})

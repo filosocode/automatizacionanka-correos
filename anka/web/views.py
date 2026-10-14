@@ -315,6 +315,27 @@ def _sin_cambios(ultima: Mapping[str, Any] | None) -> str:
 MAX_FILAS_VISIBLES = 8
 
 
+_ETIQUETA_DEL_ESTADO = {"confirmado": "Completa", "pendiente": "Por completar", "contradictorio": "Contradictoria"}
+
+
+def _vista_de_actividades(activities: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """La tabla compacta del caso (U-31): actividad, cantidad y estado con su motivo.
+
+    Con más de 8 filas, las confirmadas más allá de la octava se pliegan en «Ver todas»; las incompletas siempre se ven.
+    """
+    filas = []
+    for index, item in enumerate(activities):
+        estado = normalize_estado(item.get("estado"))
+        cantidad = " ".join(
+            valor for valor in (str(item.get("quantity") or "").strip(), str(item.get("unit") or "").strip())
+            if valor and valor.casefold() != "no indicado")
+        filas.append({"actividad": str(item.get("activity") or "Sin nombre"), "cantidad": cantidad or "—",
+                      "estado": estado, "etiqueta": _ETIQUETA_DEL_ESTADO[estado],
+                      "motivo": "" if estado == "confirmado" else str(item.get("notes") or "").strip(),
+                      "extra": index >= MAX_FILAS_VISIBLES and estado == "confirmado"})
+    return filas
+
+
 def _resumen_de_actividades(activities: Sequence[Mapping[str, Any]]) -> str:
     """«4 actividades · 2 por completar»: cuántas hay y cuántas no están confirmadas (R12). Vacío si no hay ninguna."""
     if not activities:
@@ -332,19 +353,17 @@ def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
 
     rows = [
-        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)},
-         # con más de 8, las confirmadas más allá de la octava se pliegan; las incompletas siempre se ven (U-31)
-         "extra": index >= MAX_FILAS_VISIBLES and normalize_estado(item.get("estado")) == "confirmado"}
+        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)}}
         for index, item in enumerate(activities)
     ]
     new_row = {key: "" for key, _ in ACTIVITY_COLUMNS} | {"estado": "pendiente"}
-    rows.append({"index": len(activities), "is_new": True, "extra": False, "cells": cells(new_row),
+    rows.append({"index": len(activities), "is_new": True, "cells": cells(new_row),
                  "by": {c["key"]: c["value"] for c in cells(new_row)}})
     return render(
         "activities_editor.html",
         thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS,
-        resumen=_resumen_de_actividades(activities), escondidas=sum(1 for row in rows if row["extra"]),
-        total=len(activities),
+        resumen=_resumen_de_actividades(activities), vista=_vista_de_actividades(activities),
+        escondidas=sum(1 for fila in _vista_de_actividades(activities) if fila["extra"]), total=len(activities),
         reasons=reasons or [],
         sin_cambios=_sin_cambios(ultima),
         hoja={"url": "", "error": "", "tiene_carpeta": False, "actualizada": ""} | dict(hoja or {}),

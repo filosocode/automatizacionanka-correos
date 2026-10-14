@@ -188,10 +188,10 @@ class CasoCompletoTests(unittest.TestCase):
 
     def test_the_page_lists_every_candidate_and_suggests_nothing_for_the_client(self):
         pagina = pantalla_caso.render_case("t-1")
-        self.assertEqual(pagina.count('<div class="pregunta">'), 5)
-        self.assertNotRegex(pagina.split('<div class="pregunta">', 1)[1], r'q_decision_[^>]*value="ask_client"[^>]*checked')
-        self.assertIn("Solo guardar mis decisiones", pagina)
-        self.assertIn("Agregar mis propias preguntas", pagina)
+        decision = pagina.split('id="decision"')[1].split("</section>")[0]
+        self.assertEqual(decision.count('class="pregunta"'), 0)             # ya no hay una tarjeta por pregunta (U-31)
+        self.assertEqual(decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1].strip(), "")
+        self.assertIn("Preguntas para el cliente (una por línea)", decision)
 
     def test_choosing_questions_builds_the_email_with_them_instead_of_the_work_acknowledgement(self):
         lidar = "¿Qué densidad y precisión LiDAR requieren?"
@@ -298,7 +298,6 @@ class CasoCompletoTests(unittest.TestCase):
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn("Revisión interna pendiente", pagina)
         self.assertIn("Lo decidiste resolver dentro de Anka", pagina)
-        self.assertIn(" decidida por ti", pagina)                       # las tarjetas recuerdan lo decidido
 
     def test_discarded_questions_disappear_from_the_pending_list(self):
         elecciones = {c["id"]: (dominio.DESCARTAR, c["texto"])

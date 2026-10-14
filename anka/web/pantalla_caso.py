@@ -480,6 +480,15 @@ _FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify
                         "te_aprobada")
 
 
+def _cuadro_de_preguntas(analysis: Analisis, preguntas: list[dict[str, Any]]) -> str:
+    """El texto del cuadro único «Preguntas para el cliente» (U-31): lo último que escribió la persona o, si no hay,
+    las inquietudes que el análisis sugiere para el cliente (las internas de Anka no van), una por línea."""
+    escritas = analysis.get("ultimas_preguntas")
+    if escritas:
+        return "\n".join(str(p) for p in escritas)
+    return "\n".join(p["texto"] for p in preguntas if p["elegida"] == "ask_client")
+
+
 def _puede_volver_atras(review: Caso, analysis: Analisis) -> bool:
     """¿Sigue sin salir el correo de la decisión de preguntar? Entonces se puede cambiar de idea (U-27)."""
     decision = analysis.get("manual_review") or {}
@@ -743,6 +752,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     preguntas = _preguntas_del_caso(analysis, assessment) if espera_decision else []
     sugeridas = _preguntas_sugeridas(analysis, assessment) if not reading_blocked else []
     puede_volver = _puede_volver_atras(review, analysis)
+    cuadro_preguntas = _cuadro_de_preguntas(analysis, preguntas)
     body = render(
         "case.html",
         review=review, thread_id=thread_id,
@@ -769,7 +779,9 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=espera_decision, preguntas_sugeridas=sugeridas,
         puede_volver=puede_volver,
-        preguntas=preguntas, preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
+        preguntas=preguntas, cuadro_preguntas=cuadro_preguntas,
+        n_internas=sum(1 for p in preguntas if p["elegida"] == "internal"),
+        preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),

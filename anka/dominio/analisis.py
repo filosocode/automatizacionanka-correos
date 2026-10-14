@@ -139,6 +139,7 @@ class Analisis(TypedDict, total=False):
     work_message_id: str      # el mensaje del cliente que analizó Work (puente, T-35)
     work_skill_version: str   # T-32: la versión del prompt que declaró Work (solo interno)
     manual_review: RevisionManual
+    ultimas_preguntas: list[str]   # lo último que la persona dejó en el cuadro de preguntas para el cliente (U-31)
     manual_edit: EdicionManual
     pending_model_activities: list[Actividad]
     drive: dict[str, str]

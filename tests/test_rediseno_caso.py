@@ -181,7 +181,8 @@ class TablaYLenguaje(unittest.TestCase):
     def test_cinco_columnas_visibles_y_los_diez_campos_se_siguen_enviando(self) -> None:
         # Cubre: U-14
         html = str(activities_editor("h1", [self.ACTIVIDAD]))
-        cabecera = html[html.index("<thead>"):html.index("</thead>")]
+        editor = html[html.index('class="act-table"'):]                # la tabla completa, tras «Editar tabla» (U-31)
+        cabecera = editor[editor.index("<thead>"):editor.index("</thead>")]
         self.assertEqual(cabecera.count("<th>"), 6)             # cinco columnas y la de «Quitar»
         for titulo in ("Actividad", "Servicio/técnica", "Cantidad y unidad", "Estado", "Notas"):
             self.assertIn(f"<th>{titulo}</th>", cabecera)

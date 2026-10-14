@@ -669,7 +669,10 @@ def resolve_technical_review(
         else:
             questions = [line.strip()[:500] for line in questions_text.splitlines() if line.strip()][:10]
         if decision == "ask_client" and not questions:
-            raise ValueError("Elige al menos una pregunta para el cliente o escribe una propia.")
+            raise ValueError("Escribe al menos una pregunta para el cliente o elige «Con esto alcanza».")
+        if decision == "ask_client" and elecciones is None:
+            # el cuadro de la pantalla las vuelve a traer si la persona reconsidera (U-31)
+            analysis["ultimas_preguntas"] = questions
         if decision == "internal_only":
             new_status = QuoteStatus.REVIEW  # la revisión técnica sigue abierta: solo se guardaron decisiones
             texto = (f"Decidiste cómo tratar las preguntas: {por_dentro} por resolver dentro de Anka, "

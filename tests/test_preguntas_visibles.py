@@ -59,10 +59,10 @@ class LosSelectoresSiempreSalen(Base):
         evaluacion = reception_assessment(quotes.get_quote("t-1")["analysis"])
         self.assertNotEqual(evaluacion.get("status"), "technical_review")     # el caso que antes las ocultaba
         decision = self.decision(pantalla_caso.render_case("t-1"))
-        self.assertEqual(decision.count('name="q_id"'), 4)           # 2 del análisis + 1 de la auditoría + 1 de la recepción
-        self.assertNotIn("no dejó preguntas candidatas", decision)
-        elegidas = re.findall(r'name="q_decision_[^"]+" value="ask_client" checked', decision)
-        self.assertEqual(len(elegidas), 3)                           # las sugeridas para el cliente, ya elegidas
+        self.assertEqual(decision.count('name="q_id"'), 0)            # un solo cuadro, no una tarjeta por pregunta (U-31)
+        cuadro = decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1]
+        lineas = [linea for linea in cuadro.splitlines() if linea.strip()]
+        self.assertEqual(len(lineas), 3)                             # las sugeridas para el cliente, ya escritas
 
     def test_el_aviso_de_sin_candidatas_solo_sale_si_de_verdad_no_hay(self) -> None:
         # Cubre: U-30
@@ -73,8 +73,8 @@ class LosSelectoresSiempreSalen(Base):
         db.commit()
         db.close()
         decision = self.decision(pantalla_caso.render_case("t-1"))
-        self.assertIn("no dejó preguntas candidatas", decision)
         self.assertEqual(decision.count('name="q_id"'), 0)
+        self.assertEqual(decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1].strip(), "")
 
     def test_con_la_lectura_bloqueada_no_se_ofrece_ni_se_sugiere_nada(self) -> None:
         # Cubre: U-30

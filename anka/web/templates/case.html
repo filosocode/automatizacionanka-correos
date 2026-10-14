@@ -28,33 +28,13 @@
       <label class="opcion"><input type="radio" name="decision" value="ask_client" required{% if sugiere_preguntar %} checked{% endif %}>
         <span><strong>Hay que preguntarle al cliente</strong>
         <small>Eliges qué preguntas hacer y se arma el correo para que lo revises.</small></span></label>
-      <label class="opcion discreta"><input type="radio" name="decision" value="internal_only" required>
-        <span><strong>Solo guardar mis decisiones</strong>
-        <small>Sin preguntar al cliente por ahora; las preguntas internas quedan en «Qué falta resolver».</small></span></label>
     </div>
     <div class="preguntas-bloque">
-      <h3 class="subhead">Preguntas: decide qué hacer con cada una</h3>
-      <p class="meta">Al preparar el correo solo entran las que dejes en «Preguntar al cliente»; las de Anka quedan en «Qué falta resolver».
-        Puedes cambiar el texto y agregar las tuyas. Nada se envía sin «Enviar ahora».</p>
-      {% for pregunta in preguntas %}
-      <div class="pregunta">
-        <input type="hidden" name="q_id" value="{{ pregunta.id }}">
-        <label class="texto-pregunta"><span class="solo-lectores">Pregunta</span>
-          <textarea name="q_text_{{ pregunta.id }}" rows="2">{{ pregunta.texto }}</textarea>
-        </label>
-        <fieldset class="eleccion"><legend class="solo-lectores">Qué hacer con esta pregunta</legend>
-          <label class="seg"><input type="radio" name="q_decision_{{ pregunta.id }}" value="ask_client"{% if pregunta.elegida == 'ask_client' %} checked{% endif %}><span>Preguntar al cliente</span></label>
-          <label class="seg"><input type="radio" name="q_decision_{{ pregunta.id }}" value="internal"{% if pregunta.elegida == 'internal' %} checked{% endif %}><span>Lo resuelve Anka</span></label>
-          <label class="seg"><input type="radio" name="q_decision_{{ pregunta.id }}" value="discard"{% if pregunta.elegida == 'discard' %} checked{% endif %}><span>Descartar</span></label>
-        </fieldset>
-        <p class="meta">{{ pregunta.origen_texto }}{% if pregunta.decidida %} · decidida por ti{% else %} · el análisis sugiere {{ pregunta.sugerencia }}{% endif %}</p>
-      </div>
-      {% else %}
-      <p class="meta">El análisis no dejó preguntas candidatas. Si necesitas preguntarle algo al cliente, escríbelo abajo.</p>
-      {% endfor %}
-      <label>Agregar mis propias preguntas para el cliente (una por línea)
-        <textarea name="q_nuevas" class="caja-corta" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?"></textarea>
+      <label>Preguntas para el cliente (una por línea)
+        <textarea name="questions" class="caja-media" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">{{ cuadro_preguntas }}</textarea>
       </label>
+      <p class="meta">Son las inquietudes que dejó el análisis. Borra las que no hagan falta, corrige las que quieras y escribe las tuyas: al continuar se arma el correo con lo que quede. Nada se envía sin «Enviar ahora».
+        {% if n_internas %}{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} Anka por dentro (están en «Qué falta resolver»).{% endif %}</p>
     </div>
     <div class="toolbar spaced">
       <button type="submit" id="continuar-decision" data-confirm-para="sufficient"
