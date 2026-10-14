@@ -73,6 +73,34 @@ def _palabra(codigo: str) -> str:
     return _PALABRAS.get(codigo.strip().casefold().replace(" ", "_"), codigo)
 
 
+_SIN_LEER = frozenset({"bloqueado", "lectura_parcial", "no_legible", "unreadable", "parcial", "partial"})
+
+
+def _codigo(valor: object) -> str:
+    return str(valor or "").casefold().replace(" ", "_")
+
+
+def adjunto_requiere_atencion(item: Mapping[str, Any]) -> bool:
+    """Un adjunto que no se leyó por completo: una persona debe revisarlo (U-31)."""
+    return (_codigo(item.get("status")) in _SIN_LEER
+            or _codigo(item.get("coverage")) in {"parcial", "no_legible", "unreadable"})
+
+
+def attachments_panel(attachments: Sequence[Mapping[str, Any]]) -> Markup:
+    """Los archivos en una línea (U-31): lo que hay que revisar a la vista y lo leído plegado."""
+    items = [item for item in attachments if isinstance(item, Mapping)]
+    atencion = [item for item in items if adjunto_requiere_atencion(item)]
+    leidos = [item for item in items if not adjunto_requiere_atencion(item)]
+    if not items:
+        resumen = "Sin archivos adjuntos"
+    else:
+        cuantos = f"{len(items)} archivo{'' if len(items) == 1 else 's'}"
+        resumen = f"{cuantos} · {f'{len(atencion)} por revisar' if atencion else 'todos leídos'}"
+    return render("attachments_panel.html", resumen=resumen, atencion=len(atencion),
+                  tabla_atencion=attachments_table(atencion) if atencion else Markup(""),
+                  leidos=len(leidos), tabla_leidos=attachments_table(leidos) if leidos else Markup(""))
+
+
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
     """Tabla de adjuntos con estado, datos bloqueados y citas verificables."""
     rows = []
@@ -186,14 +214,11 @@ def _attachment_review_rows(
     attachments: Sequence[Mapping[str, Any]], audit_text: str,
 ) -> list[tuple[str, str, str]]:
     rows = []
-    unreadable = {"bloqueado", "lectura_parcial", "no_legible", "unreadable", "parcial", "partial"}
     for item in attachments:
         if not isinstance(item, Mapping):
             continue
         filename = str(item.get("filename") or "adjunto")
-        status = str(item.get("status") or "").casefold().replace(" ", "_")
-        coverage = str(item.get("coverage") or "").casefold().replace(" ", "_")
-        if status not in unreadable and coverage not in {"parcial", "no_legible", "unreadable"}:
+        if not adjunto_requiere_atencion(item):
             continue
         stem = filename.rsplit(".", 1)[0].casefold()
         if filename.casefold() in audit_text or (stem and stem in audit_text):
@@ -287,6 +312,9 @@ def _sin_cambios(ultima: Mapping[str, Any] | None) -> str:
     return f"Sin cambios por guardar · última versión: {ultima['version']} ({cuando})"
 
 
+MAX_FILAS_VISIBLES = 8
+
+
 def _resumen_de_actividades(activities: Sequence[Mapping[str, Any]]) -> str:
     """«4 actividades · 2 por completar»: cuántas hay y cuántas no están confirmadas (R12). Vacío si no hay ninguna."""
     if not activities:
@@ -304,16 +332,19 @@ def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
 
     rows = [
-        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)}}
+        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)},
+         # con más de 8, las confirmadas más allá de la octava se pliegan; las incompletas siempre se ven (U-31)
+         "extra": index >= MAX_FILAS_VISIBLES and normalize_estado(item.get("estado")) == "confirmado"}
         for index, item in enumerate(activities)
     ]
     new_row = {key: "" for key, _ in ACTIVITY_COLUMNS} | {"estado": "pendiente"}
-    rows.append({"index": len(activities), "is_new": True, "cells": cells(new_row),
+    rows.append({"index": len(activities), "is_new": True, "extra": False, "cells": cells(new_row),
                  "by": {c["key"]: c["value"] for c in cells(new_row)}})
     return render(
         "activities_editor.html",
         thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS,
-        resumen=_resumen_de_actividades(activities),
+        resumen=_resumen_de_actividades(activities), escondidas=sum(1 for row in rows if row["extra"]),
+        total=len(activities),
         reasons=reasons or [],
         sin_cambios=_sin_cambios(ultima),
         hoja={"url": "", "error": "", "tiene_carpeta": False, "actualizada": ""} | dict(hoja or {}),

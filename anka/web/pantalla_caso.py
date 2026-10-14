@@ -20,7 +20,7 @@ from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
 from anka.dominio.work_contract import lectura_sin_verificar
 from anka.web.views import (
-    attachments_table, reception_assessment_panel, activities_editor, question_audit_panel,
+    attachments_panel, reception_assessment_panel, activities_editor, question_audit_panel,
     question_quality_panel, review_tasks_panel,
 )
 from anka.dominio.status import (
@@ -672,7 +672,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
             ultima=last_manual_version(thread_id))),
-        "attachments_table": attachments_table(analysis.get("attachments", [])),
+        "attachments_panel": attachments_panel(analysis.get("attachments", [])),
         "reading_panel": render("reading_audit.html", reading=analysis.get("reading_summary") or {},
                                 preflight=analysis.get("DRIVE_PREFLIGHT") or {},
                                 audit=analysis.get("reading_audit") or {},
@@ -703,7 +703,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "code_text": _code_text(review),
         "next_step": (render("next_step.html", tone="warn", title="Lectura pendiente",
                               text=_texto_de_lectura_pendiente(analysis),
-                              action_href="#attachments-review", action_label="Ver bloqueo")
+                              action_href="#lectura-revisada", action_label="Elegir cómo seguir")
                       if reading_blocked else _next_step_banner(
                           review, config.get("active_mode") == "chatgpt_work",
                           hay_correo=assessment.get("status") != "technical_review")),

@@ -1,0 +1,3 @@
+<p class="resumen-tabla"><strong>{{ resumen }}</strong></p>
+{% if atencion %}{{ tabla_atencion }}{% endif %}
+{% if leidos %}<details class="more archivos-leidos"><summary>Archivos leídos ({{ leidos }})</summary>{{ tabla_leidos }}</details>{% endif %}

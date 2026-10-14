@@ -417,6 +417,11 @@ textarea.caja-correo { min-height: 260px; }
 .glosario[open] { flex: 1 1 100%; order: 3; }
 .glosario > summary.ayuda { justify-content: center; width: 44px; padding: 0; font-size: 14px; }
 .glosario > summary.ayuda::before { content: ""; }
+.ver-todas { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.ver-todas-boton { margin: 0 0 8px; }
+.ver-todas:focus-visible + .ver-todas-boton { outline: 3px solid var(--focus); outline-offset: 2px; }
+.ver-todas:not(:checked) ~ .scroll-x .act-row.extra { display: none; }
+.ver-todas:not(:checked) + .ver-todas-boton .ver-no, .ver-todas:checked + .ver-todas-boton .ver-si { display: none; }
 .resumen-tabla { margin: 0 0 6px; font-size: 15px; }
 .leer-estados { margin: 0 0 8px; }
 .glosario dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0;

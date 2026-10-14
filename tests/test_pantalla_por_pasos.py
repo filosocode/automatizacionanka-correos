@@ -1,4 +1,4 @@
-"""Pantalla del caso por pasos, etapa 1: pasos arriba, glosario con «?», orden de lectura y resumen de la tabla. Cubre: U-31"""
+"""Pantalla del caso por pasos: pasos arriba, glosario con «?», orden de lectura, resumen de la tabla y de los archivos. Cubre: U-31"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
@@ -31,10 +31,16 @@ class Base(unittest.TestCase):
             self.addCleanup(parche.stop)
 
     def crear(self, thread_id: str = "t-1", estado: QuoteStatus = QuoteStatus.REVIEW,
-              actividades: list[dict] | None = None) -> None:
+              actividades: list[dict] | None = None, adjuntos: list[dict] | None = None,
+              lectura_pendiente: str = "") -> None:
         analisis = complete_analysis(location="")
         if actividades is not None:
             analisis["activities"] = actividades
+        if adjuntos is not None:
+            analisis["attachments"] = adjuntos
+        if lectura_pendiente:
+            analisis["engine"] = "chatgpt_work"
+            analisis["reading_audit"] = {"verification": "incompleta", "attachment_files_pending": [lectura_pendiente]}
         db = store.open_db(Path(self.temp.name))
         store.save(db, thread_id, "m-1", estado, "cliente@empresa.co", analisis)
         store.add_message(db, thread_id, "m-1", "received", "cliente@empresa.co", "Cotización levantamiento",
@@ -131,6 +137,98 @@ class ResumenDeLaTabla(Base):
         self.assertEqual(pagina[:resumen].rsplit("<details", 1)[1].split(">", 1)[0].count("open"), 0)
         self.assertIn("Guardar tabla", pagina)
         self.assertIn("Ver historial de cambios", pagina)
+
+
+def adjunto(nombre: str, estado: str = "extraido") -> dict:
+    return {"filename": nombre, "status": estado, "coverage": "completa", "reason": "", "blocked_fields": []}
+
+
+class ArchivosEnUnaLinea(Base):
+    def test_resume_y_deja_a_la_vista_solo_lo_que_hay_que_revisar(self) -> None:
+        # Cubre: U-31
+        self.crear(adjuntos=[adjunto("solicitud.pdf"), adjunto("lote.kmz"), adjunto("planos.dwg", "bloqueado")])
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn("3 archivos · 1 por revisar", pagina)
+        seccion = pagina[pagina.index('id="attachments-review"'):pagina.index("Actividades detectadas")]
+        fuera = seccion.split('<details class="more archivos-leidos"')[0]
+        self.assertIn("planos.dwg", fuera)
+        self.assertNotIn("solicitud.pdf", fuera)
+        leidos = seccion.split('<details class="more archivos-leidos"')[1]
+        self.assertIn("Archivos leídos (2)", leidos)
+        self.assertIn("solicitud.pdf", leidos)
+        self.assertNotIn("open", leidos.split(">", 1)[0])
+
+    def test_si_todo_se_leyo_nada_pide_atencion(self) -> None:
+        # Cubre: U-31
+        self.crear(adjuntos=[adjunto("solicitud.pdf"), adjunto("lote.kmz")])
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn("2 archivos · todos leídos", pagina)
+        self.assertIn("Archivos leídos (2)", pagina)
+
+    def test_un_archivo_y_ninguno(self) -> None:
+        # Cubre: U-31
+        self.crear(adjuntos=[adjunto("solicitud.pdf")])
+        self.assertIn("1 archivo · todos leídos", pantalla_caso.render_case("t-1"))
+        self.crear("t-2", adjuntos=[])
+        self.assertIn("Sin archivos adjuntos", pantalla_caso.render_case("t-2"))
+
+    def test_las_tareas_de_revision_siguen_a_la_vista(self) -> None:
+        # Cubre: U-31
+        self.crear(adjuntos=[adjunto("planos.dwg", "bloqueado")])
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn("Revisar el adjunto planos.dwg", pagina)
+        self.assertLess(pagina.index("Qué falta resolver"), pagina.index("Actividades detectadas"))
+
+
+class YaRevisePrimero(Base):
+    def test_con_lectura_sin_verificar_el_aviso_lleva_a_la_salida_que_esta_debajo(self) -> None:
+        # Cubre: U-31
+        self.crear(lectura_pendiente="planos.dwg")
+        pagina = pantalla_caso.render_case("t-1")
+        aviso = pagina.index('class="next-step')
+        self.assertIn('href="#lectura-revisada">Elegir cómo seguir', pagina[aviso:aviso + 600])
+        self.assertLess(aviso, pagina.index('id="lectura-revisada"'))
+        self.assertLess(pagina.index('id="lectura-revisada"'), pagina.index("Actividades detectadas"))
+        self.assertNotIn('id="decision"', pagina)
+        self.assertNotIn('formaction="/send"', pagina)
+
+
+class TablaLarga(Base):
+    def filas(self, cuantas: int, incompletas: tuple[int, ...] = ()) -> list[dict]:
+        return [actividad(f"Actividad {n}", "pendiente" if n in incompletas else "confirmado")
+                for n in range(1, cuantas + 1)]
+
+    def test_con_mas_de_ocho_se_ven_ocho_y_ver_todas(self) -> None:
+        # Cubre: U-31
+        self.crear(actividades=self.filas(11))
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertEqual(pagina.count('class="act-row extra"'), 3)
+        self.assertIn("Ver todas (11)", pagina)
+        self.assertIn('id="ver-todas"', pagina)
+
+    def test_las_incompletas_nunca_quedan_escondidas(self) -> None:
+        # Cubre: U-31
+        self.crear(actividades=self.filas(11, incompletas=(10, 11)))
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertEqual(pagina.count('class="act-row extra"'), 1)
+        self.assertIn("Ver todas (11)", pagina)
+        for fila in pagina.split('<tbody class="act-row extra">')[1:]:
+            self.assertIn("estado-confirmado", fila.split("</tbody>")[0])
+
+    def test_hasta_ocho_no_hay_ver_todas(self) -> None:
+        # Cubre: U-31
+        self.crear(actividades=self.filas(8))
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertNotIn("Ver todas", pagina)
+        self.assertNotIn('class="act-row extra"', pagina)
+
+    def test_las_filas_escondidas_igual_se_envian_al_guardar(self) -> None:
+        # Cubre: U-31
+        self.crear(actividades=self.filas(10))
+        pagina = pantalla_caso.render_case("t-1")
+        extra = pagina.split('<tbody class="act-row extra">')[1]
+        self.assertIn("name='a8_activity'", extra)
+        self.assertIn('name="row_count" value="10"', pagina)
 
 
 if __name__ == "__main__":

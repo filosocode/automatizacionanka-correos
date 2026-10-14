@@ -7,8 +7,9 @@
   <p class="meta"><button type="button" class="secondary" id="ajustar-cajas">Ajustar cajas al texto</button></p>
 
 {% macro campo(row, key, label, filas=2) %}<textarea name='a{{ row.index }}_{{ key }}' rows='{{ filas }}' aria-label='{{ label }}'{% if not row.by[key] or row.by[key] == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ row.by[key] }}</textarea>{% endmacro %}
+  {% if escondidas %}<input type="checkbox" id="ver-todas" class="ver-todas"><label for="ver-todas" class="button secondary ver-todas-boton"><span class="ver-si">Ver todas ({{ total }})</span><span class="ver-no">Ver menos</span></label>{% endif %}
   <div class="scroll-x"><table class="act-table" role="table"><thead><tr class="act-head" role="row"><th>Actividad</th><th>Servicio/técnica</th><th>Cantidad y unidad</th><th>Estado</th><th>Notas</th><th></th></tr></thead>
-  {% for row in rows %}<tbody class="act-row"><tr class="act-main{% if row.is_new %} nueva{% endif %}" role="row">
+  {% for row in rows %}<tbody class="act-row{% if row.extra %} extra{% endif %}"><tr class="act-main{% if row.is_new %} nueva{% endif %}" role="row">
     <td>{{ campo(row, 'activity', 'Actividad') }}</td>
     <td>{{ campo(row, 'servicio_tecnica', 'Servicio o técnica') }}</td>
     <td class="cant"><div class="cant-par">{{ campo(row, 'quantity', 'Cantidad', 1) }}{{ campo(row, 'unit', 'Unidad', 1) }}</div></td>

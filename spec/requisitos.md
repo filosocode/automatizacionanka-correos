@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapa 1** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78, D-79. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 y 2** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78, D-79. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -666,8 +666,8 @@ la carpeta de Drive.
 - E1 · Con 4 actividades de las que 2 no están confirmadas, la tabla dice «4 actividades · 2 por completar»; con todas confirmadas, «todas completas»; sin actividades, no hay línea.
 - E1 · La explicación de los estados está plegada («Cómo leer los estados») y las acciones de guardar, exportar y el historial de cambios no cambian (U-21).
 - E2 · Los archivos se resumen en una línea («3 archivos · 1 sin leer»); lo no leído o por revisar se ve abierto y lo leído, plegado.
-- E2 · Con lectura sin verificar, la tarjeta «Ahora» ofrece «Ya revisé estos archivos yo» primero y la decisión no se puede enviar (U-29).
-- E2 · Con más de 8 actividades se ven 8 y «Ver todas (N)»; las incompletas siempre se ven. «Detalle técnico» agrupa lo técnico, plegado.
+- E2 · Con lectura sin verificar, el aviso «Ahora» dice «Lectura pendiente» y su botón «Elegir cómo seguir» lleva a «¿Ya revisaste estos archivos tú?», justo debajo y antes de las actividades, con «Ya revisé estos archivos yo»; no hay decisión ni envío (U-29).
+- E2 · Con más de 8 actividades se ven 8 y «Ver todas (N)»; las incompletas siempre se ven y las filas escondidas se guardan igual. «Detalle técnico» ya es la sección plegada «Detalles y trazabilidad del caso»: conserva su nombre y su contenido.
 - E3 · Cada pregunta trae la casilla «Preguntar al cliente»; al desmarcarla ofrece «Lo resuelve Anka» (por omisión) y «Descartar»; «Preparar el correo» solo lleva las marcadas.
 - E3 · «Información validada» es el único nombre del estado en lista, aviso, pasos y botones; «Recepción completa» e «información suficiente» ya no se muestran como etiqueta del caso.
 
