@@ -259,7 +259,7 @@ class InjectionTests(Pages):
         # Referencia: qué etiquetas/atributos usa la misma página con datos normales.
         baseline_pages = {"index", "requests", "case_t-review"}
         safe = [canonical(self.pages[name]) for name in baseline_pages]
-        allowed_tags = set().union(*(p.tags for p in safe)) | {"pre", "ol", "ul", "li", "small"}
+        allowed_tags = set().union(*(p.tags for p in safe)) | {"pre", "ol", "ul", "li", "small", "fieldset", "legend"}
         allowed_attrs = set().union(*(p.attrs for p in safe))
         # Scripts propios: el del tema (en el encabezado, antes de pintar), el de confirmación en toda página
         # y el de filtros en /requests.

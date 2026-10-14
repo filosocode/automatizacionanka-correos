@@ -423,10 +423,10 @@ class WorkDraftTests(Base):
         selectores = " | ".join(re.findall(r'name="q_text_[^"]+"[^>]*>([^<]*)</textarea>', page))
         self.assertIn("Confirmar el datum.", selectores)
         self.assertIn("Confirmar fecha de inicio.", selectores)
-        tarjetas = [b.split("</select>")[0] for b in page.split('<div class="pregunta">')[1:]]
+        tarjetas = [b.split("</fieldset>")[0] for b in page.split('<div class="pregunta">')[1:]]
         tarjeta = next(b for b in tarjetas if "KML" in b)
-        self.assertIn('value="internal" selected', tarjeta)          # lo interno se ve, pero no se le pregunta al cliente
-        self.assertNotIn('value="ask_client" selected', tarjeta)
+        self.assertIn('value="internal" checked', tarjeta)          # lo interno se ve, pero no se le pregunta al cliente
+        self.assertNotIn('value="ask_client" checked', tarjeta)
         quotes.resolve_technical_review("W1", "ask_client", "¿Datum?")
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("W1")

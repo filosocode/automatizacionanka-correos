@@ -106,11 +106,11 @@ class EnLaPantalla(unittest.TestCase):
         store.save(db, "t-1", "m-1", QuoteStatus.REVIEW, "cliente@empresa.co", analisis)
         db.close()
         pagina = pantalla_caso.render_case("t-1")
-        tarjetas = [t.split("</select>")[0] for t in pagina.split('<div class="pregunta">')[1:]]
+        tarjetas = [t.split("</fieldset>")[0] for t in pagina.split('<div class="pregunta">')[1:]]
         for nota, esperado in ((LIMITE_1, "internal"), (LIMITE_2, "internal"), (TAREA, "internal"), (PUNTO, "ask_client")):
             with self.subTest(nota=nota[:40]):
                 tarjeta = next(t for t in tarjetas if nota.split(";")[0].split(".")[0] in t)
-                self.assertIn(f'value="{esperado}" selected', tarjeta)
+                self.assertIn(f'value="{esperado}" checked', tarjeta)
 
 
 if __name__ == "__main__":

@@ -640,10 +640,11 @@ la carpeta de Drive.
 4. **Archivos y tareas de revisión: resumen de una línea siempre visible** («3 archivos · 1 sin leer») antes de la tabla; lo que no se pudo
    leer o requiere revisión interna se muestra abierto, y lo leído queda plegado. Respeta la intención de D-36 (nada de evidencia escondida
    cuando exige una acción) y reemplaza su «todas las fichas muestran adjuntos y tareas» por «todas las fichas muestran el resumen y lo pendiente».
-5. **Un solo editor de preguntas en el paso «Revisar».** Cada pregunta trae una casilla «Preguntar al cliente» (marcada si el análisis lo sugiere) y su texto editable; al desmarcarla
-   aparece un selector pequeño «Lo resuelve Anka» (por defecto; pasa a «Qué falta resolver») o «Descartar». Siguen siendo las tres salidas de U-22, con un clic para el caso normal.
-   «Preparar el correo» arma el correo solo con las marcadas; cambiar las preguntas después, mientras el correo no haya salido, vuelve a este editor (U-27) y no hay un segundo
-   camino de edición.
+5. **Un solo editor de preguntas en el paso «Revisar».** Cada pregunta es una fila compacta: su texto editable y, en la misma fila, un control de tres opciones de una sola
+   elección: «Preguntar al cliente» (marcada si el análisis lo sugiere), «Lo resuelve Anka» (pasa a «Qué falta resolver») y «Descartar». Son las tres salidas de U-22 (`ask_client`,
+   `internal`, `discard`, el mismo contrato del formulario), con un clic y sin JavaScript. «Continuar» con «Hay que preguntarle al cliente» arma el correo solo con las marcadas;
+   cambiar las preguntas después, mientras el correo no haya salido, vuelve a este editor (U-27) y no hay un segundo camino de edición. El texto de ayuda largo de cada pregunta
+   se reduce a su origen en una línea.
 
 **Valores por omisión propuestos (se dan por buenos si nadie los objeta antes de programar)**
 6. **Glosario.** El glosario de U-28.7 deja de ser el primer bloque del caso: un «?» junto a «Paso N de 4» lo abre (mismos términos: T, T&E, lectura realizada, aplicabilidad).
@@ -677,7 +678,8 @@ la carpeta de Drive.
 - E3a · Con preguntas sugeridas para el cliente, «Hay que preguntarle al cliente» viene marcada y las preguntas se ven; sin ellas no viene marcada ninguna opción.
 - E3a · «Continuar» pide confirmación solo si está elegida «Con esto alcanza»; con «Hay que preguntarle al cliente» o «Solo guardar mis decisiones» no.
 - E3a · Enviar el formulario con cada opción produce el mismo resultado que antes (mismo estado, mismas preguntas, mismo historial).
-- E3b · Cada pregunta trae la casilla «Preguntar al cliente»; al desmarcarla ofrece «Lo resuelve Anka» (por omisión) y «Descartar»; «Preparar el correo» solo lleva las marcadas.
+- E3b · Cada pregunta es una fila con su texto y un control «Preguntar al cliente / Lo resuelve Anka / Descartar» (`q_decision_<id>`); viene marcado lo que sugiere el análisis o lo que la persona ya eligió (U-27); «Continuar» solo lleva al correo las de «Preguntar al cliente».
+- E3b · Mientras la tarjeta «Ahora» con la decisión está en la página, el aviso «Falta tu decisión de revisión técnica» no se dibuja (lo dice la tarjeta) y no se queda pegado arriba.
 - E3 · «Información validada» es el único nombre del estado en lista, aviso, pasos y botones; «Recepción completa» e «información suficiente» ya no se muestran como etiqueta del caso.
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

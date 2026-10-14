@@ -61,7 +61,7 @@ class LosSelectoresSiempreSalen(Base):
         decision = self.decision(pantalla_caso.render_case("t-1"))
         self.assertEqual(decision.count('name="q_id"'), 4)           # 2 del análisis + 1 de la auditoría + 1 de la recepción
         self.assertNotIn("no dejó preguntas candidatas", decision)
-        elegidas = re.findall(r'<option value="ask_client" selected', decision)
+        elegidas = re.findall(r'name="q_decision_[^"]+" value="ask_client" checked', decision)
         self.assertEqual(len(elegidas), 3)                           # las sugeridas para el cliente, ya elegidas
 
     def test_el_aviso_de_sin_candidatas_solo_sale_si_de_verdad_no_hay(self) -> None:

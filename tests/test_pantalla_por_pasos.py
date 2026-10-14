@@ -296,6 +296,47 @@ class TarjetaAhora(Base):
         self.assertEqual(quotes.get_quote("t-i")["status"], QuoteStatus.REVIEW)
 
 
+class PreguntasCompactas(Base):
+    def test_cada_pregunta_es_una_fila_con_tres_opciones_en_una_linea(self) -> None:
+        # Cubre: U-31
+        self.crear(preguntas=["¿Cuál es el datum del levantamiento?"])
+        pagina = pantalla_caso.render_case("t-1")
+        filas = pagina.split('<div class="pregunta">')[1:]
+        self.assertTrue(filas)
+        fila = next(f for f in filas if "datum" in f).split("</fieldset>")[0]
+        identificador = fila.split('name="q_id" value="')[1].split('"')[0]
+        for valor, texto in (("ask_client", "Preguntar al cliente"), ("internal", "Lo resuelve Anka"), ("discard", "Descartar")):
+            self.assertIn(f'<input type="radio" name="q_decision_{identificador}" value="{valor}"', fila)
+            self.assertIn(texto, fila)
+        self.assertNotIn("<select", fila)
+        self.assertRegex(fila, r'value="ask_client"[^>]*checked')
+
+    def test_con_la_tarjeta_ahora_no_se_dibuja_el_aviso_repetido(self) -> None:
+        # Cubre: U-31
+        self.crear()
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn('id="decision"', pagina)
+        # El aviso sigue en el HTML (U-09, U-28) pero no se dibuja ni se pega arriba mientras la tarjeta «Ahora» está.
+        self.assertIn('class="next-step', pagina)
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".next-step:has(+ .decision-arriba) { display: none; }", css)
+
+    def test_cada_opcion_por_pregunta_se_guarda_como_antes(self) -> None:
+        # Cubre: U-31
+        from anka.web import acciones
+        self.crear(preguntas=["¿Cuál es el datum del levantamiento?"])
+        pagina = pantalla_caso.render_case("t-1")
+        fila = next(f for f in pagina.split('<div class="pregunta">')[1:] if "datum" in f)
+        identificador = fila.split('name="q_id" value="')[1].split('"')[0]
+        acciones._post_review_decision({"thread_id": ["t-1"], "decision": ["ask_client"], "q_id": [identificador],
+                                        f"q_decision_{identificador}": ["internal"],
+                                        f"q_text_{identificador}": ["¿Cuál es el datum del levantamiento?"],
+                                        "q_nuevas": ["¿Qué plazo esperan?"]})
+        vuelta = pantalla_caso.render_case("t-1")
+        self.assertIn("Qué falta resolver", vuelta)
+        self.assertIn("¿Qué plazo esperan?", vuelta)
+
+
 class PasosComoBarra(Base):
     def test_los_pasos_se_dibujan_como_barra_de_avance(self) -> None:
         # Cubre: U-31

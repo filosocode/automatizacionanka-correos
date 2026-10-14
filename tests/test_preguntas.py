@@ -189,7 +189,7 @@ class CasoCompletoTests(unittest.TestCase):
     def test_the_page_lists_every_candidate_and_suggests_nothing_for_the_client(self):
         pagina = pantalla_caso.render_case("t-1")
         self.assertEqual(pagina.count('<div class="pregunta">'), 5)
-        self.assertNotIn('value="ask_client" selected', pagina)
+        self.assertNotRegex(pagina.split('<div class="pregunta">', 1)[1], r'q_decision_[^>]*value="ask_client"[^>]*checked')
         self.assertIn("Solo guardar mis decisiones", pagina)
         self.assertIn("Agregar mis propias preguntas", pagina)
 

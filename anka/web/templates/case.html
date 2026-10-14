@@ -34,22 +34,19 @@
     </div>
     <div class="preguntas-bloque">
       <h3 class="subhead">Preguntas: decide qué hacer con cada una</h3>
-      <p class="meta">Elige para cada pregunta si se la haces al cliente, si la resuelve Anka por dentro o si no hace falta. Puedes
-        cambiar el texto y agregar las tuyas. Al preparar el correo solo entran las que elijas para el cliente (después las puedes
-        ajustar junto al correo); las internas quedan en «Qué falta resolver». Nada se envía sin «Enviar ahora».</p>
+      <p class="meta">Al preparar el correo solo entran las que dejes en «Preguntar al cliente»; las de Anka quedan en «Qué falta resolver».
+        Puedes cambiar el texto y agregar las tuyas. Nada se envía sin «Enviar ahora».</p>
       {% for pregunta in preguntas %}
       <div class="pregunta">
         <input type="hidden" name="q_id" value="{{ pregunta.id }}">
-        <label>Pregunta
+        <label class="texto-pregunta"><span class="solo-lectores">Pregunta</span>
           <textarea name="q_text_{{ pregunta.id }}" rows="2">{{ pregunta.texto }}</textarea>
         </label>
-        <label>Qué hacer
-          <select name="q_decision_{{ pregunta.id }}">
-            <option value="ask_client"{% if pregunta.elegida == 'ask_client' %} selected{% endif %}>Preguntar al cliente</option>
-            <option value="internal"{% if pregunta.elegida == 'internal' %} selected{% endif %}>Resolver internamente</option>
-            <option value="discard"{% if pregunta.elegida == 'discard' %} selected{% endif %}>Descartar</option>
-          </select>
-        </label>
+        <fieldset class="eleccion"><legend class="solo-lectores">Qué hacer con esta pregunta</legend>
+          <label class="seg"><input type="radio" name="q_decision_{{ pregunta.id }}" value="ask_client"{% if pregunta.elegida == 'ask_client' %} checked{% endif %}><span>Preguntar al cliente</span></label>
+          <label class="seg"><input type="radio" name="q_decision_{{ pregunta.id }}" value="internal"{% if pregunta.elegida == 'internal' %} checked{% endif %}><span>Lo resuelve Anka</span></label>
+          <label class="seg"><input type="radio" name="q_decision_{{ pregunta.id }}" value="discard"{% if pregunta.elegida == 'discard' %} checked{% endif %}><span>Descartar</span></label>
+        </fieldset>
         <p class="meta">{{ pregunta.origen_texto }}{% if pregunta.decidida %} · decidida por ti{% else %} · el análisis sugiere {{ pregunta.sugerencia }}{% endif %}</p>
       </div>
       {% else %}
