@@ -745,7 +745,7 @@ class UxFixesTests(Base):
         validada = self._pagina()
         self.assertIn('<details class="more respuesta-plegada" id="respuesta">', validada)
         self.assertIn("Respuesta al cliente (opcional)", validada)
-        self.assertIn("Ningún correo se envía sin pulsar", validada)                   # el contenido sigue ahí, plegado
+        self.assertGreater(validada.index("<h2>Respuesta al cliente</h2>"), validada.index('class="more respuesta-plegada"'))   # sigue ahí, plegado
         self.assign()
         self.assertIn('<details class="more respuesta-plegada" id="respuesta">', self._pagina())
         self.assertIn("destino.open = true", (Path(__file__).resolve().parents[1] / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8"))

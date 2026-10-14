@@ -494,7 +494,7 @@ class CorreoComoPrototipo(Base):
         self.assertLess(pagina.index('id="respuesta"'), pagina.index("Actividades detectadas"))
         correo = pagina[pagina.index('class="correo-form"'):]
         correo = correo[:correo.index("</form>")]
-        self.assertIn('<div class="para">cliente@empresa.co</div>', correo)
+        self.assertIn('<span class="para">cliente@empresa.co</span>', correo)
         self.assertIn("Mensaje (puedes editarlo)", correo)
         enviar = re.search(r'<button type="submit" formaction="/send"[^>]*>', correo, re.S).group(0)
         self.assertIn('class="send-action"', enviar)
@@ -502,7 +502,6 @@ class CorreoComoPrototipo(Base):
         self.assertIn('data-resumen="envio"', enviar)
         self.assertIn(">Enviar al cliente<", correo)
         self.assertRegex(correo, r'<button type="submit" class="secondary" formaction="/draft">Guardar borrador en Gmail')
-        self.assertIn('<a class="button secondary" href="#armar">Cambiar las preguntas</a>', correo)
         self.assertLess(correo.index('formaction="/send"'), correo.index('formaction="/draft"'))
 
     def test_enviar_y_guardar_siguen_siendo_las_mismas_rutas(self) -> None:
@@ -511,6 +510,58 @@ class CorreoComoPrototipo(Base):
         correo = pantalla_caso.render_case("t-1")
         self.assertEqual(correo.count('formaction="/send"'), 1)
         self.assertEqual(correo.count('formaction="/draft"'), 1)
+
+
+class CorreoAmigable(Base):
+    def correo(self, **extra) -> str:
+        self.crear(estado=QuoteStatus.REVIEW_PENDING, **extra)
+        return pantalla_caso.render_case("t-1")
+
+    def test_solo_dos_botones_y_los_avisos_largos_ya_no_estan(self) -> None:
+        # Cubre: U-31
+        pagina = self.correo()
+        tarjeta_correo = pagina[pagina.index('id="respuesta"'):pagina.index("Actividades detectadas")]
+        self.assertEqual(tarjeta_correo.count('formaction="/send"'), 1)
+        self.assertEqual(tarjeta_correo.count('formaction="/draft"'), 1)
+        for sobrante in ("Respuesta sugerida lista", "Recepción completa", "Revisa el destinatario", "Antes de enviar te pedimos",
+                         "Cambiar las preguntas del correo", "send-zone"):
+            self.assertNotIn(sobrante, tarjeta_correo)
+
+    def test_volver_a_redactar_trae_las_preguntas_y_redacta_de_nuevo(self) -> None:
+        # Cubre: U-31
+        from anka.web import acciones
+        self.crear(preguntas=[DATUM, "¿Qué plazo esperan?"])
+        acciones._post_review_decision({"thread_id": ["t-1"], "decision": ["ask_client"],
+                                        "questions": [f"{DATUM}\n¿Qué plazo esperan?"]})
+        pagina = pantalla_caso.render_case("t-1")
+        panel = pagina[pagina.index('id="armar"'):]
+        panel = panel[:panel.index("</details>")]
+        self.assertIn("Volver a redactar con otras preguntas", panel)
+        self.assertIn(DATUM, panel.split('name="preguntas"')[1].split("</textarea>")[0])
+        self.assertIn(">Redactar de nuevo con estas preguntas<", panel)
+        self.assertIn('<input type="hidden" name="template" value="preguntas">', panel)
+        redactado = pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto=f"{DATUM}\nOtro plazo")
+        self.assertIn("1. " + DATUM, redactado.split('id="cuerpo-correo"')[1].split("</textarea>")[0])
+
+    def test_la_casilla_de_esperar_solo_se_muestra_sin_preguntas_y_el_aviso_la_oculta(self) -> None:
+        # Cubre: U-31
+        pagina = self.correo()
+        self.assertIn('id="caja-esperar"', pagina)
+        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        self.assertIn("cajaEsperar.hidden = n > 0", layout)
+
+    def test_cambiaste_de_idea_es_una_linea_discreta(self) -> None:
+        # Cubre: U-31
+        from anka.web import acciones
+        self.crear(preguntas=[DATUM])
+        acciones._post_review_decision({"thread_id": ["t-1"], "decision": ["ask_client"], "questions": [DATUM]})
+        pagina = pantalla_caso.render_case("t-1")
+        linea = pagina[pagina.index('class="cambiaste-idea"'):]
+        linea = linea[:linea.index("</form>")]
+        self.assertIn("¿Cambiaste de idea?", linea)
+        self.assertIn(">Volver a elegir las preguntas<", linea)
+        self.assertIn(">No preguntar: la información es suficiente<", linea)
+        self.assertIn("data-confirm=", linea)
 
 
 class Pestanas(Base):

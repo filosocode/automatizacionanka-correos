@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -669,9 +669,12 @@ la carpeta de Drive.
 15. **La tarjeta «Ahora» existe en todos los pasos.** Es una sola, la primera tras los pasos: la decisión (revisar), el correo por enviar, la emisión de la T o el aviso del estado
     (esperando al cliente, T emitida, carpeta lista). Lleva la etiqueta «Ahora», no se pega al desplazarse (reemplaza esa parte de U-09) y, si otra tarjeta ya dice lo mismo, el aviso de
     siguiente paso no se dibuja.
-16. **El correo es la tarjeta del prototipo.** «Para», un cuadro «Mensaje (puedes editarlo)» y tres acciones: «Enviar al cliente» (principal; sigue pidiendo confirmación con destinatario y
-    asunto, R8), «Guardar borrador en Gmail» y «Cambiar las preguntas» (abre el armado de U-24). Reemplaza el punto 2 de U-28 (guardar borrador ya no es el botón principal; el envío sigue
-    siendo definitivo y confirmado).
+16. **El correo, simple y amigable (D-84).** La tarjeta muestra «Para» en una línea, el «Mensaje (puedes editarlo)» en un cuadro grande, una línea que dice cuántas preguntas lleva y qué pasará con
+    el caso, y dos botones: «Enviar al cliente» (principal; sigue pidiendo confirmación con destinatario y asunto, R8) y «Guardar borrador en Gmail». Debajo, «Volver a redactar con otras preguntas»
+    abre un cuadro con las preguntas actuales (una por línea) para cambiarlas, y «Redactar de nuevo» escribe otra vez el mensaje con ellas (reemplaza el texto; si la persona ya lo editó, pide
+    confirmar, U-28). La casilla «Esperar su respuesta aunque el correo no tenga preguntas» solo aparece cuando el mensaje no lleva preguntas. «¿Cambiaste de idea?» es una línea discreta con
+    «Volver a elegir las preguntas» y «No preguntar: la información es suficiente». Dentro de esta tarjeta ya no salen «Respuesta sugerida lista…», «Recepción completa…» ni los párrafos largos
+    de ayuda. Reemplaza el punto 2 de U-28 y los textos del punto 1 de U-28.
 17. **Pestañas.** «Conversación», «Archivos», «Historial» y «Detalle técnico» (datos comerciales, contexto interno, evaluación de recepción, revisión de preguntas, enrutamiento y asuntos
     pendientes). Funcionan con teclado (flechas) y, sin JavaScript, todos los paneles se ven uno tras otro.
 
@@ -695,7 +698,8 @@ la carpeta de Drive.
 - E4 · El encabezado muestra «← Solicitudes», el proyecto, «cliente · correo · recibido el …» y la insignia del estado; no trae el párrafo de resumen.
 - E4 · Cada paso tiene su tarjeta «Ahora»: revisar (decisión con «Qué pide»), correo (formulario), información validada (emisión de la T), y aviso para esperando, T emitida y carpeta; nunca dos.
 - E4 · El aviso de siguiente paso no se pega al desplazarse y no se dibuja junto a una tarjeta que ya dice lo mismo.
-- E4 · La tarjeta de correo trae «Para», «Mensaje», «Enviar al cliente» (principal, con confirmación y resumen), «Guardar borrador en Gmail» y «Cambiar las preguntas»; enviar y guardar hacen lo mismo que antes.
+- E4 · La tarjeta de correo trae «Para», «Mensaje (puedes editarlo)», la línea de cuántas preguntas lleva, «Enviar al cliente» (principal, con confirmación y resumen) y «Guardar borrador en Gmail»; enviar y guardar hacen lo mismo que antes.
+- E4 · «Volver a redactar con otras preguntas» trae las preguntas actuales y «Redactar de nuevo» rearma el mensaje con ellas; la casilla de esperar solo aparece si el mensaje no lleva preguntas; no hay avisos «Respuesta sugerida lista» ni «Recepción completa» en la tarjeta.
 - E4 · Hay cuatro pestañas con sus paneles, y la activa al cargar es «Archivos» si hay algo por revisar y «Conversación» si no.
 - E5 · Los pasos se ven con «Paso N de 4» y el «?» encima de la tarjeta de pasos, sin numerarlos dentro; el contenido del caso tiene un ancho máximo de lectura de 880 px.
 - E5 · «Editar tabla» y «+ Agregar» se dibujan como botones de contorno con texto del color de la marca.

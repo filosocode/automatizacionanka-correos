@@ -86,6 +86,8 @@
       }
       function mostrar() {
         const n = contar();
+        const cajaEsperar = document.getElementById('caja-esperar');
+        if (cajaEsperar) cajaEsperar.hidden = n > 0;      // solo se ofrece cuando el mensaje no lleva preguntas (U-31)
         aviso.textContent = n ? 'Este correo lleva ' + n + ' pregunta' + (n === 1 ? '' : 's') + ': el caso quedará esperando al cliente.'
           : (casilla.checked ? 'Este correo no lleva preguntas, pero marcaste esperar su respuesta: el caso quedará esperando al cliente.'
           : 'Este correo no lleva preguntas: no se espera respuesta del cliente.');

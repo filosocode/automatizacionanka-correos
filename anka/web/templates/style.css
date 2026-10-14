@@ -591,3 +591,14 @@ button.send-action:disabled { opacity: .6; cursor: progress; }
 .acts-head .button.secondary:hover { background: var(--accent-soft); }
 .next-step .button { min-height: 44px; }
 .paso-cabecera + .stepper { margin-top: -12px; }
+.para-linea { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.para-linea .para { padding: 4px 10px; }
+.correo-form textarea.caja-correo { min-height: 280px; font-family: inherit; font-size: 15px; line-height: 1.5; }
+.correo-form #caja-esperar[hidden] { display: none; }
+.armar-correo { margin: 0; }
+.armar-correo > summary { color: var(--accent-dark); }
+.redactar-form { display: grid; gap: 10px; }
+.cambiaste-idea { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+button.enlace { background: none; border: 0; padding: 0 2px; min-height: 44px; color: var(--accent-dark); font-weight: 600; font-size: 13px; text-decoration: underline; cursor: pointer; }
+.correo-form .send-action { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.redactar-form button.secondary { justify-self: start; }

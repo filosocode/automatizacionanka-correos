@@ -63,7 +63,7 @@ class UnSoloCamino(Base):
         self.assertIn("Son las que elegiste para el cliente", pagina)
         plegable = pagina[pagina.index('id="armar"') - 60:pagina.index('id="armar"') + 40]
         self.assertNotIn(" open", plegable)                                # el correo ya tiene texto: plegado
-        self.assertIn("Cambiar las preguntas del correo", pagina)
+        self.assertIn("Volver a redactar con otras preguntas", pagina)
         self.assertIn('id="armar-correo"', pagina)                        # el script pide confirmar si se editó
 
     def test_sin_texto_en_el_correo_el_campo_queda_abierto_y_sin_decision_no_se_rellena(self) -> None:

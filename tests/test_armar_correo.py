@@ -119,7 +119,7 @@ class EnLaPantalla(unittest.TestCase):
             with self.subTest(estado=estado):
                 self.caso(estado, codigo)
                 pagina = pantalla_caso.render_case("t-1", template=plantilla)
-                self.assertIn("Armar correo con estas preguntas", pagina)
+                self.assertIn("Redactar de nuevo con estas preguntas", pagina)
                 self.assertIn('name="preguntas"', pagina)
 
     def test_asking_for_the_email_fills_the_box_with_the_template_and_keeps_what_was_typed(self):
