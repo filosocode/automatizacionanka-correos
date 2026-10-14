@@ -33,8 +33,8 @@ def mode_selector(current: str | None, api_key_set: bool = True) -> Markup:
     return render("mode_selector.html", current=current, labels=labels)
 
 
-# Qué enlace de la navegación es la página actual (aria-current, U-28). Las demás páginas no marcan ninguno.
-NAV_ACTUAL = {"Resumen comercial": "/", "Solicitudes": "/requests", "Descartadas": "/discarded", "Archivo": "/archive"}
+# La marca enlaza a «Mis casos» (U-32) y lleva aria-current en esa página; las demás no marcan nada.
+NAV_ACTUAL = {"Mis casos": "/"}
 
 
 def render_page(title: str, body: str, message: str = "", unread_count: int = 0,

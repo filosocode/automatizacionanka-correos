@@ -12,15 +12,15 @@
 <body>
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
   <header>
-    <div class="brand"><span class="brand-mark">A</span><div><strong>Anka</strong><span>Inteligencia comercial</span></div></div>
     {% macro actual(ruta) %}{% if nav_actual == ruta %} aria-current="page"{% endif %}{% endmacro %}
-    <nav aria-label="Principal"><a href="/"{{ actual('/') }}>Resumen{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a><a href="/requests"{{ actual('/requests') }}>Solicitudes</a><a href="/discarded"{{ actual('/discarded') }}>Descartadas</a><a href="/archive"{{ actual('/archive') }}>Archivo</a></nav>
+    <a class="brand" href="/"{{ actual('/') }} aria-label="Anka, mis casos{% if unread_count %}: {{ unread_count }} con novedades{% endif %}"><span class="brand-mark">A</span><div><strong>Anka</strong><span>Mis casos</span></div>{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a>
     <div class="toolbar">
       <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Tema actual: el del sistema. Pulsa para usar el claro" title="Tema actual: el del sistema. Pulsa para usar el claro">Tema: sistema</button>
       <button type="button" id="avisos-navegador" class="secondary" hidden title="El navegador de este equipo te avisará cuando entren novedades y esta pestaña esté oculta">Activar avisos del navegador</button>
       <span id="bridge-chip" class="bridge-chip" hidden></span>
       <a id="google-chip" class="bridge-chip" href="#ajustes" hidden></a>
       <details class="settings" id="ajustes"><summary>Ajustes</summary><div class="settings-box">{{ mode_selector }}
+        <a class="enlace-ajustes" href="/archive">Casos eliminados (archivo)</a>
         <div class="google-settings">
           <strong>Cuenta de Google</strong>
           <span id="google-status" class="meta">Verificando…</span>
@@ -38,6 +38,7 @@
   </header>
   <div id="fresh-banner" class="notice" hidden>Hay cambios nuevos. <a href="#" id="fresh-reload">Recargar</a></div>
   <main id="contenido" tabindex="-1">{% if message %}<div class='notice flash' role="status">{{ message }}</div>{% endif %}{{ body }}</main>
+  <footer class="pie"><a href="/discarded">Correos descartados</a></footer>
   <dialog id="confirmar" class="confirm-dialog" aria-labelledby="confirmar-titulo" aria-describedby="confirmar-texto">
     <form method="dialog">
       <h2 id="confirmar-titulo">Confirma antes de seguir</h2>
@@ -344,7 +345,7 @@
       let sinLeer = null;
       function mostrarConteo(n) {
         document.title = (n ? '(' + n + ') ' : '') + tituloBase;
-        const cuenta = document.querySelector('nav .nav-count');
+        const cuenta = document.querySelector('.brand .nav-count');
         if (cuenta) { cuenta.textContent = n; cuenta.hidden = !n; }
       }
       function avisarDelNavegador(n) {

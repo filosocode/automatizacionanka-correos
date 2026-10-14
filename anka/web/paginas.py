@@ -186,7 +186,7 @@ def render_index(message: str = "") -> str:
               for n, (q, g) in enumerate(cola[:COLA_MAXIMA], 1)],
         hidden_count=max(len(todo_cases) - COLA_MAXIMA, 0),
     )
-    return page("Resumen comercial", body, message)
+    return page("Mis casos", body, message)
 
 
 def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool = False) -> Markup:

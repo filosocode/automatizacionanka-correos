@@ -129,12 +129,12 @@ class Accesibilidad(unittest.TestCase):
 
     def test_la_navegacion_marca_la_pagina_actual_y_hay_salto_al_contenido(self) -> None:
         # Cubre: U-28
-        html = self.pagina("Solicitudes")
-        self.assertIn('<a href="/requests" aria-current="page">Solicitudes</a>', html)
-        nav = html[html.index("<nav"):html.index("</nav>")]
-        self.assertEqual(nav.count('aria-current="page"'), 1)
+        html = self.pagina("Mis casos")
+        marca = html[html.index('<a class="brand"'):html.index("</a>", html.index('<a class="brand"'))]
+        self.assertIn('aria-current="page"', marca)                               # la marca es la entrada (U-32)
+        self.assertEqual(html[html.index("<header>"):html.index("</header>")].count('aria-current="page"'), 1)
         otra = self.pagina("Revisar caso")
-        self.assertNotIn("aria-current", otra[otra.index("<nav"):otra.index("</nav>")])
+        self.assertNotIn("aria-current", otra[otra.index('<a class="brand"'):otra.index("</a>", otra.index('<a class="brand"'))])
         self.assertLess(html.index('class="skip-link" href="#contenido"'), html.index("<header>"))
         self.assertIn('<main id="contenido" tabindex="-1">', html)
 
@@ -149,7 +149,7 @@ class Accesibilidad(unittest.TestCase):
         self.assertEqual(len(re.findall(r"^[^{]*\.danger\b[^{]*\{", css, re.M)), 3)   # una regla, su hover y deshabilitado
         self.assertNotIn(".danger { background: var(--warn)", css)
         self.assertNotIn("font-size: 11px", css)
-        self.assertIn('nav a[aria-current="page"]', css)
+        self.assertIn('a.brand[aria-current="page"]', css)
 
     def test_el_boton_de_tema_dice_el_actual_y_el_siguiente(self) -> None:
         # Cubre: U-28

@@ -428,7 +428,7 @@ def _aviso_de_estado_final(review: Caso, aviso: Callable[..., Markup]) -> Markup
     if review["status"] == QuoteStatus.MISSING:
         return aviso(tone="warn", title="Hilo no disponible",
             text="El hilo ya no existe en Gmail, así que no se puede responder desde aquí.",
-            action_href="/requests", action_label="Volver a Solicitudes")
+            action_href="/", action_label="Volver a Mis casos")
     if review["status"] == QuoteStatus.SENDING:
         return aviso(tone="warn", title="Envío interrumpido",
             text="Gmail no confirmó que el correo saliera. Revisa antes de volver a enviarlo para no duplicarlo.",
@@ -438,7 +438,7 @@ def _aviso_de_estado_final(review: Caso, aviso: Callable[..., Markup]) -> Markup
             text="No se espera nada del cliente. Si llega un mensaje nuevo, el caso vuelve a tu lista.",
             action_href=f"/case?thread_id={hilo}&template=libre#respuesta", action_label="Escribir otro correo")
     return aviso(tone="info", title=str(review.get("status_label") or "Sin novedades"),
-        text="Este caso no necesita nada de ti ahora.", action_href="/requests", action_label="Volver a Solicitudes")
+        text="Este caso no necesita nada de ti ahora.", action_href="/", action_label="Volver a Mis casos")
 
 
 

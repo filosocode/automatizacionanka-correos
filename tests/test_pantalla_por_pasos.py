@@ -12,6 +12,7 @@ from anka.dominio.status import QuoteStatus
 from anka.infra import settings, store
 from anka.servicios import change_control, quotes
 from anka.web import pantalla_caso
+from anka.web import server as web
 from tests.test_app import complete_analysis, test_config
 
 PLANTILLAS = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
@@ -446,7 +447,7 @@ class CabeceraDelPrototipo(Base):
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
         cabecera = pagina[pagina.index('class="caso-cabecera"'):pagina.index('class="section stepper"')]
-        self.assertIn("← Solicitudes", cabecera)
+        self.assertIn("← Mis casos", cabecera)
         self.assertIn("Proyecto Norte", cabecera)
         self.assertIn("cliente@empresa.co", cabecera)
         self.assertIn("recibido el", cabecera)
@@ -648,7 +649,7 @@ class TodoEstadoTieneAviso(Base):
 
     def test_los_estados_que_antes_quedaban_vacios_dicen_que_paso_y_que_hacer(self) -> None:
         # Cubre: U-31
-        esperado = {QuoteStatus.IGNORED: ("Descartada", "/discarded"), QuoteStatus.MISSING: ("Hilo no disponible", "/requests"),
+        esperado = {QuoteStatus.IGNORED: ("Descartada", "/discarded"), QuoteStatus.MISSING: ("Hilo no disponible", "Volver a Mis casos"),
                     QuoteStatus.SENDING: ("Envío interrumpido", "#respuesta"),
                     QuoteStatus.RESPONSE_SENT: ("Respuesta enviada", "template=libre#respuesta")}
         for estado, (titulo, destino) in esperado.items():
@@ -675,6 +676,46 @@ def _contraste(a: str, b: str) -> float:
         return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b_)
     claro, oscuro = sorted((luminancia(a), luminancia(b)), reverse=True)
     return (claro + 0.05) / (oscuro + 0.05)
+
+
+class MisCasos(Base):
+    def pagina(self, titulo: str = "Mis casos", cuenta: int = 2) -> str:
+        from anka.web import paginas
+        with patch("anka.web.paginas.unread_thread_count", return_value=cuenta):
+            return paginas.page(titulo, "<p>x</p>")
+
+    def test_no_hay_barra_de_pestanas_y_la_marca_es_la_entrada_con_el_contador(self) -> None:
+        # Cubre: U-32
+        html = self.pagina()
+        self.assertNotIn("<nav", html)
+        for viejo in (">Resumen<", ">Solicitudes<", ">Archivo<", "Resumen comercial"):
+            self.assertNotIn(viejo, html[:html.index("<main")])
+        marca = html[html.index('<a class="brand"'):html.index("</a>", html.index('<a class="brand"'))]
+        self.assertIn('href="/"', marca)
+        self.assertIn("2 con novedades", marca)
+        self.assertIn("<span class='nav-count'>2</span>", marca)
+        self.assertIn("<title>(2) Mis casos - Anka</title>", html)
+        self.assertIn("document.querySelector('.brand .nav-count')", html)
+
+    def test_lo_raro_queda_fuera_del_camino(self) -> None:
+        # Cubre: U-32
+        html = self.pagina()
+        self.assertIn('<footer class="pie"><a href="/discarded">Correos descartados</a></footer>', html)
+        ajustes = html[html.index('id="ajustes"'):html.index("</details>", html.index('id="ajustes"'))]
+        self.assertIn('<a class="enlace-ajustes" href="/archive">Casos eliminados (archivo)</a>', ajustes)
+
+    def test_las_direcciones_antiguas_siguen_existiendo(self) -> None:
+        # Cubre: U-32
+        for ruta in ("/", "/requests", "/discarded", "/archive"):
+            self.assertIn(ruta, web.GET_ROUTES)
+
+    def test_volver_lleva_a_mis_casos(self) -> None:
+        # Cubre: U-32
+        self.crear()
+        self.assertIn('<a class="atras" href="/">← Mis casos</a>', pantalla_caso.render_case("t-1"))
+        self.crear("t-m", estado=QuoteStatus.MISSING)
+        aviso = pantalla_caso.render_case("t-m")
+        self.assertIn('href="/">Volver a Mis casos</a>', aviso)
 
 
 class CssOrdenado(Base):

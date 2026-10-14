@@ -668,7 +668,7 @@ la carpeta de Drive.
     opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Las opciones son tarjetas sin círculo de selección, con una línea de explicación, y **no viene ninguna marcada**: el cuadro de preguntas aparece al elegir «Hay que preguntarle al cliente» (reemplaza lo que U-30 decía de marcarla de entrada). Hay un botón por opción, que aparece al elegirla: «Marcar como suficiente» (pide confirmación, U-28.3) y «Preparar el correo». Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
     marca, pendientes en gris, y el actual con el texto en negrita.
 
-14. **Encabezado del prototipo.** «← Solicitudes», el nombre del proyecto, una línea «cliente · correo · recibido el …» y la insignia del estado. El párrafo largo de resumen sale del
+14. **Encabezado del prototipo.** «← Mis casos» (U-32), el nombre del proyecto, una línea «cliente · correo · recibido el …» y la insignia del estado. El párrafo largo de resumen sale del
     encabezado: en la decisión pasa a la tarjeta como «Qué pide:» (máximo unas 320 letras).
 15. **La tarjeta «Ahora» existe en todos los pasos.** Es una sola, la primera tras los pasos: la decisión (revisar), el correo por enviar, la emisión de la T o el aviso del estado
     (esperando al cliente, T emitida, carpeta lista). Lleva la etiqueta «Ahora», no se pega al desplazarse (reemplaza esa parte de U-09) y, si otra tarjeta ya dice lo mismo, el aviso de
@@ -690,7 +690,7 @@ la carpeta de Drive.
     no se pudo leer»), una frase de qué pasó y qué hacer, el botón «Ver el caso» cuando el caso existe, y el identificador del borrador, el hilo y el motivo técnico plegados en «Ver el detalle técnico».
 20. **Ningún estado se queda sin tarjeta «Ahora» (D-88).** Todo caso muestra una tarjeta o un aviso de siguiente paso. Los que antes no tenían: «Descartada» (cómo rescatarla), «Hilo no
     disponible», «Respuesta enviada» sin espera (cómo escribir otro correo), «Envío interrumpido» (revisar antes de reenviar) y, para cualquier otro, el nombre del estado, «Este caso no necesita nada
-    de ti ahora» y «Volver a Solicitudes».
+    de ti ahora» y «Volver a Mis casos».
 21. **Lo escrito no se pierde si la acción falla (D-89).** En enviar, guardar borrador, emitir la T, decidir con preguntas y guardar la tabla, lo que la persona escribió se guarda en memoria
     (nunca en disco, 15 minutos, hasta 50 casos, sin el token de seguridad) antes de procesarlo. Si la acción falla con un aviso o con un error del servidor, al volver al caso el mensaje, el número de
     la T, el cuadro de preguntas o la tabla vuelven a su sitio, con el aviso «Lo que escribiste sigue aquí», y la página de error dice que lo escrito se conserva. Si la acción sale bien, o el caso ya no
@@ -716,7 +716,7 @@ la carpeta de Drive.
 - E3b · Con el cuadro vacío, «Continuar» pide escribir al menos una pregunta. Lo escrito se conserva al volver a decidir antes de enviar (U-27).
 - E3b · La vista compacta de actividades tiene tres columnas con etiqueta y motivo; «Editar tabla» abre la tabla completa y guardar funciona como antes.
 - E3b · Mientras la tarjeta «Ahora» con la decisión está en la página, el aviso «Falta tu decisión de revisión técnica» no se dibuja (lo dice la tarjeta) y no se queda pegado arriba.
-- E4 · El encabezado muestra «← Solicitudes», el proyecto, «cliente · correo · recibido el …» y la insignia del estado; no trae el párrafo de resumen.
+- E4 · El encabezado muestra «← Mis casos», el proyecto, «cliente · correo · recibido el …» y la insignia del estado; no trae el párrafo de resumen.
 - E4 · Cada paso tiene su tarjeta «Ahora»: revisar (decisión con «Qué pide»), correo (formulario), información validada (emisión de la T), y aviso para esperando, T emitida y carpeta; nunca dos.
 - E4 · El aviso de siguiente paso no se pega al desplazarse y no se dibuja junto a una tarjeta que ya dice lo mismo.
 - E4 · La tarjeta de correo trae «Para», «Mensaje (puedes editarlo)», la línea de cuántas preguntas lleva, «Enviar al cliente» (principal, con confirmación y resumen) y «Guardar borrador en Gmail»; enviar y guardar hacen lo mismo que antes.
@@ -734,6 +734,28 @@ la carpeta de Drive.
 - E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; en revisión pendiente, «Por aclarar con el cliente»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).
+
+### U-32 · Una sola entrada, «Mis casos», sin barra de pestañas
+**Estado: en implementación, paso 1** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisión: D-91. Reemplaza lo que U-28.6 decía de la navegación; no quita ninguna función de U-11, U-13, U-16, U-19 ni U-25.
+
+**Motivo.** La persona responsable del producto no quiere la barra «Resumen / Solicitudes / Descartadas / Archivo»: pide un flujo amigable, práctico, sin tantas variaciones ni desvíos. Tres agentes de
+evaluación (UX, técnico y gestión, 2026-10-14) encontraron que Resumen y Solicitudes responden lo mismo, que solo una o dos de las cuatro pestañas sirven al trabajo diario y que Archivo (casos eliminados,
+con identificadores ilegibles) es de auditoría. La persona respondió que rescata descartados «casi nunca» y que Archivo y estadísticas los consulta solo ella, casi nunca.
+
+**Qué debe cumplirse (paso 1)**
+1. **Sin barra de pestañas.** El encabezado trae la marca, que es el enlace a «Mis casos» (la página de inicio, antes «Resumen») con el contador de casos con novedades, y a la derecha el tema, el estado
+   del puente, «Ajustes» y «Revisar ahora». La página de inicio se titula «Mis casos» y sigue mostrando «Qué hacer hoy», las novedades, el aviso de borradores y los contadores.
+2. **Lo raro, fuera del camino.** «Descartadas» es un enlace discreto al pie de toda página («Correos descartados»); «Casos eliminados (archivo)» vive dentro de «Ajustes». Las direcciones `/requests`, `/discarded` y
+   `/archive` no cambian, y desde «Mis casos» se sigue llegando a la lista completa.
+3. **Un solo «volver».** Desde un caso, «← Mis casos» lleva a la entrada; los avisos de los casos sin acción dicen «Volver a Mis casos».
+4. **Accesibilidad.** La marca lleva `aria-current="page"` en «Mis casos»; su nombre accesible dice cuántos casos tienen novedades.
+
+**Paso 2 (solo si sigue molestando la lista doble, después de usar el paso 1):** fusionar Resumen y Solicitudes en esa entrada, con la cola arriba y la lista filtrable debajo, y que `/requests` redirija.
+
+**Casos de aceptación**
+- E1 · El encabezado no tiene `<nav>` ni los enlaces «Resumen», «Solicitudes» y «Archivo»; la marca enlaza a `/` y marca la página actual; el contador de novedades está en la marca.
+- E1 · La página de inicio se titula «Mis casos»; toda página trae «Correos descartados» al pie; «Ajustes» trae «Casos eliminados (archivo)»; las tres direcciones antiguas siguen existiendo.
+- E1 · «← Mis casos» en el caso y «Volver a Mis casos» en los avisos llevan a `/`.
 
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
 **Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la

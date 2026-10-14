@@ -156,8 +156,8 @@ class CuandoSeLee(Base):
 
 class ComoAvisa(Base):
     def test_the_tab_title_carries_the_number_of_cases_with_news(self):
-        self.assertIn("<title>(2) Resumen comercial - Anka</title>", render_page("Resumen comercial", "x", "", 2, "local"))
-        self.assertIn("<title>Resumen comercial - Anka</title>", render_page("Resumen comercial", "x", "", 0, "local"))
+        self.assertIn("<title>(2) Mis casos - Anka</title>", render_page("Mis casos", "x", "", 2, "local"))
+        self.assertIn("<title>Mis casos - Anka</title>", render_page("Mis casos", "x", "", 0, "local"))
 
     def test_the_state_endpoint_reports_the_count_so_the_title_follows_without_reloading(self):
         self.nueva("t-1", "client_reply", "a")
