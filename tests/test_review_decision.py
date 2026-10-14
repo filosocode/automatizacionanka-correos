@@ -140,7 +140,7 @@ class ReviewDecisionTests(unittest.TestCase):
     def test_una_sola_seccion_de_decision_sin_repetir_preguntas_ni_respuesta_en_pausa(self):
         # Cubre: U-12
         page = pantalla_caso.render_case("t-tech")
-        self.assertIn("¿Cómo seguimos?", page)
+        self.assertIn("Revisa y decide cómo seguir", page)
         self.assertNotIn("Respuesta en pausa", page)
         self.assertNotIn('id="respuesta"', page)
         self.assertIn("Con esto alcanza", page)

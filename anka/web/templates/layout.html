@@ -121,10 +121,6 @@
         if (event.target.closest('[data-print]')) window.print();
         const boton = event.target.closest('[data-confirm]');
         if (!boton) return;
-        if (boton.dataset.confirmPara) {   // solo se confirma si la opción elegida del formulario es esa (U-31)
-          const elegida = boton.form && boton.form.querySelector('input[name="decision"]:checked');
-          if (!elegida || elegida.value !== boton.dataset.confirmPara) return;
-        }
         if (boton === origen && boton.dataset.confirmado === '1') { delete boton.dataset.confirmado; origen = null; return; }
         if (nativo) { if (!confirm(boton.dataset.confirm)) event.preventDefault(); return; }
         event.preventDefault();

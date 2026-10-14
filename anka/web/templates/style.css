@@ -428,8 +428,8 @@ textarea.caja-correo { min-height: 260px; }
 .eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--accent-dark); }
 .decision-form { display: grid; gap: 14px; }
 .opciones { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.opcion { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 14px 16px; border: 2px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); cursor: pointer; font-weight: 500; font-size: 15px; }
-.opcion input[type=radio] { width: 20px; height: 20px; min-height: 0; padding: 0; margin: 3px 0 0; accent-color: var(--accent); }
+.opcion { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: start; padding: 14px 16px; border: 2px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); cursor: pointer; font-weight: 500; font-size: 15px; }
+.opcion input[type=radio] { position: absolute; opacity: 0; width: 1px; height: 1px; min-height: 0; padding: 0; margin: 0; }
 .opcion strong { display: block; font-size: 16px; }
 .opcion small { display: block; color: var(--muted); font-size: 13px; font-weight: 400; margin-top: 2px; }
 .opcion:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
@@ -437,8 +437,13 @@ textarea.caja-correo { min-height: 260px; }
 .opcion.discreta { grid-column: 1 / -1; border-style: dashed; padding: 10px 14px; }
 .opcion.discreta strong { font-size: 14px; }
 .preguntas-bloque { display: grid; gap: 12px; }
-.preguntas-bloque textarea { min-height: 170px; }
-.decision-form:not(:has(input[value="ask_client"]:checked)) .preguntas-bloque { display: none; }
+.preguntas-bloque textarea { min-height: 150px; font-family: inherit; font-size: 14px; }
+@supports selector(:has(*)) {
+  .decision-form:not(:has(input[value="ask_client"]:checked)) .preguntas-bloque { display: none; }
+  .decision-form .solo-suficiente, .decision-form .solo-preguntar { display: none; }
+  .decision-form:has(input[value="sufficient"]:checked) .solo-suficiente, .decision-form:has(input[value="ask_client"]:checked) .solo-preguntar { display: inline-flex; align-items: center; }
+  .decision-form:has(input[name="decision"]:checked) .elige-opcion { display: none; }
+}
 @media (max-width: 640px) { .opciones { grid-template-columns: 1fr; } .section.ahora { padding: 16px; } }
 .paso-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 14px; }
 .paso-n { margin: 0; font-weight: 700; color: var(--muted); font-size: 13px; letter-spacing: .02em; }
@@ -575,3 +580,14 @@ button.send-action:disabled { opacity: .6; cursor: progress; }
 .tabs .panel { padding: 18px; display: grid; gap: 12px; }
 .tabs .panel[hidden] { display: none; }
 .tabs .panel > .section, .tabs .panel > .conversation { border: 0; padding: 0; background: none; box-shadow: none; }
+
+.pantalla-caso { max-width: 880px; margin: 0 auto; display: grid; gap: 16px; }
+.pantalla-caso > * { min-width: 0; }
+.pantalla-caso .caso-cabecera, .pantalla-caso .paso-cabecera { margin: 0; }
+.paso-cabecera { min-height: 0; margin-bottom: -8px; }
+.paso-n { min-height: 0; margin: 0; color: var(--muted); font-size: 13px; font-weight: 400; letter-spacing: 0; }
+.process-step strong { font-weight: 600; }
+.acts-head .button.secondary, .acts-head label.button { background: transparent; color: var(--accent-dark); border: 1px solid var(--line); }
+.acts-head .button.secondary:hover { background: var(--accent-soft); }
+.next-step .button { min-height: 44px; }
+.paso-cabecera + .stepper { margin-top: -12px; }

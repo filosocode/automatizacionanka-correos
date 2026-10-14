@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 4** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -660,10 +660,8 @@ la carpeta de Drive.
     técnico» → lo demás que aún aplica (respuesta opcional, carpeta). Reemplaza el orden de la regla 2 de `04-ux.md`.
 12. **Resumen de la tabla.** Sobre la tabla, una línea «N actividades · M por completar» (o «todas completas»); `M` cuenta las que no están «confirmado» (R12). La explicación larga de los
     estados queda plegada en «Cómo leer los estados».
-13. **Aspecto de «Ahora» (como el prototipo).** La decisión de revisión técnica es una tarjeta destacada con la etiqueta «Ahora», borde de color y el título «¿Cómo seguimos?». Las salidas son
-    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Hay un único botón
-    «Continuar». El cuadro de preguntas se ve al elegir «Hay que preguntarle al cliente» y esa opción viene marcada cuando el análisis sugiere preguntas para el cliente (U-30). Elegir
-    «Con esto alcanza» sigue pidiendo confirmación (U-28.3). Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
+13. **Aspecto de «Ahora» (idéntico al prototipo, D-83).** La decisión de revisión técnica es una tarjeta destacada con la etiqueta «Ahora», borde de color y el título «Revisa y decide cómo seguir», «Qué pide:» en un recuadro, una frase de lo que falta («Faltan: 3 actividades por completar y 2 archivos por revisar…») y, al final, «Elige una opción para continuar. Nada se envía al cliente en este paso.» Las salidas son
+    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Las opciones son tarjetas sin círculo de selección, con una línea de explicación, y **no viene ninguna marcada**: el cuadro de preguntas aparece al elegir «Hay que preguntarle al cliente» (reemplaza lo que U-30 decía de marcarla de entrada). Hay un botón por opción, que aparece al elegirla: «Marcar como suficiente» (pide confirmación, U-28.3) y «Preparar el correo». Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
     marca, pendientes en gris, y el actual con el texto en negrita.
 
 14. **Encabezado del prototipo.** «← Solicitudes», el nombre del proyecto, una línea «cliente · correo · recibido el …» y la insignia del estado. El párrafo largo de resumen sale del
@@ -686,9 +684,9 @@ la carpeta de Drive.
 - E2 · Los archivos y «Qué falta resolver» están en la pestaña «Archivos», que dice «N por revisar» en su nombre y es la activa si hay algo por revisar; lo no leído se ve abierto y lo leído, plegado.
 - E2 · Con lectura sin verificar, el aviso «Ahora» dice «Lectura pendiente» y su botón «Elegir cómo seguir» lleva a «¿Ya revisaste estos archivos tú?», justo debajo, con «Ya revisé estos archivos yo»; no hay decisión ni envío (U-29).
 - E2 · Con más de 8 actividades se ven 8 y «Ver todas (N)»; las incompletas siempre se ven y las filas escondidas se guardan igual. «Detalle técnico» ya es la sección plegada «Detalles y trazabilidad del caso»: conserva su nombre y su contenido.
-- E3a · La decisión es una tarjeta «Ahora» con dos opciones de una sola elección (`name="decision"`: `sufficient`, `ask_client`) y un único botón «Continuar»; ya no hay botones de envío sueltos ni tercera opción.
-- E3a · Con preguntas sugeridas para el cliente, «Hay que preguntarle al cliente» viene marcada y el cuadro único las trae una por línea; sin ellas no viene marcada ninguna opción.
-- E3a · «Continuar» pide confirmación solo si está elegida «Con esto alcanza».
+- E3a · La decisión es una tarjeta «Ahora» con dos tarjetas de opción de una sola elección (`name="decision"`: `sufficient`, `ask_client`), sin círculo visible, y un botón por opción que aparece al elegirla; no hay botones de envío sueltos ni tercera opción.
+- E3a · No viene ninguna opción marcada; el cuadro único trae las preguntas sugeridas una por línea y se muestra al elegir «Hay que preguntarle al cliente». Sin las reglas CSS modernas todo sigue visible y enviable.
+- E3a · «Marcar como suficiente» pide confirmación; «Preparar el correo» no.
 - E3a · Enviar el formulario con «Con esto alcanza» o con «Hay que preguntarle al cliente» deja el mismo estado e historial que antes; con preguntas, el caso pasa a «Revisa el correo» con ellas.
 - E3b · No hay una tarjeta ni un selector por pregunta: hay un cuadro `questions` con las sugeridas una por línea, que solo incluye las que el análisis sugiere para el cliente; las internas se cuentan en una línea.
 - E3b · Con el cuadro vacío, «Continuar» pide escribir al menos una pregunta. Lo escrito se conserva al volver a decidir antes de enviar (U-27).
@@ -699,6 +697,8 @@ la carpeta de Drive.
 - E4 · El aviso de siguiente paso no se pega al desplazarse y no se dibuja junto a una tarjeta que ya dice lo mismo.
 - E4 · La tarjeta de correo trae «Para», «Mensaje», «Enviar al cliente» (principal, con confirmación y resumen), «Guardar borrador en Gmail» y «Cambiar las preguntas»; enviar y guardar hacen lo mismo que antes.
 - E4 · Hay cuatro pestañas con sus paneles, y la activa al cargar es «Archivos» si hay algo por revisar y «Conversación» si no.
+- E5 · Los pasos se ven con «Paso N de 4» y el «?» encima de la tarjeta de pasos, sin numerarlos dentro; el contenido del caso tiene un ancho máximo de lectura de 880 px.
+- E5 · «Editar tabla» y «+ Agregar» se dibujan como botones de contorno con texto del color de la marca.
 - E3 · «Información validada» es el único nombre del estado en lista, aviso, pasos y botones; «Recepción completa» e «información suficiente» ya no se muestran como etiqueta del caso.
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

@@ -18,6 +18,7 @@ from markupsafe import Markup
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
+from anka.dominio.activities import normalize_estado
 from anka.dominio.work_contract import lectura_sin_verificar
 from anka.web.views import (
     adjunto_requiere_atencion, attachments_panel, reception_assessment_panel, activities_editor, question_audit_panel,
@@ -480,6 +481,20 @@ _FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify
                         "te_aprobada")
 
 
+def _lo_que_falta(analysis: Analisis) -> str:
+    """«Faltan: 3 actividades por completar y 2 archivos por revisar (…)»: lo que se mira antes de decidir."""
+    actividades = [a for a in analysis.get("activities", []) if normalize_estado(a.get("estado")) != "confirmado"]
+    archivos = [str(a.get("filename") or "sin nombre") for a in analysis.get("attachments", [])
+                if isinstance(a, Mapping) and adjunto_requiere_atencion(a)]
+    partes = []
+    if actividades:
+        partes.append(f"{len(actividades)} actividad{'' if len(actividades) == 1 else 'es'} por completar")
+    if archivos:
+        nombres = ", ".join(archivos[:3]) + ("…" if len(archivos) > 3 else "")
+        partes.append(f"{len(archivos)} archivo{'' if len(archivos) == 1 else 's'} por revisar ({nombres})")
+    return f"Faltan: {' y '.join(partes)}. Míralo en la tabla y en la pestaña «Archivos»." if partes else ""
+
+
 def _cuadro_de_preguntas(analysis: Analisis, preguntas: list[dict[str, Any]]) -> str:
     """El texto del cuadro único «Preguntas para el cliente» (U-31): lo último que escribió la persona o, si no hay,
     las inquietudes que el análisis sugiere para el cliente (las internas de Anka no van), una por línea."""
@@ -753,6 +768,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     sugeridas = _preguntas_sugeridas(analysis, assessment) if not reading_blocked else []
     puede_volver = _puede_volver_atras(review, analysis)
     cuadro_preguntas = _cuadro_de_preguntas(analysis, preguntas)
+    lo_que_falta = "" if reading_blocked else _lo_que_falta(analysis)
     plegar_respuesta = bool(review.get("quote_code")) or (
         review.informacion_validada and review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING})
     puede_emitir = (review.informacion_validada and not review.get("quote_code")
@@ -791,7 +807,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         can_resolve=espera_decision, preguntas_sugeridas=sugeridas,
         puede_volver=puede_volver,
-        preguntas=preguntas, cuadro_preguntas=cuadro_preguntas,
+        preguntas=preguntas, cuadro_preguntas=cuadro_preguntas, lo_que_falta=lo_que_falta,
         n_internas=sum(1 for p in preguntas if p["elegida"] == "internal"),
         preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,

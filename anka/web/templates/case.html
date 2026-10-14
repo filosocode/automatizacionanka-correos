@@ -76,6 +76,7 @@
   {% if plegar_respuesta %}</details>{% endif %}
   {% endif %}
 {% endmacro %}
+<div class="pantalla-caso">
 <form method="post" id="visto" action="/notifications/seen" hidden><input type="hidden" name="thread_id" value="{{ thread_id }}"></form>
 <div class="caso-cabecera">
   <div>
@@ -101,31 +102,32 @@
 {% if can_resolve %}
 <section class="section decision-arriba ahora" id="decision">
   <div class="eyebrow">Ahora</div>
-  <h2>¿Cómo seguimos?</h2>
+  <h2>Revisa y decide cómo seguir</h2>
   {% if summary %}<p class="resumen"><b>Qué pide:</b> {{ summary | truncate(320) }}</p>{% endif %}
-  <p class="meta">Ninguna opción envía nada al cliente. Si llega un mensaje nuevo en el hilo, el caso se vuelve a evaluar. <a href="#attachments-review">Ver los archivos y lo que falta resolver</a>.</p>
-  {% set sugiere_preguntar = preguntas | selectattr('elegida', 'equalto', 'ask_client') | list | length > 0 %}
+  {% if lo_que_falta %}<p class="nota">{{ lo_que_falta }}</p>{% endif %}
   <form method="post" action="/review-decision" class="decision-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <div class="opciones" role="radiogroup" aria-label="Cómo seguir con este caso">
       <label class="opcion"><input type="radio" name="decision" value="sufficient" required>
         <span><strong>Con esto alcanza</strong>
-        <small>Pasa a «Información validada»: podrás emitir la T y crear la carpeta del proyecto en Drive.</small></span></label>
-      <label class="opcion"><input type="radio" name="decision" value="ask_client" required{% if sugiere_preguntar %} checked{% endif %}>
+        <small>Ya tengo lo necesario para cotizar.</small></span></label>
+      <label class="opcion"><input type="radio" name="decision" value="ask_client" required>
         <span><strong>Hay que preguntarle al cliente</strong>
-        <small>Eliges qué preguntas hacer y se arma el correo para que lo revises.</small></span></label>
+        <small>Elijo qué preguntas y armo el correo.</small></span></label>
     </div>
     <div class="preguntas-bloque">
       <label>Preguntas para el cliente (una por línea)
         <textarea name="questions" class="caja-media" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">{{ cuadro_preguntas }}</textarea>
       </label>
-      <p class="meta">Son las inquietudes que dejó el análisis. Borra las que no hagan falta, corrige las que quieras y escribe las tuyas: al continuar se arma el correo con lo que quede. Nada se envía sin «Enviar al cliente».
+      <p class="nota">Son las inquietudes que dejó el análisis. Borra las que no hagan falta, corrige las que quieras y escribe las tuyas: al continuar se arma el correo con lo que quede.
         {% if n_internas %}{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} Anka por dentro (están en «Qué falta resolver»).{% endif %}</p>
     </div>
-    <div class="toolbar spaced">
-      <button type="submit" id="continuar-decision" data-confirm-para="sufficient"
-        data-confirm="El caso pasará a «información suficiente» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Continuar</button>
+    <div class="acciones">
+      <button type="submit" id="btn-suficiente" class="solo-suficiente"
+        data-confirm="El caso pasará a «Información validada» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Marcar como suficiente</button>
+      <button type="submit" id="btn-preguntar" class="solo-preguntar">Preparar el correo</button>
     </div>
+    <p class="nota elige-opcion">Elige una opción para continuar. Nada se envía al cliente en este paso.</p>
   </form>
 </section>
 {% endif %}
@@ -216,4 +218,5 @@
     <p><a class="button secondary" href="https://drive.google.com/drive/folders/{{ review.folder_id | urlquote }}">Abrir carpeta en Drive</a></p>
   </section>
   {% endif %}
+</div>
 </div>

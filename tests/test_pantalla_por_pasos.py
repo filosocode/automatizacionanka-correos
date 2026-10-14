@@ -58,7 +58,7 @@ class PasosArriba(Base):
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn("Paso 1 de 4", pagina)
-        for paso in ("1. Revisar y aclarar", "2. Información validada", "3. T emitida", "4. T&amp;E aprobada"):
+        for paso in ("Revisar y aclarar", "Información validada", "T emitida", "T&amp;E aprobada"):
             self.assertIn(paso, pagina)
         self.assertLess(pagina.index("Paso 1 de 4"), pagina.index('class="next-step'))
         self.assertLess(pagina.index('class="process-step'), pagina.index('class="next-step'))
@@ -290,14 +290,19 @@ class TarjetaAhora(Base):
         self.assertNotIn('value="internal_only"', decision)
         self.assertIn("Con esto alcanza", decision)
         self.assertIn("Hay que preguntarle al cliente", decision)
-        self.assertEqual(decision.count('type="submit"'), 1)
-        self.assertIn('id="continuar-decision"', decision)
+        self.assertEqual(decision.count('type="submit"'), 2)                  # uno por opción, que aparece al elegirla
+        self.assertIn('id="btn-suficiente"', decision)
+        self.assertIn('id="btn-preguntar"', decision)
+        self.assertIn(">Marcar como suficiente<", decision)
+        self.assertIn(">Preparar el correo<", decision)
+        self.assertIn("Elige una opción para continuar. Nada se envía al cliente en este paso.", decision)
+        self.assertIn("<h2>Revisa y decide cómo seguir</h2>", decision)
 
-    def test_con_preguntas_sugeridas_viene_marcada_preguntar_y_el_cuadro_las_trae(self) -> None:
+    def test_ninguna_opcion_viene_marcada_y_el_cuadro_trae_las_preguntas_sugeridas(self) -> None:
         # Cubre: U-31
         self.crear(preguntas=["¿Cuál es el datum del levantamiento?"])
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        self.assertRegex(decision, r'value="ask_client"[^>]*checked')
+        self.assertNotRegex(decision, r"<input[^>]*\bchecked\b")                    # como el prototipo: decide primero
         cuadro = decision.split('name="questions"')[1].split("</textarea>")[0]
         self.assertIn("¿Cuál es el datum del levantamiento?", cuadro)
 
@@ -315,12 +320,10 @@ class TarjetaAhora(Base):
         # Cubre: U-31
         self.crear()
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        inicio = decision.index('id="continuar-decision"')
-        boton = decision[inicio - 200:decision.index("</button>", inicio)]
-        self.assertIn('data-confirm-para="sufficient"', boton)
-        self.assertIn("data-confirm=", boton)
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
-        self.assertIn("confirmPara", layout)
+        suficiente = decision[decision.index('id="btn-suficiente"'):decision.index("</button>", decision.index('id="btn-suficiente"'))]
+        preguntar = decision[decision.index('id="btn-preguntar"'):decision.index("</button>", decision.index('id="btn-preguntar"'))]
+        self.assertIn("data-confirm=", suficiente)
+        self.assertNotIn("data-confirm", preguntar)
 
     def test_cada_opcion_hace_lo_mismo_que_antes(self) -> None:
         # Cubre: U-31
@@ -386,6 +389,40 @@ class CuadroUnico(Base):
         self.assertIn('class="next-step', pagina)
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
         self.assertIn(".next-step:has(~ .ahora) { display: none; }", css)
+
+
+class IgualAlPrototipo(Base):
+    def test_las_opciones_son_tarjetas_sin_circulo_y_cada_boton_sale_al_elegir(self) -> None:
+        # Cubre: U-31
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".opcion input[type=radio] { position: absolute; opacity: 0;", css)
+        self.assertIn("@supports selector(:has(*))", css)
+        self.assertIn('.decision-form:has(input[name="decision"]:checked) .elige-opcion { display: none; }', css)
+
+    def test_el_contenido_del_caso_tiene_ancho_de_lectura_y_los_pasos_van_bajo_su_titulo(self) -> None:
+        # Cubre: U-31
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".pantalla-caso { max-width: 880px;", css)
+        self.crear()
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn('<div class="pantalla-caso">', pagina)
+        paso = pagina.index('class="paso-cabecera"')
+        self.assertLess(paso, pagina.index('class="section stepper"'))
+        self.assertNotIn("1. Revisar", pagina[paso:pagina.index('class="next-step')])
+
+    def test_los_botones_de_la_tabla_son_de_contorno_con_texto_de_la_marca(self) -> None:
+        # Cubre: U-31
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".acts-head .button.secondary, .acts-head label.button { background: transparent; color: var(--accent-dark);", css)
+
+    def test_lo_que_falta_se_dice_antes_de_las_opciones(self) -> None:
+        # Cubre: U-31
+        self.crear(actividades=[actividad("Planimetría", "confirmado"), actividad("Altimetría", "pendiente")],
+                   adjuntos=[adjunto("solicitud.pdf"), adjunto("planos.dwg", "bloqueado")])
+        decision = tarjeta(pantalla_caso.render_case("t-1"))
+        frase = "Faltan: 1 actividad por completar y 1 archivo por revisar (planos.dwg). Míralo en la tabla y en la pestaña «Archivos»."
+        self.assertIn(frase, decision)
+        self.assertLess(decision.index(frase), decision.index('class="opciones"'))
 
 
 class PasosComoBarra(Base):

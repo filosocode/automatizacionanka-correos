@@ -53,7 +53,6 @@ class UnSoloCamino(Base):
         self.assertLess(pagina.index('class="next-step'), decision)
         self.assertLess(decision, pagina.index("Conversación con el cliente"))
         self.assertLess(decision, pagina.index('id="attachments-review"'))
-        self.assertIn('href="#attachments-review">Ver los archivos y lo que falta resolver', pagina)
 
     def test_las_preguntas_elegidas_llegan_al_campo_del_correo_y_este_queda_plegado(self) -> None:
         # Cubre: U-28
