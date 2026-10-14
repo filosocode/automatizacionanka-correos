@@ -17,7 +17,7 @@
   <form method="post" action="/code-issue">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <input type="hidden" name="suggested_number" value="{{ suggestion }}">
-    <div class="filters"><label>Número de la T (año + consecutivo)<input name="number" value="{{ suggestion }}" pattern="[0-9]{5}" required></label></div>
+    <div class="filters"><label>Número de la T (año + consecutivo)<input name="number" value="{{ (numero_escrito if numero_escrito is defined else '') or suggestion }}" pattern="[0-9]{5}" required></label></div>
     <p class="meta">Es una sugerencia según los códigos de este dashboard; confírmala o corrígela con el consecutivo real (el texto del correo se ajusta solo).</p>
     <label>Correo que se enviará a {{ contact }} (puedes editarlo)<textarea name="body" rows="14" required>{{ received_text }}</textarea></label>
     <div class="toolbar">

@@ -18,7 +18,8 @@ from markupsafe import Markup
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
-from anka.dominio.activities import normalize_estado
+from anka.dominio.activities import normalize_estado, parse_activities_form
+from anka.web import formularios_pendientes as pendientes
 from anka.dominio.work_contract import lectura_sin_verificar
 from anka.web.views import (
     adjunto_requiere_atencion, attachments_panel, reception_assessment_panel, activities_editor, question_audit_panel,
@@ -303,7 +304,7 @@ def _stepper(review: Caso) -> Markup:
     return render("stepper.html", steps=steps, current=current)
 
 
-def _code_panel(review: Caso) -> Markup:
+def _code_panel(review: Caso, escrito: Mapping[str, list[str]] | None = None) -> Markup:
     code = review.get("quote_code", "")
     stage = review.get("code_stage", "")
     can_assign = (review["status"] not in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
@@ -318,7 +319,9 @@ def _code_panel(review: Caso) -> Markup:
         stage_label=STAGE_LABELS.get(stage, ""), thread_id=review["thread_id"],
         approved_code=code_label(code, "TE") if code else "", can_assign=can_assign and not code,
         suggestion=suggestion, contact=contact,
-        received_text=received_email_text(project, code_label(suggestion, "T"), contact) if suggestion else "")
+        numero_escrito=(escrito or {}).get("number", [""])[0],
+        received_text=((escrito or {}).get("body", [""])[0]
+                       or (received_email_text(project, code_label(suggestion, "T"), contact) if suggestion else "")))
 
 
 def _project_panel(thread_id: str) -> Markup:
@@ -511,6 +514,11 @@ def _lo_que_falta(analysis: Analisis) -> str:
     return f"Faltan: {' y '.join(partes)}. Míralo en la tabla y en la pestaña «Archivos»." if partes else ""
 
 
+def _campo(escrito: Mapping[str, list[str]], nombre: str) -> str:
+    """El primer valor de un campo del formulario que se guardó, o vacío."""
+    return (escrito.get(nombre) or [""])[0]
+
+
 def _cuadro_de_preguntas(analysis: Analisis, preguntas: list[dict[str, Any]]) -> str:
     """El texto del cuadro único «Preguntas para el cliente» (U-31): lo último que escribió la persona o, si no hay,
     las inquietudes que el análisis sugiere para el cliente (las internas de Anka no van), una por línea."""
@@ -697,7 +705,9 @@ def _texto_de_lectura_pendiente(analysis: Analisis) -> str:
 
 def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: dict, config: Configuracion,
                  events: list[Evento], integrity_ok: bool, event_count: int,
-                 questions_in_decision: bool = False, slot: str = "aviso") -> dict[str, Any]:
+                 questions_in_decision: bool = False, slot: str = "aviso",
+                 pendiente: tuple[str, Mapping[str, list[str]]] | None = None,
+                 actividades_escritas: list[Any] | None = None) -> dict[str, Any]:
     """Los paneles de la pantalla del caso, cada uno ya renderizado."""
     proposal = review.get("proposal", [])
     reading_blocked = _reading_is_blocked(analysis)
@@ -708,7 +718,8 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             "<div class='notice'><strong>Pendiente de lectura.</strong> No se muestran actividades hasta que Work "
             "confirme la lectura de los segmentos del mensaje y sus adjuntos.</div>"
         ) if reading_blocked else activities_editor(
-            thread_id, analysis.get("activities", []), list(EDIT_REASONS.items()),
+            thread_id, actividades_escritas or analysis.get("activities", []), list(EDIT_REASONS.items()),
+            abierto=bool(actividades_escritas),
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
             ultima=last_manual_version(thread_id))),
@@ -739,7 +750,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "stepper": _stepper(review),
         "followup": _followup_panel(review),
         "edit_note": _edit_note(thread_id),
-        "code_panel": _code_panel(review),
+        "code_panel": _code_panel(review, pendiente[1] if pendiente and pendiente[0] == "/code-issue" else None),
         "code_text": _code_text(review),
         "next_step": (render("next_step.html", oculto=False, tone="warn", title="Lectura pendiente",
                               text=_texto_de_lectura_pendiente(analysis),
@@ -759,6 +770,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
                 to_kind: str = "", preguntas_texto: str = "") -> str:
     """Pantalla de un caso: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento."""
     review, recipient_error = _load_review(thread_id)
+    pendiente = pendientes.ver(thread_id)
     if not review:
         return page("Caso no encontrado", render("empty.html", text="La solicitud no existe."), message)
     analysis = review["analysis"]
@@ -794,6 +806,25 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     slot = ("lectura" if reading_blocked else "decision" if espera_decision
             else "correo" if email == "form" and not plegar_respuesta
             else "codigo" if puede_emitir else "aviso")
+    # Lo que la persona escribió y no se pudo procesar vuelve a su sitio (U-31); si ya no aplica, se descarta.
+    restaurado, esperar_marcada, actividades_escritas = False, False, None
+    if pendiente:
+        ruta_pendiente, escrito = pendiente
+        if ruta_pendiente in ("/send", "/draft") and email == "form" and not reading_blocked:
+            email_body, blank_reply, restaurado = _campo(escrito, "body"), False, True
+            esperar_marcada = _campo(escrito, "esperar") == "1"
+        elif ruta_pendiente == "/review-decision" and espera_decision and _campo(escrito, "questions"):
+            cuadro_preguntas, restaurado = _campo(escrito, "questions"), True
+        elif ruta_pendiente == "/code-issue" and puede_emitir:
+            restaurado = True
+        elif ruta_pendiente == "/activities" and not reading_blocked:
+            try:
+                actividades_escritas = parse_activities_form(dict(escrito)) or None
+            except ValueError:
+                actividades_escritas = None
+            restaurado = actividades_escritas is not None
+        if not restaurado:
+            pendientes.limpiar(thread_id)
     archivos = analysis.get("attachments", [])
     por_revisar = sum(1 for a in archivos if isinstance(a, Mapping) and adjunto_requiere_atencion(a))
     etiqueta_archivos = f"Archivos ({len(archivos)})" + (f" · {por_revisar} por revisar" if por_revisar else "")
@@ -810,6 +841,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         suggestion_complete=review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING},
         draft_complete=bool(review["draft_id"] or sent_complete),
         plegar_respuesta=plegar_respuesta, slot=slot, recibido=recibido, etiqueta_archivos=etiqueta_archivos,
+        restaurado=restaurado, esperar_marcada=esperar_marcada,
         tab_inicial="archivos" if por_revisar or reading_blocked else "conversacion",
         sent_complete=sent_complete, no_reply_needed=review["status"] in {QuoteStatus.READY, QuoteStatus.IGNORED},
         client_types=CLIENT_TYPES, sectors=SECTORS,
@@ -831,7 +863,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),
         **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count,
-                       questions_in_decision=bool(preguntas) and review["status"] == QuoteStatus.REVIEW, slot=slot),
+                       questions_in_decision=bool(preguntas) and review["status"] == QuoteStatus.REVIEW, slot=slot,
+                       pendiente=pendiente if restaurado else None, actividades_escritas=actividades_escritas),
     )
     return page("Revisar caso", body, message)
 

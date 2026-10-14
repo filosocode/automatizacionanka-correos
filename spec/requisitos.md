@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88, D-89. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -691,6 +691,10 @@ la carpeta de Drive.
 20. **Ningún estado se queda sin tarjeta «Ahora» (D-88).** Todo caso muestra una tarjeta o un aviso de siguiente paso. Los que antes no tenían: «Descartada» (cómo rescatarla), «Hilo no
     disponible», «Respuesta enviada» sin espera (cómo escribir otro correo), «Envío interrumpido» (revisar antes de reenviar) y, para cualquier otro, el nombre del estado, «Este caso no necesita nada
     de ti ahora» y «Volver a Solicitudes».
+21. **Lo escrito no se pierde si la acción falla (D-89).** En enviar, guardar borrador, emitir la T, decidir con preguntas y guardar la tabla, lo que la persona escribió se guarda en memoria
+    (nunca en disco, 15 minutos, hasta 50 casos, sin el token de seguridad) antes de procesarlo. Si la acción falla con un aviso o con un error del servidor, al volver al caso el mensaje, el número de
+    la T, el cuadro de preguntas o la tabla vuelven a su sitio, con el aviso «Lo que escribiste sigue aquí», y la página de error dice que lo escrito se conserva. Si la acción sale bien, o el caso ya no
+    admite ese formulario, se olvida.
 
 **Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
 - E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
@@ -721,6 +725,8 @@ la carpeta de Drive.
 - E6 · Un formulario POST no se envía dos veces; con el correo editado el navegador pide confirmar al salir; «+ Agregar» abre el editor por script; el mensaje queda a la vista y su parámetro sale de la URL.
 - E8 · En el Resumen los casos por atender salen antes que el aviso de borradores de Work; el aviso dice «Un borrador de Work no se pudo leer» (o «N borradores… no se pudieron leer»), trae «Ver el caso» y deja el identificador y el motivo dentro de un detalle plegado.
 - E9 · Para cada estado del caso la pantalla trae una tarjeta «Ahora» o un aviso de siguiente paso con título, texto y un botón que lleva a algún sitio; descartada, hilo no disponible, respuesta enviada sin espera y envío interrumpido dicen qué pasó y qué hacer.
+- E10 · Si Gmail falla al enviar, el mensaje editado y la casilla de esperar vuelven a la pantalla; un aviso de la acción (por ejemplo un borrador que no se pudo guardar) también conserva lo escrito; un envío exitoso no deja nada; si el caso ya no admite responder, no se avisa en falso.
+- E10 · Lo mismo para el cuadro de preguntas de la decisión, el número y el correo de la T, y las actividades de la tabla (con el editor abierto); lo guardado caduca, tiene tope y no incluye el token.
 - E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; en revisión pendiente, «Por aclarar con el cliente»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

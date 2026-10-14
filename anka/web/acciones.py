@@ -12,6 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from anka.dominio.errores import ErrorDeAnka
+from anka.web import formularios_pendientes as pendientes
 from anka.dominio.activities import parse_activities_form
 from anka.infra.modes import (
     set_mode,
@@ -80,6 +81,7 @@ def _guidance(action: Callable[[], str], *errors: type[BaseException]) -> str:
     try:
         return action()
     except errors as exc:
+        pendientes.marcar_fallo()          # lo que la persona escribió se le devuelve (U-31)
         return str(exc)
 
 

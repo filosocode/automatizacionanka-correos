@@ -114,6 +114,7 @@ La descripción es la primera frase de su docstring.
 |---|---|
 | `acciones` | Las acciones de los formularios del dashboard (POST): una función por ruta. |
 | `api` | Representación JSON de los casos para las rutas de lectura `/api/...` (ver spec/07-api.md). |
+| `formularios_pendientes` | Lo que la persona escribió en un formulario que no se pudo procesar, para devolvérselo y que no lo pierda (U-31). |
 | `openapi` | La documentación OpenAPI 3 del dashboard y la página de Swagger UI (spec/07-api.md, requisito T-13). |
 | `paginas` | Las páginas comunes del dashboard: la página completa, el resumen, las solicitudes y las descartadas. |
 | `pantalla_caso` | La pantalla de un caso y su acta: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento. |

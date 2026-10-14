@@ -1,4 +1,4 @@
-<input type="checkbox" id="editar-toggle" class="toggle-oculto">
+<input type="checkbox" id="editar-toggle" class="toggle-oculto"{% if abierto %} checked{% endif %}>
 <div class="acts-head">
   <div><h2>Actividades detectadas</h2>{% if resumen %}<p class="resumen-tabla">{{ resumen }}</p>{% endif %}</div>
   <div class="acciones"><a class="button secondary" href="#editar-tabla">+ Agregar</a><label for="editar-toggle" class="button secondary">Editar tabla</label></div>

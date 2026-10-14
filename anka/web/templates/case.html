@@ -20,7 +20,7 @@
   <label class="solo-lectores" for="cuerpo-correo">Mensaje (puedes editarlo)</label>
   <textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
   <p class="nota" id="aviso-espera" aria-live="polite"></p>
-  <label class="nota check-line" id="caja-esperar"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta">
+  <label class="nota check-line" id="caja-esperar"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta"{% if esperar_marcada %} checked{% endif %}>
     Esperar su respuesta aunque el correo no tenga preguntas</label>
   <div class="acciones">
     <button type="submit" formaction="/send" class="send-action"
@@ -83,6 +83,7 @@
   </div>
   <span class="badge">{{ review.status_label }}</span>{% if code_text %} <span class="badge info">{{ code_text }}</span>{% endif %}
 </div>
+{% if restaurado %}<div class="notice" role="status">No se pudo completar lo anterior. <strong>Lo que escribiste sigue aquí</strong>: revísalo y vuelve a intentarlo.</div>{% endif %}
 {{ stepper }}
 {{ next_step }}
 {% if slot == 'lectura' %}

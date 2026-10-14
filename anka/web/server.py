@@ -30,6 +30,7 @@ from anka.servicios.quotes import (
 )
 
 from anka.web import openapi, paginas
+from anka.web import formularios_pendientes as pendientes
 from anka.web.acciones import POST_ROUTES, field, int_field
 from anka.web.api import a_json, resumen_de_caso
 from anka.web import pantalla_caso
@@ -110,6 +111,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
         log.exception("Error atendiendo %s %s (código %s)", metodo, ruta, codigo)
         texto = (f"{exc} " if es_mensaje_para_la_persona(exc) else "Ocurrió un error inesperado. ")
         texto += f"Si se repite, avisa con el código de error {codigo}."
+        if metodo == "POST" and ruta in pendientes.RUTAS_CON_TEXTO:
+            texto += " Lo que escribiste se conserva: vuelve al caso y lo verás ahí."
         self._send_html(paginas.page("Error", render("empty.html", text=texto)), 500)
 
     def _reject(self, reason: str) -> None:
@@ -284,9 +287,14 @@ class ReviewHandler(BaseHTTPRequestHandler):
         if action is None:
             return self._send_html(
                 paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
+        hilo = field(form, "thread_id") if path in pendientes.RUTAS_CON_TEXTO else ""
+        if hilo:
+            pendientes.guardar(hilo, path, form)         # si algo falla, la persona recupera lo que escribió (U-31)
         try:
             with request_scope():
                 location = action(form)
+            if hilo and not pendientes.hubo_fallo():
+                pendientes.limpiar(hilo)
             self._redirect(location)
         except ValueError as exc:
             self._rechazada("POST", path, exc)
