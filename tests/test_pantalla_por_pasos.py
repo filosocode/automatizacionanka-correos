@@ -629,6 +629,45 @@ class ResumenSinJerga(Base):
         self.assertIn("Hay bloques JSON repetidos o incompletos.", detalle)
 
 
+class TodoEstadoTieneAviso(Base):
+    def aviso(self, estado: QuoteStatus) -> tuple[str, str]:
+        self.crear(f"t-{estado}", estado=estado)
+        pagina = pantalla_caso.render_case(f"t-{estado}")
+        return pagina, (pagina[pagina.index('class="next-step'):].split("</div>\n</div>")[0] if 'class="next-step' in pagina else "")
+
+    def test_cada_estado_trae_una_tarjeta_ahora_o_un_aviso_con_titulo_y_boton(self) -> None:
+        # Cubre: U-31
+        for estado in QuoteStatus:
+            with self.subTest(estado=estado):
+                pagina, aviso = self.aviso(estado)
+                tarjeta_ahora = bool(re.search(r'<section class="section[^"]* ahora"', pagina))
+                self.assertTrue(tarjeta_ahora or aviso, f"{estado} se queda sin siguiente paso")
+                if aviso and not tarjeta_ahora:
+                    self.assertRegex(aviso, r"<strong>\s*\S")
+                    self.assertRegex(aviso, r'<a class="button[^"]*" href="[^"]+">')
+
+    def test_los_estados_que_antes_quedaban_vacios_dicen_que_paso_y_que_hacer(self) -> None:
+        # Cubre: U-31
+        esperado = {QuoteStatus.IGNORED: ("Descartada", "/discarded"), QuoteStatus.MISSING: ("Hilo no disponible", "/requests"),
+                    QuoteStatus.SENDING: ("Envío interrumpido", "#respuesta"),
+                    QuoteStatus.RESPONSE_SENT: ("Respuesta enviada", "template=libre#respuesta")}
+        for estado, (titulo, destino) in esperado.items():
+            with self.subTest(estado=estado):
+                if estado == QuoteStatus.RESPONSE_SENT:                           # un acuse: se envió sin preguntas
+                    analisis = complete_analysis(location="")
+                    analisis["preguntas_enviadas"] = {"preguntas": []}
+                    db = store.open_db(Path(self.temp.name))
+                    store.save(db, f"t-{estado}", "m-1", estado, "cliente@empresa.co", analisis)
+                    db.commit()
+                    db.close()
+                    pagina = pantalla_caso.render_case(f"t-{estado}")
+                    aviso = pagina[pagina.index('class="next-step'):]
+                else:
+                    _, aviso = self.aviso(estado)
+                self.assertIn(titulo, aviso)
+                self.assertIn(destino, aviso)
+
+
 class SeguridadDelUsuario(Base):
     def test_el_aviso_de_decision_nunca_se_oculta_y_el_estandar_solo_con_tarjeta(self) -> None:
         # Cubre: U-31

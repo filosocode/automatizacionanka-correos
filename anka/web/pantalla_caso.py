@@ -6,7 +6,7 @@ este módulo depende de él, nunca al revés.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, NamedTuple
 import json
@@ -413,7 +413,30 @@ def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oc
         return aviso(tone="info", title="Esperando al cliente",
             text=f"{label}. Si no responde, el seguimiento prepara un recordatorio que tú revisas antes de enviarlo.",
             action_href="#seguimiento", action_label="Ver seguimiento")
-    return Markup("")
+    return _aviso_de_estado_final(review, aviso)
+
+def _aviso_de_estado_final(review: Caso, aviso: Callable[..., Markup]) -> Markup:
+    """El aviso de los estados que no piden nada o que se resuelven fuera del flujo: nunca queda vacío (U-31, D-88)."""
+    hilo = urllib.parse.quote(str(review["thread_id"]))
+    if review["status"] == QuoteStatus.IGNORED:
+        return aviso(tone="info", title="Descartada",
+            text="No es una solicitud comercial: no hay nada que hacer. Si fue un error, rescátala desde Descartadas.",
+            action_href="/discarded", action_label="Ver descartadas")
+    if review["status"] == QuoteStatus.MISSING:
+        return aviso(tone="warn", title="Hilo no disponible",
+            text="El hilo ya no existe en Gmail, así que no se puede responder desde aquí.",
+            action_href="/requests", action_label="Volver a Solicitudes")
+    if review["status"] == QuoteStatus.SENDING:
+        return aviso(tone="warn", title="Envío interrumpido",
+            text="Gmail no confirmó que el correo saliera. Revisa antes de volver a enviarlo para no duplicarlo.",
+            action_href="#respuesta", action_label="Revisar el envío")
+    if review["status"] == QuoteStatus.RESPONSE_SENT:
+        return aviso(tone="info", title="Respuesta enviada",
+            text="No se espera nada del cliente. Si llega un mensaje nuevo, el caso vuelve a tu lista.",
+            action_href=f"/case?thread_id={hilo}&template=libre#respuesta", action_label="Escribir otro correo")
+    return aviso(tone="info", title=str(review.get("status_label") or "Sin novedades"),
+        text="Este caso no necesita nada de ti ahora.", action_href="/requests", action_label="Volver a Solicitudes")
+
 
 
 def _manual_review_note(manual: RevisionManual | None) -> str:

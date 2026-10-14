@@ -204,6 +204,19 @@ Pendiente
 </div>
 </div>
 </section>
+<div class="next-step aviso-ahora info">
+<div>
+<strong>
+Descartada
+</strong>
+<span>
+No es una solicitud comercial: no hay nada que hacer. Si fue un error, rescátala desde Descartadas.
+</span>
+</div>
+<a class="button" href="/discarded">
+Ver descartadas
+</a>
+</div>
 <div class="layout">
 <section class="section actividades">
 <input type="checkbox" id="editar-toggle" class="toggle-oculto">
