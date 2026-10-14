@@ -737,7 +737,7 @@ la carpeta de Drive.
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).
 
 ### U-32 · Una sola entrada, «Mis casos», sin barra de pestañas
-**Estado: en implementación, pasos 1 y 2** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-91, D-92. Reemplaza lo que U-28.6 decía de la navegación; no quita ninguna función de U-11, U-13, U-16, U-19 ni U-25.
+**Estado: en implementación, pasos 1 y 2** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-91, D-92, D-93. Reemplaza lo que U-28.6 decía de la navegación; no quita ninguna función de U-11, U-13, U-16, U-19 ni U-25.
 
 **Motivo.** La persona responsable del producto no quiere la barra «Resumen / Solicitudes / Descartadas / Archivo»: pide un flujo amigable, práctico, sin tantas variaciones ni desvíos. Tres agentes de
 evaluación (UX, técnico y gestión, 2026-10-14) encontraron que Resumen y Solicitudes responden lo mismo, que solo una o dos de las cuatro pestañas sirven al trabajo diario y que Archivo (casos eliminados,
@@ -754,8 +754,8 @@ con identificadores ilegibles) es de auditoría. La persona respondió que resca
 **Paso 2 (pedido por la persona el mismo día, D-92): la página principal es la lista de casos.** La página de inicio («Mis casos», con el título grande) lista todos los casos, uno por fila, del más urgente al menos y,
 a igual urgencia, el más reciente; un proyecto con varios hilos ocupa una sola fila. Cada fila dice el proyecto, el cliente, en qué paso está (con los nombres de U-31.7) y trae un botón con verbo («Aclarar», «Decidir», «Emitir la T»,
 «Abrir») que lleva al caso; desde el caso, «← Mis casos» regresa a la lista. Encima de la lista, chips de etapa que son los contadores de antes («Por atender», «Esperando al cliente», «Listas para la T», «En cotización») y «Todos»;
-al entrar está elegido «Por atender» si hay casos que esperan a la persona y «Todos» si no. Las novedades y el aviso de borradores de Work van en la misma página; las estadísticas siguen plegadas. «Buscar o exportar» lleva a la
-página `/requests` de siempre (búsqueda, orden, tipo de cliente, eliminar en lote y exportar a Excel), que no cambia. Reemplaza lo de U-11 sobre la cola de cinco casos y el botón «Ver los N en Solicitudes».
+al entrar está elegido «Por atender» si hay casos que esperan a la persona y «Todos» si no. Las novedades y el aviso de borradores de Work van en la misma página; las estadísticas siguen plegadas. Un cuadro «Buscar» (proyecto, cliente o servicio) filtra la lista, junto con los chips. Eliminar casos en lote y exportar a Excel, que se usan poco, viven en «Administrar casos» (`/requests`), al que se llega
+desde «Ajustes»: ya no hay un botón «Buscar o exportar» ni dos listas en el camino. Reemplaza lo de U-11 sobre la cola de cinco casos y el botón «Ver los N en Solicitudes».
 
 **Casos de aceptación**
 - E1 · El encabezado no tiene `<nav>` ni los enlaces «Resumen», «Solicitudes» y «Archivo»; la marca enlaza a `/` y marca la página actual; el contador de novedades está en la marca.
@@ -763,7 +763,8 @@ página `/requests` de siempre (búsqueda, orden, tipo de cliente, eliminar en l
 - E1 · «← Mis casos» en el caso y «Volver a Mis casos» en los avisos llevan a `/`.
 - E2 · «Mis casos» lista todos los casos (no solo cinco), ordenados por urgencia y luego por fecha, con un solo botón con verbo por fila; un proyecto con varios hilos ocupa una fila; el título es un `h1` grande.
 - E2 · Los chips de etapa traen el número de casos de cada una y «Todos»; al entrar está elegido «Por atender» si hay casos por atender y «Todos» si no; elegir un chip muestra solo esas filas y, si no hay, dice que no hay casos en esa etapa.
-- E2 · «Buscar o exportar» lleva a `/requests`; las novedades y el aviso de borradores de Work siguen en la página.
+- E2 · El cuadro «Buscar» filtra las filas por proyecto, cliente o servicio, junto con el chip elegido; si nada coincide dice «No hay casos con esos filtros». No hay botón «Buscar o exportar».
+- E2 · «Ajustes» trae «Administrar casos (eliminar, exportar)» que lleva a `/requests`, que se titula «Administrar casos» y trae «← Mis casos»; las novedades y el aviso de borradores de Work siguen en la página principal.
 
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
 **Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la

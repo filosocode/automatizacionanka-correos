@@ -20,6 +20,7 @@
       <span id="bridge-chip" class="bridge-chip" hidden></span>
       <a id="google-chip" class="bridge-chip" href="#ajustes" hidden></a>
       <details class="settings" id="ajustes"><summary>Ajustes</summary><div class="settings-box">{{ mode_selector }}
+        <a class="enlace-ajustes" href="/requests">Administrar casos (eliminar, exportar)</a>
         <a class="enlace-ajustes" href="/archive">Casos eliminados (archivo)</a>
         <div class="google-settings">
           <strong>Cuenta de Google</strong>
@@ -187,15 +188,23 @@
       const filas = Array.from(document.querySelectorAll('#casos .queue-row'));
       if (!chips) return;
       const botones = Array.from(chips.querySelectorAll('.chip-filter'));
-      function elegir(etapa) {
-        botones.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.etapa === etapa)));
+      const buscador = document.getElementById('buscar-casos');
+      let etapaActual = chips.dataset.inicial || '';
+      function aplicar() {
+        const termino = buscador ? buscador.value.trim().toLocaleLowerCase('es') : '';
+        botones.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.etapa === etapaActual)));
         let visibles = 0;
-        filas.forEach(fila => { const ver = !etapa || fila.dataset.etapa === etapa; fila.hidden = !ver; if (ver) visibles += 1; });
+        filas.forEach(fila => {
+          const ver = (!etapaActual || fila.dataset.etapa === etapaActual) && (!termino || (fila.dataset.search || '').includes(termino));
+          fila.hidden = !ver;
+          if (ver) visibles += 1;
+        });
         const vacio = document.getElementById('sin-casos');
         if (vacio) vacio.hidden = visibles !== 0;
       }
-      botones.forEach(b => b.addEventListener('click', () => elegir(b.dataset.etapa)));
-      elegir(chips.dataset.inicial || '');
+      botones.forEach(b => b.addEventListener('click', () => { etapaActual = b.dataset.etapa; aplicar(); }));
+      if (buscador) buscador.addEventListener('input', aplicar);
+      aplicar();
     })();
     (function () {
       // Pestañas del caso (U-31): con JavaScript se muestra un panel a la vez; sin él, todos se ven uno tras otro.

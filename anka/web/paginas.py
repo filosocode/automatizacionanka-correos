@@ -134,6 +134,9 @@ def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False, mis
     code = quote.get("quote_code")
     return render(
         "queue_row.html", position=position, is_new=is_new, mismos=mismos, etapa=grupo_de_etapa(quote),
+        busqueda=" ".join([str(quote["analysis"].get("project_name") or ""), str(quote["client_name"] or ""),
+                           str(code_label(code, quote.get("code_stage") or "T") if code else ""),
+                           *[str(servicio) for servicio in quote.get("services", [])]]).casefold(),
         primaria=position == 1 and bool(case_stage(quote)[1]),
         project=quote["analysis"].get("project_name") or "Solicitud sin nombre",
         client_name=quote["client_name"], reason=case_stage(quote)[0], verb=verb,
@@ -301,7 +304,7 @@ def render_requests(message: str = "", agrupar_hilos: bool = True) -> str:
         etapas=[(key, label, sum(grupo_de_etapa(q) == key for q in quotes)) for key, label in ETAPAS_FILTRO],
         type_options=CLIENT_TYPES,
     )
-    return page("Solicitudes", body, message)
+    return page("Administrar casos", body, message)
 
 
 def render_discarded(message: str = "") -> str:

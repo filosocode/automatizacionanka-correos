@@ -620,3 +620,5 @@ a.brand[aria-current="page"] strong { box-shadow: inset 0 -3px 0 var(--accent); 
 .titulo-principal { font-size: 32px; line-height: 1.15; margin: 0; }
 .queue-row[hidden], .empty[hidden] { display: none; }
 .queue-row { padding-block: 14px; }
+.buscar-casos { margin: 0 0 10px; }
+.buscar-casos input { width: 100%; }

@@ -1,15 +1,15 @@
 <div class="page-head">
   <div><h1 class="titulo-principal">Mis casos</h1><p>{% if total %}{{ total }} caso{{ '' if total == 1 else 's' }}{% if action_count %} · {{ action_count }} por atender, del más urgente al menos{% else %} · nada pendiente de tu parte{% endif %}.{% else %}Todavía no hay casos.{% endif %}</p></div>
-  <a class="button secondary" href="/requests">Buscar o exportar</a>
 </div>
 {{ notifications }}
 {% if total %}
+<div class="buscar-casos"><label class="solo-lectores" for="buscar-casos">Buscar un caso</label><input id="buscar-casos" type="search" placeholder="Buscar por proyecto, cliente o servicio"></div>
 <div class="chips" role="group" aria-label="Filtrar por etapa" data-filtro-etapas data-inicial="{{ inicial }}">
   {% for key, label, count in etapas %}<button type="button" class="chip-filter" data-etapa="{{ key }}" aria-pressed="false">{{ label }} <b>{{ count }}</b></button>
   {% endfor %}<button type="button" class="chip-filter" data-etapa="" aria-pressed="false">Todos <b>{{ total }}</b></button>
 </div>
 <ol class="queue" id="casos">{% for row in todo %}{{ row }}{% endfor %}</ol>
-<div id="sin-casos" class="empty" hidden>No hay casos en esta etapa.</div>
+<div id="sin-casos" class="empty" hidden>No hay casos con esos filtros.</div>
 {% else %}<div class='empty'>Todavía no hay casos. Cuando llegue una solicitud por correo aparecerá aquí.</div>{% endif %}
 {{ work_rejected }}
 <details class="more">

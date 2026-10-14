@@ -743,8 +743,40 @@ class PaginaPrincipalEsLaLista(Base):
         rechazado = [{"draft": "r-1", "thread": "t-a", "reason": "x"}]
         with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
             pagina = self.lista()
-        self.assertIn('href="/requests">Buscar o exportar</a>', pagina)
+        self.assertNotIn("Buscar o exportar", pagina)
         self.assertIn("Un borrador de Work no se pudo leer", pagina)
+
+
+class UnaSolaListaEnElCamino(Base):
+    def test_cada_fila_trae_lo_que_se_busca_y_el_script_lo_usa(self) -> None:
+        # Cubre: U-32
+        from anka.web import paginas
+        self.crear("t-a", estado=QuoteStatus.REVIEW, proyecto="Parque Solar Llanos")
+        pagina = paginas.render_index()
+        fila = pagina[pagina.index('<li class="queue-row"'):]
+        fila = fila[:fila.index(">")]
+        self.assertIn('data-search="', fila)
+        self.assertIn("parque solar llanos", fila)
+        self.assertIn("cliente", fila)
+        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        for pieza in ("getElementById('buscar-casos')", "fila.dataset.search", "buscador.addEventListener('input', aplicar)"):
+            self.assertIn(pieza, layout)
+
+    def test_ajustes_lleva_a_administrar_casos_que_trae_el_regreso(self) -> None:
+        # Cubre: U-32
+        from anka.web import paginas
+        self.crear("t-a", estado=QuoteStatus.REVIEW)
+        with patch("anka.web.paginas.unread_thread_count", return_value=0):
+            admin = paginas.render_requests()
+        self.assertIn("<title>Administrar casos - Anka</title>", admin)
+        self.assertIn('<a class="atras" href="/">← Mis casos</a>', admin)
+        self.assertIn("Exportar todo a Excel", admin)
+        self.assertIn('href="/requests">Administrar casos (eliminar, exportar)</a>', admin)
+
+    def test_descartadas_regresa_a_mis_casos(self) -> None:
+        # Cubre: U-32
+        from anka.web import paginas
+        self.assertIn('<a class="button secondary" href="/">← Mis casos</a>', paginas.render_discarded())
 
 
 class MisCasos(Base):

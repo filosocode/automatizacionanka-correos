@@ -345,10 +345,11 @@ class ResumenYControles(unittest.TestCase):
         ajena = self._resumen(casos, [self._novedad("otro")])
         self.assertNotIn("ya aparecen en tu lista de casos", ajena)       # una novedad que no está en la cola queda a la vista
 
-    def test_buscar_o_exportar_lleva_a_la_pagina_de_siempre(self) -> None:
+    def test_mis_casos_trae_su_buscador_y_no_el_boton_de_buscar_o_exportar(self) -> None:
         # Cubre: U-32
         html = self._resumen([_caso(f"t{n}", QuoteStatus.REVIEW) for n in range(7)], [])
-        self.assertIn('<a class="button secondary" href="/requests">Buscar o exportar</a>', html)
+        self.assertIn('id="buscar-casos" type="search"', html)
+        self.assertNotIn("Buscar o exportar", html)
 
     def test_controles_de_44_px_y_botones_de_etapa_con_espacio(self) -> None:
         # Cubre: U-14
