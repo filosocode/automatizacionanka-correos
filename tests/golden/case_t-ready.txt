@@ -129,7 +129,7 @@ cliente@example.com · listo@example.com · recibido el 2026-09-01
 </div>
 </div>
 <span class="badge">
-Información suficiente para revisión interna
+Información validada
 </span>
 </div>
 <div class="paso-cabecera">
@@ -1019,9 +1019,9 @@ Redactar de nuevo con estas preguntas
 <div class="spaced-top">
 <div class="notice">
 <strong>
-Recepción completa.
+Información validada.
 </strong>
-La información puede pasar a revisión interna. Este dashboard todavía no prepara precios ni cotizaciones.
+Este dashboard todavía no prepara precios ni cotizaciones.
 </div>
 </div>
 </section>

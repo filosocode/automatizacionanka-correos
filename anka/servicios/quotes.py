@@ -589,7 +589,7 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
             analysis["manual_review"] = {"decision": "sufficient", "at": now, "questions": []}
             nuevo = QuoteStatus.READY_REVIEW
             texto = "Decidiste no preguntar al cliente antes de enviar el correo: la información es suficiente."
-            mensaje = "Marcado como información suficiente. Ya puedes emitir la T y crear la carpeta en Drive."
+            mensaje = "Marcado como información validada. Ya puedes emitir la T y crear la carpeta en Drive."
         if row["draft_id"]:
             mensaje += " El borrador que guardaste en Gmail sigue ahí; no se borra."
         actualizar_caso(db, thread_id, status=nuevo, updated_at=now,
@@ -696,7 +696,7 @@ def resolve_technical_review(
         db.close()
     log.info("%s: revisión técnica resuelta por una persona (%s)", thread_id, decision)
     if decision == "sufficient":
-        return "Marcado como información suficiente. Ya puedes crear la carpeta del proyecto en Drive."
+        return "Marcado como información validada. Ya puedes crear la carpeta del proyecto en Drive."
     if decision == "internal_only":
         return "Decisiones guardadas. Las preguntas internas quedaron en los pendientes de Anka."
     return "Listo: revisa y envía las preguntas en la sección Respuesta al cliente."

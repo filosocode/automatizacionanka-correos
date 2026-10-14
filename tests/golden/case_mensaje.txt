@@ -132,7 +132,7 @@ Energía Norte · cliente@example.com · recibido el 2026-09-01
 </div>
 </div>
 <span class="badge">
-Información suficiente para revisión interna
+Por aclarar con el cliente
 </span>
 </div>
 <div class="paso-cabecera">
@@ -178,7 +178,7 @@ Si lo leído aplica a esta solicitud (un plano de otro proyecto, por ejemplo, no
 Revisar y aclarar
 </strong>
 <span>
-Información suficiente para revisión interna
+Por aclarar con el cliente
 </span>
 </div>
 <div class="process-step">

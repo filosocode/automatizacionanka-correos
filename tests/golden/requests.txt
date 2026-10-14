@@ -275,7 +275,7 @@ No clasificado
 </div>
 </div>
 <span class="badge warn">
-Falta tu decisión técnica
+Por decidir
 </span>
 <div class="meta">
 Recibido: 2026-09-01 09:00
@@ -337,7 +337,7 @@ No clasificado
 </div>
 </div>
 <span class="badge warn">
-Listo para emitir la T
+Información validada
 </span>
 <div class="meta">
 Recibido: 2026-09-01 09:00
@@ -382,7 +382,7 @@ No clasificado
 </div>
 </div>
 <span class="badge warn">
-Falta tu decisión técnica
+Por decidir
 </span>
 <div class="meta">
 Recibido: 2026-09-01 09:00
@@ -447,7 +447,7 @@ No clasificado
 </div>
 </div>
 <span class="badge warn">
-Listo para emitir la T
+Información validada
 </span>
 <div class="meta">
 Recibido: 2026-09-01 09:00
@@ -478,7 +478,7 @@ No clasificado
 </div>
 </div>
 <span class="badge warn">
-Listo para emitir la T
+Información validada
 </span>
 <div class="meta">
 Recibido: 2026-09-01 09:00
@@ -509,7 +509,7 @@ No clasificado
 </div>
 </div>
 <span class="badge warn">
-Listo para emitir la T
+Información validada
 </span>
 <div class="meta">
 Recibido: 2026-09-01 09:00

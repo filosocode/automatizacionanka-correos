@@ -1071,9 +1071,9 @@ Esta solicitud no admite respuesta desde el dashboard en su estado actual.
 <div class="spaced-top">
 <div class="notice">
 <strong>
-Recepción completa.
+Información validada.
 </strong>
-La información puede pasar a revisión interna. Este dashboard todavía no prepara precios ni cotizaciones.
+Este dashboard todavía no prepara precios ni cotizaciones.
 </div>
 </div>
 </section>

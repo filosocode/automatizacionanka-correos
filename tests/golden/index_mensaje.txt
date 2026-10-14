@@ -322,7 +322,7 @@ Proyecto Listo
 Nuevo
 </span>
 <div class="meta">
-cliente@example.com · Listo para emitir la T
+cliente@example.com · Información validada
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-ready#emitir-t">
@@ -341,7 +341,7 @@ Proyecto Hostil
 Nuevo
 </span>
 <div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Listo para emitir la T
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Información validada
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-folder-hostile#emitir-t">
@@ -360,7 +360,7 @@ Proyecto Retenido
 Nuevo
 </span>
 <div class="meta">
-Minera Sur · Listo para emitir la T
+Minera Sur · Información validada
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-folder-held#emitir-t">
@@ -376,7 +376,7 @@ Emitir la T
 Proyecto con Carpeta
 </strong>
 <div class="meta">
-Minera Sur · Listo para emitir la T
+Minera Sur · Información validada
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-folder-done#emitir-t">
@@ -501,8 +501,8 @@ Actual
 </div>
 <div class="metric-list">
 <div class="metric-row">
-<div class="metric-label" title="Listo para emitir la T">
-Listo para emitir la T
+<div class="metric-label" title="Información validada">
+Información validada
 </div>
 <div class="metric-track">
 <div class="metric-fill blue" style="width:100%">
@@ -513,8 +513,8 @@ Listo para emitir la T
 </div>
 </div>
 <div class="metric-row">
-<div class="metric-label" title="Falta tu decisión técnica">
-Falta tu decisión técnica
+<div class="metric-label" title="Por decidir">
+Por decidir
 </div>
 <div class="metric-track">
 <div class="metric-fill blue" style="width:50%">

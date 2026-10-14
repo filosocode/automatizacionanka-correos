@@ -98,11 +98,11 @@ class Caso(MapaDeSoloLectura):
 # --- Datos que se derivan de lo guardado de un caso (funciones puras: no tocan la base)
 
 STATUS_LABELS = {
-    QuoteStatus.REVIEW_PENDING: "Requiere aclaraciones",
-    QuoteStatus.READY_REVIEW: "Información suficiente para revisión interna",
+    QuoteStatus.REVIEW_PENDING: "Por aclarar con el cliente",
+    QuoteStatus.READY_REVIEW: "Información validada",
     QuoteStatus.SENDING: "Enviando",
-    QuoteStatus.REVIEW: "Revisión técnica interna",
-    QuoteStatus.WAITING: "Esperando cliente",
+    QuoteStatus.REVIEW: "Por decidir",
+    QuoteStatus.WAITING: "Esperando al cliente",
     QuoteStatus.DRAFT_CREATED: "Borrador preparado",
     QuoteStatus.RESPONSE_SENT: "Respuesta enviada",
     QuoteStatus.READY: "Proyecto creado",
@@ -219,8 +219,8 @@ def waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None, sin
 
 
 def status_label(status: Any, assessment: dict) -> str:
-    """Etiqueta del estado; en revisión la da la evaluación de recepción (qué le falta al caso)."""
-    review_states = {QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.REVIEW}
-    if status in review_states and assessment:
-        return str(assessment["label"])
+    """El nombre del estado, el mismo en la insignia, la lista y los pasos (U-31, D-86).
+
+    Sale del estado del flujo y no de la evaluación de recepción: así nunca contradice a la tarjeta «Ahora».
+    """
     return STATUS_LABELS.get(status) or str(status)

@@ -420,7 +420,7 @@ def _manual_review_note(manual: RevisionManual | None) -> str:
     if not manual:
         return ""
     when = (manual.get("at") or "")[:16].replace("T", " ")
-    action = ("la marcó como información suficiente" if manual.get("decision") == "sufficient"
+    action = ("la marcó como información validada" if manual.get("decision") == "sufficient"
               else "decidió preguntar al cliente")
     return f"Una persona revisó este caso y {action} ({when})."
 

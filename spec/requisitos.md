@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -650,8 +650,12 @@ la carpeta de Drive.
 
 **Valores por omisión propuestos (se dan por buenos si nadie los objeta antes de programar)**
 6. **Glosario.** El glosario de U-28.7 deja de ser el primer bloque del caso: un «?» junto a «Paso N de 4» lo abre (mismos términos: T, T&E, lectura realizada, aplicabilidad).
-7. **Un solo nombre por estado.** «Información validada» es el nombre del estado en la lista, el aviso, los pasos y los botones; los botones de la decisión dicen «Con esto alcanza» y
-   «Hay que preguntarle al cliente». Desaparecen «información suficiente» y «Recepción completa» como etiquetas del caso (el texto del historial puede conservarlos).
+7. **Un solo nombre por estado (D-86).** La insignia del caso, la nota del primer paso, la lista de Solicitudes, el Resumen y los botones usan los mismos nombres, según el estado del flujo y no
+   según la evaluación de recepción: «Por decidir» (revisión técnica: falta tu decisión), «Por aclarar con el cliente» (hay que escribirle o enviarle el correo), «Borrador por revisar»,
+   «Esperando al cliente» (ya se le escribió), «Información validada» (lista para emitir la T) y, con T, «T… · cotizando» o «T&E… · aprobada». Se distingue «Por aclarar» de «Esperando» porque en el
+   primero la persona todavía debe actuar. Desaparecen «Información suficiente para revisión interna», «Requiere revisión técnica interna», «Falta tu decisión técnica», «Listo para emitir la T» y
+   «Recepción completa» como nombre del estado de un caso. Los textos que Work envía (su etiqueta de estado) no cambian y se siguen aceptando tal cual; el panel «Evaluación de recepción» del
+   detalle técnico conserva su propia etiqueta.
 8. **Lectura sin verificar (U-29).** Si hay archivos que Anka no pudo verificar, la tarjeta «Ahora» lo dice primero y ofrece «Ya revisé estos archivos yo» (con su confirmación)
    como acción principal; la decisión de abajo queda deshabilitada hasta entonces, igual que hoy.
 10. **Detalle técnico.** Datos comerciales, contexto interno, enrutamiento, asuntos pendientes y revisión de preguntas pasan a una sección plegada «Detalle técnico» al final del caso; la
@@ -710,7 +714,7 @@ la carpeta de Drive.
 - E5 · «Editar tabla» y «+ Agregar» se dibujan como botones de contorno con texto del color de la marca.
 - E6 · Con una tarjeta «Ahora» el aviso estándar lleva `hidden`; sin ella se ve; el aviso de cambio, de enlaces y de respuesta por actualizar nunca lleva `hidden`.
 - E6 · Un formulario POST no se envía dos veces; con el correo editado el navegador pide confirmar al salir; «+ Agregar» abre el editor por script; el mensaje queda a la vista y su parámetro sale de la URL.
-- E3 · «Información validada» es el único nombre del estado en lista, aviso, pasos y botones; «Recepción completa» e «información suficiente» ya no se muestran como etiqueta del caso.
+- E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; en revisión pendiente, «Por aclarar con el cliente»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).
 

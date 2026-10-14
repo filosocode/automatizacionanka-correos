@@ -565,6 +565,48 @@ class CorreoAmigable(Base):
         self.assertIn("data-confirm=", linea)
 
 
+class UnSoloNombreDeEstado(Base):
+    VIEJOS = ("Información suficiente para revisión interna", "Requiere revisión técnica interna", "Falta tu decisión técnica",
+              "Requiere aclaraciones del cliente")
+
+    def encabezado(self, pagina: str) -> str:
+        return pagina[pagina.index('class="caso-cabecera"'):pagina.index('class="next-step')]
+
+    def test_cada_estado_tiene_el_mismo_nombre_en_insignia_nota_y_lista(self) -> None:
+        # Cubre: U-31
+        from anka.web import paginas
+        casos = {QuoteStatus.REVIEW: "Por decidir", QuoteStatus.REVIEW_PENDING: "Por aclarar con el cliente",
+                 QuoteStatus.READY_REVIEW: "Información validada"}
+        for estado, nombre in casos.items():
+            with self.subTest(estado=estado):
+                self.crear(f"t-{estado}", estado=estado)
+                pagina = pantalla_caso.render_case(f"t-{estado}")
+                cabecera = pagina[pagina.index('class="caso-cabecera"'):pagina.index('class="next-step')]
+                self.assertIn(nombre, cabecera)                                       # insignia y nota del paso
+                self.assertEqual(paginas.case_stage(quotes.get_quote(f"t-{estado}"))[0], nombre)   # la lista
+                for viejo in self.VIEJOS:
+                    self.assertNotIn(viejo, cabecera)
+
+    def test_con_el_correo_enviado_dice_esperando_al_cliente(self) -> None:
+        # Cubre: U-31
+        from anka.web import paginas
+        self.crear("t-w", estado=QuoteStatus.WAITING)
+        db = store.open_db(Path(self.temp.name))
+        from datetime import datetime
+        ahora = datetime.now().astimezone().isoformat(timespec="seconds")
+        db.execute("UPDATE quotes SET sent_at=?, draft_body='Hola' WHERE thread_id='t-w'", (ahora,))
+        db.commit()
+        db.close()
+        self.assertIn("Esperando al cliente", paginas.case_stage(quotes.get_quote("t-w"))[0])
+        self.assertIn("Esperando al cliente", self.encabezado(pantalla_caso.render_case("t-w")))
+
+    def test_los_textos_que_envia_work_siguen_aceptandose(self) -> None:
+        # Cubre: U-31
+        from anka.dominio.status import canonical_work_status
+        for etiqueta in ("Requiere revisión técnica interna", "Información suficiente para revisión interna"):
+            self.assertEqual(canonical_work_status(etiqueta.lower()), etiqueta)
+
+
 class SeguridadDelUsuario(Base):
     def test_el_aviso_de_decision_nunca_se_oculta_y_el_estandar_solo_con_tarjeta(self) -> None:
         # Cubre: U-31

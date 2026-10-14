@@ -93,8 +93,8 @@ _ACCION_POR_ETAPA: dict[str, tuple[int, str, str]] = {
     "Propuesta del modelo por revisar": (1, "Revisar", "#proposal"),
     "Borrador por revisar": (2, "Revisar borrador", "#respuesta"),
     "Envío interrumpido": (2, "Revisar envío", "#respuesta"),
-    "Listo para emitir la T": (3, "Emitir la T", "#emitir-t"),
-    "Falta tu decisión técnica": (4, "Decidir", "#decision"),
+    "Información validada": (3, "Emitir la T", "#emitir-t"),
+    "Por decidir": (4, "Decidir", "#decision"),
     "Por aclarar con el cliente": (4, "Aclarar", ""),
     "Hilo no disponible": (4, "Abrir", ""),
     "Llamar al cliente": (5, "Ver seguimiento", "#seguimiento"),
@@ -120,7 +120,7 @@ ETAPAS_FILTRO = (("atender", "Por atender"), ("esperando", "Esperando al cliente
 def grupo_de_etapa(quote: Mapping[str, Any]) -> str:
     """El grupo de la lista de Solicitudes: atender, esperando, listo, cotizando u otras."""
     label, urgent = case_stage(quote)
-    if label == "Listo para emitir la T":
+    if label == "Información validada":
         return "listo"
     if label.startswith("Esperando al cliente") or label in ("Llamar al cliente", "Sin respuesta · recordar"):
         return "esperando"
@@ -344,7 +344,7 @@ def case_stage(quote: Mapping[str, Any]) -> tuple[str, bool]:
             return "Sin respuesta · recordar", True
         return ("Esperando al cliente" + (f" · hace {days} d" if days >= 1 else "")), False
     if status == QuoteStatus.REVIEW:
-        return "Falta tu decisión técnica", True
+        return "Por decidir", True
     if quote.get("proposal"):
         return "Propuesta del modelo por revisar", True
     code = quote.get("quote_code", "")
@@ -361,8 +361,8 @@ def case_stage(quote: Mapping[str, Any]) -> tuple[str, bool]:
         QuoteStatus.RESPONSE_SENT: (
             ("Respuesta enviada · sin espera" if era_un_acuse(quote.get("analysis") or {}) else "Esperando al cliente"),
             False),
-        QuoteStatus.READY_REVIEW: ("Listo para emitir la T", True),
-        QuoteStatus.READY: ("Listo para emitir la T", True),
+        QuoteStatus.READY_REVIEW: ("Información validada", True),
+        QuoteStatus.READY: ("Información validada", True),
         QuoteStatus.IGNORED: ("Descartada", False),
     }
     return labels.get(status, (quote["status_label"], False))

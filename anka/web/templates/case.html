@@ -52,7 +52,7 @@
   <span class="nota">¿Cambiaste de idea?</span>
   <button type="submit" name="accion" value="reconsiderar" class="enlace">Volver a elegir las preguntas</button>
   <button type="submit" name="accion" value="suficiente" class="enlace"
-    data-confirm="El caso pasará a «información suficiente» sin preguntar nada al cliente y podrás emitir la T. ¿Confirmas?">No preguntar: la información es suficiente</button>
+    data-confirm="El caso pasará a «Información validada» sin preguntar nada al cliente y podrás emitir la T. ¿Confirmas?">No preguntar: la información es suficiente</button>
 </form>
 {% endif %}
     {% elif email == 'waiting' %}
@@ -68,7 +68,7 @@
     {% else %}
 <p class='meta'>Esta solicitud no admite respuesta desde el dashboard en su estado actual.</p>
     {% endif %}
-    <div class="spaced-top">{% if sufficient and not review.get('quote_code') and not ahora %}<div class='notice'><strong>Recepción completa.</strong> La información puede pasar a revisión interna. Este dashboard todavía no prepara precios ni cotizaciones.</div>{% endif %}</div>
+    <div class="spaced-top">{% if sufficient and not review.get('quote_code') and not ahora %}<div class='notice'><strong>Información validada.</strong> Este dashboard todavía no prepara precios ni cotizaciones.</div>{% endif %}</div>
   </section>
   {% if plegar_respuesta %}</details>{% endif %}
   {% endif %}

@@ -655,9 +655,9 @@ class UxFixesTests(Base):
             (QuoteStatus.REVIEW_PENDING, ("Por aclarar con el cliente", True)),
             (QuoteStatus.WAITING, ("Esperando al cliente", False)),
             (QuoteStatus.RESPONSE_SENT, ("Esperando al cliente", False)),
-            (QuoteStatus.REVIEW, ("Falta tu decisión técnica", True)),
-            (QuoteStatus.READY_REVIEW, ("Listo para emitir la T", True)),
-            (QuoteStatus.READY, ("Listo para emitir la T", True)),
+            (QuoteStatus.REVIEW, ("Por decidir", True)),
+            (QuoteStatus.READY_REVIEW, ("Información validada", True)),
+            (QuoteStatus.READY, ("Información validada", True)),
         ]
         for status, expected in cases:
             with self.subTest(status=status):

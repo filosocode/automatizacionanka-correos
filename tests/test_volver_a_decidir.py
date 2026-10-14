@@ -90,7 +90,7 @@ class VolverAtras(Base):
         self.assertEqual(caso["status"], QuoteStatus.READY_REVIEW)
         self.assertEqual(caso["analysis"]["manual_review"]["decision"], "sufficient")
         self.assertEqual(caso["analysis"]["manual_review"]["questions"], [])
-        self.assertIn("suficiente", mensaje)
+        self.assertIn("validada", mensaje)
         self.assertTrue(any("no preguntar" in e.lower() for e in self.eventos()))
 
     def test_nothing_is_sent_by_going_back(self):
