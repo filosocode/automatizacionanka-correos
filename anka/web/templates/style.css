@@ -560,9 +560,10 @@ button.send-action:disabled { opacity: .6; cursor: progress; }
 .caso-cabecera h1 { margin: 2px 0; font-size: 24px; line-height: 1.2; text-wrap: balance; }
 .caso-cabecera .atras { display: inline-block; color: var(--muted); font-size: 14px; text-decoration: none; min-height: 44px; line-height: 44px; }
 .caso-cabecera .sub { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
-.next-step:has(~ .ahora) { display: none; }
+.next-step.aviso-ahora::before { content: "Ahora"; }
+.next-step[hidden] { display: none; }
 .next-step { border: 2px solid var(--accent); border-radius: 14px; padding: 18px 22px; box-shadow: none; position: static; }
-.next-step::before { content: "Ahora"; align-self: flex-start; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--accent-dark); }
+.next-step::before { content: "Antes de seguir"; align-self: flex-start; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--accent-dark); }
 .next-step { flex-wrap: wrap; }
 .next-step > div { flex: 1 1 280px; }
 .next-step strong { font-size: 18px; }
@@ -602,3 +603,4 @@ button.send-action:disabled { opacity: .6; cursor: progress; }
 button.enlace { background: none; border: 0; padding: 0 2px; min-height: 44px; color: var(--accent-dark); font-weight: 600; font-size: 13px; text-decoration: underline; cursor: pointer; }
 .correo-form .send-action { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .redactar-form button.secondary { justify-self: start; }
+.flash { position: sticky; top: calc(var(--header-h, 0px) + 8px); z-index: 6; }

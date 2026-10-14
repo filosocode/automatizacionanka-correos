@@ -37,7 +37,7 @@
     </div>
   </header>
   <div id="fresh-banner" class="notice" hidden>Hay cambios nuevos. <a href="#" id="fresh-reload">Recargar</a></div>
-  <main id="contenido" tabindex="-1">{% if message %}<div class='notice'>{{ message }}</div>{% endif %}{{ body }}</main>
+  <main id="contenido" tabindex="-1">{% if message %}<div class='notice flash' role="status">{{ message }}</div>{% endif %}{{ body }}</main>
   <dialog id="confirmar" class="confirm-dialog" aria-labelledby="confirmar-titulo" aria-describedby="confirmar-texto">
     <form method="dialog">
       <h2 id="confirmar-titulo">Confirma antes de seguir</h2>
@@ -50,13 +50,45 @@
     </form>
   </dialog>
   <script>
-    // Evita el doble envío: tras el primer clic en «Enviar ahora» el botón queda bloqueado.
+    // Evita el doble envío (U-31.18): un formulario que escribe se envía una sola vez y su botón queda bloqueado.
     document.addEventListener('submit', event => {
+      const formulario = event.target;
+      if (!formulario.method || formulario.method.toLowerCase() !== 'post') return;
+      if (formulario.dataset.enviando === '1') { event.preventDefault(); return; }
+      formulario.dataset.enviando = '1';
       const sender = event.submitter;
-      if (sender && sender.getAttribute('formaction') === '/send') {
-        setTimeout(() => { sender.disabled = true; sender.textContent = 'Enviando…'; }, 0);
+      if (sender) {
+        setTimeout(() => {
+          sender.disabled = true;
+          if (sender.getAttribute('formaction') === '/send') sender.textContent = 'Enviando…';
+        }, 0);
       }
     });
+    (function () {
+      // Con el mensaje del correo editado, salir de la página (un enlace, atrás, cerrar) pide confirmar (U-31.18).
+      const cuerpo = document.getElementById('cuerpo-correo');
+      if (!cuerpo) return;
+      let enviando = false;
+      document.addEventListener('submit', event => { if (event.target.method && event.target.method.toLowerCase() !== 'dialog') enviando = true; });
+      window.addEventListener('beforeunload', event => {
+        if (!enviando && cuerpo.value !== cuerpo.defaultValue) { event.preventDefault(); event.returnValue = ''; }
+      });
+    })();
+    (function () {
+      // «+ Agregar» abre el editor de la tabla sin dejar el ancla en la dirección, y el mensaje del servidor no reaparece al recargar.
+      const interruptor = document.getElementById('editar-toggle'), editor = document.getElementById('editar-tabla');
+      const agregar = document.querySelector('.acts-head a[href="#editar-tabla"]');
+      if (interruptor && editor && agregar) agregar.addEventListener('click', evento => {
+        evento.preventDefault();
+        interruptor.checked = true;
+        editor.scrollIntoView({block: 'start'});
+      });
+      const direccion = new URL(location.href);
+      if (direccion.searchParams.has('message')) {
+        direccion.searchParams.delete('message');
+        history.replaceState(null, '', direccion.pathname + direccion.search + direccion.hash);
+      }
+    })();
     (function () {
       const cuerpo = document.getElementById('cuerpo-correo'), aviso = document.getElementById('aviso-espera');
       if (!cuerpo || !aviso) return;

@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -677,6 +677,11 @@ la carpeta de Drive.
     de ayuda. Reemplaza el punto 2 de U-28 y los textos del punto 1 de U-28.
 17. **Pestañas.** «Conversación», «Archivos», «Historial» y «Detalle técnico» (datos comerciales, contexto interno, evaluación de recepción, revisión de preguntas, enrutamiento y asuntos
     pendientes). Funcionan con teclado (flechas) y, sin JavaScript, todos los paneles se ven uno tras otro.
+18. **Seguridad del usuario (evaluación de 4 agentes, 2026-10-14; D-85).** a) El aviso de siguiente paso solo se oculta cuando la tarjeta «Ahora» dice lo mismo, y se oculta desde el servidor
+    (atributo `hidden`), no por una regla CSS: los avisos que piden una decisión (cambio detectado, enlaces, respuesta por actualizar) nunca se esconden y se rotulan «Antes de seguir».
+    b) Ningún formulario de escritura se envía dos veces: tras el primer envío se ignoran los siguientes y el botón queda bloqueado (antes solo «Enviar»). c) Si el mensaje del correo está
+    editado y la persona intenta salir de la página, el navegador avisa. d) «+ Agregar» abre el editor de la tabla aunque ya se hubiera abierto y cerrado. e) El mensaje de éxito o de error
+    se queda a la vista tras saltar a un ancla y no reaparece al recargar. f) Ningún texto apunta a un título que ya no existe.
 
 **Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
 - E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
@@ -703,6 +708,8 @@ la carpeta de Drive.
 - E4 · Hay cuatro pestañas con sus paneles, y la activa al cargar es «Archivos» si hay algo por revisar y «Conversación» si no.
 - E5 · Los pasos se ven con «Paso N de 4» y el «?» encima de la tarjeta de pasos, sin numerarlos dentro; el contenido del caso tiene un ancho máximo de lectura de 880 px.
 - E5 · «Editar tabla» y «+ Agregar» se dibujan como botones de contorno con texto del color de la marca.
+- E6 · Con una tarjeta «Ahora» el aviso estándar lleva `hidden`; sin ella se ve; el aviso de cambio, de enlaces y de respuesta por actualizar nunca lleva `hidden`.
+- E6 · Un formulario POST no se envía dos veces; con el correo editado el navegador pide confirmar al salir; «+ Agregar» abre el editor por script; el mensaje queda a la vista y su parámetro sale de la URL.
 - E3 · «Información validada» es el único nombre del estado en lista, aviso, pasos y botones; «Recepción completa» e «información suficiente» ya no se muestran como etiqueta del caso.
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

@@ -387,8 +387,8 @@ class CuadroUnico(Base):
         self.assertIn('id="decision"', pagina)
         # El aviso sigue en el HTML (U-09, U-28) pero no se dibuja ni se pega arriba mientras la tarjeta «Ahora» está.
         self.assertIn('class="next-step', pagina)
-        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
-        self.assertIn(".next-step:has(~ .ahora) { display: none; }", css)
+        aviso = pagina[pagina.index('class="next-step'):]
+        self.assertIn("hidden>", aviso.split(">", 1)[0] + ">")                 # el aviso repetido se oculta desde el servidor
 
 
 class IgualAlPrototipo(Base):
@@ -474,14 +474,15 @@ class UnaSolaTarjetaAhora(Base):
                 aviso = pagina.count('class="next-step')
                 self.assertEqual(tarjetas + (1 if nombre == "espera" else 0), 1)
                 if tarjetas:
-                    self.assertIn(".next-step:has(~ .ahora) { display: none; }",
-                                  (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
+                    etiqueta = pagina[pagina.index('class="next-step'):].split(">", 1)[0]
+                    self.assertIn("hidden", etiqueta)
                 self.assertLessEqual(aviso, 1)
 
     def test_el_aviso_es_una_tarjeta_ahora_que_no_se_pega(self) -> None:
         # Cubre: U-31
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
-        self.assertIn('.next-step::before { content: "Ahora";', css)
+        self.assertIn('.next-step.aviso-ahora::before { content: "Ahora"; }', css)
+        self.assertIn('.next-step::before { content: "Antes de seguir";', css)
         self.assertFalse([linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea])
 
 
@@ -562,6 +563,42 @@ class CorreoAmigable(Base):
         self.assertIn(">Volver a elegir las preguntas<", linea)
         self.assertIn(">No preguntar: la información es suficiente<", linea)
         self.assertIn("data-confirm=", linea)
+
+
+class SeguridadDelUsuario(Base):
+    def test_el_aviso_de_decision_nunca_se_oculta_y_el_estandar_solo_con_tarjeta(self) -> None:
+        # Cubre: U-31
+        for nombre in ("change_banner.html", "link_banner.html", "change_todo.html"):
+            abre = re.search(r'<(?:div|section) class="next-step[^>]*>', (PLANTILLAS / nombre).read_text(encoding="utf-8")).group(0)
+            self.assertNotIn("hidden", abre)                                      # estos avisos piden una decisión
+        self.assertIn("oculto is defined and oculto", (PLANTILLAS / "next_step.html").read_text(encoding="utf-8"))
+        self.crear("t-e", estado=QuoteStatus.RESPONSE_SENT)
+        etiqueta = pantalla_caso.render_case("t-e")
+        aviso = etiqueta[etiqueta.index('class="next-step'):] if 'class="next-step' in etiqueta else ""
+        self.assertNotIn("hidden", aviso.split(">", 1)[0])                         # sin tarjeta «Ahora», el aviso se ve
+
+    def test_no_hay_regla_css_que_esconda_avisos_ni_textos_huerfanos(self) -> None:
+        # Cubre: U-31
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertNotIn(":has(~ .ahora)", css)
+        self.crear(adjuntos=[adjunto("planos.dwg", "bloqueado")])
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertNotIn("las ves y las editas", pagina)
+        self.assertNotIn("¿Cómo seguimos?", pagina)
+
+    def test_el_script_protege_el_doble_envio_el_salir_con_lo_escrito_y_agregar(self) -> None:
+        # Cubre: U-31
+        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        for pieza in ("dataset.enviando", "beforeunload", "cuerpo.defaultValue", "history.replaceState",
+                      "searchParams.delete('message')", "a[href=\"#editar-tabla\"]", "interruptor.checked = true"):
+            self.assertIn(pieza, layout)
+
+    def test_el_mensaje_queda_a_la_vista_tras_saltar_a_un_ancla(self) -> None:
+        # Cubre: U-31
+        self.crear()
+        pagina = pantalla_caso.render_case("t-1", message="Listo: guardado.")
+        self.assertIn("<div class='notice flash' role=\"status\">Listo: guardado.</div>", pagina)
+        self.assertIn(".flash { position: sticky;", (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
 
 
 class Pestanas(Base):

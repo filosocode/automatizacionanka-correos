@@ -345,12 +345,15 @@ def _project_panel(thread_id: str) -> Markup:
     return render("project_suggestion.html", thread_id=thread_id, candidates=candidates)
 
 
-def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True) -> Markup:
+def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oculto: bool = False) -> Markup:
     """Un solo aviso arriba del caso: lo más importante que sigue, con su botón si lo hay.
 
     `hay_correo` es si la pantalla dibuja el cuadro «Respuesta al cliente» (`#respuesta`): en revisión técnica
     interna no se dibuja y «Ir al correo» no llevaría a ninguna parte.
     """
+    def aviso(**datos: Any) -> Markup:
+        return render("next_step.html", oculto=oculto, **datos)
+
     if any(c["state"] == "pending" for c in review.get("changes", [])):
         return _change_banner(review)
     todo = _change_todo(review)
@@ -362,42 +365,35 @@ def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True) ->
         minutes = minutes_since(review.get("reply_pending", ""))
         late = minutes >= REPLY_OVERDUE_MINUTES
         who = "ChatGPT Work" if work_mode else "el piloto de borradores"
-        return render(
-            "next_step.html", tone="warn" if late else "info",
+        return aviso(tone="warn" if late else "info",
             title=f"{review['client_name']} respondió {ago_text(minutes)}",
             text=(f"La tabla aún no recoge esa respuesta. Revisa que {who} esté activo."
                   if late else "Se analizará en el próximo ciclo y la tabla se actualizará sola."),
             action_href="", action_label="")
     if review.get("proposal", []):
-        return render(
-            "next_step.html", tone="warn",
+        return aviso(tone="warn",
             title=f"El modelo sugiere {len(review['proposal'])} cambio(s) en tu tabla",
             text="Llegó información nueva y tu tabla editada no se tocó.",
             action_href="#proposal", action_label="Revisar")
     label, urgent = case_stage(review)
     if label == "Llamar al cliente":
-        return render(
-            "next_step.html", tone="warn", title="Llamar al cliente",
+        return aviso(tone="warn", title="Llamar al cliente",
             text="Lleva 7 días hábiles sin responder. Llámalo para avanzar y anota que ya hablaste con él.",
             action_href="#seguimiento", action_label="Ver seguimiento")
     if label == "Sin respuesta · recordar":
-        return render(
-            "next_step.html", tone="warn", title="El cliente no ha respondido",
+        return aviso(tone="warn", title="El cliente no ha respondido",
             text="Lleva 3 días hábiles esperando. Envía un recordatorio o activa el seguimiento automático.",
             action_href="#seguimiento", action_label="Ver seguimiento")
     if hay_correo and review["status"] in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
-        return render(
-            "next_step.html", tone="info", title="Revisa el correo y envíalo",
+        return aviso(tone="info", title="Revisa el correo y envíalo",
             text="Nada sale al cliente hasta que pulses «Enviar ahora».",
             action_href="#respuesta", action_label="Ir al correo")
     if review["status"] == QuoteStatus.REVIEW:
-        return render(
-            "next_step.html", tone="warn", title="Falta tu decisión de revisión técnica",
+        return aviso(tone="warn", title="Falta tu decisión de revisión técnica",
             text="Decide si la información es suficiente o si hay que preguntar al cliente.",
             action_href="#decision", action_label="Decidir")
     if review.informacion_validada and not review.get("quote_code") and review["status"] != QuoteStatus.IGNORED:
-        return render(
-            "next_step.html", tone="info", title="Información validada: puedes emitir la T",
+        return aviso(tone="info", title="Información validada: puedes emitir la T",
             text="Damos por recibido el proyecto y empezamos a cotizar.",
             action_href="#emitir-t", action_label="Emitir la T")
     code = review.get("quote_code", "")
@@ -406,18 +402,15 @@ def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True) ->
         title = f"{code_label(code, stage)} · " + ("oferta aprobada" if stage == "TE" else "cotizando")
         folder = review.get("folder_id")
         if folder:
-            return render(
-                "next_step.html", tone="info", title=title,
+            return aviso(tone="info", title=title,
                 text="La T está emitida y la carpeta del proyecto ya existe en Drive.",
                 action_href="https://drive.google.com/drive/folders/" + urllib.parse.quote(folder),
                 action_label="Abrir carpeta en Drive")
-        return render(
-            "next_step.html", tone="warn", title=title,
+        return aviso(tone="warn", title=title,
             text="La T está emitida, pero la carpeta del proyecto aún no existe en Drive.",
             action_href="#carpeta", action_label="Ir a la carpeta")
     if label.startswith("Esperando al cliente"):
-        return render(
-            "next_step.html", tone="info", title="Esperando al cliente",
+        return aviso(tone="info", title="Esperando al cliente",
             text=f"{label}. Si no responde, el seguimiento prepara un recordatorio que tú revisas antes de enviarlo.",
             action_href="#seguimiento", action_label="Ver seguimiento")
     return Markup("")
@@ -681,7 +674,7 @@ def _texto_de_lectura_pendiente(analysis: Analisis) -> str:
 
 def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: dict, config: Configuracion,
                  events: list[Evento], integrity_ok: bool, event_count: int,
-                 questions_in_decision: bool = False) -> dict[str, Any]:
+                 questions_in_decision: bool = False, slot: str = "aviso") -> dict[str, Any]:
     """Los paneles de la pantalla del caso, cada uno ya renderizado."""
     proposal = review.get("proposal", [])
     reading_blocked = _reading_is_blocked(analysis)
@@ -725,12 +718,13 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "edit_note": _edit_note(thread_id),
         "code_panel": _code_panel(review),
         "code_text": _code_text(review),
-        "next_step": (render("next_step.html", tone="warn", title="Lectura pendiente",
+        "next_step": (render("next_step.html", oculto=False, tone="warn", title="Lectura pendiente",
                               text=_texto_de_lectura_pendiente(analysis),
                               action_href="#lectura-revisada", action_label="Elegir cómo seguir")
                       if reading_blocked else _next_step_banner(
                           review, config.get("active_mode") == "chatgpt_work",
-                          hay_correo=assessment.get("status") != "technical_review")),
+                          hay_correo=assessment.get("status") != "technical_review",
+                          oculto=slot in ("decision", "correo", "codigo"))),
         "project_panel": Markup("") if reading_blocked else _project_panel(thread_id),
         "proposal_panel": (Markup("") if reading_blocked or not proposal
                            else render("proposal.html", changes=proposal, thread_id=thread_id)),
@@ -814,7 +808,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),
         **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count,
-                       questions_in_decision=bool(preguntas) and review["status"] == QuoteStatus.REVIEW),
+                       questions_in_decision=bool(preguntas) and review["status"] == QuoteStatus.REVIEW, slot=slot),
     )
     return page("Revisar caso", body, message)
 

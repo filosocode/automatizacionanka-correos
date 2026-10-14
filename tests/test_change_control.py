@@ -205,7 +205,7 @@ class EmailTests(Base):
         self.assign()
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T1", template="received")
-        self.assertIn("Enviar ahora", page)
+        self.assertIn("Enviar al cliente", page)
         self.assertIn("Hemos generado el código T26145", page)
 
 
@@ -325,7 +325,7 @@ class VersionTests(Base):
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T1", template="scope_update")
         self.assertIn("Actualizamos la tabla de actividades", page)
-        self.assertIn("Enviar ahora", page)
+        self.assertIn("Enviar al cliente", page)
 
     def test_acta_lists_versions_and_marks_internal_edits_after_the_code(self):
         self.edit([{"activity": "antes"}])
@@ -732,7 +732,7 @@ class UxFixesTests(Base):
         base = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
         css = (base / "style.css").read_text(encoding="utf-8")
         self.assertFalse([linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea])
-        self.assertIn(".next-step:has(~ .ahora) { display: none; }", css)   # el aviso no repite a la tarjeta «Ahora»
+        self.assertNotIn(":has(~ .ahora)", css)                              # ya no se esconde por CSS (U-31.18)
         layout = (base / "layout.html").read_text(encoding="utf-8")
         self.assertIn("'--header-h'", layout)
         self.assertIn("addEventListener('resize', medirEncabezado)", layout)
