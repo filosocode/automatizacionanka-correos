@@ -195,7 +195,8 @@ class Canonical(HTMLParser):
 
 def canonical(html_text: str) -> Canonical:
     parser = Canonical()
-    parser.feed(html_text)
+    # La huella del CSS cambia con cada retoque de estilo; las instantáneas no deben cambiar por eso (U-48).
+    parser.feed(re.sub(r"/static/style\.[0-9a-f]{12}\.css", "/static/style.HUELLA.css", html_text))
     parser.close()
     return parser
 

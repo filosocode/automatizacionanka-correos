@@ -14,7 +14,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
-from pathlib import Path
 from datetime import datetime
 from anka.dominio.errores import AutorizacionDeGoogle, ErrorDeAnka
 from anka.dominio.activities import build_workbook
@@ -30,7 +29,8 @@ from anka.servicios.quotes import (
     all_quotes, archived_threads, change_marker, get_quote, unread_thread_count,
 )
 
-from anka.web import openapi, paginas
+from anka.web import estaticos, openapi, paginas
+from anka.web.marcador import MarcadorCompartido
 from anka.web import formularios_pendientes as pendientes
 from anka.web.acciones import POST_ROUTES, field, int_field
 from anka.web.api import a_json, resumen_de_caso
@@ -65,11 +65,6 @@ GET_PATTERNS: dict[str, str] = {"/api/casos/{thread_id}": "_get_api_case", "/sta
 _GET_PATTERNS = [(re.compile(re.sub(r"\{\w+\}", "([^/]+)", template)), name) for template, name in GET_PATTERNS.items()]
 
 
-# Archivos fijos del diseño (D-101): la fuente Inter y el logo, desde `anka/web/static/`. Solo estos nombres.
-STATIC_DIR = Path(__file__).with_name("static")
-STATIC_FILES: dict[str, str] = {"inter-latin-wght.woff2": "font/woff2", "logo-anka.png": "image/png"}
-
-
 # Canal de avisos en vivo (U-23): la página deja una conexión abierta y el servidor le avisa cuando algo cambia.
 STREAM_ROUTES = frozenset({"/eventos"})
 MAX_STREAMS = 16            # pestañas conectadas a la vez; las demás siguen con la consulta periódica de siempre
@@ -77,6 +72,8 @@ STREAM_SECONDS = 600        # la conexión se renueva sola: el navegador reconec
 STREAM_CHECK = 1.0          # cada cuánto mira si cambió algo (una consulta ligera)
 STREAM_KEEPALIVE = 15       # latido para que nada corte una conexión inactiva
 _streams = threading.BoundedSemaphore(MAX_STREAMS)
+# El marcador lo calcula una sola consulta por segundo para todas las pestañas conectadas (U-48).
+_marcador_compartido = MarcadorCompartido(lambda: change_marker(), STREAM_CHECK)
 
 MAX_CAMPOS = 10_000         # campos de un formulario: la tabla más grande (200 filas × 11) cabe de sobra
 
@@ -98,6 +95,7 @@ def _senalar_fallo(location: str) -> str:
 class ReviewHandler(BaseHTTPRequestHandler):
     """Servidor HTTP local del dashboard: páginas por GET y acciones por POST con token."""
     timeout = 30      # una conexión que no habla en 30 s se corta y libera su hilo (U-43)
+    protocol_version = "HTTP/1.1"      # la conexión se reutiliza; toda respuesta lleva su longitud (U-48)
 
     def _send_bytes(self, status: int, content_type: str, data: bytes,
                     extra_headers: dict[str, str] | None = None) -> None:
@@ -105,6 +103,11 @@ class ReviewHandler(BaseHTTPRequestHandler):
         headers = cabeceras_de_seguridad()
         headers["Content-Type"] = content_type
         headers.update(extra_headers or {})       # p. ej. la CSP propia de /docs o el nombre del Excel
+        comprimido = estaticos.comprimir(data, content_type, self.headers.get("Accept-Encoding", ""))
+        if estaticos.comprimible(content_type):
+            headers["Vary"] = "Accept-Encoding"
+        if comprimido is not None:                # texto grande y el cliente acepta gzip (U-48)
+            data, headers["Content-Encoding"] = comprimido, "gzip"
         for name, value in headers.items():
             self.send_header(name, value)
         self.send_header("Content-Length", str(len(data)))
@@ -191,11 +194,12 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
     # --- páginas (GET)
     def _get_index(self, query: dict[str, list[str]]) -> None:
-        self._send_html(paginas.render_index(_mensaje(query)))
+        self._send_html(paginas.render_index(_mensaje(query), int_field(query, "mostrar")))
 
     def _get_requests(self, query: dict[str, list[str]]) -> None:
         agrupar = field(query, "agrupar", "1") != "0"
-        self._send_html(paginas.render_requests(_mensaje(query), agrupar_hilos=agrupar))
+        self._send_html(paginas.render_requests(
+            _mensaje(query), agrupar_hilos=agrupar, mostrar=int_field(query, "mostrar")))
 
     def _get_discarded(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.render_discarded(_mensaje(query)))
@@ -217,11 +221,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self._send_html(pantalla_caso.render_acta(field(query, "thread_id")))
 
     def _get_static(self, query: dict[str, list[str]], archivo: str) -> None:
-        tipo = STATIC_FILES.get(archivo)
-        if tipo is None:
+        fijo = estaticos.buscar(archivo)
+        if fijo is None:
             return self._aviso("No encontrado", "Página no encontrada.", 404)
-        self._send_bytes(200, tipo, (STATIC_DIR / archivo).read_bytes(),
-                         {"Cache-Control": "public, max-age=86400"})
+        cabeceras = {"Cache-Control": fijo.cache, "ETag": fijo.etag}
+        if estaticos.coincide_etag(self.headers.get("If-None-Match", ""), fijo.etag):
+            return self._send_bytes(304, fijo.tipo, b"", cabeceras)       # el navegador ya tiene esta versión
+        self._send_bytes(200, fijo.tipo, fijo.datos, cabeceras)
 
     def _get_archive(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.page("Archivo", render("archive.html", items=archived_threads())))
@@ -259,11 +265,12 @@ class ReviewHandler(BaseHTTPRequestHandler):
             for name, value in cabeceras_de_seguridad().items():
                 self.send_header(name, value)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Connection", "close")          # no tiene longitud: termina cuando se cierra
             self.end_headers()
             self.wfile.write(b"retry: 3000\n\n")
             last, quiet, started = None, 0.0, time.monotonic()
             while time.monotonic() - started < STREAM_SECONDS:
-                marker = change_marker()
+                marker = _marcador_compartido.valor()
                 if marker != last:
                     last, quiet = marker, 0.0
                     self.wfile.write(f"data: {marker}\n\n".encode())
@@ -322,8 +329,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
         """Valida host, origen y token y ejecuta la acción de `POST_ROUTES`; redirige al resultado."""
         host = self.headers.get("Host", "")
         if not is_local_host_header(host):
+            self.close_connection = True          # el cuerpo no se leyó: no se reutiliza la conexión
             return self._reject("Host no permitido.")
         if not is_same_origin(self.headers.get("Origin", ""), host):
+            self.close_connection = True
             return self._reject("Origen no permitido.")
         path = urllib.parse.urlparse(self.path).path
         try:

@@ -9,6 +9,7 @@ import re
 from anka.dominio.analisis import Actividad
 
 from collections.abc import Mapping, Sequence
+from copy import copy
 from io import BytesIO
 from typing import Any, cast
 
@@ -153,29 +154,48 @@ def _cell(value: object) -> str:
 
 
 def build_workbook(quotes: Sequence[Mapping[str, Any]]) -> bytes:
-    """Excel con una hoja «Actividades»: una fila por actividad con su proyecto, cliente y estado, coloreada."""
+    """Excel con una hoja «Actividades»: una fila por actividad con su proyecto, cliente y estado, coloreada.
+
+    Se escribe en modo de solo escritura (U-48): el tiempo crece en línea recta con las filas, no al cuadrado. El
+    contenido y el formato esencial (encabezado en negrita sobre verde, color por estado, texto ajustado, filtro,
+    primera fila y columnas fijas, anchos) son los de siempre."""
     from openpyxl import Workbook
+    from openpyxl.cell import WriteOnlyCell
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
-    from openpyxl.worksheet.worksheet import Worksheet
 
     fills = {
         "confirmado": PatternFill("solid", fgColor="D9EAD3"),
         "pendiente": PatternFill("solid", fgColor="FFF2CC"),
         "contradictorio": PatternFill("solid", fgColor="F4CCCC"),
     }
-    workbook = Workbook()
-    sheet = workbook.active
-    assert isinstance(sheet, Worksheet)
-    sheet.title = "Actividades"
-    headers = ["Hilo", "Proyecto", "Cliente", "Estado del caso"] + [
-        label for _, label in ACTIVITY_COLUMNS
-    ]
-    sheet.append(headers)
-    for header_cell in sheet[1]:
-        header_cell.font = Font(bold=True, color="FFFFFF")
-        header_cell.fill = PatternFill("solid", fgColor="126A62")
-        header_cell.alignment = Alignment(vertical="center", wrap_text=True)
+    workbook = Workbook(write_only=True)
+    sheet = workbook.create_sheet("Actividades")
+    widths = [14, 28, 24, 26, 34, 22, 22, 12, 12, 26, 26, 30, 14, 30]
+    for position, width in enumerate(widths, 1):          # los anchos van antes de la primera fila
+        sheet.column_dimensions[get_column_letter(position)].width = width
+    sheet.freeze_panes = "E2"
+    headers = ["Hilo", "Proyecto", "Cliente", "Estado del caso"] + [label for _, label in ACTIVITY_COLUMNS]
+    header_font, header_fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="126A62")
+    header_alignment = Alignment(vertical="center", wrap_text=True)
+    head_cells = []
+    for header in headers:
+        head_cell = WriteOnlyCell(sheet, value=header)
+        head_cell.font, head_cell.fill, head_cell.alignment = header_font, header_fill, header_alignment
+        head_cells.append(head_cell)
+    sheet.append(head_cells)
+    # El estilo se resuelve una vez por tipo de celda y se copia: asignar `alignment` o `fill` celda a celda recalcula
+    # y busca el estilo cada vez, y es lo que más tardaba (copiar el arreglo de estilo ya resuelto es instantáneo).
+    modelo_normal: Any = WriteOnlyCell(sheet, value="")
+    modelo_normal.alignment = Alignment(vertical="top", wrap_text=True)
+    estilo_normal = modelo_normal._style
+    estilos_de_estado = {}
+    for nombre, relleno in fills.items():
+        modelo: Any = WriteOnlyCell(sheet, value="")
+        modelo.alignment, modelo.fill = Alignment(vertical="top", wrap_text=True), relleno
+        estilos_de_estado[nombre] = modelo._style
+    state_position = 4 + [key for key, _ in ACTIVITY_COLUMNS].index("estado")
+    last_row = 1
     for quote in quotes:
         analysis = quote.get("analysis") or {}
         base = [
@@ -189,19 +209,15 @@ def build_workbook(quotes: Sequence[Mapping[str, Any]]) -> bytes:
                 _cell(item.get(key) or ("no indicado" if key != "estado" and item else ""))
                 for key, _ in ACTIVITY_COLUMNS
             ]
-            sheet.append(row)
-            state_cell = sheet.cell(row=sheet.max_row, column=len(base) + 9)
-            fill = fills.get(str(state_cell.value))
-            if fill:
-                state_cell.fill = fill
-    widths = [14, 28, 24, 26, 34, 22, 22, 12, 12, 26, 26, 30, 14, 30]
-    for position, width in enumerate(widths, 1):
-        sheet.column_dimensions[get_column_letter(position)].width = width
-    for sheet_row in sheet.iter_rows(min_row=2):
-        for body_cell in sheet_row:
-            body_cell.alignment = Alignment(vertical="top", wrap_text=True)
-    sheet.freeze_panes = "E2"
-    sheet.auto_filter.ref = sheet.dimensions
+            cells = []
+            for position, value in enumerate(row):
+                body_cell: Any = WriteOnlyCell(sheet, value=value)
+                body_cell._style = copy(estilos_de_estado.get(value, estilo_normal)
+                                        if position == state_position else estilo_normal)
+                cells.append(body_cell)
+            sheet.append(cells)
+            last_row += 1
+    sheet.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{last_row}"
     buffer = BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()

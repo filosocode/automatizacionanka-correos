@@ -295,6 +295,27 @@ def _migration_16_orphan_metadata(db: sqlite3.Connection) -> None:
     db.execute("DELETE FROM quote_metadata WHERE thread_id NOT IN (SELECT thread_id FROM quotes)")
 
 
+def _migration_17_indices(db: sqlite3.Connection) -> None:
+    """Índices de lo que más se consulta: la lista de casos, el seguimiento y el marcador de cambios (U-48).
+
+    Solo aceleran las lecturas; no cambian ningún dato. `IF NOT EXISTS` por si otro proceso llegó antes."""
+    for sentencia in (
+        # la lista ordena por «lo más reciente»; la expresión es la misma de `RepositorioDeCasos._filas` y del marcador
+        "CREATE INDEX IF NOT EXISTS idx_quotes_recientes ON quotes(COALESCE(updated_at, first_seen_at, '') DESC, "
+        "thread_id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_quotes_estado ON quotes(status, updated_at)",
+        "CREATE INDEX IF NOT EXISTS idx_quotes_codigo ON quotes(quote_code)",
+        # «último correo recibido» y «recordatorios enviados» de todos los casos; el MAX del marcador
+        "CREATE INDEX IF NOT EXISTS idx_case_events_tipo ON case_events(kind, occurred_at)",
+        "CREATE INDEX IF NOT EXISTS idx_case_events_registrado ON case_events(recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_case_changes_estado ON case_changes(state, occurred_at)",
+        "CREATE INDEX IF NOT EXISTS idx_case_links_estado ON case_links(state, occurred_at)",
+        "CREATE INDEX IF NOT EXISTS idx_case_links_mensaje ON case_links(message_id)",
+        "CREATE INDEX IF NOT EXISTS idx_notifications_sin_leer ON dashboard_notifications(read_at, kind, thread_id)",
+    ):
+        db.execute(sentencia)
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -314,6 +335,7 @@ MIGRATIONS = (
     _migration_14_analysis_failures,
     _migration_15_work_rejections,
     _migration_16_orphan_metadata,
+    _migration_17_indices,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -395,7 +417,8 @@ def _derive_notifications(db: sqlite3.Connection) -> None:
         if missing:
             db.execute(f"""INSERT OR IGNORE INTO dashboard_notifications
                           (thread_id, kind, source_key, title, message, created_at)
-                          SELECT thread_id, ?, last_inbound_id, ?, ?, {created} {base}""",
+                          SELECT thread_id, ?, last_inbound_id, ?, ?, {created} {base}
+                          ORDER BY q.rowid""",             # el orden de siempre, aunque un índice cambie el recorrido
                        (kind, title, message))
 
 

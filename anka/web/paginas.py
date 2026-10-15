@@ -36,10 +36,11 @@ from anka.servicios.change_control import (
 )
 from anka.dominio.registros import Cambio
 from anka.servicios.quotes import (
-    all_quotes, discarded_quotes, get_quote, separated_project_pairs, unread_notifications, unread_thread_count,
+    all_quotes, change_marker, discarded_quotes, get_quote, separated_project_pairs, unread_notifications,
+    unread_thread_count,
 )
 from anka.dominio.caso import CLIENT_TYPES
-from anka.servicios.proyectos_repetidos import Grupo, agrupar as agrupar_solicitudes
+from anka.servicios.proyectos_repetidos import Grupo, agrupar_en_cache as agrupar_solicitudes
 
 log = get_logger(__name__)
 
@@ -168,7 +169,28 @@ def _work_rejected_panel() -> Markup:
     return render("work_rejected.html", items=items, alerta=alerta) if items or alerta else Markup("")
 
 
-def render_index(message: str = "") -> str:
+POR_PAGINA = 200      # filas que se muestran de una vez en las listas; «Ver más» agrega otras tantas (U-48)
+
+
+def _pagina(total: int, mostrar: int, ruta: str, extra: str = "") -> Markup:
+    """El pie «Se muestran 200 de 500… Ver 200 más» de una lista larga; vacío si todas caben (U-48).
+
+    `mostrar` es cuántas filas se piden (la dirección guarda `?mostrar=N`): al pedir más se vuelve a mostrar todo lo
+    anterior, para que la búsqueda, el orden y los filtros de la página sigan viendo lo que ya se cargó."""
+    mostrar = max(POR_PAGINA, mostrar)
+    if total <= mostrar:
+        return Markup("")
+    siguiente = mostrar + POR_PAGINA
+    return render("ver_mas.html", mostradas=mostrar, total=total, proximas=min(POR_PAGINA, total - mostrar),
+                  href=f"{ruta}?{extra}mostrar={siguiente}")
+
+
+def _grupos(quotes: Sequence[Mapping[str, Any]]) -> list[Grupo]:
+    """Los grupos de proyecto de estos casos, recordados mientras nada cambie (U-48)."""
+    return agrupar_solicitudes(quotes, separated_project_pairs(), change_marker())
+
+
+def render_index(message: str = "", mostrar: int = POR_PAGINA) -> str:
     """«Mis casos» (U-32): la lista de todos los casos, del más urgente al menos, con novedades y estadísticas."""
     quotes = all_quotes()
     notifications = unread_notifications(8)
@@ -176,14 +198,15 @@ def render_index(message: str = "") -> str:
     services = Counter(service for quote in quotes for service in quote["services"])
     clients = Counter(q["client_name"] for q in quotes if q["client_name"])
     stages = {q["thread_id"]: case_stage(q) for q in quotes}
-    grupo_de = {q["thread_id"]: g for g in agrupar_solicitudes(quotes, separated_project_pairs()) for q in g.miembros}
+    grupo_de = {q["thread_id"]: g for g in _grupos(quotes) for q in g.miembros}
     por_atender = cola_de_hoy(quotes)
     resto = sorted((q for q in quotes if not case_stage(q)[1]), key=lambda q: -fecha_de_recepcion(q))
     unidades: list[tuple[Mapping[str, Any], Grupo]] = []
     for q in por_atender + resto:                       # un proyecto ocupa una sola fila: la de su hilo más urgente
         if all(grupo_de[q["thread_id"]] is not g for _, g in unidades):
             unidades.append((q, grupo_de[q["thread_id"]]))
-    en_lista = {m["thread_id"] for _, g in unidades for m in g.miembros}
+    visibles = unidades[:max(POR_PAGINA, mostrar)]
+    en_lista = {m["thread_id"] for _, g in visibles for m in g.miembros}
     body = render(
         "index.html",
         sync_text=sync_status_text(),
@@ -203,7 +226,8 @@ def render_index(message: str = "") -> str:
         client_types=metric_rows(Counter(q["client_type"] for q in quotes)),
         insights=_dashboard_insights(quotes, services, clients),
         todo=[queue_row(q, n, q["thread_id"] in unread_threads, mismos=len(g.miembros) - 1)
-              for n, (q, g) in enumerate(unidades, 1)],
+              for n, (q, g) in enumerate(visibles, 1)],
+        ver_mas=_pagina(len(unidades), mostrar, "/"),
     )
     return page("Mis casos", body, message)
 
@@ -295,7 +319,7 @@ def _unidad_de_lista(grupo: Grupo, unread_threads: set[str]) -> Markup:
         urgencia=min(urgencia_de_caso(q) for q in hilos), proyecto=hilos[0]["analysis"].get("project_name") or "")
 
 
-def render_requests(message: str = "", agrupar_hilos: bool = True) -> str:
+def render_requests(message: str = "", agrupar_hilos: bool = True, mostrar: int = POR_PAGINA) -> str:
     """Lista de todas las solicitudes, la más reciente primero; en el navegador se puede reordenar."""
     quotes = all_quotes()
     unread_threads = {item["thread_id"] for item in unread_notifications(100)}
@@ -306,14 +330,16 @@ def render_requests(message: str = "", agrupar_hilos: bool = True) -> str:
          "reason": link["reason"]}
         for quote in quotes for link in quote.get("links", [])
     ]
-    grupos = agrupar_solicitudes(quotes, separated_project_pairs())
+    grupos = _grupos(quotes)
     hay_grupos = any(len(g.miembros) > 1 for g in grupos)
     if not agrupar_hilos:
         grupos = [Grupo((q,)) for q in quotes]
     grupos = sorted(grupos, key=lambda g: -max(fecha_de_recepcion(q) for q in g.miembros))
     body = render(
         "requests.html",
-        rows=[_unidad_de_lista(g, unread_threads) for g in grupos], hay_grupos=hay_grupos, agrupado=agrupar_hilos,
+        rows=[_unidad_de_lista(g, unread_threads) for g in grupos[:max(POR_PAGINA, mostrar)]],
+        ver_mas=_pagina(len(grupos), mostrar, "/requests", "" if agrupar_hilos else "agrupar=0&"),
+        hay_grupos=hay_grupos, agrupado=agrupar_hilos,
         pending_links=pending_links,
         etapas=[(key, label, sum(grupo_de_etapa(q) == key for q in quotes)) for key, label in ETAPAS_FILTRO],
         type_options=CLIENT_TYPES,

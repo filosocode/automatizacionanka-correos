@@ -25,8 +25,10 @@ def resumen_de_caso(caso: Caso) -> dict[str, Any]:
 
 
 def a_json(value: Any) -> bytes:
-    """Serializa a JSON (UTF-8, con tildes) también los objetos del dominio, que se comportan como mapas."""
+    """Serializa a JSON (UTF-8, con tildes) también los objetos del dominio, que se comportan como mapas.
+
+    Compacto, sin sangrías ni espacios: así pesa un tercio menos (U-48); los navegadores y `jq` lo muestran bonito."""
     return json.dumps(
-        value, ensure_ascii=False, indent=2,
+        value, ensure_ascii=False, separators=(",", ":"),
         default=lambda obj: dict(obj) if isinstance(obj, Mapping) else str(obj),
     ).encode("utf-8")

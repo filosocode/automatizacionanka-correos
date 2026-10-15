@@ -36,6 +36,7 @@
 </details>
 <p id="n-visibles" class="solo-lectores" role="status"></p>
 <div id="requests" class="grid">{% if rows %}{% for row in rows %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todavía no hay casos.</div>{% endif %}</div>
+{{ ver_mas }}
 <div id="no-results" class="empty" hidden>Ningún caso coincide con esa búsqueda.</div>
 <script>
 const search = document.querySelector('#search');

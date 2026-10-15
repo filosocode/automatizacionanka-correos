@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% if unread_count %}({{ unread_count }}) {% endif %}{{ title }} - Anka</title>
   <script>try { var tema = localStorage.getItem('anka-tema'); if (tema === 'light' || tema === 'dark') document.documentElement.dataset.theme = tema; } catch (e) { /* sin almacenamiento: sigue el sistema */ }</script>
-  <style>
-{% include "style.css" %}
-  </style>
+  <link rel="stylesheet" href="{{ url_del_estilo() }}">
   <noscript><style>.editor-tabla { display: block; } .fila-resumen.extra { display: table-row !important; } .ver-todas-boton, #agregar-fila, #editar-boton { display: none; }</style></noscript>
 </head>
 <body>

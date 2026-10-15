@@ -47,10 +47,10 @@ from anka.servicios.change_control import (
 )
 from anka.servicios.gmail_followup import case_contacts
 from anka.dominio.registros import Cambio, Evento
-from anka.servicios.proyectos_repetidos import agrupar, motivo_entre
+from anka.servicios.proyectos_repetidos import agrupar_en_cache, motivo_entre
 from anka.servicios.quotes import (
-    ago_text, all_quotes, case_change_log, case_conversation, case_has_links, case_people, chain_status, get_quote,
-    merge_blocker, minutes_since, reason_label, separated_project_pairs, thread_events,
+    ago_text, all_quotes, case_change_log, case_conversation, case_has_links, case_people, chain_status, change_marker,
+    get_quote, merge_blocker, minutes_since, reason_label, separated_project_pairs, thread_events,
 )
 from anka.dominio.caso import CLIENT_TYPES, REPLY_OVERDUE_MINUTES, SECTORS
 from anka.servicios.ediciones import EDIT_REASONS, last_manual_version, table_versions
@@ -337,7 +337,7 @@ def _project_panel(thread_id: str) -> Markup:
     """«Parece el mismo proyecto»: los hilos parecidos a este, con «Unir a este caso» y «No es el mismo proyecto»."""
     quotes = all_quotes()
     mine = next((q for q in quotes if q["thread_id"] == thread_id), None)
-    group = next((g for g in agrupar(quotes, separated_project_pairs())
+    group = next((g for g in agrupar_en_cache(quotes, separated_project_pairs(), change_marker())
                   if any(q["thread_id"] == thread_id for q in g.miembros)), None)
     if mine is None or group is None or len(group.miembros) < 2:
         return Markup("")

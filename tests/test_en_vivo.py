@@ -6,6 +6,7 @@ import io
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from anka.infra import settings, work_heartbeat
@@ -47,7 +48,8 @@ class AvisosDelServidor(unittest.TestCase):
         salida = ajustes.pop("salida", Salida())
         handler = manejador(salida)
         valores = iter(marcas)
-        with patch.object(web, "change_marker", side_effect=lambda: next(valores)), \
+        compartido = SimpleNamespace(valor=lambda: next(valores))     # el marcador compartido (U-48), sin espera de 1 s
+        with patch.object(web, "_marcador_compartido", compartido), \
                 patch.object(web.time, "sleep"), patch.object(web, "STREAM_SECONDS", 0.55), \
                 patch.object(web.time, "monotonic", side_effect=[0.0] + [0.1 * n for n in range(1, 400)]):
             handler._get_eventos({})

@@ -737,7 +737,7 @@ def change_marker() -> str:
     db = connect()
     try:
         row = db.execute(
-            "SELECT COUNT(*) AS n, MAX(COALESCE(updated_at, first_seen_at)) AS ts, "
+            "SELECT COUNT(*) AS n, MAX(COALESCE(updated_at, first_seen_at, '')) AS ts, "
             "(SELECT COUNT(*) FROM dashboard_notifications WHERE read_at IS NULL "
             f"AND kind IN ({_TIPOS_QUE_CUENTAN})) AS unread, "
             "(SELECT COUNT(*) || MAX(recorded_at) FROM case_events) AS ev FROM quotes"

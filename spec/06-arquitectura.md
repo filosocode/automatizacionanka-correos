@@ -16,7 +16,7 @@ Una capa solo importa de las que tiene **debajo**. `cli` puede iniciar el servid
 | `dominio/` | Reglas del negocio y funciones puras: estados, tabla de actividades, recepción (qué falta y qué preguntar), contrato con Work, lectura de un mensaje de Gmail (`correo`), la decisión sobre un hilo (`decision`: qué hacer, sin ejecutarlo), los objetos del caso (`Caso`, `Evento`, `Cambio`, `Vinculo`: dataclasses inmutables que también se leen como mapa) y la forma del análisis y de `config.json` (`Analisis`, `Actividad`, `Configuracion`…: `TypedDict` que mypy verifica y que se guardan como JSON sin cambios), extracción de texto de adjuntos. | Hablar con Gmail, Drive, la base de datos ni el disco. |
 | `infra/` | Todo lo que toca el mundo exterior: configuración (`settings`), base SQLite (`store`), clientes de Google (`google_services`, `mail`), modelos de lenguaje (`llm`), registro (`logging_setup`), copias de seguridad, modo de operación. | Conocer casos de uso ni pantallas. |
 | `servicios/` | Los casos de uso: importar un borrador de Work (`work_import`), ver y decidir casos (`quotes`), editar la tabla (`ediciones`), enviar y borrar casos (`case_actions`), el ciclo de revisión (`pipeline`), control de cambios y código de la oferta, seguimiento de hilos y recordatorios, carpetas de Drive. | Conocer el servidor web ni los comandos. |
-| `web/` | El servidor HTTP local (`server`: valida y enruta), las acciones de los formularios (`acciones`), las páginas (`paginas`: resumen y listas; `pantalla_caso`: un caso y su acta), el token CSRF y la comprobación de Host/Origen (`seguridad`), los fragmentos (`views`), la documentación OpenAPI/Swagger y el JSON de lectura (`openapi`, `api`) y las plantillas. | Importar de `cli`. |
+| `web/` | El servidor HTTP local (`server`: valida y enruta), las acciones de los formularios (`acciones`), las páginas (`paginas`: resumen y listas; `pantalla_caso`: un caso y su acta), el token CSRF y la comprobación de Host/Origen (`seguridad`), los archivos fijos y la compresión (`estaticos`), el marcador compartido de los avisos (`marcador`), los fragmentos (`views`), la documentación OpenAPI/Swagger y el JSON de lectura (`openapi`, `api`) y las plantillas. | Importar de `cli`. |
 | `cli/` | Los puntos de entrada: comandos (`app`), lanzador (`supervisor`) y puente con Work (`work_sync`). | — |
 
 ## Mapa de módulos
@@ -121,7 +121,9 @@ El fondo animado de nodos (U-38, D-103) no es un archivo: es un `<canvas>` y un 
 |---|---|
 | `acciones` | Las acciones de los formularios del dashboard (POST): una función por ruta. |
 | `api` | Representación JSON de los casos para las rutas de lectura `/api/...` (ver spec/07-api.md). |
+| `estaticos` | Archivos fijos de `/static` (fuente, logo y el CSS compartido con huella), `ETag` y compresión gzip de las respuestas (U-48). |
 | `formularios_pendientes` | Lo que la persona escribió en un formulario que no se pudo procesar, para devolvérselo y que no lo pierda (U-31). |
+| `marcador` | El marcador de cambios que comparten todas las pestañas con avisos en vivo: una consulta por segundo (U-48). |
 | `openapi` | La documentación OpenAPI 3 del dashboard y la página de Swagger UI (spec/07-api.md, requisito T-13). |
 | `paginas` | Las páginas comunes del dashboard: la página completa, el resumen, las solicitudes y las descartadas. |
 | `pantalla_caso` | La pantalla de un caso y su acta: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento. |

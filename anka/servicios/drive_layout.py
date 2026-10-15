@@ -18,6 +18,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from functools import lru_cache
 from typing import Any
 
 from anka.infra.google_services import ensure_folder, list_file_names, list_folders
@@ -108,6 +109,7 @@ def normalize_client_name(name: str) -> str:
     return " ".join(tokens)
 
 
+@lru_cache(maxsize=65536)
 def _keys_similar(a: str, b: str) -> bool:
     """¿Dos claves normalizadas (ya sin tildes ni sufijos) parecen el mismo nombre?"""
     if not a or not b:
@@ -118,7 +120,11 @@ def _keys_similar(a: str, b: str) -> bool:
     small, big = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
     if len(small) >= 2 and small <= big:
         return True
-    return SequenceMatcher(None, a, b).ratio() >= 0.85
+    comparador = SequenceMatcher(None, a, b)
+    # Las dos cotas son techos de `ratio()`: si ya quedan por debajo, `ratio()` (lo caro) también (U-48).
+    if comparador.real_quick_ratio() < 0.85 or comparador.quick_ratio() < 0.85:
+        return False
+    return comparador.ratio() >= 0.85
 
 
 def clave_de_proyecto(nombre: str) -> str:
