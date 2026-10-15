@@ -4,7 +4,7 @@
   <p>Lectura: {{ reading.get('status') or 'no indicado' }}. Interpretación visual: {{ reading.get('visual') or 'no indicado' }}.</p>
   {% if audit.get('verification') %}
   <p class="meta">Adjuntos comprobados contra Gmail: {{ audit.get('verification').replace('_', ' ') }}
-    ({{ (audit.get('attachments_expected') or [])|length }} en el hilo).</p>
+    ({{ (audit.get('attachments_expected') or [])|length }} en la conversación).</p>
   {% else %}
   <p class="meta">Correo: {{ preflight.get('email_segments_read', 'no indicado') }} / {{ preflight.get('email_segments_available', 'no indicado') }} segmentos.
     Adjuntos: {{ preflight.get('attachment_segments_read', 'no indicado') }} / {{ preflight.get('attachment_segments_available', 'no indicado') }}.

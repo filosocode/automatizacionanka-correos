@@ -13,41 +13,41 @@
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
   <header>
     {% macro actual(ruta) %}{% if nav_actual == ruta %} aria-current="page"{% endif %}{% endmacro %}
-    <a class="brand" href="/"{{ actual('/') }} aria-label="Anka, mis casos{% if unread_count %}: {{ unread_count }} con novedades{% endif %}"><span class="brand-mark">A</span><div><strong>Anka</strong><span>Mis casos</span></div>{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a>
+    <a class="brand" href="/"{{ actual('/') }} aria-label="Anka, mis casos{% if unread_count %}: {{ unread_count }} con novedades{% endif %}"><img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38"><div><strong>Anka</strong><span>Mis casos</span></div>{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a>
     <div class="toolbar">
       <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Tema actual: el del sistema. Pulsa para usar el claro" title="Tema actual: el del sistema. Pulsa para usar el claro">Tema: sistema</button>
-      <button type="button" id="avisos-navegador" class="secondary" hidden title="El navegador de este equipo te avisará cuando entren novedades y esta pestaña esté oculta">Activar avisos del navegador</button>
+      <button type="button" id="avisos-navegador" class="secondary" hidden title="Te avisaremos cuando llegue algo nuevo aunque esta pestaña esté escondida">Avisarme de novedades</button>
       <span id="bridge-chip" class="bridge-chip" hidden></span>
       <a id="google-chip" class="bridge-chip" href="#ajustes" hidden></a>
       <details class="settings" id="ajustes"><summary>Ajustes</summary><div class="settings-box">{{ mode_selector }}
         <a class="enlace-ajustes" href="/requests">Administrar casos (eliminar, exportar)</a>
-        <a class="enlace-ajustes" href="/archive">Casos eliminados (archivo)</a>
+        <a class="enlace-ajustes" href="/archive">Casos borrados</a>
         <div class="google-settings">
           <strong>Cuenta de Google</strong>
           <span id="google-status" class="meta">Verificando…</span>
           <form method="post" action="/google/reautorizar" id="google-reauth">
-            <button type="submit" class="secondary" data-confirm="Se abrirá la ventana de Google en este equipo para iniciar sesión y aceptar los permisos. ¿Continuar?">Reautorizar Google</button>
+            <button type="submit" class="secondary" data-confirm="Se abrirá una ventana de Google. Entra con tu cuenta y pulsa «Permitir». ¿Seguimos?">Volver a conectar Google</button>
           </form>
         </div>
       </div></details>
       {% if not is_work %}<form method="post" action="/refresh">
-        <button type="submit">Actualizar correo</button>
+        <button type="submit">Buscar correos nuevos</button>
       </form>{% else %}<form method="post" action="/refresh">
-        <button type="submit" class="secondary" title="Pide al puente que revise Gmail ahora, sin esperar su ciclo">Revisar ahora</button>
+        <button type="submit" class="secondary" title="Busca correos nuevos en Gmail ahora, sin esperar">Buscar correos nuevos</button>
       </form>{% endif %}
     </div>
   </header>
-  <div id="fresh-banner" class="notice" hidden>Hay cambios nuevos. <a href="#" id="fresh-reload">Recargar</a></div>
+  <div id="fresh-banner" class="notice" role="status" hidden>Hay novedades en esta página. <a href="#" id="fresh-reload">Actualizar la página</a></div>
   <main id="contenido" tabindex="-1">{% if message %}<div class='notice flash' role="status">{{ message }}</div>{% endif %}{{ body }}</main>
-  <footer class="pie"><a href="/discarded">Correos descartados</a></footer>
+  <footer class="pie"><a href="/discarded">Correos que no eran solicitudes</a></footer>
   <dialog id="confirmar" class="confirm-dialog" aria-labelledby="confirmar-titulo" aria-describedby="confirmar-texto">
     <form method="dialog">
-      <h2 id="confirmar-titulo">Confirma antes de seguir</h2>
+      <h2 id="confirmar-titulo">¿Seguro que quieres seguir?</h2>
       <p id="confirmar-texto"></p>
       <dl id="confirmar-detalle" class="confirm-detalle" hidden></dl>
       <div class="toolbar confirm-acciones">
         <button type="submit" value="no" class="secondary" autofocus>Cancelar</button>
-        <button type="submit" value="si" id="confirmar-si">Confirmar</button>
+        <button type="submit" value="si" id="confirmar-si">Sí, seguir</button>
       </div>
     </form>
   </dialog>
@@ -147,6 +147,14 @@
       const aceptar = document.getElementById('confirmar-si');
       let origen = null;
       function resumenDe(boton) {
+        if (boton.dataset.resumen === 'emision') {      // La T no se deshace: se muestra lo que se va a emitir (U-34.2)
+          const campo = boton.form && boton.form.elements['number'];
+          const numero = campo ? campo.value.trim() : '';
+          const filas = [['Número de la T', numero ? 'T' + numero : '(vacío)'], ['Para', boton.dataset.para || '']];
+          if (boton.dataset.sugerido && numero !== boton.dataset.sugerido) filas.push(['Ojo', 'El número no es el sugerido (T' + boton.dataset.sugerido + '). Confirma que es el consecutivo real.']);
+          if (boton.dataset.anio && numero.slice(0, 2) !== boton.dataset.anio) filas.push(['Ojo', 'El año del número no es el actual (' + boton.dataset.anio + ').']);
+          return filas;
+        }
         if (boton.dataset.resumen !== 'envio') return [];
         const filas = [['Para', boton.dataset.para || '']];
         if (boton.dataset.asunto) filas.push(['Asunto', boton.dataset.asunto]);
@@ -303,9 +311,14 @@
         const editadas = new Set(), quitadas = new Set(), nuevas = new Set();
         controles.forEach(c => {
           const fila = c.closest('.act-row');
+          // Una fila existente con todas las celdas vaciadas se guarda como quitada: se cuenta y se confirma como tal (U-34.5).
+          const vaciada = !fila.querySelector('.act-main.nueva') &&
+            Array.from(fila.querySelectorAll('textarea')).every(t => !t.value.trim());
           if (c.type === 'checkbox') {
-            fila.classList.toggle('por-quitar', c.checked);
-            if (c.checked) quitadas.add(fila);
+            fila.classList.toggle('por-quitar', c.checked || vaciada);
+            if (c.checked || vaciada) quitadas.add(fila);
+          } else if (vaciada) {
+            quitadas.add(fila);
           } else if (valorDe(c) !== inicial.get(c)) {
             if (fila.querySelector('.act-main.nueva')) { if (c.tagName !== 'SELECT') nuevas.add(fila); }  // solo el estado no cuenta
             else editadas.add(fila);
@@ -362,7 +375,7 @@
       const googleForm = document.getElementById('google-reauth');
       const googleStatus = document.getElementById('google-status');
       const botonAvisos = document.getElementById('avisos-navegador');
-      // El aviso «Google desconectado» lleva al único botón «Reautorizar Google», el de Ajustes (U-28).
+      // El aviso «Google desconectado» lleva al único botón «Volver a conectar Google», el de Ajustes (U-28).
       googleChip.addEventListener('click', event => {
         event.preventDefault();
         document.getElementById('ajustes').open = true;
@@ -401,6 +414,18 @@
       document.addEventListener('visibilitychange', marcarVisto);
       document.addEventListener('input', () => { dirty = true; });
       document.getElementById('fresh-reload').addEventListener('click', e => { e.preventDefault(); location.reload(); });
+      // Recargar por sí sola borraría lo que la persona está haciendo (U-34.3): solo se recarga si no está leyendo
+      // más abajo, no escribió nada, no tiene el cursor en un campo y no hay un diálogo abierto. Si no, avisa.
+      function puedeRecargar() {
+        if (dirty) return false;
+        if (window.scrollY > 0) return false;
+        const dialogo = document.getElementById('confirmar');
+        if (dialogo && dialogo.open) return false;
+        const activo = document.activeElement;
+        if (activo && /^(INPUT|TEXTAREA|SELECT)$/.test(activo.tagName)) return false;
+        return !Array.from(document.querySelectorAll('textarea, input:not([type=hidden]):not([type=checkbox]):not([type=radio])'))
+          .some(campo => campo.value !== campo.defaultValue);
+      }
       async function poll() {
         try {
           const r = await fetch('/state', {cache: 'no-store'});
@@ -410,9 +435,9 @@
             chip.hidden = false;
             chip.dataset.state = s.bridge;
             chip.title = s.text;
-            chip.textContent = {ok: 'Puente activo', attention: 'Puente activo · borrador por revisar',
-                                error: 'Puente con avisos', stopped: 'Puente detenido',
-                                never: 'Puente sin iniciar'}[s.bridge];
+            chip.textContent = {ok: 'Revisión de correos: activa', attention: 'Revisión de correos: hay un análisis por revisar',
+                                error: 'Revisión de correos: con avisos', stopped: 'Revisión de correos: detenida',
+                                never: 'Revisión de correos: sin iniciar'}[s.bridge];
           } else { chip.hidden = true; }
           const g = s.google || {};
           const needsGoogle = g.estado === 'vencida' || g.estado === 'fallida';
@@ -421,7 +446,7 @@
           googleChip.dataset.state = needsGoogle ? 'stopped' : 'error';
           googleChip.title = g.texto || '';
           if (g.texto) googleStatus.textContent = g.texto;
-          googleChip.textContent = needsGoogle ? 'Google desconectado · Reautorizar' : 'Autorizando Google…';
+          googleChip.textContent = needsGoogle ? 'Google desconectado · Volver a conectar' : 'Conectando con Google…';
           if (typeof s.sin_leer === 'number') {
             if (sinLeer !== null && s.sin_leer > sinLeer) avisarDelNavegador(s.sin_leer);
             sinLeer = s.sin_leer;
@@ -429,9 +454,8 @@
           }
           if (base === null) base = s.v;
           else if (s.v !== base) {
-            if (dirty || document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
-              document.getElementById('fresh-banner').hidden = false;
-            } else location.reload();
+            if (puedeRecargar()) location.reload();
+            else document.getElementById('fresh-banner').hidden = false;
           }
         } catch (e) { /* servidor local cerrado: se reintenta */ }
       }

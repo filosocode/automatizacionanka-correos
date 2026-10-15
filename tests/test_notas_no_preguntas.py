@@ -112,7 +112,7 @@ class EnLaPantalla(unittest.TestCase):
             with self.subTest(nota=nota[:40]):
                 clave = nota.split(";")[0].split(".")[0]
                 self.assertEqual(clave in cuadro, va_al_cliente)     # lo de Anka no va al cuadro del cliente (U-26, U-31)
-        self.assertIn("resuelven Anka por dentro", decision)
+        self.assertIn("resuelven el equipo de Anka", decision)
 
 
 if __name__ == "__main__":

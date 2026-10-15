@@ -126,7 +126,7 @@ class VistaAgrupada(unittest.TestCase):
         # Cubre: U-19
         html = self._pagina(paginas.render_requests)
         self.assertEqual(html.count('class="grupo"'), 1)
-        self.assertIn("3 hilos del mismo proyecto", html)
+        self.assertIn("3 conversaciones del mismo proyecto", html)
         self.assertIn("verifica que sea el mismo proyecto", html)
         inicio = html.index('class="grupo"')
         grupo = html[inicio:html.index("</section>", inicio)]
@@ -154,8 +154,8 @@ class VistaAgrupada(unittest.TestCase):
         # Cubre: U-19
         html = self._pagina(paginas.render_index)
         self.assertEqual(html.count('class="queue-row"'), 2)                             # el proyecto y el suelto
-        self.assertIn("+2 hilo(s) más del mismo proyecto", html)
-        self.assertIn("2 por atender", html)
+        self.assertIn("+2 correo(s) más del mismo proyecto", html)
+        self.assertIn("2 esperan algo de ti", html)
 
     def test_el_script_despliega_filtra_y_ordena_los_grupos(self) -> None:
         # Cubre: U-19

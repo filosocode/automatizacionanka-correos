@@ -27,7 +27,7 @@ class ContextoInsuficiente(ErrorDeAnka):
 class AutorizacionDeGoogle(ErrorDeAnka):
     """La autorización de Google falta, venció o fue revocada: hay que reautorizar (el dashboard ofrece el botón)."""
 
-    MENSAJE = ("La autorización de Google venció o falta. Pulsa «Reautorizar Google» en el dashboard "
+    MENSAJE = ("La autorización de Google venció o falta. Pulsa «Volver a conectar Google» en el dashboard "
                "o ejecuta: python app.py auth")
 
     def __init__(self, motivo: str = "") -> None:

@@ -37,7 +37,7 @@ from anka.infra.store import add_dashboard_notification, add_message, connect, r
 from anka.servicios.drive_contents import populate_project_folder
 from anka.servicios.pipeline import confirmed_client
 from anka.servicios.change_control import (
-    assign_code, code_label, known_addresses, mark_change_sent, normalize_number,
+    assign_code, code_label, comprobar_numero, known_addresses, mark_change_sent, normalize_number,
 )
 from anka.servicios.quotes import case_has_links, delete_quotes, get_quote, set_client_name
 from anka.servicios import envios
@@ -49,7 +49,7 @@ def resolve_case_recipient(thread_id: str) -> dict:
     """Confirma en Gmail el destinatario real de un caso cuyo correo no se pudo leer y lo guarda."""
     quote = get_quote(thread_id)
     if not quote:
-        raise ValueError("La solicitud ya no existe.")
+        raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
     config = load_config()
     gmail, _ = services()
     account_addresses = own_addresses(config, gmail)
@@ -58,11 +58,11 @@ def resolve_case_recipient(thread_id: str) -> dict:
     ).execute()
     inbound = inbound_messages(thread, account_addresses)
     if not inbound:
-        raise ValueError("No se encontró un mensaje entrante del cliente en el hilo.")
+        raise ValueError("No se encontró un mensaje entrante del cliente en esta conversación.")
     routing = forwarded_routing(inbound[-1], config)
     recipient = routing.get("selected_recipient", "")
     if not valid_email_address(recipient):
-        raise ValueError("Gmail no devolvió una dirección válida para responder.")
+        raise ValueError("Gmail no nos dio una dirección para responder. Ábrelo en Gmail y revisa.")
     analysis = quote["analysis"]
     analysis["routing"] = routing
     db = connect()
@@ -82,7 +82,7 @@ def case_email_context(thread_id: str) -> tuple[dict, Any, dict, set[str]]:
     """Reúne lo necesario para escribir al cliente (caso, Gmail, hilo, direcciones); falla si ya no admite correo."""
     quote = get_quote(thread_id)
     if not quote:
-        raise ValueError("La solicitud ya no existe.")
+        raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
     if quote.cerrado and not quote.reabierto(case_has_links(thread_id)):
         raise ValueError("Esta solicitud no admite una respuesta desde el dashboard.")
     context = resolve_case_recipient(thread_id)
@@ -107,7 +107,7 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     """Guarda como borrador de Gmail el texto escrito en el dashboard, sin enviarlo."""
     body = reply_body_without_quoted_history(body).strip()
     if not body:
-        raise ValueError("El borrador no puede estar vacío.")
+        raise ValueError("Escribe algo antes de guardar.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
     recipient = _recipient(thread_id, quote, to)
     email = reply_email(thread, recipient, body, account_addresses)
@@ -140,7 +140,7 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     finally:
         db.close()
     log.info("%s: borrador guardado en Gmail desde el dashboard", thread_id)
-    return f"Borrador guardado en Gmail para {recipient}."
+    return f"Guardado en Gmail sin enviar, para {recipient}."
 
 
 DUPLICATE_WINDOW = timedelta(minutes=15)
@@ -157,7 +157,7 @@ def _already_sent(quote: dict, body: str, recipient: str) -> str:
         return ""
     if age <= DUPLICATE_WINDOW and recipient.casefold() == str(quote["recipient"]).casefold():
         return (f"Este mismo correo ya se envió a {recipient} hace {max(1, int(age.total_seconds() // 60))} min. "
-                "No se envió de nuevo; si quieres mandar otro, cambia el texto.")
+                "No lo enviamos otra vez; si quieres mandar otro, cambia el texto.")
     return ""
 
 
@@ -227,7 +227,7 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
         add_dashboard_notification(
             db, thread_id, QuoteStatus.RESPONSE_SENT, message_id,
             "Respuesta enviada",
-            f"El correo fue enviado a {recipient} en el mismo hilo, {con_preguntas}.",
+            f"El correo fue enviado a {recipient}, {con_preguntas}.",
             leida=True,
         )
         db.commit()
@@ -236,16 +236,22 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
 
 
 def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int = 0,
-                         purpose: str = "", create_folder: bool = True, esperar: bool = False) -> str:
+                         purpose: str = "", create_folder: bool = True, esperar: bool = False,
+                         state_token: str = "") -> str:
     """Envía al cliente el correo escrito en el dashboard (ya revisado por una persona) y deja constancia.
 
     `esperar` fuerza «esperando cliente» aunque el correo no lleve preguntas (la persona sabe que espera respuesta).
-    Rechaza un reenvío idéntico reciente. Un caso con información suficiente crea además su carpeta en Drive,
-    salvo que quien llama ya se haya ocupado de ella (`create_folder=False`).
+    `state_token` es la `marca_de_estado` que la pantalla tenía al abrirse: si el caso cambió desde entonces se rechaza
+    (U-34.4); vacío, no se comprueba. Rechaza un reenvío idéntico reciente. Un caso con información suficiente
+    crea además su carpeta en Drive, salvo que quien llama ya se haya ocupado de ella (`create_folder=False`).
     """
     body = reply_body_without_quoted_history(body).strip()
     if not body:
-        raise ValueError("El correo no puede estar vacío.")
+        raise ValueError("Escribe el correo antes de enviar.")
+    actual = get_quote(thread_id)
+    if state_token and actual and actual.marca_de_estado != state_token:
+        raise ValueError("Este caso cambió desde que abriste la pantalla, así que el correo no se envió. Lo que "
+                         "escribiste sigue aquí: recarga, revisa lo nuevo y vuelve a enviar.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
     recipient = _recipient(thread_id, quote, to)
     previous = envios.pendiente(thread_id, recipient, body)
@@ -257,8 +263,9 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
                 _record_sent_reply(quote, thread_id, message_id, body, recipient,
                                    _status_after_reply(quote['status'], len(hechas)), previous['created_at'], hechas)
             envios.confirmar(previous['operation_key'], message_id)
-            raise ValueError('Este mismo correo ya se envió. Se confirmó su registro; no se envió de nuevo.')
-        raise ValueError('Envío en curso o incierto: Gmail aún no confirma el mensaje. No se envió de nuevo.')
+            raise ValueError('Este correo ya se envió; no lo enviamos otra vez.')
+        raise ValueError('Gmail aún no confirma si el correo salió. No lo enviamos de nuevo; '
+                         'mira en Gmail antes de intentar otra vez.')
     duplicate = _already_sent(quote, body, recipient)
     if duplicate:
         raise ValueError(duplicate)
@@ -290,13 +297,16 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
             db.commit()
         finally:
             db.close()
-    message = f"Correo enviado a {recipient} en el mismo hilo."
+    message = f"Correo enviado a {recipient}."
     if new_status == QuoteStatus.READY_REVIEW and create_folder:
         message += " " + auto_create_project_folder(thread_id)
     return message
 
 
-def _with_final_code(body: str, suggested: str, number: str) -> str:
+AVISO = "⚠"      # marca de lo que quedó pendiente en un mensaje compuesto (la pantalla conserva entonces lo escrito)
+
+
+def con_codigo_final(body: str, suggested: str, number: str) -> str:
     """El texto se preparó con el número sugerido; si la persona lo corrigió, el correo debe llevar el final."""
     suggested, number = normalize_number(suggested), normalize_number(number)
     if suggested and number and suggested != number:
@@ -313,17 +323,24 @@ def issue_code_and_notify(thread_id: str, number: str, body: str, suggested_numb
     """
     if not body.strip():
         raise ValueError("Escribe el correo para el cliente (o usa «Solo emitir la T»).")
-    final_body = _with_final_code(body, suggested_number, number)
+    final_body = con_codigo_final(body, suggested_number, number)
+    # Antes de emitir (la T no se deshace, D-08) se comprueba todo lo que puede fallar sin dejar rastro (U-34.2):
+    # el número, la autorización de Google, el hilo en Gmail y el destinatario.
+    number = comprobar_numero(thread_id, number)
+    quote = case_email_context(thread_id)[0]
+    _recipient(thread_id, quote, "")
     parts = [assign_code(thread_id, number).split(" Revisa el correo")[0]]
     parts.append(auto_create_project_folder(thread_id))      # carpeta, documentos del cliente y tabla
     try:
         parts.append(send_dashboard_reply(thread_id, final_body, "", 0, "received", create_folder=False))
-    except ValueError as exc:                                  # p. ej. el mismo texto ya salió hace poco
-        parts.append(f"⚠ El correo no se envió: {exc}")
+    except (ValueError, ErrorDeAnka) as exc:     # p. ej. el mismo texto ya salió hace poco, o venció Google
+        motivo = str(exc).rstrip(".")
+        parts.append(f"{AVISO} El correo no se envió: {motivo}. La T quedó emitida; el correo sigue en "
+                     "«Respuesta al cliente» para enviarlo.")
     except Exception:
         log.exception("%s: no se pudo enviar el correo con la T", thread_id)
-        parts.append("⚠ El correo NO se envió (error de Gmail). La T quedó emitida: "
-                     "reintenta desde «Respuesta al cliente».")
+        parts.append(f"{AVISO} El correo NO se envió: Gmail no respondió. La T quedó emitida; reintenta desde "
+                     "«Respuesta al cliente», donde sigue el texto.")
     return " ".join(parts)
 
 
@@ -335,10 +352,10 @@ def _fill_folder(gmail: Any, drive: Any, thread_id: str, folder_id: str,
         report = populate_project_folder(
             gmail, drive, thread, folder_id, get_quote(thread_id), account_addresses)
         return report.summary()
-    except Exception as exc:
+    except Exception:
         log.exception("%s: no se pudo llenar la carpeta de Drive", thread_id)
-        return (f"La carpeta quedó creada pero no pude copiar su contenido ({type(exc).__name__}). "
-                "Súbelo a mano.")
+        return ("La carpeta quedó creada, pero no se pudo copiar su contenido. "
+                "Súbelo tú a mano o prueba otra vez en un momento.")
 
 
 def delete_cases(thread_ids: list[str]) -> str:
@@ -363,9 +380,9 @@ def delete_cases(thread_ids: list[str]) -> str:
         try:
             _, drive = services()
             parent = load_config().get("drive_parent_id", "")
-        except Exception as exc:
+        except Exception:
             log.exception("No se pudo conectar con Drive para borrar carpetas")
-            return f"No borré nada: no pude conectar con Drive ({type(exc).__name__}). Inténtalo de nuevo."
+            return "No se borró nada: no hubo conexión con Drive. Prueba otra vez en un momento."
         for thread_id, folder_id in folders.items():
             try:
                 trashed += trash_project_folder(drive, parent, folder_id)
@@ -377,7 +394,7 @@ def delete_cases(thread_ids: list[str]) -> str:
     if trashed:
         message += f" {trashed} carpeta(s) de proyecto movida(s) a la papelera de Drive."
     if failed:
-        message += (f" No borré {len(failed)} solicitud(es) porque su carpeta no se pudo mover a la "
+        message += (f" No se borró {len(failed)} caso(s) porque su carpeta no se pudo mover a la "
                     f"papelera: {failed[0][1]}")
     return message
 
@@ -407,13 +424,13 @@ def auto_create_project_folder(thread_id: str) -> str:
         return "Carpeta en Drive: " + approve_review(thread_id, auto=True)
     except ErrorDeAnka as exc:
         message = str(exc)
-    except Exception as exc:  # Drive o red: el correo ya salió y no se debe perder
+    except Exception:  # Drive o red: el correo ya salió y no se debe perder
         log.exception("%s: no se pudo crear la carpeta automáticamente", thread_id)
-        message = (f"No se pudo crear la carpeta automáticamente ({type(exc).__name__}). "
-                   "Inténtalo desde la sección de Drive.")
+        message = ("No se pudo crear la carpeta sola. "
+                   "Créala tú desde la sección de Drive.")
     _note_drive_pending(thread_id, message)
     log.warning("%s: carpeta del proyecto pendiente tras el envío", thread_id)
-    return "No creé la carpeta todavía: " + message
+    return "Todavía no se creó la carpeta: " + message
 
 
 def _saved_client_name(db: Any, thread_id: str) -> str:
@@ -446,7 +463,7 @@ def _send_questions(db: sqlite3.Connection, gmail: Any, config: Configuracion, t
     message = f"{thread_id}: correo enviado a {recipient}."
     log.info("%s: correo enviado tras aprobación", thread_id)
     log.info("%s", message, extra=SENSITIVE)
-    return message
+    return f"Correo enviado a {recipient}."
 
 
 def _resolve_client(db: sqlite3.Connection, thread_id: str, analysis: Analisis, recipient: str,
@@ -494,7 +511,7 @@ def _create_case_folder(db: sqlite3.Connection, gmail: Any, drive: Any, config: 
     set_client_name(thread_id, client)  # los próximos correos del remitente se resuelven solos
     contents = _fill_folder(gmail, drive, thread_id, result.folder["id"], account_addresses)
     log.info("%s: carpeta del proyecto creada tras aprobación: %s", thread_id, result.folder["id"])
-    message = f"{thread_id}: carpeta creada/encontrada: {result.folder['id']}"
+    message = "Carpeta lista."
     if result.client_created:
         log.info("%s: carpeta de cliente nuevo creada tras confirmación", thread_id)
         message += " Se creó también la carpeta del cliente nuevo."
@@ -524,7 +541,7 @@ def approve_review(
             (thread_id,),
         ).fetchone()
         if not row:
-            raise ErrorDeAnka(f"No existe revisión registrada para el hilo {thread_id}.")
+            raise ErrorDeAnka("Este caso no tiene una revisión pendiente. Vuelve a Mis casos.")
         last_id, status, recipient, analysis_json = row
         analysis: Analisis = json.loads(analysis_json)
         if status == QuoteStatus.REVIEW_PENDING:
@@ -533,6 +550,7 @@ def approve_review(
         if status == QuoteStatus.READY_REVIEW:
             return _create_case_folder(db, gmail, drive, config, thread_id, last_id, recipient, analysis,
                                        client_name, new_client, auto, allow_similar_project, account_addresses)
-        raise ErrorDeAnka(f"El hilo {thread_id} está en estado '{status}', no pendiente de aprobación.")
+        raise ErrorDeAnka("Este caso ya no está pendiente de aprobación. "
+                          "Ábrelo desde Mis casos para ver en qué paso va.")
     finally:
         db.close()

@@ -74,7 +74,7 @@ class ColaDeHoy(unittest.TestCase):
     def test_cada_fila_tiene_un_boton_con_verbo_y_su_ancla(self) -> None:
         # Cubre: U-11
         decidir = str(paginas.queue_row(_caso("h1", QuoteStatus.REVIEW), 3))
-        self.assertIn(">Decidir</a>", decidir)
+        self.assertIn(">Decidir cómo seguir</a>", decidir)
         self.assertIn("/case?thread_id=h1#decision", decidir)
         self.assertEqual(decidir.count("<a "), 1)
         emitir = str(paginas.queue_row(_caso("h2", QuoteStatus.READY), 1))
@@ -85,7 +85,7 @@ class ColaDeHoy(unittest.TestCase):
 
     def test_estado_desconocido_cae_al_final_con_abrir(self) -> None:
         # Cubre: U-11
-        self.assertEqual(paginas.accion_de_caso(_caso("h", QuoteStatus.MISSING))[1], "Abrir")
+        self.assertEqual(paginas.accion_de_caso(_caso("h", QuoteStatus.MISSING))[1], "Ver el caso")
 
     def test_mis_casos_lista_todos_los_casos_sin_limite(self) -> None:
         # Cubre: U-32
@@ -111,10 +111,10 @@ class ListaDeSolicitudes(unittest.TestCase):
         # Cubre: U-13
         fila = str(paginas.quote_row(_caso("h1", QuoteStatus.REVIEW), selectable=True))
         self.assertIn('data-etapa="atender"', fila)
-        self.assertIn(">Decidir</a>", fila)
+        self.assertIn(">Decidir cómo seguir</a>", fila)
         self.assertIn("/case?thread_id=h1#decision", fila)
         quieta = str(paginas.quote_row(_caso("h2", QuoteStatus.IGNORED)))
-        self.assertIn(">Abrir</a>", quieta)
+        self.assertIn(">Ver el caso</a>", quieta)
 
     def _lista(self, casos: list[dict]) -> str:
         from unittest import mock
@@ -125,9 +125,9 @@ class ListaDeSolicitudes(unittest.TestCase):
         # Cubre: U-13
         html = self._lista([_caso("decidir", QuoteStatus.REVIEW), _caso("emitir", QuoteStatus.READY),
                             _caso("ignorada", QuoteStatus.IGNORED)])
-        for etiqueta in ("Por atender", "Esperando al cliente", "Listas para la T", "En cotización"):
+        for etiqueta in ("Por atender", "Esperando al cliente", "Listas para la T", "Con código de oferta"):
             self.assertIn(etiqueta, html)
-        self.assertIn('<details class="more bulk-menu"><summary>Acciones</summary>', html)
+        self.assertIn('<details class="more bulk-menu"><summary>Opciones</summary>', html)
         self.assertLess(html.index("bulk-menu"), html.index('id="delete-btn"'))
         self.assertIn("data-confirm", html[html.index('id="delete-btn"'):html.index('id="delete-btn"') + 400])
 
@@ -184,7 +184,7 @@ class TablaYLenguaje(unittest.TestCase):
         editor = html[html.index('class="act-table"'):]                # la tabla completa, tras «Editar tabla» (U-31)
         cabecera = editor[editor.index("<thead"):editor.index("</thead>")]
         self.assertEqual(cabecera.count("<th role="), 6)         # cinco columnas y la de «Quitar»
-        for titulo in ("Actividad", "Servicio/técnica", "Cantidad y unidad", "Estado", "Notas"):
+        for titulo in ("Actividad", "Tipo de servicio", "Cantidad y unidad", "Estado", "Notas"):
             self.assertIn(f'<th role="columnheader">{titulo}</th>', cabecera)
         for clave, _ in ACTIVITY_COLUMNS:                       # el formulario guarda lo mismo que antes
             self.assertIn(f"name='a0_{clave}'", html)
@@ -230,10 +230,10 @@ class TablaYLenguaje(unittest.TestCase):
         self.assertIn('<select name="reason">', barra)                           # el motivo va con «Guardar tabla»
         self.assertIn('id="guardar-tabla"', barra)
         self.assertIn('href="/acta?thread_id=h1">Ver historial de cambios</a>', barra)
-        self.assertNotIn("Descargar Excel", barra)                               # y nada de Excel cerca del motivo
+        self.assertNotIn("Bajar en Excel", barra)                               # y nada de Excel cerca del motivo
         exportar = html[html.index("</form>"):]
-        self.assertIn("Exportar la tabla", exportar)
-        self.assertIn('href="/export.xlsx?thread_id=h1">Descargar Excel</a>', exportar)
+        self.assertIn("Sacar la tabla", exportar)
+        self.assertIn('href="/export.xlsx?thread_id=h1">Bajar en Excel</a>', exportar)
         self.assertIn("Cómo funciona la hoja de Google", exportar)               # la explicación larga, plegada
         self.assertNotIn('name="reason"', exportar)
 
@@ -245,13 +245,13 @@ class TablaYLenguaje(unittest.TestCase):
     def test_quitar_se_ve_marcado_y_el_script_pide_motivo_solo_con_cambios_y_confirma(self) -> None:
         # Cubre: U-21
         html = str(activities_editor("h1", [self.ACTIVIDAD]))
-        self.assertIn('<span class="q-on">Se quitará al guardar. Deshacer</span>', html)
+        self.assertIn('<span class="q-on">Se borrará al guardar. Deshacer</span>', html)
         css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
         self.assertIn(".act-row.por-quitar .act-main textarea", css)             # atenuada y tachada
         self.assertIn("text-decoration: line-through", css)
         layout = (RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8")
         for pieza in ("getElementById('barra-guardado')", "motivo.hidden = !hay", "guardar.disabled = !hay",
-                      "classList.toggle('por-quitar', c.checked)", "guardar.dataset.confirm", "Se quitará ", "Se quitarán ",
+                      "classList.toggle('por-quitar', c.checked || vaciada)", "guardar.dataset.confirm", "Se quitará ", "Se quitarán ",
                       "Cambios sin guardar: "):
             self.assertIn(pieza, layout)
         self.assertEqual(layout.count("<script>"), 2)                             # sin script nuevo
@@ -267,7 +267,7 @@ class TablaYLenguaje(unittest.TestCase):
         html = str(attachments_table([
             {"filename": "plano.dwg", "status": "bloqueado", "coverage": "no_legible", "blocked_fields": ["alcance"]},
             {"filename": "et.pdf", "status": "extraido", "coverage": "completa"}]))
-        for texto in ("Falta revisar", "Dónde se leyó", "No se pudo leer", "Bloqueado: lo revisa una persona", "Leído"):
+        for texto in ("Falta revisar", "Dónde se leyó", "No se pudo leer", "Lo revisa una persona", "Leído"):
             self.assertIn(texto, html)
         for codigo in ("no_legible", "extraido", "Datos bloqueados", "Evidencia y localizador"):
             self.assertNotIn(codigo, html)
@@ -275,7 +275,7 @@ class TablaYLenguaje(unittest.TestCase):
     def test_foco_visible_y_controles_de_44_px(self) -> None:
         # Cubre: U-14
         css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
-        self.assertIn(":focus-visible { outline: 3px solid", css)
+        self.assertIn(":focus-visible { outline: 2px solid", css)
         self.assertNotIn("min-height: 34px", css)
         self.assertNotIn("min-height: 36px", css)
         self.assertNotIn("min-height: 40px", css)
@@ -306,7 +306,7 @@ class TemaClaroYOscuro(unittest.TestCase):
     def test_no_quedan_colores_literales_fuera_de_las_variables(self) -> None:
         # Cubre: U-15
         resto = self.css[self.css.index("* { box-sizing"):]
-        self.assertEqual(sorted(set(re.findall(r"#[0-9a-fA-F]{3,8}\b", resto))), ["#16231f", "#fff"])
+        self.assertEqual(sorted(set(re.findall(r"#[0-9a-fA-F]{3,8}\b", resto))), ["#fff"])
         plantillas = RAIZ / "anka" / "web" / "templates"
         for nombre in ("activities_editor.html", "case.html"):
             self.assertNotRegex((plantillas / nombre).read_text(encoding="utf-8"), r"#[0-9a-fA-F]{3,6}\b")
@@ -340,10 +340,10 @@ class ResumenYControles(unittest.TestCase):
         # Cubre: U-11
         casos = [_caso("a", QuoteStatus.REVIEW), _caso("b", QuoteStatus.READY)]
         repetida = self._resumen(casos, [self._novedad("a")])
-        self.assertIn("ya aparecen en tu lista de casos", repetida)
-        self.assertIn("Marcar como revisadas", repetida)                # el botón sigue dentro del plegado
+        self.assertIn("también están en tu lista de casos", repetida)
+        self.assertIn("Ya las vi todas", repetida)                # el botón sigue dentro del plegado
         ajena = self._resumen(casos, [self._novedad("otro")])
-        self.assertNotIn("ya aparecen en tu lista de casos", ajena)       # una novedad que no está en la cola queda a la vista
+        self.assertNotIn("también están en tu lista de casos", ajena)       # una novedad que no está en la cola queda a la vista
 
     def test_mis_casos_trae_su_buscador_y_no_el_boton_de_buscar_o_exportar(self) -> None:
         # Cubre: U-32

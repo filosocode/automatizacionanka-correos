@@ -162,12 +162,12 @@ def review_packet_path(thread_id: str) -> Path:
 def review_action(status: str) -> tuple[str, str]:
     """Etiqueta de estado y acción sugerida para la cola de revisión según el estado."""
     if status == QuoteStatus.REVIEW_PENDING:
-        return "Requiere aclaraciones", "Enviar preguntas al cliente"
+        return "Correo por revisar", "Revisar y enviar el correo"
     if status == QuoteStatus.READY_REVIEW:
-        return "Información suficiente", "Revisión interna"
+        return "Información validada", "Emitir la T"
     if status == QuoteStatus.SENDING:
-        return "Revisar envio interrumpido", "No disponible"
-    return "Revision manual", "No disponible"
+        return "El correo no salió", "Revisar si salió"
+    return "Revisión manual", "No disponible"
 
 
 def minutes_since(value: str) -> int:
@@ -302,24 +302,25 @@ def separated_project_pairs() -> frozenset[frozenset[str]]:
 def merge_project_thread(thread_id: str, other_thread_id: str) -> str:
     """Una persona confirma que otro hilo es el mismo proyecto: se une a este caso y queda en Descartadas."""
     if not other_thread_id or other_thread_id == thread_id:
-        raise ValueError("Elige otro hilo para unir.")
+        raise ValueError("Elige otra conversación para unir.")
     db = connect()
     try:
         target = db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         other = repositorio.obtener(other_thread_id)
         if not target or not other:
-            raise ValueError("Uno de los hilos ya no existe.")
+            raise ValueError("Una de las conversaciones ya no existe.")
         blocker = merge_blocker(other)
         if blocker:
-            raise ValueError(f"Ese hilo no se puede unir: {blocker}. Si no es el mismo proyecto, usa «No es el mismo "
+            raise ValueError(f"No se puede unir esa conversación: {blocker}. "
+                             "Si no es el mismo proyecto, usa «No es el mismo "
                              "proyecto».")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         link = {"other_thread_id": other_thread_id, "id": f"project-{other_thread_id}"}
         name = _merge_own_case(db, thread_id, link, now)
         if not name:
-            raise ValueError("Ese hilo ya avanzó y no se puede unir.")
+            raise ValueError("Esa conversación ya avanzó, por eso no se puede unir.")
         record_event(db, thread_id, "project_merged", "dashboard", f"project-{other_thread_id}",
-                     f"Confirmaste que el hilo «{name}» es el mismo proyecto: se unió a este caso y quedó en "
+                     f"Confirmaste que la conversación «{name}» es el mismo proyecto: se unió a este caso y quedó en "
                      "Descartadas (se puede rescatar).", now)
         db.commit()
     finally:
@@ -331,7 +332,7 @@ def merge_project_thread(thread_id: str, other_thread_id: str) -> str:
 def separate_project_thread(thread_id: str, other_thread_id: str) -> str:
     """Una persona dice que otro hilo NO es el mismo proyecto: no se vuelve a sugerir en ningún caso."""
     if not other_thread_id or other_thread_id == thread_id:
-        raise ValueError("Elige otro hilo.")
+        raise ValueError("Elige otra conversación.")
     db = connect()
     try:
         first, second = _pair(thread_id, other_thread_id)
@@ -341,12 +342,13 @@ def separate_project_thread(thread_id: str, other_thread_id: str) -> str:
         for mine, theirs in ((thread_id, other_thread_id), (other_thread_id, thread_id)):
             if db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (mine,)).fetchone():
                 record_event(db, mine, "project_separated", "dashboard", f"project-{theirs}",
-                             "Decidiste que otro hilo con nombre o archivo parecido no es el mismo proyecto que este.",
+                             "Decidiste que otra conversación con nombre o archivo parecido no es el mismo "
+                             "proyecto que este.",
                              now)
         db.commit()
     finally:
         db.close()
-    return "Anotado: esos hilos no se volverán a sugerir como el mismo proyecto."
+    return "Listo: no volveremos a sugerir que esas conversaciones son el mismo proyecto."
 
 
 def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
@@ -357,7 +359,7 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
             "SELECT * FROM case_links WHERE id=? AND thread_id=? AND state='pending'",
             (link_id, thread_id)).fetchone()
         if not link:
-            return "Ese aviso ya se había resuelto."
+            return "Ese aviso ya estaba resuelto."
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         who = link["sender_name"] or link["sender_email"]
         db.execute("UPDATE case_links SET state=?, decided_at=? WHERE id=?",
@@ -368,17 +370,17 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
             summary = (f"Confirmaste que el correo «{link['subject'][:80]}» de {who} "
                        f"({reason_label(link['reason'])}) pertenece a este caso: «{link['snippet']}»")
             message = ("Anotado en el seguimiento con su autor y fecha. El agente todavía no lee "
-                       "otros hilos: actualiza la tabla a mano si hace falta.")
+                       "otras conversaciones: actualiza la tabla a mano si hace falta.")
             if closed:
                 message += (f" Este mismo correo también aparecía como posible actualización en {closed} caso(s) más: "
                             "ya no se muestra allí.")
             if merged:
-                message += (f" Además, el caso «{merged}», que había nacido de ese mismo hilo, se unió a este "
+                message += (f" Además, el caso «{merged}», que había nacido de esa misma conversación, se unió a este "
                             "(quedó en Descartadas, por si quieres rescatarlo). Si traía cambios para la tabla, "
                             "los verás como propuesta para adoptar o descartar.")
         else:
             summary = f"Descartaste que el correo «{link['subject'][:80]}» de {who} sea de este caso."
-            message = "Descartado: no se mostrará de nuevo."
+            message = "Descartado. No volverá a aparecer."
         record_event(db, thread_id, "linked" if accept else "dismissed", "dashboard",
                      f"link-{link_id}", summary, now, link["sender_email"], link["sender_name"])
         coded = db.execute("SELECT contact_email, quote_code FROM quotes WHERE thread_id=?",
@@ -419,7 +421,7 @@ def dismiss_pending_links(thread_id: str, link_ids: list[int]) -> str:
             record_event(db, thread_id, "dismissed", "dashboard", f"link-{row['id']}", summary,
                          now, row["sender_email"], row["sender_name"])
         db.commit()
-        return f"Descartaste {len(rows)} posible(s) actualización(es). Los correos y casos se conservaron."
+        return f"Descartaste {len(rows)} aviso(s). Los correos y los casos siguen guardados."
     finally:
         db.close()
 
@@ -450,7 +452,7 @@ def dismiss_pending_links_many(references: list[tuple[str, int]]) -> str:
         db.commit()
         if not dismissed:
             return "Las posibles actualizaciones seleccionadas ya estaban resueltas."
-        return f"Descartaste {dismissed} posible(s) actualización(es). Los correos y casos se conservaron."
+        return f"Descartaste {dismissed} aviso(s). Los correos y los casos siguen guardados."
     finally:
         db.close()
 
@@ -491,7 +493,7 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
     try:
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
-            raise ValueError("La solicitud ya no existe.")
+            raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
         analysis = load_analysis(row["analysis_json"])
         proposed = analysis.pop("pending_model_activities", None)
         if not isinstance(proposed, list):
@@ -539,7 +541,7 @@ def rescue_discarded(thread_id: str) -> str:
     """
     repositorio.marcar_para_reanalisis(thread_id)
     log.info("%s: rescatado del descarte; se reanalizará en la próxima revisión", thread_id)
-    return "Se reanalizará en la próxima revisión de Gmail."
+    return "Se volverá a mirar en la próxima búsqueda de correos."
 
 
 def delete_quotes(thread_ids: list[str]) -> str:
@@ -548,14 +550,14 @@ def delete_quotes(thread_ids: list[str]) -> str:
     Solo toca la base local y `review_queue`; no modifica Gmail, Drive ni Notion.
     """
     if not thread_ids:
-        return "No seleccionaste ninguna solicitud."
+        return "No marcaste ningún caso. Marca uno o más y vuelve a pulsar."
     found = repositorio.eliminar(thread_ids)
     for thread_id in found:
         review_packet_path(thread_id).unlink(missing_ok=True)
     log.info("Eliminadas %d solicitud(es) del dashboard: %s", len(found), ", ".join(found))
     if not found:
-        return "Las solicitudes seleccionadas ya no existían."
-    return f"Se eliminaron {len(found)} solicitud(es) del dashboard."
+        return "Esos casos ya no estaban."
+    return f"Se borraron {len(found)} caso(s)."
 
 
 def volver_a_decidir(thread_id: str, accion: str) -> str:
@@ -566,30 +568,30 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
     borrador que ya esté en Gmail.
     """
     if accion not in ("reconsiderar", "suficiente"):
-        raise ValueError("Acción no válida.")
+        raise ValueError("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
     db = connect()
     try:
         row = db.execute(
             "SELECT status, analysis_json, sent_at, draft_id FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
-            raise ValueError("La solicitud ya no existe.")
+            raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
         analysis = load_analysis(row["analysis_json"])
         decision = analysis.get("manual_review") or {}
         enviado = bool(row["sent_at"]) and str(row["sent_at"]) >= str(decision.get("at") or "")
         if (row["status"] not in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED)
                 or decision.get("decision") != "ask_client" or enviado):
-            raise ValueError("Solo se puede volver atrás mientras el correo con las preguntas no ha salido.")
+            raise ValueError("Ya no puedes cambiar la decisión: el correo con las preguntas ya salió.")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         if accion == "reconsiderar":
             analysis.pop("manual_review", None)         # las elecciones (`preguntas`) se conservan
             nuevo = QuoteStatus.REVIEW
             texto = "Volviste a la decisión técnica antes de enviar el correo: puedes cambiar qué preguntas hacer."
-            mensaje = "Volviste a elegir las preguntas. Tus elecciones siguen ahí: cámbialas y prepara el correo."
+            mensaje = "Volviste a decidir. Tus preguntas siguen ahí: cámbialas y prepara el correo."
         else:
             analysis["manual_review"] = {"decision": "sufficient", "at": now, "questions": []}
             nuevo = QuoteStatus.READY_REVIEW
             texto = "Decidiste no preguntar al cliente antes de enviar el correo: con esto alcanza."
-            mensaje = "Marcado como información validada. Ya puedes emitir la T y crear la carpeta en Drive."
+            mensaje = "Listo: con esto alcanza. Ya puedes emitir la T y crear la carpeta en Drive."
         if row["draft_id"]:
             mensaje += " El borrador que guardaste en Gmail sigue ahí; no se borra."
         actualizar_caso(db, thread_id, status=nuevo, updated_at=now,
@@ -612,7 +614,7 @@ def aceptar_lectura_revisada(thread_id: str) -> str:
     try:
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
-            raise ValueError("La solicitud ya no existe.")
+            raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
         analysis = load_analysis(row["analysis_json"])
         if not lectura_sin_verificar(analysis) or analysis.get("reading_review"):
             raise ValueError("La lectura de este caso no está pendiente de verificar.")
@@ -644,18 +646,18 @@ def resolve_technical_review(
     reanálisis reemplaza el análisis y las decisiones se descartan: lo nuevo se revisa otra vez.
     """
     if decision not in ("sufficient", "ask_client", "internal_only"):
-        raise ValueError("Decisión no válida.")
+        raise ValueError("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
     if decision == "internal_only" and elecciones is None:
-        raise ValueError("Elige qué hacer con cada pregunta antes de guardar.")
+        raise ValueError("Falta elegir qué hacer con alguna pregunta.")
     db = connect()
     try:
         row = db.execute(
             "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
         ).fetchone()
         if not row:
-            raise ValueError("La solicitud ya no existe.")
+            raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
         if row["status"] != QuoteStatus.REVIEW:
-            raise ValueError("Solo se puede decidir sobre casos en revisión técnica interna.")
+            raise ValueError("Este caso ya no espera una decisión tuya.")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         analysis = load_analysis(row["analysis_json"])
         por_dentro = descartadas = 0
@@ -696,10 +698,10 @@ def resolve_technical_review(
         db.close()
     log.info("%s: revisión técnica resuelta por una persona (%s)", thread_id, decision)
     if decision == "sufficient":
-        return "Marcado como información validada. Ya puedes crear la carpeta del proyecto en Drive."
+        return "Listo: con esto alcanza. Ya puedes crear la carpeta del proyecto en Drive."
     if decision == "internal_only":
-        return "Decisiones guardadas. Las preguntas internas quedaron en los pendientes de Anka."
-    return "Listo: revisa y envía las preguntas en la sección Respuesta al cliente."
+        return "Guardado. Las preguntas internas las verá el equipo de Anka."
+    return "Listo. Lee el correo en «Respuesta al cliente» y envíalo."
 
 
 def save_quote_metadata(thread_id: str, client_name: str, client_type: str,
@@ -710,7 +712,7 @@ def save_quote_metadata(thread_id: str, client_name: str, client_type: str,
     if sector not in SECTORS:
         raise ValueError("Sector no válido.")
     if not repositorio.obtener(thread_id):
-        raise ValueError("La solicitud ya no existe.")
+        raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
     repositorio.guardar_datos_comerciales(thread_id, client_name, client_type, sector, notes)
 
 

@@ -110,6 +110,8 @@ La descripción es la primera frase de su docstring.
 
 ### `anka/web/`
 
+Los archivos fijos del diseño (fuente Inter y logo) viven en `anka/web/static/` y se sirven por `GET /static/{archivo}` (U-36, D-101).
+
 | Módulo | Para qué sirve |
 |---|---|
 | `acciones` | Las acciones de los formularios del dashboard (POST): una función por ruta. |

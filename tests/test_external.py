@@ -250,7 +250,7 @@ class DriveTests(unittest.TestCase):
 class CredentialsTests(unittest.TestCase):
     def test_a_missing_token_asks_to_authorize_and_never_opens_a_browser(self):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)),                 patch("google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file") as flow:
-            with self.assertRaisesRegex(AutorizacionDeGoogle, "Reautorizar Google"):
+            with self.assertRaisesRegex(AutorizacionDeGoogle, "Volver a conectar Google"):
                 google_services.credentials()
             flow.assert_not_called()                 # sin nadie delante no se abre ningún consentimiento
 

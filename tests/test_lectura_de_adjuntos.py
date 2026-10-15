@@ -332,7 +332,7 @@ class PantallaTests(unittest.TestCase):
     def test_el_aviso_nombra_los_archivos_y_habla_de_gmail(self):
         texto = pantalla_caso._texto_de_lectura_pendiente({"reading_audit": {
             "verification": "incompleta", "attachment_files_pending": ["plano.kml"]}})
-        self.assertIn("verificar los adjuntos contra Gmail", texto)
+        self.assertIn("comprobar los archivos contra Gmail", texto)
         self.assertIn("Falta leer: plano.kml.", texto)
         self.assertNotIn("manifiesto", texto)
         extra = pantalla_caso._texto_de_lectura_pendiente({"reading_audit": {

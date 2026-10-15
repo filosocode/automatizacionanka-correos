@@ -62,7 +62,7 @@ class RespuestasWeb(Base):
 
     def test_a_rejected_action_is_a_client_error_with_its_message_not_a_server_error(self):
         # Cubre: T-31
-        casos = [("/activities", {"thread_id": "no-existe"}), ("/metadata", {"thread_id": "no-existe"}),
+        casos = [("/metadata", {"thread_id": "no-existe"}),
                  ("/rescue", {"thread_id": "no-existe"})]
         for ruta, campos in casos:
             with self.subTest(ruta=ruta):

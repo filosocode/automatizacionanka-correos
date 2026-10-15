@@ -88,7 +88,7 @@ class GlosarioConInterrogacion(Base):
         self.assertEqual(pagina.count('class="more glosario"'), 1)
         glosario = pagina[pagina.index('class="more glosario"'):]
         glosario = glosario[:glosario.index("</details>")]
-        self.assertIn('aria-label="¿Qué significan T, T&amp;E y los términos de lectura?"', glosario)
+        self.assertIn('>¿Qué significan T y T&amp;E?</summary>', glosario)
         for termino in ("<dt>T</dt>", "<dt>T&amp;E</dt>", "<dt>Lectura realizada</dt>", "<dt>Aplicabilidad</dt>"):
             self.assertIn(termino, glosario)
         self.assertGreater(pagina.index('class="more glosario"'), pagina.index("Paso 1 de 4"))
@@ -236,7 +236,7 @@ class TablaDelPrototipo(Base):
         self.assertRegex(pagina, r'<input type="checkbox" id="editar-toggle" class="toggle-oculto">')
         self.assertNotIn('id="editar-toggle" class="toggle-oculto" checked', pagina)     # cerrada al cargar
         editor = pagina[pagina.index('class="editor-tabla" id="editar-tabla"'):]
-        for conservado in ('<th role="columnheader">Servicio/técnica</th>', "Guardar tabla", "Ver historial de cambios", "Descargar Excel",
+        for conservado in ('<th role="columnheader">Tipo de servicio</th>', "Guardar tabla", "Ver historial de cambios", "Bajar en Excel",
                            "Más datos: ubicación, entregable, plazo y fuente"):
             self.assertIn(conservado, editor)
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
@@ -363,7 +363,7 @@ class CuadroUnico(Base):
         self.assertIn(DATUM, cuadro)
         self.assertIn("¿Qué plazo esperan?", cuadro)
         self.assertNotIn("Inspeccionar geometrías", cuadro)
-        self.assertRegex(decision, r"1 punto[s]? (lo|los) resuelve[n]? Anka")
+        self.assertRegex(decision, r"1 punto[s]? (lo|los) resuelve[n]? el equipo de Anka")
 
     def test_con_el_cuadro_vacio_pide_escribir_una_pregunta(self) -> None:
         # Cubre: U-31
@@ -618,7 +618,7 @@ class ResumenSinJerga(Base):
         rechazado = [{"draft": "r-9", "thread": "t-1", "reason": "Hay bloques JSON repetidos o incompletos."}]
         with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
             pagina = paginas.render_index()
-        self.assertIn("Un borrador de Work no se pudo leer", pagina)
+        self.assertIn("Work no pudo entender un análisis", pagina)
         self.assertLess(pagina.index('class="queue"'), pagina.index('id="borradores-rechazados"'))
         aviso = pagina[pagina.index('id="borradores-rechazados"'):]
         aviso = aviso[:aviso.index("</section>")]
@@ -627,8 +627,8 @@ class ResumenSinJerga(Base):
         self.assertNotIn("JSON", visible)
         self.assertNotIn("r-9", visible)
         detalle = aviso[aviso.index("<details"):]
-        self.assertIn("Ver el detalle técnico", detalle)
-        self.assertIn("Borrador r-9", detalle)
+        self.assertIn("Ver más detalles", detalle)
+        self.assertIn("Análisis r-9", detalle)
         self.assertIn("Hay bloques JSON repetidos o incompletos.", detalle)
 
 
@@ -651,8 +651,8 @@ class TodoEstadoTieneAviso(Base):
 
     def test_los_estados_que_antes_quedaban_vacios_dicen_que_paso_y_que_hacer(self) -> None:
         # Cubre: U-31
-        esperado = {QuoteStatus.IGNORED: ("Descartada", "/discarded"), QuoteStatus.MISSING: ("Hilo no disponible", "Volver a Mis casos"),
-                    QuoteStatus.SENDING: ("Envío interrumpido", "#respuesta"),
+        esperado = {QuoteStatus.IGNORED: ("Descartada", "/discarded"), QuoteStatus.MISSING: ("Ya no está en Gmail", "Volver a Mis casos"),
+                    QuoteStatus.SENDING: ("El correo no salió", "#respuesta"),
                     QuoteStatus.RESPONSE_SENT: ("Respuesta enviada", "template=libre#respuesta")}
         for estado, (titulo, destino) in esperado.items():
             with self.subTest(estado=estado):
@@ -706,7 +706,7 @@ class PaginaPrincipalEsLaLista(Base):
         self.crear("t-a", estado=QuoteStatus.REVIEW)
         pagina = self.lista()
         chips = pagina[pagina.index("data-filtro-etapas"):pagina.index('id="casos"')]
-        for etiqueta in ("Por atender", "Esperando al cliente", "Listas para la T", "En cotización"):
+        for etiqueta in ("Por atender", "Esperando al cliente", "Listas para la T", "Con código de oferta"):
             self.assertIn(etiqueta, chips)
         self.assertRegex(chips, r'data-etapa="" aria-pressed="false">Todos <b>1</b>')
         self.assertIn('data-inicial="atender"', chips)
@@ -744,7 +744,7 @@ class PaginaPrincipalEsLaLista(Base):
         with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
             pagina = self.lista()
         self.assertNotIn("Buscar o exportar", pagina)
-        self.assertIn("Un borrador de Work no se pudo leer", pagina)
+        self.assertIn("Work no pudo entender un análisis", pagina)
 
 
 class UnaSolaListaEnElCamino(Base):
@@ -801,9 +801,9 @@ class MisCasos(Base):
     def test_lo_raro_queda_fuera_del_camino(self) -> None:
         # Cubre: U-32
         html = self.pagina()
-        self.assertIn('<footer class="pie"><a href="/discarded">Correos descartados</a></footer>', html)
+        self.assertIn('<footer class="pie"><a href="/discarded">Correos que no eran solicitudes</a></footer>', html)
         ajustes = html[html.index('id="ajustes"'):html.index("</details>", html.index('id="ajustes"'))]
-        self.assertIn('<a class="enlace-ajustes" href="/archive">Casos eliminados (archivo)</a>', ajustes)
+        self.assertIn('<a class="enlace-ajustes" href="/archive">Casos borrados</a>', ajustes)
 
     def test_las_direcciones_antiguas_siguen_existiendo(self) -> None:
         # Cubre: U-32
@@ -999,7 +999,7 @@ class Pestanas(Base):
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
         pestanas = _pestanas(pagina)
-        for rotulo in ("Conversación", "Archivos (", "Historial", "Detalle técnico"):
+        for rotulo in ("Conversación", "Archivos (", "Historial", "Más datos"):
             self.assertIn(rotulo, pestanas)
         self.assertEqual(len(re.findall(r'role="tab"', pestanas)), 4)
         for panel in ('id="p-conv"', 'id="attachments-review"', 'id="p-hist"', 'id="p-det"'):

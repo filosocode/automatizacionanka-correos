@@ -14,8 +14,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from pathlib import Path
 from datetime import datetime
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.errores import AutorizacionDeGoogle, ErrorDeAnka
 from anka.dominio.activities import build_workbook
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import request_scope
@@ -59,8 +60,13 @@ GET_ROUTES: dict[str, str] = {
     "/docs": "_get_docs",
     "/openapi.json": "_get_openapi",
 }
-GET_PATTERNS: dict[str, str] = {"/api/casos/{thread_id}": "_get_api_case"}
+GET_PATTERNS: dict[str, str] = {"/api/casos/{thread_id}": "_get_api_case", "/static/{archivo}": "_get_static"}
 _GET_PATTERNS = [(re.compile(re.sub(r"\{\w+\}", "([^/]+)", template)), name) for template, name in GET_PATTERNS.items()]
+
+
+# Archivos fijos del diseño (D-101): la fuente Inter y el logo, desde `anka/web/static/`. Solo estos nombres.
+STATIC_DIR = Path(__file__).with_name("static")
+STATIC_FILES: dict[str, str] = {"inter-latin-wght.woff2": "font/woff2", "logo-anka.png": "image/png"}
 
 
 # Canal de avisos en vivo (U-23): la página deja una conexión abierta y el servidor le avisa cuando algo cambia.
@@ -103,22 +109,34 @@ class ReviewHandler(BaseHTTPRequestHandler):
         except ValueError as exc:   # UnicodeDecodeError o demasiados campos
             raise CuerpoNoValido(400, "El formulario no se pudo leer.") from exc
 
-    def _error_inesperado(self, metodo: str, ruta: str, exc: Exception) -> None:
+    def _aviso(self, titulo: str, texto: str, status: int, thread_id: str = "",
+               exc: BaseException | None = None) -> None:
+        """Una página de aviso con salida: «Volver al caso» si se sabe cuál, «← Mis casos» y, si la causa fue la
+        autorización de Google, el botón para reautorizar (solo la persona lo pulsa; D-27)."""
+        pagina = render("empty.html", text=texto, salidas=True, volver_caso=thread_id,
+                        reautorizar=isinstance(exc, AutorizacionDeGoogle))
+        self._send_html(paginas.page(titulo, pagina), status)
+
+    def _error_inesperado(self, metodo: str, ruta: str, exc: Exception, thread_id: str = "") -> None:
         """Un fallo del servidor: la persona ve un mensaje genérico con un código; el detalle queda solo en el registro.
 
-        Un `ErrorDeAnka` sí muestra su texto, porque se escribió para la persona (D-17)."""
+        Un `ErrorDeAnka` sí muestra su texto, porque se escribió para la persona (D-17), y no pide «avisar con el
+        código»: lo que dice ya es lo que hay que hacer (U-34.1)."""
         codigo = id_de_error()
         log.exception("Error atendiendo %s %s (código %s)", metodo, ruta, codigo)
-        texto = (f"{exc} " if es_mensaje_para_la_persona(exc) else "Ocurrió un error inesperado. ")
-        texto += f"Si se repite, avisa con el código de error {codigo}."
+        if isinstance(exc, ErrorDeAnka):
+            texto = str(exc)
+        else:
+            texto = ("Ocurrió un error inesperado. " if not es_mensaje_para_la_persona(exc) else f"{exc} ")
+            texto += f"Si se repite, avisa con el código de error {codigo}."
         if metodo == "POST" and ruta in pendientes.RUTAS_CON_TEXTO:
             texto += " Lo que escribiste se conserva: vuelve al caso y lo verás ahí."
-        self._send_html(paginas.page("Error", render("empty.html", text=texto)), 500)
+        self._aviso("Error", texto, 500, thread_id, exc)
 
-    def _reject(self, reason: str) -> None:
+    def _reject(self, reason: str, thread_id: str = "") -> None:
         origin = getattr(self, "client_address", ("?",))[0]
         log.warning("Solicitud rechazada (%s) desde %s", reason, origin)
-        self._send_html(paginas.page("Solicitud rechazada", render("empty.html", text=reason)), 403)
+        self._aviso("Solicitud rechazada", reason, 403, thread_id)
 
     def do_GET(self) -> None:
         """Atiende las páginas del dashboard; un error se registra y se muestra sin romper el servidor."""
@@ -128,9 +146,14 @@ class ReviewHandler(BaseHTTPRequestHandler):
             with request_scope():   # una sola conexión a la base para toda la petición
                 self._get()
         except ValueError as exc:
-            self._rechazada("GET", self.path.split("?")[0], exc)
+            self._rechazada("GET", self.path.split("?")[0], exc, self._caso_de_la_url())
         except Exception as exc:
-            self._error_inesperado("GET", self.path.split("?")[0], exc)
+            self._error_inesperado("GET", self.path.split("?")[0], exc, self._caso_de_la_url())
+
+    def _caso_de_la_url(self) -> str:
+        """El caso que nombra la URL (`thread_id`), para ofrecer «Volver al caso» si la página falla."""
+        consulta = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        return field(consulta, "thread_id")[:200]
 
     def _get(self) -> None:
         if not is_local_host_header(self.headers.get("Host", "")):
@@ -146,8 +169,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
                     method, arguments = name, tuple(urllib.parse.unquote(g) for g in found.groups())
                     break
         if method is None:
-            return self._send_html(
-                paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
+            return self._aviso("No encontrado", "Página no encontrada.", 404)
         getattr(self, method)(query, *arguments)
 
     # --- páginas (GET)
@@ -162,13 +184,27 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self._send_html(paginas.render_discarded(field(query, "message")))
 
     def _get_case(self, query: dict[str, list[str]]) -> None:
-        self._send_html(pantalla_caso.render_case(
-            field(query, "thread_id"), field(query, "message"), field(query, "template"),
-            int_field(query, "change_id"), field(query, "to"), field(query, "preguntas"),
-        ))
+        thread_id = field(query, "thread_id")
+        if not get_quote(thread_id):        # un caso que no existe es un 404 con salida, no una pantalla vacía (U-34.1)
+            return self._aviso("Caso no encontrado", "La solicitud no existe.", 404)
+        try:
+            pagina = pantalla_caso.render_case(
+                thread_id, field(query, "message"), field(query, "template"),
+                int_field(query, "change_id"), field(query, "to"), field(query, "preguntas"))
+        except ErrorDeAnka as exc:          # p. ej. config.json incompleto: se dice qué falta, con salida (U-34.1)
+            log.warning("%s: la pantalla del caso no se pudo armar (%s)", thread_id, exc, exc_info=True)
+            return self._aviso("No se pudo abrir el caso", str(exc), 500, exc=exc)
+        self._send_html(pagina)
 
     def _get_acta(self, query: dict[str, list[str]]) -> None:
         self._send_html(pantalla_caso.render_acta(field(query, "thread_id")))
+
+    def _get_static(self, query: dict[str, list[str]], archivo: str) -> None:
+        tipo = STATIC_FILES.get(archivo)
+        if tipo is None:
+            return self._aviso("No encontrado", "Página no encontrada.", 404)
+        self._send_bytes(200, tipo, (STATIC_DIR / archivo).read_bytes(),
+                         {"Cache-Control": "public, max-age=86400"})
 
     def _get_archive(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.page("Archivo", render("archive.html", items=archived_threads())))
@@ -178,8 +214,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         quotes = [get_quote(thread_id)] if thread_id else all_quotes()
         quotes = [item for item in quotes if item]
         if thread_id and not quotes:
-            return self._send_html(
-                paginas.page("No encontrado", render("empty.html", text="La solicitud no existe.")), 404)
+            return self._aviso("No encontrado", "La solicitud no existe.", 404)
         stamp = datetime.now().strftime("%Y%m%d-%H%M")
         caso = (nombre_seguro(thread_id)[:8] or "caso") if thread_id else "todas"   # el id viene de la URL
         name = f"actividades-{caso}-{stamp}.xlsx"
@@ -279,14 +314,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
         except CuerpoNoValido as exc:
             log.warning("POST %s rechazado (%s): %s", path, exc.status, exc)
             self.close_connection = True          # el cuerpo no se leyó: no se reutiliza la conexión
-            return self._send_html(paginas.page("No se pudo completar", render("empty.html", text=str(exc))),
-                                   exc.status)
+            return self._aviso("No se pudo completar", str(exc), exc.status)
         if not secrets.compare_digest(field(form, "csrf_token"), CSRF_TOKEN):
-            return self._reject("Token de seguridad inválido. Recarga la página e inténtalo de nuevo.")
+            return self._reject("Token de seguridad inválido. Recarga la página e inténtalo de nuevo.",
+                                field(form, "thread_id")[:200])
         action = POST_ROUTES.get(path)
         if action is None:
-            return self._send_html(
-                paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
+            return self._aviso("No encontrado", "Página no encontrada.", 404)
         hilo = field(form, "thread_id") if path in pendientes.RUTAS_CON_TEXTO else ""
         if hilo:
             pendientes.guardar(hilo, path, form)         # si algo falla, la persona recupera lo que escribió (U-31)
@@ -297,11 +331,11 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 pendientes.limpiar(hilo)
             self._redirect(location)
         except ValueError as exc:
-            self._rechazada("POST", path, exc)
+            self._rechazada("POST", path, exc, field(form, "thread_id")[:200])
         except Exception as exc:
-            self._error_inesperado("POST", path, exc)
+            self._error_inesperado("POST", path, exc, field(form, "thread_id")[:200])
 
-    def _rechazada(self, metodo: str, ruta: str, exc: ValueError) -> None:
+    def _rechazada(self, metodo: str, ruta: str, exc: ValueError, thread_id: str = "") -> None:
         """Una petición que la aplicación rechaza con su motivo (caso inexistente, dato no válido) no es un fallo del
         servidor: se responde 400 con el mensaje y se anota como aviso, con su traza por si ocultara un error propio.
 
@@ -309,7 +343,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         genérico (D-71)."""
         log.warning("%s %s rechazada: %s", metodo, ruta, exc, exc_info=True)
         texto = str(exc) if es_mensaje_para_la_persona(exc) else "Los datos enviados no son válidos."
-        self._send_html(paginas.page("No se pudo completar", render("empty.html", text=texto)), 400)
+        self._aviso("No se pudo completar", texto, 400, thread_id)
 
     def _redirect(self, location: str) -> None:
         self.send_response(303)

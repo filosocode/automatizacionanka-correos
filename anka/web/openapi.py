@@ -67,7 +67,7 @@ class Operacion:
     descripcion: str
     efecto: str = "lectura"
     campos: tuple[Campo, ...] = ()
-    contenido: str = "html"                  # html | json | xlsx | redirect
+    contenido: str = "html"                  # html | json | xlsx | redirect | estatico
     ejemplo_respuesta: Any = None
 
 
@@ -95,6 +95,11 @@ OPERACIONES: tuple[Operacion, ...] = (
               campos=(Campo("thread_id", "Id del hilo de Gmail del caso.", requerido=True, en="path",
                             ejemplo="18f3a9c2d4e5b601"),),
               contenido="json"),
+    Operacion("get", "/static/{archivo}", "Páginas", "Archivos fijos del diseño",
+              "Sirve la fuente Inter (`inter-latin-wght.woff2`) y el logo (`logo-anka.png`) que usan las páginas. "
+              "Solo esos dos nombres; cualquier otro responde 404.",
+              campos=(Campo("archivo", "Nombre del archivo.", requerido=True, en="path",
+                            ejemplo="logo-anka.png"),), contenido="estatico"),
     Operacion("get", "/api/salud", "Lectura (JSON)", "¿Conecta todo? Salud de las conexiones",
               "Revisa la base local, la configuración, el puente de ChatGPT Work, la autorización de Google y el "
               "motor de análisis. Responde **200** si todo está bien (o no aplica) y **503** si algo falla; el "
@@ -115,7 +120,8 @@ OPERACIONES: tuple[Operacion, ...] = (
               "Se verifica como máximo cada 5 minutos.",
               contenido="json",
               ejemplo_respuesta={"estado": "vencida", "texto": "Google ya no acepta el token guardado. "
-                                 "La autorización de Google venció o falta. Pulsa «Reautorizar Google» en el dashboard "
+                                 "La autorización de Google venció o falta. "
+                                 "Pulsa «Volver a conectar Google» en el dashboard "
                                  "o ejecuta: python app.py auth"}),
     Operacion("get", "/state", "Lectura (JSON)", "Estado para refrescar la pantalla",
               "Marca de cambios (`v`), casos con novedades sin leer (`sin_leer`) y estado del puente de ChatGPT Work. "
@@ -151,7 +157,7 @@ OPERACIONES: tuple[Operacion, ...] = (
                             "arma el correo con la plantilla fija.", ejemplo="¿Cuál es el datum?"),
                       Campo("change_id", "Cambio al que responde la plantilla.", "integer", ejemplo=1),
                       Campo("to", "A quién proponer el correo del cambio.", opciones=("sender", "contact")))),
-    Operacion("get", "/acta", "Páginas", "Acta de cambios (imprimible)",
+    Operacion("get", "/acta", "Páginas", "Registro de cambios (imprimible)",
               "Historial con fecha, autor y huella de cada hecho del caso, apto para imprimir.", campos=(_ID,)),
     Operacion("get", "/export.xlsx", "Páginas", "Exportar actividades a Excel",
               "Descarga un `.xlsx` con las actividades de un caso, o de todos si no se indica `thread_id`.",
@@ -190,10 +196,16 @@ OPERACIONES: tuple[Operacion, ...] = (
                Campo("change_id", "Cambio al que responde este correo.", "integer", ejemplo=0),
                Campo("esperar", "`1` para dejar el caso esperando al cliente aunque el correo no lleve preguntas."),
                Campo("purpose", "Para qué es el correo, si responde a un cambio.",
-                     opciones=("ack", "ask_code", "notify_contact", "scope_update"))), "redirect"),
+                     opciones=("ack", "ask_code", "notify_contact", "scope_update")),
+               Campo("state_token", "Marca del estado del caso que la pantalla tenía al abrirse; si el caso cambió "
+                     "desde entonces, el envío se rechaza (opcional).")), "redirect"),
     Operacion("post", "/activities", "Acciones del caso", "Guardar la tabla de actividades",
-              "Reemplaza la tabla con las filas enviadas y guarda una versión nueva con lo que cambió.", "guarda",
-              (_ID, Campo("reason", "Motivo de la edición (opcional).", opciones=tuple(k for k in EDIT_REASONS if k)),
+              "Reemplaza la tabla con las filas enviadas y guarda una versión nueva con lo que cambió. Rechaza un "
+              "formulario sin `row_count`, una fila sin nombre y, si se envía `base_version`, una tabla que cambió.",
+              "guarda",
+              (_ID, Campo("row_count", "Cuántas filas tenía la tabla al abrirse (obligatorio).", "integer", ejemplo=1),
+               Campo("base_version", "Huella de la tabla que se abrió; si cambió, no se guarda (opcional)."),
+               Campo("reason", "Motivo de la edición (opcional).", opciones=tuple(k for k in EDIT_REASONS if k)),
                Campo("a0_activity", _FILA, ejemplo="Levantamiento topográfico"),
                Campo("a0_quantity", "Cantidad de la fila 0.", ejemplo="544,5"),
                Campo("a0_unit", "Unidad de la fila 0.", ejemplo="ha"),
@@ -290,7 +302,7 @@ OPERACIONES: tuple[Operacion, ...] = (
               "Revisa Gmail ahora. En modo ChatGPT Work el dashboard no lee Gmail: despierta al puente para que "
               "revise sin esperar su ciclo.",
               "gmail", (), "redirect"),
-    Operacion("post", "/google/reautorizar", "Acciones generales", "⚠ Reautorizar Google",
+    Operacion("post", "/google/reautorizar", "Acciones generales", "⚠ Volver a conectar Google",
               "Abre en **este equipo** el consentimiento de Google (iniciar sesión y aceptar los permisos de Gmail y "
               "Drive) y espera hasta 5 minutos a que se complete. Responde enseguida; el avance se ve en "
               "`GET /api/autorizacion`. Solo hace falta cuando la autorización venció o fue revocada.",
@@ -401,6 +413,11 @@ def _respuestas_get(operacion: Operacion) -> dict[str, Any]:
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
                 "schema": {"type": "string", "format": "binary"}}}},
                 "404": {"description": "El caso no existe.", "content": {"text/html": {"schema": {"type": "string"}}}}}
+    if operacion.contenido == "estatico":
+        binario = {"schema": {"type": "string", "format": "binary"}}
+        return {"200": {"description": "El archivo.", "content": {"font/woff2": binario, "image/png": binario}},
+                "404": {"description": "Ese archivo no existe.",
+                        "content": {"text/html": {"schema": {"type": "string"}}}}}
     return {"200": {"description": "Página HTML.", "content": {"text/html": {"schema": {"type": "string"}}}}}
 
 

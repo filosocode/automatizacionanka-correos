@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 
 from anka.dominio.analisis import Actividad
@@ -103,22 +105,41 @@ MAX_ROWS = 200      # tope de filas que se acepta de un formulario: una tabla de
 MAX_CELL = 2000      # tope de caracteres por celda, por la misma razón
 
 
+def huella_de_tabla(activities: Sequence[Mapping[str, Any]]) -> str:
+    """Identifica el contenido de la tabla tal como la ve el formulario (`base_version`, U-34.5).
+
+    Dos tablas con las mismas celdas tienen la misma huella; cualquier cambio de celdas, filas u orden la cambia."""
+    celdas = [[str(item.get(key) or "").strip() for key, _ in ACTIVITY_COLUMNS] for item in activities]
+    return hashlib.sha256(json.dumps(celdas, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+
+
 def parse_activities_form(form: dict[str, list[str]]) -> list[Actividad]:
-    """Reconstruye las actividades desde el formulario; ignora filas borradas o vacías."""
+    """Reconstruye las actividades desde el formulario; ignora filas borradas o vacías.
+
+    Rechaza un formulario sin `row_count` (llegó incompleto: guardarlo borraría la tabla), una celda de más de
+    `MAX_CELL` caracteres y una fila con datos pero sin nombre de actividad (U-34.5)."""
     try:
-        count = min(int(form.get("row_count", ["0"])[0]), MAX_ROWS)
+        count = int((form.get("row_count") or [""])[0])
     except ValueError:
-        raise ValueError("Formulario de actividades no válido.") from None
+        raise ValueError("El formulario de la tabla llegó incompleto, así que no se guardó nada. Recarga el caso "
+                         "y vuelve a intentarlo.") from None
+    if count < 0 or count > MAX_ROWS:
+        raise ValueError(f"La tabla admite hasta {MAX_ROWS} actividades.")
     activities = []
     for index in range(count + 1):  # +1: fila nueva al final
         if form.get(f"a{index}_del", [""])[0]:
             continue
         item: dict[str, str] = {
-            key: (form.get(f"a{index}_{key}", [""])[0] or "").strip()[:MAX_CELL]
-            for key, _ in ACTIVITY_COLUMNS
-        }
+            key: (form.get(f"a{index}_{key}", [""])[0] or "").strip() for key, _ in ACTIVITY_COLUMNS}
+        fila = "la fila nueva" if index == count else f"la fila {index + 1}"
+        for key, etiqueta in ACTIVITY_COLUMNS:
+            if len(item[key]) > MAX_CELL:
+                raise ValueError(f"«{etiqueta}» de {fila} tiene más de {MAX_CELL} caracteres: acórtalo para guardar.")
         if not any(item[key] for key, _ in ACTIVITY_COLUMNS if key != "estado"):
             continue
+        if not item["activity"]:
+            raise ValueError(f"{fila[0].upper() + fila[1:]} tiene datos pero no tiene nombre de actividad: escríbelo "
+                             "o quítala.")
         if item["estado"] not in ESTADOS:
             item["estado"] = "pendiente"
         activities.append(cast(Actividad, item))

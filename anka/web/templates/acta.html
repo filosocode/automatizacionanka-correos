@@ -1,9 +1,9 @@
-<div class="page-head"><div><h1>Acta de cambios</h1><p>{{ project }}{% if code %} · {{ code }}{% endif %} · generada el {{ generated }}</p></div>
-  <div class="toolbar"><button type="button" class="secondary" data-print>Imprimir o guardar como PDF</button><a class="button secondary" href="{{ back }}">Volver</a></div></div>
+<div class="page-head"><div><h1>Registro de cambios</h1><p>{{ project }}{% if code %} · {{ code }}{% endif %} · generada el {{ generated }}</p></div>
+  <div class="toolbar"><button type="button" class="secondary" data-print>Imprimir o guardar en PDF</button><a class="button secondary" href="{{ back }}">Volver</a></div></div>
 <section class="section">
-  <p><strong>Integridad del registro:</strong>
-    {% if integrity_ok %}<span class="chip nueva">Verificada · {{ event_count }} hechos encadenados</span>
-    {% else %}<span class="chip distinta">ALTERADA: la cadena de huellas no coincide</span>{% endif %}</p>
+  <p><strong>¿Alguien cambió este registro?</strong>
+    {% if integrity_ok %}<span class="chip nueva">No, está intacto ({{ event_count }} anotaciones)</span>
+    {% else %}<span class="chip distinta">Cuidado: alguien cambió este registro. Avisa al equipo de sistemas antes de usarlo</span>{% endif %}</p>
   {% if contact %}<p class="meta">Contacto registrado: {{ contact }}{% if stage_label %} · Etapa: {{ stage_label }}{% endif %}</p>{% endif %}
 </section>
 {% if people %}
@@ -19,7 +19,7 @@
   <tbody>{% for change in changes %}<tr>
     <td>{{ change.occurred_at[:16] | replace('T', ' ') }}</td>
     <td>{{ change.sender_name or change.sender_email }}<div class="meta">{{ change.sender_email }} · {{ 'contacto registrado' if change.is_contact else 'otra persona' }}</div><div class="meta">«{{ change.subject }}»</div></td>
-    <td>{{ 'Cita la T' if change.has_code else 'No cita la T' }}</td>
+    <td>{{ 'Menciona el código' if change.has_code else 'No menciona el código' }}</td>
     <td>{{ {'pending': 'Por revisar', 'change': 'Cambio confirmado', 'not_change': 'No es un cambio'}[change.state] }}</td>
     <td>{% if change.reply_sent_at %}Respuesta: {{ change.reply_sent_at[:16] | replace('T', ' ') }}{% else %}Respuesta: pendiente{% endif %}<br>{% if change.is_contact %}—{% elif change.contact_notified_at %}Aviso al contacto: {{ change.contact_notified_at[:16] | replace('T', ' ') }}{% else %}Aviso al contacto: pendiente{% endif %}</td>
   </tr>{% endfor %}</tbody></table>
@@ -36,7 +36,7 @@
 </section>
 {% endif %}
 <section class="section"><h2>Historial completo</h2>
-  <table class="people"><thead><tr><th>Fecha</th><th>Origen</th><th>Quién</th><th>Hecho</th><th>Huella</th></tr></thead>
+  <table class="people"><thead><tr><th>Fecha</th><th>Origen</th><th>Quién</th><th>Anotación</th><th>Código de control</th></tr></thead>
   <tbody>{% for event in events %}<tr>
     <td>{{ event.when }}</td><td>{{ event.origin }}</td><td>{{ event.who }}</td>
     <td>{{ event.summary }}{% if event.gmail_url %} <a href="{{ event.gmail_url }}" target="_blank" rel="noopener">ver correo</a>{% endif %}</td>

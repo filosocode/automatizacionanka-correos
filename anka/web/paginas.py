@@ -57,14 +57,15 @@ def _dashboard_insights(quotes: Sequence[Mapping[str, Any]], services: Counter, 
     items = []
     if services:
         service, count = services.most_common(1)[0]
-        items.append(("Servicio más solicitado", f"{service} aparece en {count} solicitud(es)."))
+        items.append(("Servicio más solicitado", f"{service} aparece en {count} solicitudes."))
     if clients:
         client, count = clients.most_common(1)[0]
         detail = "Es el cliente con más solicitudes registradas." if count > 1 else "Aún no hay clientes recurrentes."
-        items.append((client, f"{count} solicitud(es). {detail}"))
+        items.append((client, f"{count} solicitudes. {detail}"))
     unclassified = sum(q["client_type"] == "No clasificado" for q in quotes)
     if unclassified:
-        items.append(("Datos por completar", f"{unclassified} solicitud(es) aún no tienen tipo de cliente."))
+        items.append(("Datos por completar",
+                      f"{unclassified} solicitudes aún no tienen tipo de cliente. Complétalo en cada caso."))
     return render("insights.html", items=items)
 
 
@@ -82,27 +83,27 @@ def _notifications_panel(notifications: list[dict], plegar: bool = False) -> Mar
     return render("notifications_panel.html", items=items, plegar=plegar)
 
 
-REPLY_LABEL = "Cliente respondió · por analizar"
+REPLY_LABEL = "El cliente respondió"
 # Etiqueta de `case_stage` → (urgencia, verbo del botón, ancla del paso dentro del caso). Menor urgencia, primero.
 _ACCION_POR_ETAPA: dict[str, tuple[int, str, str]] = {
     REPLY_LABEL: (0, "Revisar respuesta", ""),
     "Cambio por revisar": (1, "Revisar cambio", ""),
     "Faltan correos por enviar": (1, "Enviar correos", ""),
-    "Posible actualización": (1, "Revisar", ""),
-    "Propuesta del modelo por revisar": (1, "Revisar", "#proposal"),
+    "Posible actualización": (1, "Ver la novedad", ""),
+    "Propuesta de Work por revisar": (1, "Ver la propuesta", "#proposal"),
     "Correo por revisar": (2, "Revisar correo", "#respuesta"),
-    "Envío interrumpido": (2, "Revisar envío", "#respuesta"),
+    "El correo no salió": (2, "Revisar si salió", "#respuesta"),
     "Información validada": (3, "Emitir la T", "#emitir-t"),
-    "Por decidir": (4, "Decidir", "#decision"),
-    "Hilo no disponible": (4, "Abrir", ""),
+    "Por decidir": (4, "Decidir cómo seguir", "#decision"),
+    "Ya no está en Gmail": (4, "Ver el caso", ""),
     "Llamar al cliente": (5, "Ver seguimiento", "#seguimiento"),
     "Sin respuesta · recordar": (5, "Ver seguimiento", "#seguimiento"),
 }
 
 
 def accion_de_caso(quote: Mapping[str, Any]) -> tuple[int, str, str]:
-    """(urgencia, verbo, ancla) de un caso que espera una persona; lo desconocido va al final con «Abrir»."""
-    return _ACCION_POR_ETAPA.get(case_stage(quote)[0], (9, "Abrir", ""))
+    """(urgencia, verbo, ancla) de un caso que espera una persona; lo desconocido va al final con «Ver el caso»."""
+    return _ACCION_POR_ETAPA.get(case_stage(quote)[0], (9, "Ver el caso", ""))
 
 
 def cola_de_hoy(quotes: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -112,7 +113,7 @@ def cola_de_hoy(quotes: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
 
 
 ETAPAS_FILTRO = (("atender", "Por atender"), ("esperando", "Esperando al cliente"),
-                 ("listo", "Listas para la T"), ("cotizando", "En cotización"))
+                 ("listo", "Listas para la T"), ("cotizando", "Con código de oferta"))
 
 
 def grupo_de_etapa(quote: Mapping[str, Any]) -> str:
@@ -198,7 +199,7 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
     project = quote["analysis"].get("project_name") or "Solicitud sin nombre"
     services = ", ".join(quote["services"]) or "Servicio por clasificar"
     date = _received_datetime_label(_received_value(quote))
-    _, verb, anchor = accion_de_caso(quote) if case_stage(quote)[1] else (0, "Abrir", "")
+    _, verb, anchor = accion_de_caso(quote) if case_stage(quote)[1] else (0, "Ver el caso", "")
     return render(
         "quote_row.html",
         project=project, services=services, is_new=is_new, selectable=selectable,
@@ -350,7 +351,7 @@ def case_stage(quote: Mapping[str, Any]) -> tuple[str, bool]:
     if status == QuoteStatus.REVIEW:
         return "Por decidir", True
     if quote.get("proposal"):
-        return "Propuesta del modelo por revisar", True
+        return "Propuesta de Work por revisar", True
     code = quote.get("quote_code", "")
     if code:
         if quote.get("code_stage") == "TE":
@@ -359,8 +360,8 @@ def case_stage(quote: Mapping[str, Any]) -> tuple[str, bool]:
     labels = {
         QuoteStatus.REVIEW_PENDING: ("Correo por revisar", True),
         QuoteStatus.DRAFT_CREATED: ("Correo por revisar", True),
-        QuoteStatus.SENDING: ("Envío interrumpido", True),
-        QuoteStatus.MISSING: ("Hilo no disponible", True),
+        QuoteStatus.SENDING: ("El correo no salió", True),
+        QuoteStatus.MISSING: ("Ya no está en Gmail", True),
         QuoteStatus.WAITING: ("Esperando al cliente", False),
         QuoteStatus.RESPONSE_SENT: (
             ("Respuesta enviada · sin espera" if era_un_acuse(quote.get("analysis") or {}) else "Esperando al cliente"),

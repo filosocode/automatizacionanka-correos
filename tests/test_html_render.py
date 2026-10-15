@@ -229,7 +229,7 @@ class Pages(unittest.TestCase):
             pages["index_mensaje"] = paginas.render_index("Mensaje de prueba")
             pages["requests"] = paginas.render_requests()
             pages["discarded"] = paginas.render_discarded()
-            pages["discarded_mensaje"] = paginas.render_discarded("Se reanalizará <pronto>")
+            pages["discarded_mensaje"] = paginas.render_discarded("Se volverá a mirar <pronto>")
             for case in CASES:
                 pages[f"case_{case[0]}"] = pantalla_caso.render_case(case[0])
             pages["case_no_existe"] = pantalla_caso.render_case("no-existe")
@@ -271,7 +271,9 @@ class InjectionTests(Pages):
                                                                  "title", "style", "script", "a",
                                                                  "form", "table", "thead", "tbody",
                                                                  "tr", "th", "td"})
-                self.assertNotIn("img", parsed.tags)
+                # La única imagen es el logo propio de la cabecera (U-36); ningún dato crea otra.
+                self.assertEqual([e for e in parsed.events if e.startswith("<img")],
+                                 ['<img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38">'])
                 self.assertNotIn("iframe", parsed.tags)
                 self.assertFalse(
                     {a for a in parsed.attrs if a.startswith("on")},
@@ -280,7 +282,8 @@ class InjectionTests(Pages):
                 # data-confirm, required y pattern son atributos propios del código, nunca de datos
                 # (pattern valida el número de la T, que solo aparece con la información validada).
                 # `open` lo pone el código en el aviso plegable «Parece el mismo proyecto»; nunca viene de datos.
-                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "checked", "pattern", "open"})
+                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "checked", "pattern", "open",
+                                                         "data-sugerido", "data-anio"})   # resumen de la emisión de la T
                 self.assertEqual(parsed.scripts, legit_scripts[name])
 
     def test_hostile_page_does_not_add_scripts_beyond_the_legitimate_ones(self):

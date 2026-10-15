@@ -1,4 +1,4 @@
-"""El dashboard se actualiza solo y el puente atiende «Revisar ahora». Cubre: U-23, T-30"""
+"""El dashboard se actualiza solo y el puente atiende «Buscar correos nuevos». Cubre: U-23, T-30"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
@@ -160,12 +160,12 @@ class RevisarAhora(unittest.TestCase):
                 patch.object(acciones, "sync_status_text", return_value="Estado."):
             destino = acciones._post_refresh({})
         self.assertTrue((Path(self.temp.name) / work_heartbeat.WAKE_FILE).exists())
-        self.assertIn("revise%20Gmail%20ahora", destino)
+        self.assertIn("buscando%20correos%20nuevos", destino)
 
     def test_the_header_offers_the_button_only_in_work_mode(self):
         # Cubre: T-30
-        self.assertIn("Revisar ahora", render_page("t", "x", "", 0, "chatgpt_work"))
-        self.assertNotIn("Revisar ahora", render_page("t", "x", "", 0, "local"))
+        self.assertIn('class="secondary" title="Busca correos nuevos en Gmail ahora', render_page("t", "x", "", 0, "chatgpt_work"))
+        self.assertNotIn('class="secondary" title="Busca correos nuevos en Gmail ahora', render_page("t", "x", "", 0, "local"))
         self.assertIn(seguridad.CSRF_TOKEN, web.add_csrf_tokens(render_page("t", "x", "", 0, "chatgpt_work")))
 
 

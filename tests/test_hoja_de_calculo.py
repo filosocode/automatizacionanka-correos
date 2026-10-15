@@ -215,7 +215,7 @@ class BackgroundSync(CaseFixture):
         sincronizador = SincronizadorDeHojas(sincronizar=vencida, espera=0, en_hilo=False)
         with self.assertLogs("anka.servicios.hoja_de_calculo", "WARNING"):
             sincronizador.programar("t-1")
-        self.assertIn("Reautorizar Google", self.repo.obtener("t-1").sheet_error)
+        self.assertIn("Volver a conectar Google", self.repo.obtener("t-1").sheet_error)
 
     def test_a_good_update_clears_the_previous_error(self):
         self.repo.registrar_error_de_hoja("t-1", "falló antes")

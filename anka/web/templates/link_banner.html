@@ -1,7 +1,7 @@
 <section class="next-step warn" aria-label="Posibles actualizaciones">
   <div>
-    <strong>{{ links|length }} posible(s) actualización(es) en otros hilos</strong>
-    <span>Marca los mensajes que no pertenecen a este caso y descártalos en lote. Descartar solo oculta la sugerencia en este caso; no borra el correo ni el otro caso.</span>
+    <strong>{{ links|length }} correo(s) de otras conversaciones podrían ser de este caso</strong>
+    <span>Marca los que NO son de este caso y pulsa «Descartar». Solo se oculta el aviso en este caso; no borra el correo ni el otro caso.</span>
   </div>
   <form method="post" action="/links-dismiss" class="link-bulk-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">

@@ -65,7 +65,7 @@ class VolverAtras(Base):
         self.assertEqual(caso["status"], QuoteStatus.REVIEW)
         self.assertNotIn("manual_review", caso["analysis"])
         self.assertEqual({p["texto"]: p.get("decision") for p in caso["analysis"]["preguntas"]}, antes)
-        self.assertIn("elegir las preguntas", mensaje)
+        self.assertIn("Volviste a decidir", mensaje)
         self.assertTrue(any("Volviste a la decisión técnica" in e for e in self.eventos()))
 
     def test_after_going_back_the_selectors_come_back_with_what_was_chosen(self):
@@ -90,7 +90,7 @@ class VolverAtras(Base):
         self.assertEqual(caso["status"], QuoteStatus.READY_REVIEW)
         self.assertEqual(caso["analysis"]["manual_review"]["decision"], "sufficient")
         self.assertEqual(caso["analysis"]["manual_review"]["questions"], [])
-        self.assertIn("validada", mensaje)
+        self.assertIn("con esto alcanza", mensaje)
         self.assertTrue(any("no preguntar" in e.lower() for e in self.eventos()))
 
     def test_nothing_is_sent_by_going_back(self):
@@ -120,7 +120,7 @@ class NoSePuede(Base):
                 db.execute("UPDATE quotes SET status=?, sent_at='2099-01-01T00:00:00-05:00' WHERE thread_id='t-1'", (estado,))
                 db.commit()
                 db.close()
-                with self.assertRaisesRegex(ValueError, "no ha salido"):
+                with self.assertRaisesRegex(ValueError, "el correo con las preguntas ya salió"):
                     quotes.volver_a_decidir("t-1", "reconsiderar")
                 self.assertEqual(self.caso()["status"], estado)
 
@@ -130,7 +130,7 @@ class NoSePuede(Base):
         db.execute("UPDATE quotes SET sent_at='2099-01-01T00:00:00-05:00' WHERE thread_id='t-1'")
         db.commit()
         db.close()
-        with self.assertRaisesRegex(ValueError, "no ha salido"):
+        with self.assertRaisesRegex(ValueError, "el correo con las preguntas ya salió"):
             quotes.volver_a_decidir("t-1", "suficiente")
 
     def test_without_a_previous_decision_to_ask_there_is_nothing_to_undo(self):
@@ -138,14 +138,14 @@ class NoSePuede(Base):
         db.execute("UPDATE quotes SET status=? WHERE thread_id='t-1'", (QuoteStatus.REVIEW_PENDING,))
         db.commit()
         db.close()
-        with self.assertRaisesRegex(ValueError, "no ha salido"):
+        with self.assertRaisesRegex(ValueError, "el correo con las preguntas ya salió"):
             quotes.volver_a_decidir("t-1", "reconsiderar")
 
     def test_an_unknown_action_and_a_missing_case_are_refused(self):
         self.elegir({PUNTO: dominio.PREGUNTAR})
-        with self.assertRaisesRegex(ValueError, "no válida"):
+        with self.assertRaisesRegex(ValueError, "No entendimos esa opción"):
             quotes.volver_a_decidir("t-1", "borrar-todo")
-        with self.assertRaisesRegex(ValueError, "no existe"):
+        with self.assertRaisesRegex(ValueError, "ya no existe"):
             quotes.volver_a_decidir("inexistente", "reconsiderar")
 
 
@@ -195,7 +195,7 @@ class EnLaPantalla(Base):
     def test_a_rejection_comes_back_with_its_reason_and_changes_nothing_and_the_form_needs_the_token(self):
         respuesta = self.pedir({"thread_id": "t-1", "accion": "reconsiderar"})        # todavía no hay nada que deshacer
         self.assertEqual(respuesta["status"], 303)
-        self.assertIn("no%20ha%20salido", respuesta["location"])
+        self.assertIn("ya%20sali%C3%B3", respuesta["location"])
         self.assertEqual(self.caso()["status"], QuoteStatus.REVIEW)
         self.assertEqual(self.pedir({"thread_id": "t-1", "accion": "reconsiderar"}, token=False)["status"], 403)
 

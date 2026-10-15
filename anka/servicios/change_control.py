@@ -180,21 +180,38 @@ def normalize_number(number: str) -> str:
     return number.strip().upper().removeprefix("T&E").removeprefix("TE").removeprefix("T").strip()
 
 
+def _validar_numero(db: sqlite3.Connection, thread_id: str, number: str) -> None:
+    """Las condiciones para asignar la T: número bien formado, caso existente, sin código y sin repetir."""
+    if not NUMBER_PATTERN.match(number):
+        raise ValueError("Escribe 5 números: 2 del año y 3 del consecutivo (por ejemplo 26145).")
+    row = db.execute("SELECT quote_code FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+    if not row:
+        raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
+    if row["quote_code"]:
+        raise ValueError(f"Este caso ya tiene el código {row['quote_code']}.")
+    if db.execute("SELECT 1 FROM quotes WHERE quote_code=?", (number,)).fetchone():
+        raise ValueError(f"El código {number} ya está asignado a otro caso.")
+
+
+def comprobar_numero(thread_id: str, number: str) -> str:
+    """Comprueba, sin asignar nada, que la T se puede asignar; devuelve el número normalizado (U-34.2).
+
+    Sirve para fallar antes de hacer algo irreversible: la T no se puede deshacer (D-08)."""
+    number = normalize_number(number)
+    db = connect()
+    try:
+        _validar_numero(db, thread_id, number)
+    finally:
+        db.close()
+    return number
+
+
 def assign_code(thread_id: str, number: str) -> str:
     """Acepta el proyecto: le asigna su T. Desde aquí cualquier cambio debe citarla."""
     number = normalize_number(number)
-    if not NUMBER_PATTERN.match(number):
-        raise ValueError("El número debe tener 5 dígitos: año de 2 cifras y consecutivo de 3 (p. ej. 26145).")
     db = connect()
     try:
-        row = db.execute("SELECT quote_code FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
-        if not row:
-            raise ValueError("La solicitud ya no existe.")
-        if row["quote_code"]:
-            raise ValueError(f"Este caso ya tiene el código {row['quote_code']}.")
-        other = db.execute("SELECT 1 FROM quotes WHERE quote_code=?", (number,)).fetchone()
-        if other:
-            raise ValueError(f"El código {number} ya está asignado a otro caso.")
+        _validar_numero(db, thread_id, number)
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         actualizar_caso(db, thread_id,
             quote_code=number,
@@ -231,7 +248,7 @@ def promote_to_te(thread_id: str) -> str:
         db.commit()
     finally:
         db.close()
-    return f"Oferta aprobada: ahora es {code_label(row['quote_code'], 'TE')}."
+    return f"Listo: la oferta quedó aprobada ({code_label(row['quote_code'], 'TE')})."
 
 
 def resolve_change(thread_id: str, change_id: int, is_change: bool) -> str:
@@ -249,7 +266,7 @@ def resolve_change(thread_id: str, change_id: int, is_change: bool) -> str:
         if is_change:
             summary = (f"Confirmaste que el mensaje de {who} «{change['subject'][:80]}» solicita un cambio "
                        f"({'con' if change['has_code'] else 'sin'} el código).")
-            message = "Registrado como solicitud de cambio. Abajo quedan los correos por enviar."
+            message = "Anotado como cambio. Abajo están los correos por enviar."
         else:
             summary = f"Marcaste el mensaje de {who} «{change['subject'][:80]}» como no relacionado con un cambio."
             message = "Anotado: no es un cambio."

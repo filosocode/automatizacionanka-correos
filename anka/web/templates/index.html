@@ -1,5 +1,5 @@
 <div class="page-head">
-  <div><h1 class="titulo-principal">Mis casos</h1><p>{% if total %}{{ total }} caso{{ '' if total == 1 else 's' }}{% if action_count %} · {{ action_count }} por atender, del más urgente al menos{% else %} · nada pendiente de tu parte{% endif %}.{% else %}Todavía no hay casos.{% endif %}</p></div>
+  <div><h1 class="titulo-principal">Mis casos</h1><p>{% if total %}{{ total }} caso{{ '' if total == 1 else 's' }}{% if action_count %} · {{ action_count }} esperan algo de ti. El primero es el más urgente{% else %} · nada pendiente de tu parte{% endif %}.{% else %}Todavía no hay casos.{% endif %}</p></div>
 </div>
 {{ notifications }}
 {% if total %}
@@ -13,18 +13,18 @@
 {% else %}<div class='empty'>Todavía no hay casos. Cuando llegue una solicitud por correo aparecerá aquí.</div>{% endif %}
 {{ work_rejected }}
 <details class="more">
-  <summary>Ver estadísticas ({{ total }} solicitudes)</summary>
+  <summary>Ver números y resumen ({{ total }} casos)</summary>
   <div class="grid kpis">
-    <div class="kpi"><div class="kpi-label">Requieren acción</div><div class="kpi-value">{{ action_count }}</div></div>
+    <div class="kpi"><div class="kpi-label">Esperan algo de ti</div><div class="kpi-value">{{ action_count }}</div></div>
     <div class="kpi"><div class="kpi-label">Esperando al cliente</div><div class="kpi-value">{{ waiting }}</div></div>
-    <div class="kpi"><div class="kpi-label">Cotizando (con T)</div><div class="kpi-value">{{ quoting }}</div></div>
-    <div class="kpi"><div class="kpi-label">Aprobadas (T&amp;E)</div><div class="kpi-value">{{ approved }}</div></div>
+    <div class="kpi"><div class="kpi-label">Con código de oferta (T)</div><div class="kpi-value">{{ quoting }}</div></div>
+    <div class="kpi"><div class="kpi-label">Aprobadas por el cliente (T&amp;E)</div><div class="kpi-value">{{ approved }}</div></div>
   </div>
   <div class="grid dashboard-grid">
-    <section class="section"><div class="section-head"><h2>Servicios solicitados</h2><span class="meta">Top 6</span></div>{{ services }}</section>
-    <section class="section"><div class="section-head"><h2>Etapa de las solicitudes</h2><span class="meta">Actual</span></div>{{ statuses }}</section>
-    <section class="section"><div class="section-head"><h2>Tipos de cliente</h2><span class="meta">Clasificación comercial</span></div>{{ client_types }}</section>
-    <section class="section"><div class="section-head"><h2>Lectura rápida</h2></div>{{ insights }}</section>
+    <section class="section"><div class="section-head"><h2>Servicios solicitados</h2><span class="meta">Los 6 más pedidos</span></div>{{ services }}</section>
+    <section class="section"><div class="section-head"><h2>Etapa de los casos</h2><span class="meta">Ahora</span></div>{{ statuses }}</section>
+    <section class="section"><div class="section-head"><h2>Tipos de cliente</h2><span class="meta">Según quién escribe</span></div>{{ client_types }}</section>
+    <section class="section"><div class="section-head"><h2>Lo que se nota</h2></div>{{ insights }}</section>
   </div>
   <p class="meta">{{ sync_text }}</p>
 </details>

@@ -1,9 +1,9 @@
 {% macro compact_list(items) %}{% if not items %}<p class='meta'>Sin patrones suficientes.</p>{% else %}<ul class='context-list'>{% for label, count in items %}<li><span>{{ label }}</span><strong>{{ count }}</strong></li>{% endfor %}</ul>{% endif %}{% endmacro %}
-<div class="notice internal-note"><strong>Uso interno confidencial.</strong> Este historial sirve para orientar la revisión. No se copia al borrador, no contiene precios y no debe compartirse con el cliente.</div>
+<div class="notice internal-note"><strong>Solo para el equipo.</strong> No lo copies al correo ni se lo muestres al cliente. No trae precios.</div>
 {% if profile %}
 <div class="context-profile">
-  <div><span class="meta">Coincidencia histórica</span><strong>{{ profile.client_name }}</strong></div>
-  <div><span class="meta">Tipo de empresa inferido</span><strong>{{ profile.company_type }}</strong><small>Confianza {{ profile.confidence }}</small></div>
+  <div><span class="meta">Cliente parecido en el historial</span><strong>{{ profile.client_name }}</strong></div>
+  <div><span class="meta">Tipo de empresa (adivinado)</span><strong>{{ profile.company_type }}</strong><small>Seguridad de la adivinanza: {{ profile.confidence }}</small></div>
   <div><span class="meta">Documentos comerciales</span><strong>{{ profile.documents }}</strong></div>
 </div>
 <div class="context-grid">
@@ -19,4 +19,4 @@
   <div><h3>Datos solicitados habitualmente</h3>{{ compact_list(general.usual_requests) }}</div>
 </div>
 {% endif %}
-<p class="meta sin-margen-abajo">Fuente: archivo histórico T&amp;E, lectura agregada del {{ generated_at }}.</p>
+<p class="meta sin-margen-abajo">Fuente: historial de ofertas aprobadas (T&amp;E), consultado el {{ generated_at }}.</p>

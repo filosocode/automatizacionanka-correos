@@ -75,11 +75,11 @@ class ReviewDecisionTests(unittest.TestCase):
         self.assertNotIn("Respuesta en pausa", page)
 
     def test_only_cases_in_technical_review_and_valid_decisions(self):
-        with self.assertRaisesRegex(ValueError, "revisión técnica"):
+        with self.assertRaisesRegex(ValueError, "ya no espera una decisión"):
             quotes.resolve_technical_review("t-ok", "sufficient")
-        with self.assertRaisesRegex(ValueError, "no válida"):
+        with self.assertRaisesRegex(ValueError, "No entendimos esa opción"):
             quotes.resolve_technical_review("t-tech", "otra")
-        with self.assertRaisesRegex(ValueError, "no existe"):
+        with self.assertRaisesRegex(ValueError, "ya no existe"):
             quotes.resolve_technical_review("no-existe", "sufficient")
 
     def test_a_new_analysis_discards_the_human_decision(self):

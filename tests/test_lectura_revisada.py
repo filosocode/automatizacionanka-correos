@@ -64,7 +64,7 @@ class LaSalida(Base):
         self.assertIn("Ya revisé estos archivos yo", pagina)
         self.assertIn("data-confirm", pagina.split('action="/reading-accept"')[1].split("</form>")[0])
         self.assertIn(DWG, pagina)
-        self.assertIn("volver a ejecutar la tarea de Work", pagina)
+        self.assertIn("Pide a Work que analice de nuevo", pagina)
 
     def test_sin_bloqueo_no_se_ofrece(self) -> None:
         # Cubre: U-29
@@ -101,9 +101,9 @@ class AlAsumirLaRevision(Base):
         # Cubre: U-29
         quotes.aceptar_lectura_revisada("t-1")
         pagina = pantalla_caso.render_case("t-1")
-        self.assertIn("Lectura revisada por una persona", pagina)
+        self.assertIn("Una persona revisó estos archivos", pagina)
         self.assertIn(DWG, pagina)
-        self.assertIn("declaró Work", pagina)
+        self.assertIn("los de Work", pagina)
 
     def test_solo_si_hace_falta_y_una_sola_vez(self) -> None:
         # Cubre: U-29

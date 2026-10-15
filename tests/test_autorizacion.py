@@ -1,4 +1,4 @@
-"""Reautorizar Google desde el dashboard (anka/servicios/autorizacion.py, spec/07-api.md, requisito T-15)."""
+"""Volver a conectar Google desde el dashboard (anka/servicios/autorizacion.py, spec/07-api.md, requisito T-15)."""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
@@ -51,7 +51,7 @@ class StateTests(unittest.TestCase):
         servicio = ReautorizacionDeGoogle(verificar=verificar, reloj=reloj)
         estado = servicio.estado()
         self.assertEqual(estado.estado, VENCIDA)
-        self.assertIn("Reautorizar Google", estado.texto)
+        self.assertIn("Volver a conectar Google", estado.texto)
         vencida[0] = False                                       # alguien reautorizó desde la terminal
         reloj.ahora += 61
         self.assertEqual(servicio.estado().estado, OK)

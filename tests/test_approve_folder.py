@@ -113,7 +113,7 @@ class ApproveFolderTests(unittest.TestCase):
 
     def test_only_cases_waiting_for_approval_can_be_approved(self):
         self.seed(status=QuoteStatus.IGNORED)
-        with self.assertRaisesRegex(ErrorDeAnka, "no pendiente"):
+        with self.assertRaisesRegex(ErrorDeAnka, "ya no está pendiente"):
             self.approve(client_name="Minera Sur")
 
     def test_the_audit_line_never_contains_the_client_name(self):

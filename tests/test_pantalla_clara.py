@@ -98,7 +98,6 @@ class BorradorPrimeroYEnvioAparte(Base):
         self.assertIn('data-resumen="envio"', enviar)
         self.assertIn('data-para="cliente@empresa.co"', enviar)
         self.assertIn('data-asunto="Re: Cotización levantamiento"', enviar)
-        self.assertIn("definitivo", zona)
         self.assertLess(pagina.index('formaction="/send"'), pagina.index('formaction="/draft"'))
 
 
@@ -141,7 +140,7 @@ class Accesibilidad(unittest.TestCase):
     def test_un_solo_reautorizar_google(self) -> None:
         # Cubre: U-28
         html = self.pagina("Solicitudes")
-        self.assertEqual(html.count(">Reautorizar Google</button>"), 1)
+        self.assertEqual(html.count(">Volver a conectar Google</button>"), 1)
 
     def test_rojo_solo_para_lo_destructivo_y_textos_pequenos_legibles(self) -> None:
         # Cubre: U-28

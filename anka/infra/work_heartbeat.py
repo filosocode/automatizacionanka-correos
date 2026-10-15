@@ -102,29 +102,30 @@ def bridge_state() -> tuple[str, str]:
     beat = read_heartbeat()
     if not beat:
         return "never", (
-            "Puente Work sin iniciar: abre «Puente Work - Dashboard.bat» para que los "
-            "borradores de Gmail lleguen aquí."
+            "La revisión de correos no ha empezado. Abre «Puente Work - Dashboard.bat» para que los "
+            "análisis de Work lleguen aquí."
         )
     age = (_now() - datetime.fromisoformat(beat["at"])).total_seconds()
     when = beat["at"][11:19]
     interval = int(beat.get("interval") or DEFAULT_INTERVAL)
     if age > max(3 * interval, 180):
         return "stopped", (
-            f"Puente Work DETENIDO: última revisión a las {when} ({_ago(age)}). "
-            "Abre «Puente Work - Dashboard.bat»."
+            f"La revisión de correos está detenida: la última fue a las {when} ({_ago(age)}). "
+            "Abre «Puente Work - Dashboard.bat» para activarla."
         )
     if beat.get("error") or beat.get("failures"):
         detail = beat.get("error") or f"{beat['failures']} borrador(es) no importado(s)"
-        return "error", f"Puente Work activo con avisos a las {when}: {detail}."
+        return "error", f"La revisión de correos sigue activa, pero tuvo avisos a las {when}: {detail}."
     rejected = beat.get("rejected") or []
     if rejected:
         return "attention", (
-            f"Puente Work activo (Gmail revisado a las {when}), pero {len(rejected)} borrador(es) de Work no "
+            f"La revisión de correos está activa (Gmail revisado a las {when}), "
+            f"pero {len(rejected)} análisis de Work no "
             "cumplen el contrato y no se importaron; el caso queda solo con los datos del correo, en revisión técnica. "
             "El detalle y qué hacer están en el Resumen.")
     return "ok", (
-        f"Puente Work activo: Gmail revisado a las {when} ({_ago(age)}), "
-        f"{beat.get('drafts', 0)} borradores, {beat.get('updated', 0)} actualizados."
+        f"La revisión de correos está activa: Gmail revisado a las {when} ({_ago(age)}), "
+        f"{beat.get('drafts', 0)} análisis, {beat.get('updated', 0)} actualizados."
     )
 
 

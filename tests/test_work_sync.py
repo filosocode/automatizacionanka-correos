@@ -363,7 +363,7 @@ class NextStepTests(unittest.TestCase):
 
 # Cubre: F1-06, T-03, T-21
 class RelatedThreadTests(unittest.TestCase):
-    """Correos de la misma persona o empresa en otro hilo: se proponen, no se unen solos."""
+    """Correos de la misma persona o empresa en otra conversación: se proponen, no se unen solos."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -475,7 +475,7 @@ class RelatedThreadTests(unittest.TestCase):
         people = quotes.case_people("T1", {"ana@acme.com"})
         self.assertEqual([(p["email"], p["role"]) for p in people],
                          [("luis@acme.com", "Otra persona")])
-        self.assertIn("ya se había resuelto", quotes.resolve_link("T1", first["id"], True))
+        self.assertIn("ya estaba resuelto", quotes.resolve_link("T1", first["id"], True))
 
     def test_banner_offers_both_reply_templates_and_form_for_closed_case(self):
         db = connect()
@@ -487,7 +487,7 @@ class RelatedThreadTests(unittest.TestCase):
         with patch("anka.web.paginas.load_config", return_value=config), patch("anka.web.pantalla_caso.load_config", return_value=config):
             page = pantalla_caso.render_case("T1")
             verify = pantalla_caso.render_case("T1", template="verify")
-        self.assertIn("en otro hilo", page)
+        self.assertIn("en otra conversación", page)
         self.assertIn("Preparar respuesta", page)
         self.assertIn("Validar contacto", page)
         self.assertIn("Enviar al cliente", page)                # un caso cerrado con aviso admite respuesta
@@ -535,7 +535,7 @@ class HeartbeatTests(unittest.TestCase):
         self.beat(20, rejected=[{"draft": "d1", "thread": "t1", "reason": "x debe ser de tipo string."}])
         state, text = work_heartbeat.bridge_state()
         self.assertEqual(state, "attention")
-        self.assertIn("1 borrador(es) de Work no cumplen el contrato", text)
+        self.assertIn("1 análisis de Work no cumplen el contrato", text)
         self.assertEqual(work_heartbeat.rejected_drafts()[0]["draft"], "d1")
         self.beat(20, failures=1, rejected=[{"draft": "d1", "thread": "t1", "reason": "x"}])
         self.assertEqual(work_heartbeat.bridge_state()[0], "error")      # un fallo real manda sobre el rechazo
@@ -552,18 +552,18 @@ class HeartbeatTests(unittest.TestCase):
         self.beat(20, rejected=[{"draft": "r-123", "thread": "hilo-sin-caso",
                                  "reason": "question_audit[0].unresolved debe ser de tipo string."}])
         panel = str(paginas._work_rejected_panel())
-        self.assertIn("Un borrador de Work no se pudo leer", panel)
-        self.assertIn("Borrador r-123", panel)
-        self.assertIn("hilo hilo-sin-caso (aún sin caso)", panel)
+        self.assertIn("Work no pudo entender un análisis", panel)
+        self.assertIn("Análisis r-123", panel)
+        self.assertIn("conversación hilo-sin-caso (aún sin caso)", panel)
         self.assertIn("question_audit[0].unresolved debe ser de tipo string.", panel)
-        self.assertIn("se revisa solo cuando el borrador cambie", panel)
+        self.assertIn("se revisará solo cuando cambie", panel)
 
     def test_the_chip_and_health_check_treat_the_attention_state_as_a_live_bridge(self):
         # Cubre: T-28
         from anka.servicios import salud
         base = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
         layout = (base / "layout.html").read_text(encoding="utf-8")
-        self.assertIn("attention: 'Puente activo · borrador por revisar'", layout)
+        self.assertIn("attention: 'Revisión de correos: hay un análisis por revisar'", layout)
         self.assertIn('.bridge-chip[data-state="attention"]', (base / "style.css").read_text(encoding="utf-8"))
         with patch("anka.servicios.salud.bridge_state", return_value=("attention", "activo, con un borrador")):
             self.assertEqual(salud._puente_work("chatgpt_work")[0], salud.OK)

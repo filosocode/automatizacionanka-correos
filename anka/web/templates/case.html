@@ -1,6 +1,6 @@
 {% macro bloque_respuesta(ahora) %}
   {% if analysis_blocked and email == 'form' %}
-  <section class="section" id="respuesta"><h2>Respuesta al cliente</h2><div class="notice">En pausa: no se prepara ni se habilita una respuesta basada en este análisis hasta completar la lectura del mensaje y sus adjuntos.</div></section>
+  <section class="section" id="respuesta"><h2>Respuesta al cliente</h2><div class="notice">En espera: todavía no se puede responder, porque faltan por leer el mensaje y sus archivos.</div></section>
   {% elif email != 'technical' %}
   {% if plegar_respuesta %}<details class="more respuesta-plegada" id="respuesta"><summary>Respuesta al cliente (opcional)</summary>{% endif %}
   <section class="section{% if ahora %} ahora{% endif %}"{% if not plegar_respuesta %} id="respuesta"{% endif %}>
@@ -10,9 +10,10 @@
       {% if review.quote_code %}Correos con el código: <a href="/case?thread_id={{ thread_id | urlquote }}&template=received#respuesta">proyecto recibido</a>{% if review.code_stage == 'TE' %} · <a href="/case?thread_id={{ thread_id | urlquote }}&template=te_aprobada#respuesta">oferta aprobada (T&amp;E)</a>{% endif %}.{% endif %}</p>{% endif %}
     {% if email == 'form' %}
 {% if review.sent_at and review.status == 'ready_review' %}<div class='notice'>Ya se envió una respuesta el {{ review.sent_at }}. El paso de la carpeta en Drive sigue disponible más abajo.</div>{% endif %}
-{% if review.draft_id %}<p class="nota">Ya hay un borrador en Gmail; al guardarlo de nuevo se actualiza.</p>{% endif %}
+{% if review.draft_id %}<p class="nota">Ya guardaste este correo en Gmail. Si lo guardas otra vez, se cambia por esta versión.</p>{% endif %}
 <form method="post" class="correo-form">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
+  <input type="hidden" name="state_token" value="{{ review.marca_de_estado }}">
   {% if compose_to %}<input type="hidden" name="to" value="{{ compose_to }}">
   <input type="hidden" name="change_id" value="{{ compose_change_id }}">{% endif %}
   {% if compose_purpose %}<input type="hidden" name="purpose" value="{{ compose_purpose }}">{% endif %}
@@ -20,12 +21,12 @@
   <label class="solo-lectores" for="cuerpo-correo">Mensaje (puedes editarlo)</label>
   <textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
   <label class="nota check-line" id="caja-esperar"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta"{% if esperar_marcada %} checked{% endif %}>
-    Esperar su respuesta aunque el correo no tenga preguntas</label>
+    Marcar «esperando al cliente» aunque el correo no tenga preguntas</label>
   <div class="barra-accion">
   <p class="nota" id="aviso-espera" aria-live="polite"></p>
   <div class="acciones">
     <button type="submit" formaction="/send" class="send-action"
-      data-confirm="Se enviará este correo a {{ compose_to or review.recipient }} en el mismo hilo. ¿Confirmas el envío?"
+      data-confirm="{% if review.sent_at %}Ya se envió un correo a este caso el {{ review.sent_at }}. Este sería otro. {% endif %}Vas a enviar este correo a {{ compose_to or review.recipient }}, como respuesta a su conversación. ¿Lo enviamos?"
       data-resumen="envio" data-para="{{ compose_to or review.recipient }}" data-asunto="{{ asunto_respuesta }}"
       data-confirm-boton="Sí, enviar al cliente">Enviar al cliente</button>
     <button type="submit" class="secondary" formaction="/draft">Guardar borrador en Gmail</button>
@@ -44,7 +45,7 @@
     <label>Preguntas para el cliente (una por línea)
       <textarea name="preguntas" class="caja-media" placeholder="¿Cuál es el datum del levantamiento?&#10;Plazo de entrega esperado">{{ armar_preguntas }}</textarea>
     </label>
-    <p class="nota">{% if puede_volver and armar_preguntas %}Son las que elegiste para el cliente. {% endif %}Cambia las preguntas y el dashboard escribe otra vez el mensaje con ellas; reemplaza el texto de arriba. No se envía nada.</p>
+    <p class="nota">{% if puede_volver and armar_preguntas %}Son las que elegiste para el cliente. {% endif %}Cambia las preguntas y escribiremos el correo de nuevo con ellas. Lo que está arriba se reemplaza. Todavía no se envía nada.</p>
     <button type="submit" class="secondary" id="armar-correo">Preparar el correo de nuevo</button>
   </form>
 </details>
@@ -54,11 +55,11 @@
   <span class="nota">¿Cambiaste de idea?</span>
   <button type="submit" name="accion" value="reconsiderar" class="enlace">Volver a decidir</button>
   <button type="submit" name="accion" value="suficiente" class="enlace"
-    data-confirm="El caso pasará a «Información validada» sin preguntar nada al cliente y podrás emitir la T. ¿Confirmas?">No preguntar: con esto alcanza</button>
+    data-confirm="El caso quedará como «Información validada» y no le preguntaremos nada al cliente. Después podrás emitir la T. ¿Seguimos?">No preguntar: con esto alcanza</button>
 </form>
 {% endif %}
     {% elif email == 'waiting' %}
-<div class='notice'><strong>Correo enviado.</strong> Se envió a {{ review.recipient }} el {{ review.sent_at[:16] | replace('T', ' ') }}. {% if preguntas_enviadas %}Esperamos su respuesta a {{ preguntas_enviadas | length }} pregunta{{ 's' if preguntas_enviadas | length != 1 }}.{% else %}Ahora esperamos la respuesta del cliente.{% endif %}</div>
+<div class='notice'><strong>Correo enviado.</strong> Se envió a {{ review.recipient }} el {{ review.sent_at[:16] | replace('T', ' ') }}. {% if preguntas_enviadas %}Estamos esperando que el cliente conteste {{ preguntas_enviadas | length }} pregunta{{ 's' if preguntas_enviadas | length != 1 }}.{% else %}Ahora esperamos la respuesta del cliente.{% endif %}</div>
 <details class="more"><summary class="meta">Ver lo que enviaste</summary><pre>{{ review.draft_body }}</pre></details>
 <p><a class="button secondary" href="/case?thread_id={{ thread_id | urlquote }}&template=libre#respuesta">Escribir otro correo</a></p>
     {% elif email == 'sent' %}
@@ -66,11 +67,11 @@
     {% elif email == 'recipient_error' %}
 <div class='notice error' role="alert">{{ recipient_error }}</div>
     {% elif email == 'technical' %}
-<div class='notice'><strong>Respuesta en pausa.</strong> El equipo de Anka debe revisar el caso antes de solicitar información al cliente.</div>
+<div class='notice'><strong>Todavía no se puede responder.</strong> Una persona del equipo de Anka debe revisar el caso antes de preguntarle algo al cliente.</div>
     {% else %}
-<p class='meta'>Esta solicitud no admite respuesta desde el dashboard en su estado actual.</p>
+<p class='meta'>En este momento no se puede responder desde aquí.</p>
     {% endif %}
-    <div class="spaced-top">{% if sufficient and not review.get('quote_code') and not ahora %}<div class='notice'><strong>Información validada.</strong> Este dashboard todavía no prepara precios ni cotizaciones.</div>{% endif %}</div>
+    <div class="spaced-top">{% if sufficient and not review.get('quote_code') and not ahora %}<div class='notice'><strong>Información validada.</strong> La cotización con precios se hace fuera de esta herramienta.</div>{% endif %}</div>
   </section>
   {% if plegar_respuesta %}</details>{% endif %}
   {% endif %}
@@ -85,16 +86,16 @@
   </div>
   <span class="badge">{{ review.status_label }}</span>{% if code_text %} <span class="badge info">{{ code_text }}</span>{% endif %}
 </div>
-{% if restaurado %}<div class="notice" role="status">No se pudo completar lo anterior. <strong>Lo que escribiste sigue aquí</strong>: revísalo y vuelve a intentarlo.</div>{% endif %}
+{% if restaurado %}<div class="notice" role="status">No pudimos terminar lo que pediste. <strong>Lo que escribiste sigue aquí</strong>: míralo y pulsa el botón otra vez.</div>{% endif %}
 {{ stepper }}
 {{ next_step }}
 {% if slot == 'lectura' %}
 <section class="section" id="lectura-revisada">
   <h2>¿Ya revisaste estos archivos tú?</h2>
-  <p class="meta">Algunos archivos necesitan revisión interna aunque el motor no los lea (por ejemplo, un plano CAD). Eso no tiene por qué detener el trabajo: si ya los revisaste, continúa y el caso queda marcado como revisado por ti. Si no, puedes volver a ejecutar la tarea de Work sobre este hilo. Esto no envía nada al cliente.</p>
+  <p class="meta">Hay archivos que el programa no puede abrir, como un plano CAD. Ábrelos tú. Si ya los miraste, pulsa «Ya revisé estos archivos yo». Si no, pide a Work que analice de nuevo esta conversación. No se envía nada al cliente.</p>
   <form method="post" action="/reading-accept" class="toolbar spaced-sm">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
-    <button type="submit" class="secondary" data-confirm="Quedará registrado que Anka no verificó estos archivos y que los revisaste tú. Se mostrarán los resultados de Work y podrás decidir cómo seguir. ¿Confirmas?">Ya revisé estos archivos yo</button>
+    <button type="submit" class="secondary" data-confirm="Quedará anotado que tú revisaste estos archivos, porque el programa no pudo. Verás los resultados de Work y podrás decidir. ¿Seguimos?">Ya revisé estos archivos yo</button>
   </form>
 </section>
 {% endif %}
@@ -119,12 +120,12 @@
       <label>Preguntas para el cliente (una por línea)
         <textarea name="questions" class="caja-media" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">{{ cuadro_preguntas }}</textarea>
       </label>
-      <p class="nota">Son las inquietudes que dejó el análisis. Borra las que no hagan falta, corrige las que quieras y escribe las tuyas: al continuar se arma el correo con lo que quede.
-        {% if n_internas %}{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} Anka por dentro (están en «Qué falta resolver»).{% endif %}</p>
+      <p class="nota">Estas son las dudas que encontró el análisis. Borra las que sobren, cambia las que quieras y escribe las tuyas. Con lo que quede preparamos el correo.
+        {% if n_internas %}{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} el equipo de Anka (están en «Qué falta resolver»).{% endif %}</p>
     </div>
     <div class="acciones">
       <button type="submit" id="btn-suficiente" class="solo-suficiente"
-        data-confirm="El caso pasará a «Información validada» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Confirmar que alcanza</button>
+        data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">Confirmar que alcanza</button>
       <button type="submit" id="btn-preguntar" class="solo-preguntar">Preparar el correo</button>
     </div>
     <p class="nota elige-opcion">Elige una opción para continuar. Nada se envía al cliente en este paso.</p>
@@ -148,7 +149,7 @@
       <button type="button" role="tab" id="t-conv" aria-controls="p-conv" aria-selected="{{ 'true' if tab_inicial == 'conversacion' else 'false' }}">Conversación</button>
       <button type="button" role="tab" id="t-arch" aria-controls="attachments-review" aria-selected="{{ 'true' if tab_inicial == 'archivos' else 'false' }}">{{ etiqueta_archivos }}</button>
       <button type="button" role="tab" id="t-hist" aria-controls="p-hist" aria-selected="false">Historial</button>
-      <button type="button" role="tab" id="t-det" aria-controls="p-det" aria-selected="false">Detalle técnico</button>
+      <button type="button" role="tab" id="t-det" aria-controls="p-det" aria-selected="false">Más datos</button>
     </div>
     <div class="panel" role="tabpanel" id="p-conv" aria-labelledby="t-conv">{{ conversation }}</div>
     <div class="panel" role="tabpanel" id="attachments-review" aria-labelledby="t-arch">
@@ -161,10 +162,10 @@
     <div class="panel" role="tabpanel" id="p-det" aria-labelledby="t-det">
       <section class="section">
         <div class="meta">Destinatario: {{ review.recipient }}</div>
-        <div class="meta">Hilo: {{ thread_id }}</div>
+        <div class="meta">Código interno de la conversación: {{ thread_id }}</div>
       </section>
       <section class="section">
-        <div class="section-head"><h2>Evaluación de recepción</h2><span class="badge info">Sin cotizar</span></div>
+        <div class="section-head"><h2>Primera revisión del correo</h2><span class="badge info">Sin precio</span></div>
         {{ assessment_panel }}
       </section>
       <section class="section"><h2>Información comercial</h2>
@@ -179,17 +180,17 @@
   <div class="toolbar spaced"><button type="submit">Guardar datos comerciales</button></div>
 </form></section>
       <section class="section">
-        <div class="section-head"><h2>Contexto comercial interno</h2><span class="badge info">Solo Anka</span></div>
+        <div class="section-head"><h2>Lo que sabemos del cliente</h2><span class="badge info">Solo para Anka</span></div>
         {{ internal_context }}
       </section>
       <section class="section">
-        <h2>Revisión de preguntas</h2>
-        {% if analysis_blocked %}<p class="notice">Preguntas ocultas hasta verificar la lectura completa.</p>{% else %}{{ question_quality }}{{ question_audit }}{% endif %}
+        <h2>Revisión de las preguntas</h2>
+        {% if analysis_blocked %}<p class="notice">Las preguntas aparecen cuando termine la lectura de todo.</p>{% else %}{{ question_quality }}{{ question_audit }}{% endif %}
       </section>
       <section class="section">
-        <h2>Enrutamiento y validaciones</h2>
+        <h2>De dónde vino el correo</h2>
         <pre>{{ routing_summary }}</pre>
-        <h2 class="subhead">Asuntos pendientes</h2>
+        <h2 class="subhead">Pendientes</h2>
         <pre>{{ issues_summary }}</pre>
       </section>
     </div>
@@ -198,16 +199,16 @@
   {% if slot != 'codigo' %}{{ code_panel }}{% endif %}
   {% if review.status == 'ready_review' %}
   {% set carpeta_plegada = not drive_pending and not review.quote_code %}
-  {% if carpeta_plegada %}<details class="more" id="carpeta"><summary>Carpeta del proyecto en Drive (se crea sola; abrir para decidir a mano)</summary>{% endif %}
+  {% if carpeta_plegada %}<details class="more" id="carpeta"><summary>Carpeta del proyecto en Drive (se crea sola; ábrela si falló)</summary>{% endif %}
   <section class="section"{% if not carpeta_plegada %} id="carpeta"{% endif %}>
     <h2>Carpeta del proyecto en Drive</h2>
-    <p class="meta">Se crea sola al enviar la respuesta al cliente, con el cliente de «Información comercial». Se reutiliza la carpeta del cliente si existe; el cliente nuevo se crea solo si no hay una igual ni parecida, y si hay una solicitud parecida (nombre o mismo archivo) no se duplica. Si algo de eso lo impide, aquí puedes decidir a mano.</p>
+    <p class="meta">La carpeta se crea sola al emitir la T. Si el cliente ya tiene carpeta, se usa esa. Si algo falló, puedes crearla tú aquí.</p>
     {% if drive_pending %}<div class='notice'>{{ drive_pending }}</div>{% endif %}
     <form method="post" action="/approve">
       <input type="hidden" name="thread_id" value="{{ thread_id }}">
       <div class="filters"><label>Carpeta del cliente<input name="client_name" value="{{ review.client_name_saved }}" required></label></div>
       <label><input type="checkbox" name="new_client" value="1"> Es un cliente nuevo: crear su carpeta</label>
-      <label><input type="checkbox" name="allow_similar" value="1"> Es un proyecto distinto: crear la carpeta aunque haya una parecida</label>
+      <label><input type="checkbox" name="allow_similar" value="1"> Es otro proyecto: crear la carpeta aunque haya una parecida</label>
       <div class="toolbar spaced"><button type="submit">Crear carpeta del proyecto</button></div>
     </form>
   </section>

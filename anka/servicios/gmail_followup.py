@@ -191,7 +191,7 @@ def _note_received_message(gmail: Any, db: Any, thread_id: str, message_id: str,
     if when > analyzed and message_id != case["last_inbound_id"]:
         add_dashboard_notification(
             db, thread_id, "client_reply", message_id, "El cliente respondió",
-            f"Hay un correo nuevo de {who} en el hilo.")
+            f"Hay un correo nuevo de {who} en esta conversación.")
     return 1
 
 
@@ -322,11 +322,11 @@ def _find_related(gmail: Any, db: Any, cases: dict, seen: set[str], linked: set[
                     created += 1
                     who = name or sender
                     record_event(db, case_thread, "related", "gmail", message_id,
-                                 f"Llegó un correo de {who} en otro hilo: «{subject[:80]}». "
+                                 f"Llegó un correo de {who} en otra conversación: «{subject[:80]}». "
                                  "Pendiente de confirmar si es de este caso.", _iso(when), sender, name)
                     add_dashboard_notification(
                         db, case_thread, "possible_update", message_id, "Posible actualización",
-                        f"{who} escribió en otro hilo; confirma si es de este caso.")
+                        f"{who} escribió en otra conversación; confirma si es de este caso.")
             db.commit()
     return created
 

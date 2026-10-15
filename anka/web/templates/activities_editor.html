@@ -11,48 +11,49 @@
 <form method="post" action="/activities">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   <input type="hidden" name="row_count" value="{{ row_count }}">
+  <input type="hidden" name="base_version" value="{{ base_version }}">
   <details class="more leer-estados"><summary>Cómo leer los estados</summary>
-  <p class="meta">Estado: <strong>confirmado</strong> = el dato está completo; <strong>pendiente</strong> = falta confirmar algo; <strong>contradictorio</strong> = las fuentes no coinciden. En Notas escribe qué falta o qué valores chocan, de dónde salen y quién lo resuelve (el cliente o el equipo de Anka). Abre «Más datos» para ver ubicación, entregable, plazo y fuente. Las cajas se ajustan a su texto; arrastra la esquina de una para cambiar la altura de su fila (si el texto no cabe, la caja se desplaza por dentro).</p></details>
+  <ul class="meta"><li><strong>confirmado</strong>: está completo.</li><li><strong>pendiente</strong>: falta confirmar algo.</li><li><strong>contradictorio</strong>: dos fuentes dicen cosas distintas.</li></ul><p class="meta">En Notas anota qué falta y quién lo resuelve (el cliente o el equipo de Anka). Abre «Más datos» para ver ubicación, entregable, plazo y fuente.</p></details>
   <p class="meta"><button type="button" class="secondary" id="ajustar-cajas">Ajustar cajas al texto</button></p>
 
-{% macro campo(row, key, label, filas=2) %}<textarea name='a{{ row.index }}_{{ key }}' rows='{{ filas }}' aria-label='{{ label }} de {{ row.nombre }}'{% if not row.by[key] or row.by[key] == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ row.by[key] }}</textarea>{% endmacro %}
-  <div class="scroll-x"><table class="act-table" role="table"><thead role="rowgroup"><tr class="act-head" role="row"><th role="columnheader">Actividad</th><th role="columnheader">Servicio/técnica</th><th role="columnheader">Cantidad y unidad</th><th role="columnheader">Estado</th><th role="columnheader">Notas</th><th role="columnheader"><span class="solo-lectores">Quitar</span></th></tr></thead>
+{% macro campo(row, key, label, filas=2) %}<textarea name='a{{ row.index }}_{{ key }}' rows='{{ filas }}' maxlength='{{ max_celda }}' aria-label='{{ label }} de {{ row.nombre }}'{% if not row.by[key] or row.by[key] == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ row.by[key] }}</textarea>{% endmacro %}
+  <div class="scroll-x"><table class="act-table" role="table"><thead role="rowgroup"><tr class="act-head" role="row"><th role="columnheader">Actividad</th><th role="columnheader">Tipo de servicio</th><th role="columnheader">Cantidad y unidad</th><th role="columnheader">Estado</th><th role="columnheader">Notas</th><th role="columnheader"><span class="solo-lectores">Quitar</span></th></tr></thead>
   {% for row in rows %}<tbody class="act-row" role="rowgroup"><tr class="act-main{% if row.is_new %} nueva{% endif %}" role="row">
     <td role="cell" data-etiqueta="Actividad">{{ campo(row, 'activity', 'Actividad') }}</td>
     <td role="cell" data-etiqueta="Servicio o técnica">{{ campo(row, 'servicio_tecnica', 'Servicio o técnica') }}</td>
     <td role="cell" class="cant" data-etiqueta="Cantidad y unidad"><div class="cant-par">{{ campo(row, 'quantity', 'Cantidad', 1) }}{{ campo(row, 'unit', 'Unidad', 1) }}</div></td>
     <td role="cell" data-etiqueta="Estado"><select name='a{{ row.index }}_estado' aria-label='Estado de {{ row.nombre }}' class='estado-{{ row.by.estado or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == row.by.estado %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>
     <td role="cell" data-etiqueta="Notas">{{ campo(row, 'notes', 'Notas') }}</td>
-    {% if row.is_new %}<td role="cell" class='del'>Fila nueva</td>{% else %}<td role="cell" class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1' aria-label='Quitar {{ row.nombre }}'><span class="q-off">Quitar</span><span class="q-on">Se quitará al guardar. Deshacer</span></label></td>{% endif %}</tr>
+    {% if row.is_new %}<td role="cell" class='del'>Fila nueva</td>{% else %}<td role="cell" class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1' aria-label='Quitar {{ row.nombre }}'><span class="q-off">Quitar</span><span class="q-on">Se borrará al guardar. Deshacer</span></label></td>{% endif %}</tr>
     <tr class="act-more" role="row"><td role="cell" colspan="6"><details><summary>Más datos: ubicación, entregable, plazo y fuente</summary>
       <div class="act-grid"><label>Ubicación{{ campo(row, 'ubicacion', 'Ubicación') }}</label><label>Entregable{{ campo(row, 'entregable', 'Entregable') }}</label><label>Plazo o restricción{{ campo(row, 'plazo_restriccion', 'Plazo o restricción') }}</label><label>Fuente{{ campo(row, 'fuente', 'Fuente') }}</label></div>
     </details></td></tr></tbody>{% endfor %}
   </table></div>
   <div class="save-bar" id="barra-guardado">
     <span class="save-status" id="estado-cambios" role="status" aria-live="polite" data-sin-cambios="{{ sin_cambios }}">{{ sin_cambios }}</span>
-    <label class="reason" id="caja-motivo">Motivo (opcional)
+    <label class="reason" id="caja-motivo">¿Por qué cambias? (opcional)
       <select name="reason">{% for value, label in reasons %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
     <button type="submit" id="guardar-tabla">Guardar tabla</button>
     <a class="button secondary" href="/acta?thread_id={{ thread_id | urlquote }}">Ver historial de cambios</a>
   </div>
-  <p class="meta">Queda en el historial (versión, qué cambió y cuándo); no se envía nada al cliente. Una fila nueva se guarda solo si tiene datos.</p>
+  <p class="meta">Todo cambio queda anotado en el historial. No se envía nada al cliente. Una fila nueva solo se guarda si tiene datos.</p>
 </form>
 <div class="sheet-box" id="hoja-google">
   <div class="toolbar">
-    <strong>Exportar la tabla</strong>
-    <a class="button secondary" href="/export.xlsx?thread_id={{ thread_id | urlquote }}">Descargar Excel</a>
+    <strong>Sacar la tabla</strong>
+    <a class="button secondary" href="/export.xlsx?thread_id={{ thread_id | urlquote }}">Bajar en Excel</a>
     {% if hoja.url %}<a class="button secondary" href="{{ hoja.url }}" target="_blank" rel="noopener noreferrer">Abrir en Google Sheets</a>{% endif %}
     {% if hoja.tiene_carpeta %}<form method="post" action="/hoja" class="inline-form">
       <input type="hidden" name="thread_id" value="{{ thread_id }}">
-      <button type="submit" class="secondary">{% if hoja.url %}Actualizar ahora{% else %}Crear la hoja de Google{% endif %}</button>
+      <button type="submit" class="secondary">{% if hoja.url %}Actualizar la hoja ahora{% else %}Crear la hoja de Google{% endif %}</button>
     </form>{% endif %}
   </div>
   {% if hoja.url %}<p class="meta">Se actualiza sola cada vez que guardas la tabla{% if hoja.actualizada %} · última actualización {{ hoja.actualizada }}{% endif %}.</p>
   {% elif hoja.tiene_carpeta %}<p class="meta">Todavía no hay hoja de Google para este caso: créala y desde entonces se actualiza sola.</p>
-  {% else %}<p class="meta">La hoja de Google se crea en la carpeta del proyecto, que se crea al emitir la T. Mientras tanto puedes descargar el Excel.</p>{% endif %}
+  {% else %}<p class="meta">La hoja de Google se crea cuando se crea la carpeta del proyecto (al emitir la T). Mientras tanto, baja el Excel.</p>{% endif %}
   {% if hoja.error %}<div class="notice">⚠ {{ hoja.error }}</div>{% endif %}
   <details class="more"><summary>Cómo funciona la hoja de Google</summary>
-  <p class="meta">Edita la tabla aquí, en el dashboard: lo que se escriba directamente en la hoja se sobrescribe en la próxima actualización (Google guarda las versiones anteriores en Archivo &gt; Historial de versiones). La hoja incluye también la solicitud inicial y el historial de cambios.</p>
+  <p class="meta">Si escribes directo en la hoja, el cambio se pierde en la próxima actualización. Edita la tabla aquí. La hoja trae también la solicitud inicial y el historial de cambios.</p>
   </details>
 </div>
 </div>

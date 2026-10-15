@@ -122,7 +122,7 @@ def sincronizar_hoja(thread_id: str, drive: Any = None, repositorio: Repositorio
     repo = repositorio or RepositorioDeCasos()
     caso = repo.obtener(thread_id)
     if caso is None:
-        return ResultadoHoja("sin_caso", "La solicitud ya no existe.", "")
+        return ResultadoHoja("sin_caso", "Este caso ya no existe. Vuelve a Mis casos.", "")
     if not caso.folder_id:
         return ResultadoHoja("sin_carpeta", "La hoja de Google se crea en la carpeta del proyecto, que aún no existe "
                              "(se crea al emitir la T). Mientras tanto puedes descargar el Excel.", "")

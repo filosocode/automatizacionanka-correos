@@ -67,6 +67,12 @@ class Caso(MapaDeSoloLectura):
 
     # --- reglas del caso que dependen solo de sus propios campos
     @property
+    def marca_de_estado(self) -> str:
+        """Identifica el estado del caso que la persona tenía a la vista (U-34.4): si cambia entre que abre la pantalla
+        y envía, el envío se rechaza para que no salga un correo revisado sobre algo ya distinto."""
+        return f"{self.updated_at}|{self.sent_at}"
+
+    @property
     def cerrado(self) -> bool:
         """¿El caso ya terminó o se descartó (no espera más gestión por correo)?"""
         return self.status in CLOSED_STATUSES
@@ -106,7 +112,7 @@ STATUS_LABELS = {
     QuoteStatus.DRAFT_CREATED: "Correo por revisar",
     QuoteStatus.RESPONSE_SENT: "Respuesta enviada",
     QuoteStatus.READY: "Proyecto creado",
-    QuoteStatus.MISSING: "Hilo no disponible",
+    QuoteStatus.MISSING: "Ya no está en Gmail",
     QuoteStatus.IGNORED: "Descartada",
 }
 

@@ -1,9 +1,9 @@
-<div class="page-head"><div><a class="atras" href="/">← Mis casos</a><h1>Administrar casos</h1><p>Elimina casos en lote, descarta avisos en lote o exporta todo a Excel.</p></div><a class="button secondary" href="/export.xlsx">Exportar todo a Excel</a></div>
+<div class="page-head"><div><a class="atras" href="/">← Mis casos</a><h1>Administrar casos</h1><p>Aquí puedes borrar varios casos, descartar varios avisos o bajar todo en Excel.</p></div><a class="button secondary" href="/export.xlsx">Exportar todo a Excel</a></div>
 {% if pending_links %}
 <section class="section related-bulk">
-  <div class="section-head"><div><h2>Posibles actualizaciones</h2><p class="meta">Selecciona y descarta en lote los avisos que no pertenecen a sus casos. Se conservan los correos y las solicitudes; solo se quita la sugerencia de vínculo.</p></div></div>
+  <div class="section-head"><div><h2>Avisos de correos de otras conversaciones</h2><p class="meta">Marca y descarta los avisos que no son de sus casos. Los correos y los casos siguen guardados; solo se quita el aviso.</p></div></div>
   <form id="bulk-dismiss-links" method="post" action="/links-dismiss-all">
-    <div class="bulk-bar"><label class="check-all"><input id="select-all-links" type="checkbox"> Seleccionar todas</label><span id="links-selected-count" class="meta">0 seleccionadas</span><button type="submit" class="secondary" disabled id="dismiss-links-btn">Descartar seleccionadas</button></div>
+    <div class="bulk-bar"><label class="check-all"><input id="select-all-links" type="checkbox"> Marcar todas</label><span id="links-selected-count" class="meta">0 marcadas</span><button type="submit" class="secondary" disabled id="dismiss-links-btn">Descartar las marcadas</button></div>
     <div class="link-list">
     {% for item in pending_links %}
       <label class="link-item link-bulk-item">
@@ -21,21 +21,21 @@
   <label>Ordenar por<select id="orden"><option value="reciente" selected>Más recientes primero</option><option value="antigua">Más antiguas primero</option><option value="urgencia">Más urgentes primero</option></select></label>
   <label>Tipo de cliente<select id="client-type"><option value="">Todos</option>{% for value in type_options %}<option value='{{ value }}'>{{ value }}</option>{% endfor %}</select></label>
 </div>
-{% if hay_grupos %}<p class="meta">{% if agrupado %}Los hilos que parecen el mismo proyecto van juntos. <a href="/requests?agrupar=0">Ver cada hilo por separado</a>{% else %}Cada hilo se muestra por separado. <a href="/requests">Agrupar por proyecto</a>{% endif %}.</p>{% endif %}
+{% if hay_grupos %}<p class="meta">{% if agrupado %}Los correos del mismo proyecto van juntos. <a href="/requests?agrupar=0">Ver cada uno por separado</a>{% else %}Cada correo se muestra por separado. <a href="/requests">Agrupar por proyecto</a>{% endif %}.</p>{% endif %}
 <div class="chips" role="group" aria-label="Filtrar por etapa">
   <button type="button" class="chip-filter" data-etapa="" aria-pressed="true">Todas</button>
   {% for key, label, count in etapas %}<button type="button" class="chip-filter" data-etapa="{{ key }}" aria-pressed="false">{{ label }} <b>{{ count }}</b></button>
   {% endfor %}
 </div>
-<details class="more bulk-menu"><summary>Acciones</summary>
+<details class="more bulk-menu"><summary>Opciones</summary>
 <form id="bulk-delete" method="post" action="/delete" class="bulk-bar">
-  <label class="check-all"><input id="select-all" type="checkbox"> Seleccionar todas las visibles</label>
-  <span id="selected-count" class="meta">0 seleccionadas</span>
-  <button id="delete-btn" class="danger" type="submit" disabled data-confirm="¿Eliminar los hilos seleccionados, completos? Se borran del dashboard y, si ya tienen carpeta de proyecto, esa carpeta se mueve a la papelera de Drive (recuperable ~30 días). No se toca Gmail ni las carpetas de cliente.">Eliminar seleccionadas</button>
+  <label class="check-all"><input id="select-all" type="checkbox"> Marcar todas las que se ven</label>
+  <span id="selected-count" class="meta">0 marcadas</span>
+  <button id="delete-btn" class="danger" type="submit" disabled data-confirm="¿Borrar los casos marcados? Se borran de aquí. Si tienen carpeta de proyecto, esa carpeta va a la papelera de Drive y se puede recuperar durante unos 30 días. Gmail y las carpetas de clientes no se tocan.">Borrar las marcadas</button>
 </form>
 </details>
-<div id="requests" class="grid">{% if rows %}{% for row in rows %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todavía no hay solicitudes registradas.</div>{% endif %}</div>
-<div id="no-results" class="empty" hidden>No hay solicitudes con esos filtros.</div>
+<div id="requests" class="grid">{% if rows %}{% for row in rows %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todavía no hay casos.</div>{% endif %}</div>
+<div id="no-results" class="empty" hidden>Ningún caso coincide con esa búsqueda.</div>
 <script>
 const search = document.querySelector('#search');
 let etapaActual = '';
@@ -56,7 +56,7 @@ function filterRows() {
   document.querySelectorAll('.grupo').forEach(grupo => {
     const coinciden = [...grupo.querySelectorAll('.case-row')].filter(row => !row.hidden).length;
     grupo.hidden = coinciden === 0;
-    if (filtrando) abrirGrupo(grupo, true);          // con un filtro se ven los hilos que coinciden, no solo el primero
+    if (filtrando) abrirGrupo(grupo, true);          // con un filtro se ven los correos que coinciden, no solo el primero
   });
 }
 function abrirGrupo(grupo, abrir) {
@@ -84,7 +84,7 @@ function ordenar() {
   const masAntigua = (a, b) => (fechaDe(a) || Infinity) - (fechaDe(b) || Infinity) || 0;
   const masUrgente = (a, b) => (Number(a.dataset.urgencia) - Number(b.dataset.urgencia)) || masReciente(a, b);
   const comparar = {reciente: masReciente, antigua: masAntigua, urgencia: masUrgente}[orden.value] || masReciente;
-  // Se ordenan las filas sueltas y los grupos (un grupo cuenta con su hilo más reciente o más urgente).
+  // Se ordenan las filas sueltas y los grupos (un grupo cuenta con su correo más reciente o más urgente).
   const unidades = [...listado.children].filter(el => el.classList.contains('case-row') || el.classList.contains('grupo'));
   unidades.sort(comparar).forEach(unidad => listado.appendChild(unidad));
 }
@@ -94,8 +94,9 @@ const selectAll = document.querySelector('#select-all');
 const deleteBtn = document.querySelector('#delete-btn');
 function updateSelection() {
   const picked = checks.filter(c => c.checked).length;
-  document.querySelector('#selected-count').textContent = picked + (picked === 1 ? ' seleccionada' : ' seleccionadas');
+  document.querySelector('#selected-count').textContent = picked + (picked === 1 ? ' marcada' : ' marcadas');
   deleteBtn.disabled = picked === 0;
+  deleteBtn.textContent = picked ? 'Borrar ' + picked + (picked === 1 ? ' caso marcado' : ' casos marcados') : 'Borrar las marcadas';
 }
 selectAll.addEventListener('change', () => {
   checks.forEach(c => { if (!c.closest('.case-row').hidden) c.checked = selectAll.checked; });
@@ -108,7 +109,7 @@ const dismissLinks = document.querySelector('#dismiss-links-btn');
 function updateLinkSelection() {
   if (!dismissLinks) return;
   const picked = linkChecks.filter(c => c.checked).length;
-  document.querySelector('#links-selected-count').textContent = picked + (picked === 1 ? ' seleccionada' : ' seleccionadas');
+  document.querySelector('#links-selected-count').textContent = picked + (picked === 1 ? ' marcada' : ' marcadas');
   dismissLinks.disabled = picked === 0;
 }
 if (selectAllLinks) selectAllLinks.addEventListener('change', () => {

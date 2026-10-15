@@ -18,7 +18,7 @@ from markupsafe import Markup
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
-from anka.dominio.activities import normalize_estado, parse_activities_form
+from anka.dominio.activities import huella_de_tabla, normalize_estado, parse_activities_form
 from anka.web import formularios_pendientes as pendientes
 from anka.dominio.work_contract import lectura_sin_verificar
 from anka.web.views import (
@@ -40,7 +40,7 @@ from anka.infra.logging_setup import get_logger
 from anka.infra.settings import load_config
 from anka.web.templating import render
 
-from anka.servicios.case_actions import resolve_case_recipient
+from anka.servicios.case_actions import con_codigo_final, resolve_case_recipient
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
     STAGE_LABELS, code_label, required_messages, suggest_number,
@@ -318,7 +318,7 @@ def _code_panel(review: Caso, escrito: Mapping[str, list[str]] | None = None) ->
         "code_panel.html", code=code_label(code, stage or "T") if code else "", stage=stage,
         stage_label=STAGE_LABELS.get(stage, ""), thread_id=review["thread_id"],
         approved_code=code_label(code, "TE") if code else "", can_assign=can_assign and not code,
-        suggestion=suggestion, contact=contact,
+        suggestion=suggestion, contact=contact, anio_actual=datetime.now().strftime("%y"),
         numero_escrito=(escrito or {}).get("number", [""])[0],
         received_text=((escrito or {}).get("body", [""])[0]
                        or (received_email_text(project, code_label(suggestion, "T"), contact) if suggestion else "")))
@@ -367,37 +367,37 @@ def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oc
     if review.get("reply_pending", ""):
         minutes = minutes_since(review.get("reply_pending", ""))
         late = minutes >= REPLY_OVERDUE_MINUTES
-        who = "ChatGPT Work" if work_mode else "el piloto de borradores"
+        who = "ChatGPT Work" if work_mode else "el piloto de correos"
         return aviso(tone="warn" if late else "info",
             title=f"{review['client_name']} respondió {ago_text(minutes)}",
-            text=(f"La tabla aún no recoge esa respuesta. Revisa que {who} esté activo."
-                  if late else "Se analizará en el próximo ciclo y la tabla se actualizará sola."),
+            text=(f"Todavía no pasamos esa respuesta a la tabla. Mira que {who} siga encendido."
+                  if late else "La leeremos en la próxima ronda y la tabla se actualizará sola."),
             action_href="", action_label="")
     if review.get("proposal", []):
         return aviso(tone="warn",
-            title=f"El modelo sugiere {len(review['proposal'])} cambio(s) en tu tabla",
-            text="Llegó información nueva y tu tabla editada no se tocó.",
+            title=f"Work propone {len(review['proposal'])} cambio(s) a tu tabla",
+            text="Llegó información nueva. Tu tabla no se cambió.",
             action_href="#proposal", action_label="Revisar")
     label, urgent = case_stage(review)
     if label == "Llamar al cliente":
         return aviso(tone="warn", title="Llamar al cliente",
-            text="Lleva 7 días hábiles sin responder. Llámalo para avanzar y anota que ya hablaste con él.",
+            text="Hace 7 días de trabajo que no contesta. Llámalo y, después, pulsa «Ya hablé con el cliente».",
             action_href="#seguimiento", action_label="Ver seguimiento")
     if label == "Sin respuesta · recordar":
         return aviso(tone="warn", title="El cliente no ha respondido",
-            text="Lleva 3 días hábiles esperando. Envía un recordatorio o activa el seguimiento automático.",
+            text="Hace 3 días de trabajo que espera. Envíale un recordatorio o activa los recordatorios automáticos.",
             action_href="#seguimiento", action_label="Ver seguimiento")
     if hay_correo and review["status"] in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
         return aviso(tone="info", title="Revisa el correo y envíalo",
             text="Nada sale al cliente hasta que pulses «Enviar al cliente».",
             action_href="#respuesta", action_label="Ir al correo")
     if review["status"] == QuoteStatus.REVIEW:
-        return aviso(tone="warn", title="Falta tu decisión de revisión técnica",
+        return aviso(tone="warn", title="Falta tu decisión",
             text="Decide si con esto alcanza o si hay que preguntarle al cliente.",
             action_href="#decision", action_label="Decidir")
     if review.informacion_validada and not review.get("quote_code") and review["status"] != QuoteStatus.IGNORED:
         return aviso(tone="info", title="Información validada: puedes emitir la T",
-            text="Damos por recibido el proyecto y empezamos a cotizar.",
+            text="Al emitir la T damos el proyecto por recibido.",
             action_href="#emitir-t", action_label="Emitir la T")
     code = review.get("quote_code", "")
     if code:
@@ -406,15 +406,15 @@ def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oc
         folder = review.get("folder_id")
         if folder:
             return aviso(tone="info", title=title,
-                text="La T está emitida y la carpeta del proyecto ya existe en Drive.",
+                text="La T ya está emitida y la carpeta del proyecto ya está en Drive.",
                 action_href="https://drive.google.com/drive/folders/" + urllib.parse.quote(folder),
                 action_label="Abrir carpeta en Drive")
         return aviso(tone="warn", title=title,
-            text="La T está emitida, pero la carpeta del proyecto aún no existe en Drive.",
+            text="La T ya está emitida, pero falta la carpeta del proyecto en Drive.",
             action_href="#carpeta", action_label="Ir a la carpeta")
     if label.startswith("Esperando al cliente"):
         return aviso(tone="info", title="Esperando al cliente",
-            text=f"{label}. Si no responde, el seguimiento prepara un recordatorio que tú revisas antes de enviarlo.",
+            text=f"{label}. Si no contesta, te prepararemos un recordatorio y tú lo revisas antes de enviarlo.",
             action_href="#seguimiento", action_label="Ver seguimiento")
     return _aviso_de_estado_final(review, aviso)
 
@@ -423,16 +423,19 @@ def _aviso_de_estado_final(review: Caso, aviso: Callable[..., Markup]) -> Markup
     hilo = urllib.parse.quote(str(review["thread_id"]))
     if review["status"] == QuoteStatus.IGNORED:
         return aviso(tone="info", title="Descartada",
-            text="No es una solicitud comercial: no hay nada que hacer. Si fue un error, rescátala desde Descartadas.",
+            text=("No parece una solicitud de cotización, así que no hay nada que hacer. "
+                  "Si fue un error, recupérala en «Descartadas»."),
             action_href="/discarded", action_label="Ver descartadas")
     if review["status"] == QuoteStatus.MISSING:
-        return aviso(tone="warn", title="Hilo no disponible",
-            text="El hilo ya no existe en Gmail, así que no se puede responder desde aquí.",
+        return aviso(tone="warn", title="Ya no está en Gmail",
+            text=("Esta conversación ya no está en Gmail. Alguien la borró, por eso no se puede responder desde aquí. "
+                  "Puedes volver a Mis casos."),
             action_href="/", action_label="Volver a Mis casos")
     if review["status"] == QuoteStatus.SENDING:
-        return aviso(tone="warn", title="Envío interrumpido",
-            text="Gmail no confirmó que el correo saliera. Revisa antes de volver a enviarlo para no duplicarlo.",
-            action_href="#respuesta", action_label="Revisar el envío")
+        return aviso(tone="warn", title="El correo no salió, o no estamos seguros",
+            text=("Gmail no nos confirmó el envío. Mira en Gmail si ya salió antes de enviarlo otra vez, "
+                  "para no mandarlo dos veces."),
+            action_href="#respuesta", action_label="Revisar si salió")
     if review["status"] == QuoteStatus.RESPONSE_SENT:
         return aviso(tone="info", title="Respuesta enviada",
             text="No se espera nada del cliente. Si llega un mensaje nuevo, el caso vuelve a tu lista.",
@@ -446,8 +449,8 @@ def _manual_review_note(manual: RevisionManual | None) -> str:
     if not manual:
         return ""
     when = (manual.get("at") or "")[:16].replace("T", " ")
-    action = ("la marcó como información validada" if manual.get("decision") == "sufficient"
-              else "decidió preguntar al cliente")
+    action = ("decidió que con esto alcanza" if manual.get("decision") == "sufficient"
+              else "decidió que hay que preguntarle al cliente")
     return f"Una persona revisó este caso y {action} ({when})."
 
 
@@ -649,11 +652,13 @@ def _load_review(thread_id: str) -> tuple[Caso | None, str]:
         except Exception:
             log.warning("%s: no se pudo confirmar el destinatario en Gmail", thread_id, exc_info=True)
             recipient_error = (
-                "No se pudo confirmar el destinatario en Gmail. "
-                "El guardado y el envío están bloqueados para evitar un correo incorrecto."
+                "No encontramos a quién escribirle en Gmail. Por seguridad no se puede guardar ni enviar. "
+                "Abre el correo en Gmail y confirma la dirección; luego vuelve a abrir este caso."
             )
     if review.get("reply_pending"):
         review = replace(review, status_label=REPLY_LABEL)
+    elif review["status"] == QuoteStatus.READY and not review.get("quote_code"):
+        review = replace(review, status_label=case_stage(review)[0])      # un solo nombre para «listo» (U-35.3)
     return review, recipient_error
 
 
@@ -687,8 +692,8 @@ def _nota_de_lectura_revisada(analysis: Analisis) -> str:
     cuando = (revision.get("at") or "")[:16].replace("T", " ")
     archivos = revision.get("files") or []
     cuales = f" ({', '.join(archivos)})" if archivos else ""
-    return (f"Lectura revisada por una persona el {cuando}: Anka no pudo verificar estos archivos{cuales}. "
-            "Los resultados son los que declaró Work; confirma lo que dependa de esos archivos.")
+    return (f"Una persona revisó estos archivos el {cuando} porque el programa no pudo{cuales}. "
+            "Los resultados son los de Work: confirma lo que dependa de esos archivos.")
 
 
 def _texto_de_lectura_pendiente(analysis: Analisis) -> str:
@@ -697,10 +702,10 @@ def _texto_de_lectura_pendiente(analysis: Analisis) -> str:
     archivos = audit.get("attachment_files_pending") or audit.get("attachment_files_unknown") or []
     falta = f" Falta leer: {', '.join(str(a) for a in archivos)}." if audit.get("attachment_files_pending") else (
         f" Work reportó adjuntos que Gmail no tiene: {', '.join(str(a) for a in archivos)}." if archivos else "")
-    que = ("los adjuntos contra Gmail" if audit.get("verification") else "el manifiesto y los segmentos")
-    return (f"No se mostrarán resultados ni se habilitarán decisiones hasta verificar {que}." + falta
-            + " Puedes volver a ejecutar la tarea de Work sobre este hilo (un análisis completo reemplaza a este)"
-            " o, si ya revisaste tú los archivos, continuar sin esperar con «Ya revisé estos archivos yo».")
+    que = ("los archivos contra Gmail" if audit.get("verification") else "la lista de archivos y todas sus partes")
+    return (f"No mostramos resultados ni se puede decidir hasta comprobar {que}." + falta
+            + " Pide a Work que analice de nuevo (el nuevo análisis reemplaza a este)"
+            " o, si ya revisaste tú los archivos, pulsa «Ya revisé estos archivos yo».")
 
 
 def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: dict, config: Configuracion,
@@ -719,7 +724,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             "confirme la lectura de los segmentos del mensaje y sus adjuntos.</div>"
         ) if reading_blocked else activities_editor(
             thread_id, actividades_escritas or analysis.get("activities", []), list(EDIT_REASONS.items()),
-            abierto=bool(actividades_escritas),
+            abierto=bool(actividades_escritas), base_version=huella_de_tabla(analysis.get("activities", [])),
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
             ultima=last_manual_version(thread_id))),
@@ -772,7 +777,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     review, recipient_error = _load_review(thread_id)
     pendiente = pendientes.ver(thread_id)
     if not review:
-        return page("Caso no encontrado", render("empty.html", text="La solicitud no existe."), message)
+        return page("Caso no encontrado", render("empty.html", text="La solicitud no existe.", salidas=True), message)
     analysis = review["analysis"]
     reading_blocked = _reading_is_blocked(analysis)
     assessment = review.get("reception_assessment") or reception_assessment(analysis)
@@ -817,6 +822,11 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
             cuadro_preguntas, restaurado = _campo(escrito, "questions"), True
         elif ruta_pendiente == "/code-issue" and puede_emitir:
             restaurado = True
+        elif ruta_pendiente == "/code-issue" and review.get("quote_code") and email == "form":
+            # La T se emitió pero el correo no salió (U-34.2): el texto que se revisó vuelve al cuadro de respuesta.
+            email_body = con_codigo_final(_campo(escrito, "body"), _campo(escrito, "suggested_number"),
+                                          _campo(escrito, "number"))
+            blank_reply, restaurado = False, True
         elif ruta_pendiente == "/activities" and not reading_blocked:
             try:
                 actividades_escritas = parse_activities_form(dict(escrito)) or None
@@ -902,7 +912,7 @@ def render_acta(thread_id: str) -> str:
         for event in reversed(thread_events(thread_id))
     ]
     if not review and not events:
-        return page("Caso no encontrado", render("empty.html", text="No hay historial para ese caso."))
+        return page("Caso no encontrado", render("empty.html", text="No hay historial para ese caso.", salidas=True))
     contact = review.get("contact_email", "") if review else ""
     ok, count = chain_status(thread_id)
     code = ""
@@ -917,7 +927,7 @@ def render_acta(thread_id: str) -> str:
         people=case_people(thread_id, {contact}) if contact else case_people(thread_id, set()),
         versions=_acta_versions(thread_id, review),
         back=("/case?thread_id=" + urllib.parse.quote(thread_id)) if review else "/archive")
-    return page("Acta de cambios", body)
+    return page("Registro de cambios", body)
 
 
 def split_quoted(body: str) -> tuple[str, str]:

@@ -81,11 +81,11 @@ def followup_state(db: Any, thread_id: str) -> dict:
 def set_followup(thread_id: str, action: str) -> str:
     """Activa, apaga o pausa el seguimiento automático, o anota que ya se habló con el cliente."""
     if action not in ACTIONS:
-        raise ValueError("Acción de seguimiento no válida.")
+        raise ValueError("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
     db = _db()
     try:
         if not db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (thread_id,)).fetchone():
-            raise ValueError("La solicitud ya no existe.")
+            raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         db.execute("INSERT OR IGNORE INTO case_followup (thread_id, updated_at) VALUES (?, ?)", (thread_id, now))
         texts = {

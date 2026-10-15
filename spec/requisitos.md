@@ -803,6 +803,73 @@ desde «Ajustes»: ya no hay un botón «Buscar o exportar» ni dos listas en el
 - E1 · Un punto con «?» y un punto que no empieza por «Resolver» quedan igual; lo que la persona ya escribió (`ultimas_preguntas`) no se reescribe.
 - E1 · La skill de Work trae la regla de redacción para el cliente.
 
+### U-34 · Errores con salida y protección de lo irreversible (Ola 0 del plan de experiencia)
+**Estado: implementado** (pruebas en `tests/test_errores_y_proteccion.py`). Decisión: D-99. Acota U-31 (conservar lo escrito), D-08 (la T), D-12 y R8 (un correo, una vez, revisado por una persona) y D-27 (la autorización de Google solo con acción explícita).
+
+**Motivo.** La evaluación de la experiencia (2026-10-14) encontró cinco puntos donde un fallo o una pantalla vieja podían perder trabajo o romper una garantía: un `ErrorDeAnka` (Google vencido, modo inválido) terminaba en una página 500 que pedía «avisar con el código»; emitir la T consumía el consecutivo antes de comprobar que el correo podía salir;
+la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; un correo se podía enviar desde una pantalla anterior a un cambio del caso; y la tabla de actividades se guardaba aunque otra persona la hubiera cambiado, llegara incompleta o dejara filas sin nombre.
+
+**Qué debe cumplirse**
+1. **Errores con salida.** Una acción del dashboard que falla por un `ErrorDeAnka` o un `ValueError` de Anka (no solo las que ya lo atrapaban) vuelve al caso con el mensaje y conserva lo escrito (U-31); `/mode` con un modo inválido y `/link` con un número ilegible no dan 500. Un `ErrorDeAnka` que llega
+   al servidor se muestra sin la frase «avisa con el código de error» (su texto ya dice qué hacer); un fallo inesperado la conserva. Las páginas de aviso (400, 403, 404, 500) ofrecen «Volver al caso» cuando se sabe cuál es y siempre «← Mis casos»; si la causa fue la autorización de Google ofrecen además el botón «Volver a conectar Google»,
+   que pide confirmar y solo entonces abre la ventana de Google (D-27). Un caso inexistente en `GET /case` responde 404 con esa salida; un `config.json` incompleto al abrir un caso dice qué falta, en vez de un error genérico.
+2. **La T no se consume en falso.** Antes de asignar la T (D-08) «Emitir la T» comprueba el número (formato, caso sin código, número no repetido), la autorización de Google y el destinatario. Si algo falla ahí, no se asigna nada. Si después de emitir el correo no sale, la T queda, el mensaje dice la causa real
+   (sin culpar a Gmail si fue la autorización) y el texto revisado vuelve al cuadro de «Respuesta al cliente». El diálogo de confirmación muestra el número tecleado y el destinatario, y avisa si el número no es el sugerido o si su año no es el actual.
+3. **La pantalla no se recarga sobre el trabajo.** La recarga automática por cambios solo ocurre si no hay un diálogo abierto, la página está arriba del todo, ningún campo tiene el cursor y ninguno tiene texto distinto del original; en cualquier otro caso se muestra el aviso «Hay novedades en esta página», que es un estado anunciado (`role="status"`).
+4. **Un correo, una vez, desde un estado conocido (R8).** El formulario del correo lleva la marca del estado del caso al abrirse; si el caso cambió antes de enviar, el envío se rechaza («Este caso cambió desde que abriste la pantalla…»), lo escrito se conserva y no se contacta a Gmail. Sin marca (llamadas que no vienen de esa pantalla) no se comprueba.
+   El diálogo de envío dice cuándo ya se envió un correo en ese caso. Es una protección añadida: ninguna existente se relaja.
+5. **La tabla de actividades no pierde datos en silencio.** El formulario lleva la huella de la tabla que se abrió (`base_version`): si cambió (otra edición o un análisis nuevo) no se guarda y lo escrito vuelve al editor. Se rechaza un formulario sin `row_count`, o con 0 filas cuando la tabla tiene filas, un `row_count` fuera de 0 a 200,
+   una celda de más de 2000 caracteres (las cajas llevan `maxlength`) y una fila con datos pero sin nombre de actividad. Guardar sin cambios no crea una versión («No hay cambios que guardar»). Una fila existente con todas las celdas vaciadas se cuenta y se confirma como «por quitar», porque así se guarda.
+
+**Casos de aceptación**
+- E1 · Con Google sin autorización, `/send`, `/draft` y `/approve` redirigen al caso con el mensaje (303) y el texto escrito sigue disponible; `/mode` con «inventado» y `/link` con «abc» no devuelven 500.
+- E1 · `GET /case?thread_id=no-existe` es 404 y trae «← Mis casos»; un `ErrorDeAnka` en una acción es 500 sin «código de error» y con «Volver al caso»; un `RuntimeError` conserva el código y no muestra su detalle; un `AutorizacionDeGoogle` trae el botón «Volver a conectar Google» con confirmación.
+- E2 · Sin Google, sin destinatario o con un número inválido, `issue_code_and_notify` falla y el caso sigue sin T; si el envío falla después, la T queda, el aviso lleva «⚠» y la causa, y el texto vuelve a la respuesta. El botón de emitir lleva los datos para el resumen (`data-resumen="emision"`, `data-para`, `data-sugerido`, `data-anio`).
+- E3 · El script de la página contiene `puedeRecargar()` con las cuatro condiciones y el aviso lleva `role="status"`.
+- E4 · Con una marca vieja `send_dashboard_reply` lanza «Este caso cambió desde que abriste la pantalla» sin llamar a Gmail; con la vigente o sin marca sigue su camino; la pantalla trae la marca en un campo oculto.
+- E5 · Sin `row_count`, con 0 filas sobre una tabla con filas, con una celda de 2001 caracteres o con una fila sin nombre, nada se guarda; con la huella vieja, tampoco, y el editor muestra lo escrito con la huella nueva; sin cambios no hay versión nueva; con un cambio real sí.
+
+**Vacíos abiertos:** el rechazo de una tabla cambiada devuelve lo escrito junto a la tabla vigente, pero no la compara campo a campo; queda para la ola de mejoras de la tabla. Prueba manual en Work: no aplica.
+
+### U-36 · Sistema visual de Anka: color, fuente, radios, foco y animaciones
+**Estado: implementado** (pruebas en `tests/test_estilo_visual.py`; instantáneas regeneradas). Decisión: D-101. Solo estilo: no cambia textos ni estructura (U-35, D-97) y respeta D-27.
+
+**Qué debe cumplirse**
+1. **Color.** `style.css` define la paleta en `:root` (claro) y la repite igual para oscuro en `prefers-color-scheme` y en `data-theme="dark"`. La acción es `#bd5209` y el azul de marca `#2f4d73`; el naranja de marca `#f47c27` y el ámbar `#f59e0b` no se usan como color de texto ni de relleno bajo texto.
+2. **Contraste.** Cada par texto/fondo principal llega a 4,5:1 y cada borde de campo y color de foco a 3:1, en claro y en oscuro (lo calcula la prueba con las variables del CSS).
+3. **Fuente.** Inter Variable (subconjunto latino) se sirve desde `GET /static/inter-latin-wght.woff2` con `font-display: swap` y alternativa `system-ui`, «Segoe UI»; el logo, desde `GET /static/logo-anka.png`. Solo esos dos nombres: otro responde 404 (sin leer rutas del disco). Sin fuentes ni imágenes de terceros.
+4. **Forma.** Radios de .5 rem (controles) y .75 rem (tarjetas); sombras suaves; controles de al menos 44 px; foco visible de 2 px en el color de acción con desfase de 2 px; campos de 16 px en pantalla angosta.
+5. **Movimiento.** Tarjetas y paneles entran con «fade-in-up» (.2 s, 6 px), los avisos con «fade-in» (.15 s) y los controles cambian de color en .15 s; todo se anula con `prefers-reduced-motion` (también `::before` y `::after`). Sin partículas ni librerías.
+6. **Logo.** La cabecera muestra el logo (`alt="Anka"`, 38 px de alto) en vez de la «A»; el enlace conserva su nombre accesible.
+
+**Casos de aceptación**
+- E1 · Los pares de la lista cumplen 4,5:1 / 3:1 en claro y oscuro, y las dos variantes oscuras tienen las mismas variables.
+- E2 · `GET /static/logo-anka.png` y `/static/inter-latin-wght.woff2` responden 200 con su tipo; `/static/otro` y `/static/..%2Fstyle.css` responden 404.
+- E3 · El CSS declara `@font-face` con `font-display: swap`, no menciona Google Fonts y la regla de «reducir movimiento» cubre `*`, `::before` y `::after`.
+- E4 · La cabecera trae `<img … alt="Anka">` hacia `/static/logo-anka.png`.
+
+### U-35 · Lenguaje claro: mensajes que dicen qué pasó y qué hacer (Ola 1 del plan de experiencia)
+**Estado: implementado** (pruebas en `tests/test_lenguaje_claro.py` y las de texto exacto de cada pantalla). Decisión: D-100. Acota U-31 puntos 24 y 25 (un solo texto por decisión y por acción), D-96/D-97 (nombres de estado y de decisión, que no cambian) y D-27 (la autorización de Google solo con acción explícita, que no cambia).
+
+**Motivo.** La auditoría de textos (2026-10-14) encontró que una persona nueva se frena por la jerga («hilo», «puente», «motor», «enrutamiento», «integridad», «huella», «aplicabilidad»), por mensajes que dicen qué falló pero no qué hacer («Decisión no válida.», «No seleccionaste ninguna solicitud.») y por dos nombres para lo mismo («Actualizar correo» y «Revisar ahora»; «Eliminar», «Borrar» y «Quitar»).
+
+**Qué debe cumplirse**
+1. **Palabras de la pantalla.** Lo que la persona lee dice «conversación» o «correo», nunca «hilo» (el identificador `thread_id`, los parámetros de URL y los correos al cliente de R11 no cambian); «Revisión de correos» en vez de «puente» y «Programa que lee los correos» en vez de «motor»; «Volver a conectar Google» en vez de «Reautorizar Google»
+   (el botón sigue pidiendo confirmar y la ruta `/google/reautorizar` no cambia); «Más datos» en vez de «Detalle técnico»; «Primera revisión del correo», «De dónde vino el correo» y «Lo que sabemos del cliente» en vez de «Evaluación de recepción», «Enrutamiento» y «Contexto comercial interno»; «Registro de cambios» y «anotaciones» en vez de «Acta», «hechos», «huella» e «integridad».
+2. **Una acción, un nombre.** Los dos botones de revisar Gmail se llaman «Buscar correos nuevos» (el de Work solo despierta a la revisión de correos; el local la hace). Se borra, no se «elimina» ni se «quita» una fila o un caso (el botón de quitar una actividad antes de guardar sigue marcando la fila «Se borrará al guardar. Deshacer»).
+3. **Mensajes con salida.** Todo mensaje de error o de éxito de las acciones dice qué pasó y, si hace falta, qué hacer; no lleva identificadores internos (`thread_id`) ni el nombre de una excepción de Python. Un `ValueError` que no es una frase escrita por Anka (`es_mensaje_para_la_persona`) no se muestra: la persona ve «No pudimos terminar lo que pediste. Lo que escribiste sigue aquí…».
+4. **Un solo nombre para «listo».** Un caso en `ready` sin código se llama «Información validada» en la insignia, en la lista y en el paso (sin renombrar ningún estado: `STATUS_LABELS` no cambia).
+5. **Las etiquetas visibles no son valores del contrato.** Los estados de actividad siguen siendo `confirmado`, `pendiente` y `contradictorio` (R12); el glosario conserva T, T&E, Lectura realizada y Aplicabilidad, explicados con palabras simples.
+
+**Casos de aceptación**
+- E1 · Ninguna plantilla muestra la palabra «hilo» ni «puente», «Reautorizar», «Detalle técnico», «Enrutamiento», «Evaluación de recepción», «Contexto comercial interno», «Hilo no disponible» ni «Top 6»; los textos únicos de D-97 y el «Sí, enviar al cliente» siguen en `case.html`.
+- E2 · En modo local y en modo Work el encabezado ofrece «Buscar correos nuevos»; los avisos de la revisión de correos dicen «Revisión de correos: activa / con avisos / detenida / sin iniciar».
+- E3 · `_guidance` con un `ValueError("invalid literal for int()")` devuelve el mensaje genérico con «Lo que escribiste sigue aquí» y no el texto de Python; con un `ValueError` escrito por Anka devuelve su texto.
+- E4 · Un caso en `ready` sin código muestra «Información validada» en la insignia y no «Proyecto creado».
+- E5 · El glosario trae los cuatro términos y la pregunta «¿Qué significan T y T&E?».
+
+**Pendiente (necesita decisión del dueño, no se hizo):** renombrar «Guardar borrador» (D-95), «Administrar casos» (D-93; la página y el enlace de Ajustes conservan su nombre), los correos que van al cliente y la skill de Work (R11), el selector de «Motor» (Ola 3) y el aviso de un solo uso por cookie en lugar de `?message=` (Ola 1.12).
+
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
 **Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la
 primera con el prompt V6.1 (2026-10-11, D-69) leyó el hilo y dejó el borrador completo; faltan el KMZ, el ZIP y el adjunto grande (ver «Prueba

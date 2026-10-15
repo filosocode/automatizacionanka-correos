@@ -170,7 +170,7 @@ def decidir(
             continue
         decision, texto = eleccion
         if decision not in DECISIONES:
-            raise ValueError("Decisión de pregunta no válida.")
+            raise ValueError("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
         resultado.append(Pregunta(
             id=pregunta["id"], texto=limpiar(texto) or pregunta["texto"], sugerida=pregunta["sugerida"],
             origen=pregunta["origen"], decision=decision, por=por, en=en))

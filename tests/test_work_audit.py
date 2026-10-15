@@ -85,7 +85,7 @@ class AuditTests(unittest.TestCase):
         from anka.web.templating import render
         sin_nombres = pantalla_caso._texto_de_lectura_pendiente({"reading_audit": {}})
         self.assertNotIn("Falta leer", sin_nombres)
-        self.assertIn("volver a ejecutar la tarea de Work", sin_nombres)
+        self.assertIn("Pide a Work que analice de nuevo", sin_nombres)
         self.assertIn("Ya revisé estos archivos yo", sin_nombres)   # U-29: siempre hay una salida
         texto = pantalla_caso._texto_de_lectura_pendiente(
             {"reading_audit": {"attachment_files_pending": ["plano.kml", "<b>x</b>.pdf"]}})

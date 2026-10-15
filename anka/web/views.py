@@ -10,7 +10,7 @@ from typing import Any
 from markupsafe import Markup
 
 from anka.dominio.preguntas import INTERNA, identificador, limpiar
-from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS, normalize_estado
+from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS, MAX_CELL, huella_de_tabla, normalize_estado
 from anka.dominio.attachments import compactar_paginas
 from anka.web.templating import render
 
@@ -64,7 +64,7 @@ def _activities_table(activities: list[dict]) -> Markup:
 
 _PALABRAS = {
     "extraido": "Leído", "completa": "Completa", "parcial": "Parcial", "lectura_parcial": "Lectura parcial",
-    "no_legible": "No se pudo leer", "unreadable": "No se pudo leer", "bloqueado": "Bloqueado: lo revisa una persona",
+    "no_legible": "No se pudo leer", "unreadable": "No se pudo leer", "bloqueado": "Lo revisa una persona",
 }
 
 
@@ -99,7 +99,7 @@ def attachments_panel(attachments: Sequence[Mapping[str, Any]]) -> Markup:
         resumen = f"{cuantos} · {f'{len(atencion)} por revisar' if atencion else 'todos leídos'}"
     filas = [{"nombre": str(item.get("filename") or "Sin nombre"), "atencion": True,
               "etiqueta": ("No se pudo leer: ábrelo tú" if _codigo(item.get("status")) in _NO_LEIDO
-                           else "Lectura parcial: revísalo tú"),
+                           else "Se leyó solo una parte: revísalo tú"),
               "motivo": str(item.get("reason") or "")} for item in atencion]
     filas += [{"nombre": str(item.get("filename") or "Sin nombre"), "atencion": False, "etiqueta": "Leído",
                "motivo": ""}
@@ -156,7 +156,7 @@ def _audit_review_rows(audit: Sequence[Mapping[str, Any]], waiting_for_client: b
             continue
         disposition = str(item.get("disposition") or "")
         if disposition == "internal_review":
-            status = "Revisión interna pendiente"
+            status = "Pendiente del equipo"
             task = str(item.get("question") or item.get("unresolved") or "Verificar con el equipo de Anka")
         elif disposition == "ask_client":
             status = "Esperando respuesta del cliente" if waiting_for_client else "Pregunta sugerida al cliente"
@@ -197,7 +197,7 @@ def _dependency_review_rows(
         description = str(item.get("description") or "Dependencia de alcance pendiente")
         if description.casefold() not in audit_text:
             source = str(item.get("source") or "")
-            rows.append(("Revisión interna pendiente", description, f"Fuente: {source}" if source else ""))
+            rows.append(("Pendiente del equipo", description, f"Fuente: {source}" if source else ""))
     return rows
 
 
@@ -212,7 +212,7 @@ def _contradiction_review_rows(
         details = str(item.get("details") or "Fuentes con valores discrepantes")
         sources = [str(source) for source in (item.get("sources") or []) if source]
         if details.casefold() not in audit_text and not (sources and all(s.casefold() in audit_text for s in sources)):
-            rows.append(("Revisión interna pendiente", f"Resolver contradicción en {topic}: {details}",
+            rows.append(("Pendiente del equipo", f"Dos fuentes dicen cosas distintas sobre {topic}: {details}",
                          f"Fuentes: {'; '.join(sources)}" if sources else ""))
     return rows
 
@@ -234,7 +234,7 @@ def _attachment_review_rows(
         blocked = ", ".join(str(value) for value in (item.get("blocked_fields") or []) if value)
         if blocked:
             reason += f" Datos por verificar: {blocked}."
-        rows.append(("Revisión interna pendiente", f"Revisar el adjunto {filename}", reason))
+        rows.append(("Pendiente del equipo", f"Revisar el adjunto {filename}", reason))
     return rows
 
 
@@ -261,7 +261,7 @@ def review_tasks_panel(
         return identificador(limpiar(texto)) not in decididas
 
     candidates = (
-        [("Revisión interna pendiente", str(p.get("texto")), "Lo decidiste resolver dentro de Anka")
+        [("Pendiente del equipo", str(p.get("texto")), "Esto lo resuelve el equipo de Anka")
          for p in decisiones if p.get("decision") == INTERNA]
         + _audit_review_rows([i for i in audit if not isinstance(i, Mapping) or sin_decidir(i.get("question"))],
                              waiting_for_client)
@@ -354,7 +354,8 @@ def _resumen_de_actividades(activities: Sequence[Mapping[str, Any]]) -> str:
 
 def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
                       reasons: list[tuple[str, str]] | None = None, hoja: Mapping[str, Any] | None = None,
-                      ultima: Mapping[str, Any] | None = None, abierto: bool = False) -> Markup:
+                      ultima: Mapping[str, Any] | None = None, abierto: bool = False,
+                      base_version: str | None = None) -> Markup:
     """Tabla editable: colores por estado, celdas vacias en gris y una fila nueva al final."""
     def cells(item: Mapping[str, Any]) -> list[dict]:
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
@@ -369,7 +370,8 @@ def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
                  "by": {c["key"]: c["value"] for c in cells(new_row)}})
     return render(
         "activities_editor.html",
-        thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS,
+        thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS, max_celda=MAX_CELL,
+        base_version=huella_de_tabla(activities) if base_version is None else base_version,
         abierto=abierto, resumen=_resumen_de_actividades(activities), vista=_vista_de_actividades(activities),
         escondidas=sum(1 for fila in _vista_de_actividades(activities) if fila["extra"]), total=len(activities),
         reasons=reasons or [],
