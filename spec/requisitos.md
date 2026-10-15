@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88, D-89, D-90. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88, D-89, D-90, D-95. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -699,6 +699,9 @@ la carpeta de Drive.
 22. **CSS ordenado y legible en pantalla angosta (D-90).** Cada selector de la pantalla del caso se define una sola vez (sin reglas apendadas que pisen a otras). El borde de input, select, textarea, las opciones y los
     botones de contorno tiene al menos 3:1 de contraste con su fondo en los dos temas (token `--control-line`). A 640 px o menos, los botones de las pestañas, los enlaces, las opciones y los botones de la
     cabecera de la tabla no ocupan todo el ancho, y cada fila de la tabla de edición se apila con la etiqueta de cada campo. Con `prefers-reduced-motion` no hay animaciones ni desplazamientos suaves.
+23. **La acción principal del correo siempre se alcanza (D-95).** En la tarjeta del correo, la línea que dice cuántas preguntas lleva y los botones «Enviar al cliente» y «Guardar borrador en Gmail» forman una barra
+    que se queda pegada al borde inferior de la pantalla mientras se lee el mensaje, así que no hay que bajar hasta el final para enviar. El mensaje se muestra completo (sin cuadro con desplazamiento propio) para que la
+    persona pueda revisarlo entero antes de enviar (R8); no se esconde parte del texto. La barra respeta el área segura de los celulares y no tapa el último renglón del mensaje.
 
 **Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
 - E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
@@ -732,6 +735,8 @@ la carpeta de Drive.
 - E10 · Si Gmail falla al enviar, el mensaje editado y la casilla de esperar vuelven a la pantalla; un aviso de la acción (por ejemplo un borrador que no se pudo guardar) también conserva lo escrito; un envío exitoso no deja nada; si el caso ya no admite responder, no se avisa en falso.
 - E10 · Lo mismo para el cuadro de preguntas de la decisión, el número y el correo de la T, y las actividades de la tabla (con el editor abierto); lo guardado caduca, tiene tope y no incluye el token.
 - E11 · `--control-line` pasa 3:1 contra el panel y el fondo de los campos en claro y oscuro; los selectores `.next-step`, `.paso-cabecera`, `.paso-n`, `.pregunta`, `.armar-correo`, `.process-step strong` y `.toolbar` se definen una vez; hay reglas de 640 px para las pestañas y la tabla apilada con `data-etiqueta`, y de `prefers-reduced-motion`.
+- E12 · «Enviar al cliente», «Guardar borrador en Gmail» y la línea de preguntas están dentro de una barra `.barra-accion` pegada abajo (`position: sticky; bottom: 0`); el mensaje crece con su contenido (`field-sizing: content`) y no tiene tope de altura.
+- E12 · En el navegador, con el caso largo (CLL 170) y la pantalla en el arranque, la barra queda dentro de la pantalla visible.
 - E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; en revisión pendiente, «Por aclarar con el cliente»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

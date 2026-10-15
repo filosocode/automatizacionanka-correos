@@ -893,6 +893,28 @@ class SeguridadDelUsuario(Base):
         self.assertIn(".flash { position: sticky;", (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
 
 
+class AccionSiempreAlAlcance(Base):
+    def test_la_linea_de_preguntas_y_los_botones_van_en_una_barra_pegada_abajo(self) -> None:
+        # Cubre: U-31
+        self.crear(estado=QuoteStatus.REVIEW_PENDING)
+        pagina = pantalla_caso.render_case("t-1")
+        barra = pagina[pagina.index('class="barra-accion"'):]
+        barra = barra[:barra.index("</form>")]
+        self.assertIn('id="aviso-espera"', barra)
+        self.assertEqual(barra.count('formaction="/send"'), 1)
+        self.assertEqual(barra.count('formaction="/draft"'), 1)
+        self.assertLess(pagina.index('id="cuerpo-correo"'), pagina.index('class="barra-accion"'))   # la barra va debajo del mensaje
+
+    def test_el_mensaje_se_ve_completo_y_la_barra_se_pega_al_borde(self) -> None:
+        # Cubre: U-31
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn("field-sizing: content", css[css.index(".correo-form textarea.caja-correo"):][:200])
+        regla = css[css.index(".barra-accion {"):][:420]
+        self.assertIn("position: sticky; bottom: 0;", regla)
+        self.assertIn("env(safe-area-inset-bottom", regla)
+        self.assertNotIn("max-height", css[css.index(".correo-form textarea.caja-correo"):][:200])      # R8: nada de texto escondido
+
+
 class Pestanas(Base):
     def test_hay_cuatro_pestanas_con_sus_paneles(self) -> None:
         # Cubre: U-31

@@ -19,15 +19,17 @@
   <div class="para-linea"><span class="etiqueta-mail">Para</span> <span class="para">{{ compose_to or review.recipient }}</span></div>
   <label class="solo-lectores" for="cuerpo-correo">Mensaje (puedes editarlo)</label>
   <textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
-  <p class="nota" id="aviso-espera" aria-live="polite"></p>
   <label class="nota check-line" id="caja-esperar"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta"{% if esperar_marcada %} checked{% endif %}>
     Esperar su respuesta aunque el correo no tenga preguntas</label>
+  <div class="barra-accion">
+  <p class="nota" id="aviso-espera" aria-live="polite"></p>
   <div class="acciones">
     <button type="submit" formaction="/send" class="send-action"
       data-confirm="Se enviará este correo a {{ compose_to or review.recipient }} en el mismo hilo. ¿Confirmas el envío?"
       data-resumen="envio" data-para="{{ compose_to or review.recipient }}" data-asunto="{{ asunto_respuesta }}"
       data-confirm-boton="Sí, enviar ahora">Enviar al cliente</button>
     <button type="submit" class="secondary" formaction="/draft">Guardar borrador en Gmail</button>
+  </div>
   </div>
 </form>
 <details class="more armar-correo" id="armar"{% if not email_body %} open{% endif %}>

@@ -591,7 +591,7 @@ button.send-action:disabled { opacity: .6; cursor: progress; }
 .paso-cabecera + .stepper { margin-top: -12px; }
 .para-linea { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .para-linea .para { padding: 4px 10px; }
-.correo-form textarea.caja-correo { min-height: 280px; font-family: inherit; font-size: 15px; line-height: 1.5; }
+.correo-form textarea.caja-correo { field-sizing: content; min-height: 280px; font-family: inherit; font-size: 15px; line-height: 1.5; }
 .correo-form #caja-esperar[hidden] { display: none; }
 .armar-correo { margin-bottom: 12px; margin: 0; }
 .armar-correo > summary { color: var(--accent-dark); }
@@ -622,3 +622,7 @@ a.brand[aria-current="page"] strong { box-shadow: inset 0 -3px 0 var(--accent); 
 .queue-row { padding-block: 14px; }
 .buscar-casos { margin: 0 0 10px; }
 .buscar-casos input { width: 100%; }
+/* La acción principal del correo siempre a mano (U-31.23): pegada abajo mientras se lee el mensaje */
+.barra-accion { position: sticky; bottom: 0; z-index: 5; display: grid; gap: 8px; margin: 0 -22px -22px; padding: 12px 22px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--panel); border-top: 1px solid var(--line); border-radius: 0 0 12px 12px; box-shadow: 0 -8px 14px -10px rgba(0, 0, 0, .35); }
+.barra-accion .nota { margin: 0; }
+@media (max-width: 640px) { .barra-accion { margin: 0 -16px -16px; padding-inline: 16px; } }
