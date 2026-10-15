@@ -16,14 +16,14 @@ import urllib.request
 from datetime import datetime
 from markupsafe import Markup
 from anka.dominio.configuracion import Configuracion
-from anka.dominio.caso import Caso
+from anka.dominio.caso import Caso, timestamp
 from anka.dominio.analisis import Analisis, RevisionManual
 from anka.dominio.activities import huella_de_tabla, normalize_estado, parse_activities_form
 from anka.web import formularios_pendientes as pendientes
 from anka.dominio.work_contract import lectura_sin_verificar
 from anka.web.views import (
-    adjunto_requiere_atencion, attachments_panel, reception_assessment_panel, activities_editor, question_audit_panel,
-    question_quality_panel, review_tasks_panel,
+    adjunto_no_se_pudo_leer, adjunto_requiere_atencion, attachments_panel, reception_assessment_panel,
+    activities_editor, question_audit_panel, question_quality_panel, review_tasks_panel,
 )
 from anka.dominio.status import (
     QuoteStatus,
@@ -31,7 +31,7 @@ from anka.dominio.status import (
 from anka.dominio.correo import (
     normalized_address, reply_body_without_quoted_history, split_quoted_reply, valid_email_address,
 )
-from anka.dominio.preguntas import candidatas, como_peticion, con_decisiones, elegida, separar
+from anka.dominio.preguntas import candidatas, como_peticion, con_decisiones, elegida, en_el_correo, separar
 from anka.dominio.reception import (
     correo_con_preguntas, reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
 )
@@ -285,14 +285,15 @@ def _change_todo(review: Mapping[str, Any]) -> Markup:
     return Markup("")
 
 
-def _stepper(review: Caso) -> Markup:
+def _stepper(review: Caso, ronda: int = 1) -> Markup:
     """Recorrido del caso: dónde está y qué sigue, de un vistazo."""
     code = review.get("quote_code", "")
     stage = review.get("code_stage", "")
     validated = review.informacion_validada
     current = 4 if stage == "TE" else 3 if code else 2 if validated else 1
     current_notes = {
-        1: review["status_label"], 2: "Listo para emitir la T",
+        1: review["status_label"] + ("" if review["status"] in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
+                                     else f" · ronda {ronda}"), 2: "Listo para emitir la T",
         3: code_label(code, "T") + " · cotizando" if code else "",
         4: code_label(code, "TE") + " · aprobada" if code else "",
     }
@@ -304,7 +305,14 @@ def _stepper(review: Caso) -> Markup:
     return render("stepper.html", steps=steps, current=current)
 
 
-def _code_panel(review: Caso, escrito: Mapping[str, list[str]] | None = None) -> Markup:
+def _datos_comerciales(review: Caso) -> Markup:
+    """El formulario de cliente, tipo, sector y notas («Información comercial» o «Corregir el cliente»)."""
+    return render("datos_comerciales.html", review=review, thread_id=review["thread_id"],
+                  client_types=CLIENT_TYPES, sectors=SECTORS)
+
+
+def _code_panel(review: Caso, escrito: Mapping[str, list[str]] | None = None,
+                con_cliente: bool = False) -> Markup:
     code = review.get("quote_code", "")
     stage = review.get("code_stage", "")
     can_assign = (review["status"] not in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
@@ -320,6 +328,7 @@ def _code_panel(review: Caso, escrito: Mapping[str, list[str]] | None = None) ->
         approved_code=code_label(code, "TE") if code else "", can_assign=can_assign and not code,
         suggestion=suggestion, contact=contact, anio_actual=datetime.now().strftime("%y"),
         numero_escrito=(escrito or {}).get("number", [""])[0],
+        corregir_cliente=_datos_comerciales(review) if con_cliente and can_assign and not code else Markup(""),
         received_text=((escrito or {}).get("body", [""])[0]
                        or (received_email_text(project, code_label(suggestion, "T"), contact) if suggestion else "")))
 
@@ -348,22 +357,56 @@ def _project_panel(thread_id: str) -> Markup:
     return render("project_suggestion.html", thread_id=thread_id, candidates=candidates)
 
 
-def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oculto: bool = False) -> Markup:
-    """Un solo aviso arriba del caso: lo más importante que sigue, con su botón si lo hay.
+_GMAIL_HILO = "https://mail.google.com/mail/u/0/#all/"
 
+
+def _avisos(review: Caso, work_mode: bool, hay_correo: bool = True, oculto: bool = False) -> tuple[Markup, Markup]:
+    """Los avisos de arriba del caso: una sola tarjeta principal y, plegado, «y además: N avisos» (U-40).
+
+    Orden de prioridad (también en `spec/04-ux.md`): 1) cambio pendiente de clasificar, 2) correos que faltan por
+    enviar de un cambio, 3) conversaciones vinculadas por verificar, 4) el aviso del estado del caso (respuesta del
+    cliente, propuesta de Work, llamada, recordatorio, correo, decisión, T, carpeta, espera). Los tres primeros
+    siempre se ven; el del estado se oculta cuando la tarjeta «Ahora» del caso ya dice lo mismo (`oculto`).
     `hay_correo` es si la pantalla dibuja el cuadro «Respuesta al cliente» (`#respuesta`): en revisión técnica
     interna no se dibuja y «Ir al correo» no llevaría a ninguna parte.
     """
-    def aviso(**datos: Any) -> Markup:
-        return render("next_step.html", oculto=oculto, **datos)
-
+    siempre: list[Markup] = []
     if any(c["state"] == "pending" for c in review.get("changes", [])):
-        return _change_banner(review)
+        siempre.append(_change_banner(review))
     todo = _change_todo(review)
     if todo:
-        return todo
+        siempre.append(todo)
     if review.get("links"):
-        return _link_banner(review)
+        siempre.append(_link_banner(review))
+    estado = _aviso_del_estado(review, work_mode, hay_correo, oculto)
+    if not siempre:
+        return estado, Markup("")
+    mas = siempre[1:] + ([] if oculto else [estado])
+    return siempre[0], _y_ademas(mas)
+
+
+def _y_ademas(avisos: Sequence[Markup]) -> Markup:
+    """«y además: 2 avisos»: los demás avisos del caso, plegados y con su texto completo."""
+    if not avisos:
+        return Markup("")
+    return render("y_ademas.html", avisos=avisos, cuantos=len(avisos))
+
+
+def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oculto: bool = False) -> Markup:
+    """El aviso principal del caso junto con «y además» (lo que mostraría la pantalla arriba)."""
+    principal, mas = _avisos(review, work_mode, hay_correo, oculto)
+    return principal + mas
+
+
+_SIN_ENLACE: dict[str, Any] = {"action_href": "", "action_label": "", "enlace_href": "", "enlace_label": "",
+                               "formulario": None, "preguntas": []}
+
+
+def _aviso_del_estado(review: Caso, work_mode: bool, hay_correo: bool, oculto: bool) -> Markup:
+    """El aviso del estado del caso: lo más importante que sigue, con su botón si lo hay."""
+    def aviso(**datos: Any) -> Markup:
+        return render("next_step.html", oculto=oculto, **(_SIN_ENLACE | datos))
+
     if review.get("reply_pending", ""):
         minutes = minutes_since(review.get("reply_pending", ""))
         late = minutes >= REPLY_OVERDUE_MINUTES
@@ -371,18 +414,23 @@ def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oc
         return aviso(tone="warn" if late else "info",
             title=f"{review['client_name']} respondió {ago_text(minutes)}",
             text=(f"Todavía no pasamos esa respuesta a la tabla. Mira que {who} siga encendido."
-                  if late else "La leeremos en la próxima ronda y la tabla se actualizará sola."),
-            action_href="", action_label="")
+                  if late else "La leeremos en la próxima ronda y la tabla se actualizará sola."))
     if review.get("proposal", []):
         return aviso(tone="warn",
             title=f"Work propone {len(review['proposal'])} cambio(s) a tu tabla",
             text="Llegó información nueva. Tu tabla no se cambió.",
             action_href="#proposal", action_label="Revisar")
     label, urgent = case_stage(review)
+    hilo = str(review["thread_id"])
     if label == "Llamar al cliente":
         return aviso(tone="warn", title="Llamar al cliente",
-            text="Hace 7 días de trabajo que no contesta. Llámalo y, después, pulsa «Ya hablé con el cliente».",
-            action_href="#seguimiento", action_label="Ver seguimiento")
+            text=(f"Hace {fup.CALL_BUSINESS_DAYS} días de trabajo que no contesta. "
+                  "Llámalo y, después, pulsa «Ya hablé con el cliente»."),
+            enlace_href="#seguimiento", enlace_label="Ver seguimiento",
+            formulario={"accion": "/followup", "thread_id": hilo, "campos": {"action": "contacted"},
+                        "etiqueta": "Ya hablé con el cliente", "clase": "",
+                        "confirmar": ("Se detienen los avisos y recordatorios de este caso. "
+                                      "¿Ya hablaste con el cliente?")})
     if label == "Sin respuesta · recordar":
         return aviso(tone="warn", title="El cliente no ha respondido",
             text="Hace 3 días de trabajo que espera. Envíale un recordatorio o activa los recordatorios automáticos.",
@@ -406,7 +454,8 @@ def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oc
         folder = review.get("folder_id")
         if folder:
             return aviso(tone="info", title=title,
-                text="La T ya está emitida y la carpeta del proyecto ya está en Drive.",
+                text=("La T ya está emitida y la carpeta del proyecto ya está en Drive, con la tabla y los archivos "
+                      "del cliente. Siguiente paso: preparar la cotización con precios fuera de esta herramienta."),
                 action_href="https://drive.google.com/drive/folders/" + urllib.parse.quote(folder),
                 action_label="Abrir carpeta en Drive")
         return aviso(tone="warn", title=title,
@@ -414,8 +463,10 @@ def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oc
             action_href="#carpeta", action_label="Ir a la carpeta")
     if label.startswith("Esperando al cliente"):
         return aviso(tone="info", title="Esperando al cliente",
-            text=f"{label}. Si no contesta, te prepararemos un recordatorio y tú lo revisas antes de enviarlo.",
-            action_href="#seguimiento", action_label="Ver seguimiento")
+            text=(f"Nada que hacer: esperando su respuesta ({label}). Si no contesta, a los 3 días de trabajo te "
+                  f"avisamos para enviar un recordatorio y a los {fup.CALL_BUSINESS_DAYS} para llamarlo."),
+            enlace_href="#seguimiento", enlace_label="Ver el seguimiento",
+            preguntas=list((review["analysis"].get("preguntas_enviadas") or {}).get("preguntas") or []))
     return _aviso_de_estado_final(review, aviso)
 
 def _aviso_de_estado_final(review: Caso, aviso: Callable[..., Markup]) -> Markup:
@@ -425,17 +476,24 @@ def _aviso_de_estado_final(review: Caso, aviso: Callable[..., Markup]) -> Markup
         return aviso(tone="info", title="Descartada",
             text=("No parece una solicitud de cotización, así que no hay nada que hacer. "
                   "Si fue un error, recupérala en «Descartadas»."),
-            action_href="/discarded", action_label="Ver descartadas")
+            action_href="/discarded", action_label="Ver descartadas",
+            formulario={"accion": "/rescue", "thread_id": str(review["thread_id"]), "campos": {},
+                        "etiqueta": "Sí era una solicitud: analizarla", "clase": "secondary", "confirmar": ""})
     if review["status"] == QuoteStatus.MISSING:
         return aviso(tone="warn", title="Ya no está en Gmail",
             text=("Esta conversación ya no está en Gmail. Alguien la borró, por eso no se puede responder desde aquí. "
                   "Puedes volver a Mis casos."),
-            action_href="/", action_label="Volver a Mis casos")
+            action_href="/", action_label="Volver a Mis casos",
+            formulario={"accion": "/delete", "thread_id": str(review["thread_id"]), "campos": {},
+                        "etiqueta": "Borrar este caso", "clase": "secondary",
+                        "confirmar": ("El caso se borrará de «Mis casos». Su historial se conserva "
+                                      "en «Casos borrados». ¿Lo borramos?")})
     if review["status"] == QuoteStatus.SENDING:
         return aviso(tone="warn", title="El correo no salió, o no estamos seguros",
             text=("Gmail no nos confirmó el envío. Mira en Gmail si ya salió antes de enviarlo otra vez, "
                   "para no mandarlo dos veces."),
-            action_href="#respuesta", action_label="Revisar si salió")
+            action_href="#respuesta", action_label="Revisar si salió",
+            enlace_href=_GMAIL_HILO + hilo, enlace_label="Abrir en Gmail (se abre en una pestaña nueva)")
     if review["status"] == QuoteStatus.RESPONSE_SENT:
         return aviso(tone="info", title="Respuesta enviada",
             text="No se espera nada del cliente. Si llega un mensaje nuevo, el caso vuelve a tu lista.",
@@ -457,7 +515,7 @@ def _manual_review_note(manual: RevisionManual | None) -> str:
 def _internal_context_panel(client_name: str) -> Markup:
     context = internal_commercial_context(client_name)
     if not context:
-        return Markup("<p class='meta'>El índice comercial interno todavía no está disponible.</p>")
+        return Markup("")      # sin índice no hay nada que mostrar: la sección se oculta (U-40)
 
     def top(items: Iterable[tuple[Any, Any]], limit: int = 5) -> list[tuple[str, int]]:
         return [(str(label), int(count)) for label, count in list(items)[:limit]]
@@ -514,7 +572,13 @@ def _lo_que_falta(analysis: Analisis) -> str:
     if archivos:
         nombres = ", ".join(archivos[:3]) + ("…" if len(archivos) > 3 else "")
         partes.append(f"{len(archivos)} archivo{'' if len(archivos) == 1 else 's'} por revisar ({nombres})")
-    return f"Faltan: {' y '.join(partes)}. Míralo en la tabla y en la pestaña «Archivos»." if partes else ""
+    if not partes:
+        return ""
+    ilegibles = [str(a.get("filename") or "sin nombre") for a in analysis.get("attachments", [])
+                 if isinstance(a, Mapping) and adjunto_no_se_pudo_leer(a)]
+    salida = (f" No pudimos leer {', '.join(ilegibles[:3])}{'…' if len(ilegibles) > 3 else ''}: ábrelo tú o pídele "
+              "al cliente un PDF.") if ilegibles else ""
+    return f"Faltan: {' y '.join(partes)}. Míralo en la tabla y en la pestaña «Archivos».{salida}"
 
 
 def _campo(escrito: Mapping[str, list[str]], nombre: str) -> str:
@@ -529,6 +593,25 @@ def _cuadro_de_preguntas(analysis: Analisis, preguntas: list[dict[str, Any]]) ->
     if escritas:
         return "\n".join(str(p) for p in escritas)
     return "\n".join(como_peticion(p["texto"]) for p in preguntas if p["elegida"] == "ask_client")
+
+
+def _ronda(review: Caso, analysis: Analisis, mensajes: Sequence[Mapping[str, Any]]) -> tuple[int, bool]:
+    """(número de ronda, ¿el cliente ya contestó un correo con preguntas?) (U-40).
+
+    La ronda 1 es la primera vez que se pregunta; cada correo enviado al cliente abre la siguiente. Sin estados nuevos:
+    sale de lo que ya se guarda (los correos de la conversación, las preguntas enviadas y cuándo llegó la respuesta).
+    """
+    enviados = sum(1 for m in mensajes if m["direction"] == "sent")
+    enviadas = analysis.get("preguntas_enviadas") or {}
+    if review["status"] == QuoteStatus.WAITING:
+        return max(1, enviados), False
+    if not enviadas.get("preguntas") or review["status"] not in (
+            QuoteStatus.REVIEW, QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED, QuoteStatus.READY_REVIEW):
+        return 1, False
+    salio = timestamp(str(enviadas.get("en") or ""))
+    contesto = salio > 0 and any(
+        m["direction"] == "received" and timestamp(str(m["occurred_at"] or "")) > salio for m in mensajes)
+    return (max(2, enviados + 1), True) if contesto else (max(1, enviados), False)
 
 
 def _puede_volver_atras(review: Caso, analysis: Analisis) -> bool:
@@ -712,10 +795,17 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
                  events: list[Evento], integrity_ok: bool, event_count: int,
                  questions_in_decision: bool = False, slot: str = "aviso",
                  pendiente: tuple[str, Mapping[str, list[str]]] | None = None,
-                 actividades_escritas: list[Any] | None = None) -> dict[str, Any]:
+                 actividades_escritas: list[Any] | None = None, ronda: int = 1) -> dict[str, Any]:
     """Los paneles de la pantalla del caso, cada uno ya renderizado."""
     proposal = review.get("proposal", [])
     reading_blocked = _reading_is_blocked(analysis)
+    avisos = ((render("next_step.html", oculto=False, tone="warn", title="Lectura pendiente",
+                      text=_texto_de_lectura_pendiente(analysis),
+                      action_href="#lectura-revisada", action_label="Elegir cómo seguir"), Markup(""))
+              if reading_blocked else _avisos(
+                  review, config.get("active_mode") == "chatgpt_work",
+                  hay_correo=assessment.get("status") != "technical_review",
+                  oculto=slot in ("decision", "correo", "codigo")))
     return {
         "assessment_panel": Markup("") if reading_blocked else reception_assessment_panel(assessment),
         "internal_context": _internal_context_panel(review["client_name"]),
@@ -752,18 +842,14 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "manual_review": _manual_review_note(analysis.get("manual_review")),
         "reading_review_note": _nota_de_lectura_revisada(analysis),
         "conversation": _conversation_panel(thread_id),
-        "stepper": _stepper(review),
+        "stepper": _stepper(review, ronda),
         "followup": _followup_panel(review),
         "edit_note": _edit_note(thread_id),
-        "code_panel": _code_panel(review, pendiente[1] if pendiente and pendiente[0] == "/code-issue" else None),
+        "code_panel": _code_panel(review, pendiente[1] if pendiente and pendiente[0] == "/code-issue" else None,
+                                  con_cliente=slot == "codigo"),
+        "datos_comerciales": _datos_comerciales(review),
         "code_text": _code_text(review),
-        "next_step": (render("next_step.html", oculto=False, tone="warn", title="Lectura pendiente",
-                              text=_texto_de_lectura_pendiente(analysis),
-                              action_href="#lectura-revisada", action_label="Elegir cómo seguir")
-                      if reading_blocked else _next_step_banner(
-                          review, config.get("active_mode") == "chatgpt_work",
-                          hay_correo=assessment.get("status") != "technical_review",
-                          oculto=slot in ("decision", "correo", "codigo"))),
+        "next_step": avisos[0], "avisos_extra": avisos[1],
         "project_panel": Markup("") if reading_blocked else _project_panel(thread_id),
         "proposal_panel": (Markup("") if reading_blocked or not proposal
                            else render("proposal.html", changes=proposal, thread_id=thread_id)),
@@ -801,6 +887,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     preguntas = _preguntas_del_caso(analysis, assessment) if espera_decision else []
     sugeridas = _preguntas_sugeridas(analysis, assessment) if not reading_blocked else []
     puede_volver = _puede_volver_atras(review, analysis)
+    ronda, segunda_ronda = _ronda(review, analysis, case_conversation(thread_id, 50))
     cuadro_preguntas = _cuadro_de_preguntas(analysis, preguntas)
     lo_que_falta = "" if reading_blocked else _lo_que_falta(analysis)
     plegar_respuesta = bool(review.get("quote_code")) or (
@@ -851,7 +938,14 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         suggestion_complete=review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING},
         draft_complete=bool(review["draft_id"] or sent_complete),
         plegar_respuesta=plegar_respuesta, slot=slot, recibido=recibido, etiqueta_archivos=etiqueta_archivos,
-        restaurado=restaurado, esperar_marcada=esperar_marcada,
+        restaurado=restaurado, esperar_marcada=esperar_marcada, ronda=ronda, segunda_ronda=segunda_ronda,
+        cambiar_abierto=not email_body or template == "preguntas",
+        correo_con_preguntas=bool(en_el_correo(email_body)),
+        datos_en_panel=slot == "codigo",
+        carpeta_en_mas_datos=(review["status"] == QuoteStatus.READY_REVIEW and not review.get("quote_code")
+                              and not (analysis.get("drive") or {}).get("pending")),
+        hay_revision_de_preguntas=bool(analysis.get("question_audit") or analysis.get("question_quality_warnings")),
+        hay_pendientes=bool(unresolved_scope_issues(analysis)),
         tab_inicial="archivos" if por_revisar or reading_blocked else "conversacion",
         sent_complete=sent_complete, no_reply_needed=review["status"] in {QuoteStatus.READY, QuoteStatus.IGNORED},
         client_types=CLIENT_TYPES, sectors=SECTORS,
@@ -874,7 +968,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
                          else "scope_update" if template == "scope_update" else ""),
         **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count,
                        questions_in_decision=bool(preguntas) and review["status"] == QuoteStatus.REVIEW, slot=slot,
-                       pendiente=pendiente if restaurado else None, actividades_escritas=actividades_escritas),
+                       pendiente=pendiente if restaurado else None, actividades_escritas=actividades_escritas,
+                       ronda=ronda),
     )
     return page("Revisar caso", body, message)
 

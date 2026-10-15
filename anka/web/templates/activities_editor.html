@@ -1,10 +1,10 @@
 <div class="acts-head">
   <div><h2>Actividades detectadas</h2>{% if resumen %}<p class="resumen-tabla">{{ resumen }}</p>{% endif %}</div>
-  <div class="acciones"><button type="button" class="button secondary" id="agregar-fila" aria-controls="editar-tabla">+ Agregar</button><button type="button" class="button secondary" id="editar-boton" aria-expanded="{{ 'true' if abierto else 'false' }}" aria-controls="editar-tabla">Editar tabla</button></div>
+  <div class="acciones"><button type="button" class="button secondary" id="agregar-fila" aria-controls="editar-tabla">+ Agregar</button><button type="button" class="button secondary" id="editar-boton" aria-expanded="{{ 'true' if abierto else 'false' }}" aria-controls="editar-tabla">Corregir la tabla</button></div>
 </div>
 {% if resumen %}{% if escondidas %}<button type="button" id="ver-todas" class="button secondary ver-todas-boton" aria-expanded="false" aria-controls="tabla-resumen"><span class="ver-si">Ver todas ({{ total }})</span><span class="ver-no">Ver menos</span></button>{% endif %}
 <div class="scroll-x" id="tabla-resumen" data-todas="no"><table class="act-resumen"><thead><tr><th scope="col">Actividad</th><th scope="col">Cantidad</th><th scope="col">Estado</th></tr></thead>
-<tbody>{% for fila in vista %}<tr class="fila-resumen{% if fila.falta %} falta{% endif %}{% if fila.extra %} extra{% endif %}"><td>{{ fila.actividad }}</td><td>{{ fila.cantidad }}</td><td><span class="chip {{ fila.estado }}">{{ fila.etiqueta }}</span>{% if fila.motivo %}<span class="motivo">{{ fila.motivo | truncate(160) }}</span>{% endif %}</td></tr>
+<tbody>{% for fila in vista %}<tr class="fila-resumen{% if fila.falta %} falta{% endif %}{% if fila.extra %} extra{% endif %}"><td>{{ fila.actividad }}</td><td>{{ fila.cantidad }}</td><td><span class="chip {{ fila.estado }}">{{ fila.etiqueta }}</span>{% if fila.faltan %}<span class="faltan">Falta {{ fila.faltan }}</span>{% endif %}{% if fila.motivo %}<span class="motivo">{{ fila.motivo | truncate(160) }}</span>{% endif %}</td></tr>
 {% endfor %}</tbody></table></div>{% endif %}
 <div class="editor-tabla{% if abierto %} abierto{% endif %}" id="editar-tabla">
 <form method="post" action="/activities">
@@ -12,8 +12,7 @@
   <input type="hidden" name="row_count" value="{{ row_count }}">
   <input type="hidden" name="base_version" value="{{ base_version }}">
   <details class="more leer-estados"><summary>Cómo leer los estados</summary>
-  <ul class="meta"><li><strong>confirmado</strong>: está completo.</li><li><strong>pendiente</strong>: falta confirmar algo.</li><li><strong>contradictorio</strong>: dos fuentes dicen cosas distintas.</li></ul><p class="meta">En Notas anota qué falta y quién lo resuelve (el cliente o el equipo de Anka). Abre «Más datos» para ver ubicación, entregable, plazo y fuente.</p></details>
-  <p class="meta"><button type="button" class="secondary" id="ajustar-cajas">Ajustar cajas al texto</button></p>
+  <ul class="meta"><li><strong>Completa</strong>: tiene todo lo necesario.</li><li><strong>Por completar</strong>: falta confirmar algo.</li><li><strong>Contradictoria</strong>: dos fuentes dicen cosas distintas.</li></ul><p class="meta">En Notas anota qué falta y quién lo resuelve (el cliente o el equipo de Anka). Abre «Más datos» para ver ubicación, entregable, plazo y fuente.</p></details>
 
 {% macro campo(row, key, label, filas=2) %}<textarea name='a{{ row.index }}_{{ key }}' rows='{{ filas }}' maxlength='{{ max_celda }}' aria-label='{{ label }} de {{ row.nombre }}'{% if not row.by[key] or row.by[key] == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ row.by[key] }}</textarea>{% endmacro %}
   <div class="scroll-x"><table class="act-table" role="table" aria-label="Actividades detectadas, editables"><thead role="rowgroup"><tr class="act-head" role="row"><th role="columnheader" scope="col">Actividad</th><th role="columnheader" scope="col">Tipo de servicio</th><th role="columnheader" scope="col">Cantidad y unidad</th><th role="columnheader" scope="col">Estado</th><th role="columnheader" scope="col">Notas</th><th role="columnheader" scope="col"><span class="solo-lectores">Quitar</span></th></tr></thead>
@@ -21,7 +20,7 @@
     <td role="cell" data-etiqueta="Actividad">{{ campo(row, 'activity', 'Actividad') }}</td>
     <td role="cell" data-etiqueta="Servicio o técnica">{{ campo(row, 'servicio_tecnica', 'Servicio o técnica') }}</td>
     <td role="cell" class="cant" data-etiqueta="Cantidad y unidad"><div class="cant-par">{{ campo(row, 'quantity', 'Cantidad', 1) }}{{ campo(row, 'unit', 'Unidad', 1) }}</div></td>
-    <td role="cell" data-etiqueta="Estado"><select name='a{{ row.index }}_estado' aria-label='Estado de {{ row.nombre }}' class='estado-{{ row.by.estado or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == row.by.estado %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>
+    <td role="cell" data-etiqueta="Estado"><select name='a{{ row.index }}_estado' aria-label='Estado de {{ row.nombre }}' class='estado-{{ row.by.estado or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == row.by.estado %} selected{% endif %}>{{ etiquetas_de_estado[state] }}</option>{% endfor %}</select></td>
     <td role="cell" data-etiqueta="Notas">{{ campo(row, 'notes', 'Notas') }}</td>
     {% if row.is_new %}<td role="cell" class='del'>Fila nueva</td>{% else %}<td role="cell" class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1' aria-label='Quitar {{ row.nombre }}'><span class="q-off">Quitar</span><span class="q-on">Se borrará al guardar. Deshacer</span></label></td>{% endif %}</tr>
     <tr class="act-more" role="row"><td role="cell" colspan="6"><details><summary>Más datos: ubicación, entregable, plazo y fuente</summary>

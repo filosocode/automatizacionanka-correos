@@ -13,22 +13,33 @@
   {% elif can_assign %}
   <div class="eyebrow">Ahora</div>
   <div class="section-head"><h2>Listo para cotizar: emitir la T</h2><span class="badge">Información validada</span></div>
-  <p class="meta">La información ya está validada. Al emitir la T pasan 3 cosas: 1) se crea el código, 2) se crea la carpeta en Drive con los archivos del cliente y la tabla, 3) se envía a {{ contact }} un correo con el código. Después, todo cambio debe nombrar ese código.</p>
+  <p class="meta">La información ya está validada. Al emitir la T pasan 3 cosas:</p>
+  <ol class="que-pasa">
+    <li>Se crea el código de la T con el número de abajo.</li>
+    <li>Se crea la carpeta en Drive con los archivos del cliente y la tabla.</li>
+    <li>Se envía a {{ contact }} un correo con el código. Lo puedes ver y editar abajo, antes de emitir.</li>
+  </ol>
+  <p class="meta">Después, todo cambio debe nombrar ese código.</p>
   <form method="post" action="/code-issue">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <input type="hidden" name="suggested_number" value="{{ suggestion }}">
-    <div class="filters"><label>Número de la T (año + consecutivo) <span class="meta">(obligatorio)</span><input name="number" value="{{ (numero_escrito if numero_escrito is defined else '') or suggestion }}" pattern="[0-9]{5}" inputmode="numeric" title="5 dígitos: el año y el consecutivo, por ejemplo 26145" required></label></div>
-    <p class="meta">Es una sugerencia según los códigos que ya hay aquí. Cámbiala si el número real es otro; el correo se arregla solo.</p>
-    <label>Correo que se enviará a {{ contact }} (puedes editarlo) <span class="meta">(obligatorio)</span><textarea name="body" rows="14" required>{{ received_text }}</textarea></label>
-    <div class="toolbar">
+    <div class="filters"><label>Número de la T (año + consecutivo) <span class="meta">(obligatorio)</span><input name="number" value="{{ (numero_escrito if numero_escrito is defined else '') or suggestion }}" pattern="[0-9]{5}" inputmode="numeric" title="5 dígitos: el año y el consecutivo, por ejemplo 26145" required aria-describedby="origen-numero"></label></div>
+    <p class="meta" id="origen-numero">Es el siguiente número según los códigos que ya hay aquí. Si el sistema de ofertas te dio otro, escríbelo; el correo se arregla solo.</p>
+    <details class="more correo-de-la-t">
+      <summary>Ver o editar el correo que se enviará a {{ contact }}</summary>
+      <label>Correo que se enviará a {{ contact }} (puedes editarlo) <span class="meta">(obligatorio)</span><textarea name="body" rows="14" required>{{ received_text }}</textarea></label>
+    </details>
+    <div class="acciones">
       <button type="submit" data-resumen="emision" data-para="{{ contact }}" data-sugerido="{{ suggestion }}" data-anio="{{ anio_actual | default('') }}"
         data-confirm="Se emitirá la T, se creará la carpeta en Drive con los documentos del cliente y la tabla, y SE ENVIARÁ este correo a {{ contact }}. ¿Confirmas el número y el texto?">Emitir la T, crear la carpeta y enviar el correo</button>
+      <button type="submit" class="secondary" formaction="/code"
+        data-confirm="Solo se emitirá la T y se preparará el correo, sin enviarlo ni crear la carpeta. ¿Continuar?">Solo emitir la T (lo envío yo después)</button>
     </div>
-    <details class="more other-options">
-      <summary class="meta">Otras opciones</summary>
-      <div class="toolbar"><button type="submit" class="secondary" formaction="/code"
-        data-confirm="Solo se emitirá la T y se preparará el correo, sin enviarlo ni crear la carpeta. ¿Continuar?">Solo emitir la T (lo envío yo después)</button></div>
-    </details>
   </form>
+  {% if corregir_cliente | default('') %}<details class="more corregir-cliente" id="corregir-cliente">
+    <summary>Corregir el cliente</summary>
+    <p class="meta">La carpeta se crea con el nombre del cliente. Si está mal, corrígelo aquí antes de emitir la T.</p>
+    {{ corregir_cliente }}
+  </details>{% endif %}
   {% endif %}
 </section>

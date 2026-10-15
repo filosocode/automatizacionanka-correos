@@ -9,6 +9,7 @@
   <div><strong>{{ item.title }}</strong>
     <div>{{ item.project_name }}</div>
     <div class="meta">{{ item.message }} {{ item.timestamp }}</div>
+    {% if item.otras %}<div class="meta">También en este caso: {{ item.otras | join(' · ') }}</div>{% endif %}
   </div>
   <a class="button secondary" href="/case?thread_id={{ item.thread_id | urlquote }}">Ver caso</a>
 </article>

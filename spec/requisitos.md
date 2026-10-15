@@ -902,6 +902,31 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 - A5 · Ningún `th` de las plantillas queda sin `scope` ni vacío.
 - A6 · El código de la T pide «(obligatorio)» y `inputmode="numeric"`.
 
+### U-40 · Flujo simple: una acción principal por estado, lo secundario plegado (Ola 3 del plan de experiencia)
+**Estado: implementado** (pruebas en `tests/test_flujo_simple.py`; instantáneas regeneradas). Decisión: D-105. Es de forma y orden, no de comportamiento: no cambia `spec/transiciones.json`, ningún nombre de estado (D-86, D-96), los textos únicos de D-97, «Sí, enviar al cliente», el contrato con Work ni el momento en que se crea la carpeta. Respeta R8 (el envío sigue explícito y con su confirmación), R11, R12, R13 (no se automatiza ningún envío) y D-27.
+
+**Motivo.** La evaluación de flujo (2026-10-15) contó seis vías de salida en «Correo por revisar», un botón que no era tarea en «Esperando al cliente», la segunda ronda con los mismos rótulos que la primera, un panel de la T con tres campos y el correo abierto, dos «Ahora» compitiendo arriba del caso, secciones vacías con el mismo peso que las llenas y callejones sin salida.
+
+**Qué debe cumplirse**
+1. **Correo por revisar.** Visibles: el texto, «Enviar al cliente» (principal) y «Guardar borrador en Gmail». «Cambiar las preguntas», «Volver a decidir» y «No preguntar: con esto alcanza» están en un solo menú plegado «Cambiar de idea» (abierto solo si el correo está en blanco o se acaba de pedir otro con preguntas). La casilla «Esperar su respuesta» solo se ofrece si el correo no hace preguntas y explica qué hace; el servidor ya la entrega oculta cuando el texto trae preguntas. Rearmar el correo editado sigue pidiendo confirmación.
+2. **Esperando al cliente.** Sin botón principal: «Nada que hacer: esperando su respuesta…», con lo que se hará a los 3 y 7 días de trabajo (R13), las preguntas enviadas (plegadas) y el seguimiento como enlace. Si toca llamar, «Ya hablé con el cliente» está en la misma tarjeta (registra la llamada; no envía nada).
+3. **Segunda ronda.** Cuando el cliente contestó un correo con preguntas (hay un correo suyo posterior al envío), el paso 1 dice «· ronda N» y la tarjeta «Ahora» de la decisión o del correo abre con «El cliente respondió (ronda N): revisa lo que faltaba.», lo que se le preguntó y lo que sigue pendiente. No hay estados ni eventos nuevos y no se afirma qué respondió: la respuesta está en «Conversación». La tabla va justo debajo de la tarjeta.
+4. **Emitir la T.** Antes del botón, una lista de las 3 cosas que pasan (se crea el código, se crea la carpeta, se envía el correo a quien corresponda); el número dice de dónde sale; el correo va plegado en «Ver o editar el correo»; «Solo emitir la T» es un botón secundario visible; «Corregir el cliente» (el formulario de cliente, tipo y sector) está en el mismo panel. El bloque «Carpeta del proyecto en Drive» sale de este estado y queda en «Más datos» como «Si la carpeta falló: crearla a mano»; si hay un aviso de carpeta pendiente o la T ya está emitida sin carpeta, sigue a la vista. Un campo obligatorio vacío dentro de algo plegado lo abre.
+5. **Avisos con una prioridad.** Una tarjeta principal arriba y, plegada, «y además: N avisos» con el resto (orden en `spec/04-ux.md`). Novedades: una fila por caso. Tema, «Avisarme de novedades» y el selector de quién analiza los correos están dentro de Ajustes; el selector, en «Ajustes avanzados (administración)» con su advertencia y el modo activo dicho en llano.
+6. **Tabla.** El resumen marca lo que falta («Falta ubicación, plazo» según los datos esenciales de R12); «Corregir la tabla» abre la edición; el estado se llama igual en el resumen y en el editor (Completa / Por completar / Contradictoria) aunque el valor enviado es el de siempre; no hay botón «Ajustar cajas al texto» (las cajas se ajustan solas); «¿Por qué cambias?» solo aparece tras cambiar algo.
+7. **Secciones vacías.** «Lo que sabemos del cliente», «Revisión de las preguntas» y «Pendientes» no se dibujan si no tienen contenido. «Información comercial» pasa a «Corregir el cliente» en el panel de la T y, sin ese panel, sigue en «Más datos».
+8. **Callejones.** «Descartada» ofrece «Sí era una solicitud: analizarla»; «El correo no salió» enlaza a Gmail (pestaña nueva); «Ya no está en Gmail» ofrece «Borrar este caso» (con confirmación; el historial se conserva); un archivo que no se pudo leer dice «No pudimos leer plano.dwg: ábrelo tú o pídele al cliente un PDF»; el caso con carpeta creada dice cuál es el siguiente paso.
+
+**Casos de aceptación**
+- F1 · Un caso con el correo armado trae «Enviar al cliente» y «Guardar borrador en Gmail» fuera de `<details id="cambiar-idea">` y las tres salidas dentro.
+- F2 · Un caso en espera no tiene botón en la tarjeta y lista las preguntas enviadas; con 7 días trae el formulario «Ya hablé con el cliente».
+- F3 · Un caso con preguntas enviadas y un correo del cliente posterior dice «ronda 2»; sin correo posterior, no.
+- F4 · El panel de la T lista 3 cosas antes del botón, el correo está plegado y «Solo emitir la T» no está dentro de ningún `<details>`.
+- F5 · Con un cambio pendiente y otro por enviar, hay una tarjeta y «y además: 2 avisos»; con la tarjeta «Ahora» del paso, el aviso del estado no se repite.
+- F6 · Un plano `.dwg` no leído trae su salida en la decisión y en la lista de archivos.
+
+**Pendiente (Ola 4 o necesita decisión del dueño, no se hizo):** un solo disparador de la carpeta (R9 frente a D-29), deshacer tras «Con esto alcanza», anular la T, un evento «Confirmar alcance», pre-redactar la petición con las celdas por completar, pasar de 4 a 5 pasos, renombrar estados, «Guardar borrador» y «Administrar casos», la decisión con dos tarjetas-botón, «Abrir en Gmail» para el caso que ya no está en Gmail (no tiene sentido), agrupar el encabezado en una sola barra en pantallas angostas y poner el verbo primero en cada fila de la lista.
+
 ### U-35 · Lenguaje claro: mensajes que dicen qué pasó y qué hacer (Ola 1 del plan de experiencia)
 **Estado: implementado** (pruebas en `tests/test_lenguaje_claro.py` y las de texto exacto de cada pantalla). Decisión: D-100. Acota U-31 puntos 24 y 25 (un solo texto por decisión y por acción), D-96/D-97 (nombres de estado y de decisión, que no cambian) y D-27 (la autorización de Google solo con acción explícita, que no cambia).
 
@@ -922,7 +947,7 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 - E4 · Un caso en `ready` sin código muestra «Información validada» en la insignia y no «Proyecto creado».
 - E5 · El glosario trae los cuatro términos y la pregunta «¿Qué significan T y T&E?».
 
-**Pendiente (necesita decisión del dueño, no se hizo):** renombrar «Guardar borrador» (D-95), «Administrar casos» (D-93; la página y el enlace de Ajustes conservan su nombre), los correos que van al cliente y la skill de Work (R11), el selector de «Motor» (Ola 3) y el aviso de un solo uso por cookie en lugar de `?message=` (Ola 1.12).
+**Pendiente (necesita decisión del dueño, no se hizo):** renombrar «Guardar borrador» (D-95), «Administrar casos» (D-93; la página y el enlace de Ajustes conservan su nombre), los correos que van al cliente y la skill de Work (R11), el aviso de un solo uso por cookie en lugar de `?message=` (Ola 1.12).
 
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
 **Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la

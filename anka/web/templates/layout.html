@@ -17,12 +17,15 @@
     {% macro actual(ruta) %}{% if nav_actual == ruta %} aria-current="page"{% endif %}{% endmacro %}
     <a class="brand" href="/"{{ actual('/') }} aria-label="Anka, mis casos{% if unread_count %}: {{ unread_count }} con novedades{% endif %}"><img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38"><div><strong>Anka</strong><span>Mis casos</span></div>{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a>
     <div class="toolbar">
-      <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Tema: sistema. Pulsa para usar el claro" title="Tema: sistema. Pulsa para usar el claro">Tema: sistema</button>
-      <button type="button" id="avisos-navegador" class="secondary" hidden title="Te avisaremos cuando llegue algo nuevo aunque esta pestaña esté escondida">Avisarme de novedades</button>
       <span id="bridge-chip" class="bridge-chip" hidden></span>
       <span id="anuncio-estado" class="solo-lectores" role="status"></span>
       <a id="google-chip" class="bridge-chip" href="#ajustes" hidden></a>
-      <details class="settings" id="ajustes"><summary>Ajustes</summary><div class="settings-box">{{ mode_selector }}
+      <details class="settings" id="ajustes"><summary>Ajustes</summary><div class="settings-box">
+        <div class="ajustes-apariencia">
+          <strong>Colores y avisos</strong>
+          <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Tema: sistema. Pulsa para usar el claro" title="Tema: sistema. Pulsa para usar el claro">Tema: sistema</button>
+          <button type="button" id="avisos-navegador" class="secondary" hidden title="Te avisaremos cuando llegue algo nuevo aunque esta pestaña esté escondida">Avisarme de novedades</button>
+        </div>
         <a class="enlace-ajustes" href="/requests">Administrar casos (eliminar, exportar)</a>
         <a class="enlace-ajustes" href="/archive">Casos borrados</a>
         <div class="google-settings">
@@ -32,6 +35,12 @@
             <button type="submit" class="secondary" data-confirm="Se abrirá una ventana de Google. Entra con tu cuenta y pulsa «Permitir». ¿Seguimos?">Volver a conectar Google</button>
           </form>
         </div>
+        <details class="more ajustes-avanzados">
+          <summary>Ajustes avanzados (administración)</summary>
+          <p class="meta" id="modo-activo">{{ modo_llano }}</p>
+          <p class="meta aviso-motor"><strong>Solo para quien administra la herramienta.</strong> Cambiar quién analiza los correos puede dejar casos a medias hasta la próxima revisión.</p>
+          {{ mode_selector }}
+        </details>
       </div></details>
       {% if not is_work %}<form method="post" action="/refresh">
         <button type="submit">Buscar correos nuevos</button>
@@ -435,10 +444,15 @@
       }
       abrirDestino();
       window.addEventListener('hashchange', abrirDestino);
+      // Un campo obligatorio vacío dentro de una sección plegada la abre: así el aviso del navegador se ve (U-40).
+      document.addEventListener('invalid', evento => {
+        let hijo = evento.target.closest ? evento.target.closest('details') : null;
+        while (hijo) { hijo.open = true; hijo = hijo.parentElement ? hijo.parentElement.closest('details') : null; }
+      }, true);
     })();
     (function () {
       // Tabla de actividades: al arrastrar la esquina de una caja, todas las de su fila toman esa altura (la fila sigue pareja)
-      // y la caja se desplaza por dentro si el texto no cabe. «Ajustar cajas al texto» vuelve al tamaño automático.
+      // y la caja se desplaza por dentro si el texto no cabe. Sin arrastrar, las cajas se ajustan solas al texto.
       const tabla = document.querySelector('.act-table');
       if (!tabla) return;
       // El navegador no avisa del arrastre de la esquina con eventos del ratón, pero sí escribe la altura en el estilo de la caja.
@@ -456,11 +470,6 @@
         }
       });
       tabla.querySelectorAll('textarea').forEach(c => observador.observe(c, {attributes: true, attributeFilter: ['style']}));
-      const ajustar = document.getElementById('ajustar-cajas');
-      if (ajustar) ajustar.addEventListener('click', () => {
-        puestas = new WeakMap();
-        tabla.querySelectorAll('textarea, select').forEach(c => { c.style.height = ''; });
-      });
     })();
     (function () {
       // Barra de guardado de la tabla de actividades (U-21): dice qué cambió, pide el motivo solo si hay cambios y

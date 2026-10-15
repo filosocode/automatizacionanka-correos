@@ -741,3 +741,27 @@ a.bridge-chip { display: inline-flex; align-items: center; min-height: 44px; }
 /* Nodos animados de fondo (U-38, D-103): detrás de todo, sin recibir clics; se apagan con alto contraste e impresión. */
 #particulas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
 @media (forced-colors: active), print { #particulas { display: none; } }
+
+/* Flujo simple (U-40): una acción principal por estado; lo demás, enlace o menú plegado */
+.next-step .enlace-accion { justify-self: start; display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; font-size: .875rem; color: var(--accent-dark); }
+.next-step .preguntas-enviadas { margin: 4px 0 0; }
+.next-step .preguntas-enviadas ol, .preguntas-enviadas ol { margin: 4px 0 0; padding-left: 1.25rem; font-size: .875rem; }
+.aviso-formulario { margin: 0; }
+.y-ademas { margin: -8px 0 16px; }
+.y-ademas > summary { color: var(--muted); }
+.y-ademas .next-step { margin-bottom: 10px; }
+.cambiar-de-idea { margin: 0; }
+.cambiar-de-idea > summary { color: var(--accent-dark); }
+.cambiar-de-idea > .armar-correo, .cambiar-de-idea > .cambiaste-idea { margin-left: 4px; }
+#caja-esperar { display: grid; gap: 2px; }
+#caja-esperar[hidden] { display: none; }
+.ronda-aviso { margin: 0; padding: 10px 14px; background: var(--info-bg); border-radius: var(--radius-card); font-size: .9375rem; }
+ol.preguntas-enviadas { margin: 0; padding-left: 1.25rem; font-size: .875rem; }
+.que-pasa { margin: 0; padding-left: 1.25rem; display: grid; gap: 4px; }
+.code-panel .acciones { margin-top: 10px; }
+.corregir-cliente, .correo-de-la-t { margin-top: 8px; }
+.act-resumen .faltan { display: block; font-size: .875rem; font-weight: 650; color: var(--muted); }
+.ajustes-apariencia { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ajustes-apariencia strong { flex: 1 0 100%; }
+.ajustes-avanzados { margin-top: 8px; }
+.aviso-motor { margin: 4px 0; }

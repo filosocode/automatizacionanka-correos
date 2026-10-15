@@ -33,6 +33,13 @@ def mode_selector(current: str | None, api_key_set: bool = True) -> Markup:
     return render("mode_selector.html", current=current, labels=labels)
 
 
+_MODO_EN_LLANO = {
+    "local": "Ahora los correos los analiza un programa de este equipo (Ollama).",
+    "api": "Ahora los correos los analiza la API de OpenAI.",
+    "chatgpt_work": "Ahora los correos los analiza ChatGPT Work.",
+}
+
+
 # La marca enlaza a «Mis casos» (U-32) y lleva aria-current en esa página; las demás no marcan nada.
 NAV_ACTUAL = {"Mis casos": "/"}
 
@@ -53,7 +60,9 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
     message = message.lstrip(MARCA_DE_ERROR)
     return str(render(
         "layout.html", title=title, body=body, message=message, message_is_error=es_error, unread_count=unread_count,
-        mode_selector=mode_selector(mode, api_key_set), is_work=(mode == "chatgpt_work"),
+        mode_selector=mode_selector(mode, api_key_set),
+        modo_llano=_MODO_EN_LLANO.get(mode or "", "Todavía no se eligió quién analiza los correos."),
+        is_work=(mode == "chatgpt_work"),
         nav_actual=NAV_ACTUAL.get(title, ""),
     ))
 
@@ -98,6 +107,11 @@ def adjunto_requiere_atencion(item: Mapping[str, Any]) -> bool:
             or _codigo(item.get("coverage")) in {"parcial", "no_legible", "unreadable"})
 
 
+def adjunto_no_se_pudo_leer(item: Mapping[str, Any]) -> bool:
+    """Un adjunto que el programa no pudo abrir (por ejemplo un plano CAD): solo una persona puede verlo (U-40)."""
+    return _codigo(item.get("status")) in _NO_LEIDO or _codigo(item.get("coverage")) in {"no_legible", "unreadable"}
+
+
 def attachments_panel(attachments: Sequence[Mapping[str, Any]]) -> Markup:
     """Los archivos en una línea (U-31): lo que hay que revisar a la vista y lo leído plegado."""
     items = [item for item in attachments if isinstance(item, Mapping)]
@@ -109,7 +123,7 @@ def attachments_panel(attachments: Sequence[Mapping[str, Any]]) -> Markup:
         cuantos = f"{len(items)} archivo{'' if len(items) == 1 else 's'}"
         resumen = f"{cuantos} · {f'{len(atencion)} por revisar' if atencion else 'todos leídos'}"
     filas = [{"nombre": str(item.get("filename") or "Sin nombre"), "atencion": True,
-              "etiqueta": ("No se pudo leer: ábrelo tú" if _codigo(item.get("status")) in _NO_LEIDO
+              "etiqueta": ("No se pudo leer: ábrelo tú o pídele al cliente un PDF" if adjunto_no_se_pudo_leer(item)
                            else "Se leyó solo una parte: revísalo tú"),
               "motivo": str(item.get("reason") or "")} for item in atencion]
     filas += [{"nombre": str(item.get("filename") or "Sin nombre"), "atencion": False, "etiqueta": "Leído",
@@ -336,6 +350,16 @@ MAX_FILAS_VISIBLES = 8
 _ETIQUETA_DEL_ESTADO = {"confirmado": "Completa", "pendiente": "Por completar", "contradictorio": "Contradictoria"}
 
 
+_DATOS_ESENCIALES = (("ubicacion", "ubicación"), ("quantity", "cantidad"), ("unit", "unidad"),
+                     ("entregable", "entregable"), ("plazo_restriccion", "plazo"))
+
+
+def _datos_que_faltan(item: Mapping[str, Any]) -> str:
+    """«ubicación, plazo»: los datos esenciales de la fila (R12) vacíos o «no indicado»; vacío si no falta ninguno."""
+    return ", ".join(nombre for clave, nombre in _DATOS_ESENCIALES
+                     if str(item.get(clave) or "").strip().casefold() in ("", "no indicado"))
+
+
 def _vista_de_actividades(activities: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """La tabla compacta del caso (U-31): actividad, cantidad y estado con su motivo.
 
@@ -348,6 +372,7 @@ def _vista_de_actividades(activities: Sequence[Mapping[str, Any]]) -> list[dict[
             valor for valor in (str(item.get("quantity") or "").strip(), str(item.get("unit") or "").strip())
             if valor and valor.casefold() != "no indicado")
         filas.append({"actividad": str(item.get("activity") or "Sin nombre"), "cantidad": cantidad or "—",
+                      "faltan": "" if estado != "pendiente" else _datos_que_faltan(item),
                       "estado": estado, "etiqueta": _ETIQUETA_DEL_ESTADO[estado], "falta": estado != "confirmado",
                       "motivo": "" if estado == "confirmado" else str(item.get("notes") or "").strip(),
                       "extra": index >= MAX_FILAS_VISIBLES and estado == "confirmado"})
@@ -385,7 +410,7 @@ def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
         base_version=huella_de_tabla(activities) if base_version is None else base_version,
         abierto=abierto, resumen=_resumen_de_actividades(activities), vista=_vista_de_actividades(activities),
         escondidas=sum(1 for fila in _vista_de_actividades(activities) if fila["extra"]), total=len(activities),
-        reasons=reasons or [],
+        reasons=reasons or [], etiquetas_de_estado=_ETIQUETA_DEL_ESTADO,
         sin_cambios=_sin_cambios(ultima),
         hoja={"url": "", "error": "", "tiene_carpeta": False, "actualizada": ""} | dict(hoja or {}),
         headers=[label for _, label in ACTIVITY_COLUMNS],

@@ -41,9 +41,10 @@ class EmisionDeLaT(unittest.TestCase):
         # Cubre: U-09
         html = self._panel()
         primario = html.index("Emitir la T, crear la carpeta y enviar el correo")
-        plegado = html.index("Solo emitir la T")
-        self.assertLess(primario, html.index("Otras opciones"))
-        self.assertGreater(plegado, html.index("<details"))
+        self.assertIn("Solo emitir la T", html)                      # U-40: visible, como botón secundario
+        self.assertEqual(html.count("<button type=\"submit\" data-resumen"), 1)      # una sola acción llena
+        self.assertLess(primario, html.index("Solo emitir la T"))
+        self.assertNotIn("Otras opciones", html)
 
     def test_aviso_de_siguiente_paso_ya_no_queda_fijo(self) -> None:
         # Cubre: U-09, U-31
@@ -181,7 +182,7 @@ class TablaYLenguaje(unittest.TestCase):
     def test_cinco_columnas_visibles_y_los_diez_campos_se_siguen_enviando(self) -> None:
         # Cubre: U-14
         html = str(activities_editor("h1", [self.ACTIVIDAD]))
-        editor = html[html.index('class="act-table"'):]                # la tabla completa, tras «Editar tabla» (U-31)
+        editor = html[html.index('class="act-table"'):]                # la tabla completa, tras «Corregir la tabla» (U-31)
         cabecera = editor[editor.index("<thead"):editor.index("</thead>")]
         self.assertEqual(cabecera.count("<th role="), 6)         # cinco columnas y la de «Quitar»
         for titulo in ("Actividad", "Tipo de servicio", "Cantidad y unidad", "Estado", "Notas"):
@@ -198,7 +199,7 @@ class TablaYLenguaje(unittest.TestCase):
         self.assertIn("name='a0_quantity'", par)
         self.assertIn("name='a0_unit'", par)                                     # juntas, en el mismo contenedor
         self.assertNotIn("<style>", editor)                                      # sus estilos están en style.css (U-28)
-        self.assertIn('id="ajustar-cajas"', editor)                              # y hay vuelta al tamaño automático
+        self.assertNotIn('id="ajustar-cajas"', editor)                           # sin botón: las cajas se ajustan solas (U-40)
         self.assertIn('role="row"', editor)                                      # la cuadrícula conserva la semántica de tabla
         css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
         css = css[css.index("/* Tabla de actividades"):]                         # el bloque de la tabla
@@ -212,12 +213,11 @@ class TablaYLenguaje(unittest.TestCase):
         self.assertNotIn("height: 68px", css)                                    # ni alturas distintas por columna
         self.assertNotIn("width: 29%", css)                                      # ni una columna más ancha que otra
 
-    def test_el_script_iguala_la_fila_al_arrastrar_la_esquina_y_puede_volver_al_ajuste(self) -> None:
+    def test_el_script_iguala_la_fila_al_arrastrar_la_esquina(self) -> None:
         # Cubre: U-14
         layout = (RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8")
         for pieza in ("document.querySelector('.act-table')", "new MutationObserver", "attributeFilter: ['style']",
-                      "caja.closest('.act-main, .act-grid')", "c.style.height = alto", "getElementById('ajustar-cajas')",
-                      "c.style.height = ''"):
+                      "caja.closest('.act-main, .act-grid')", "c.style.height = alto"):
             self.assertIn(pieza, layout)
         self.assertEqual(layout.count("<script>"), 2)                             # sin script nuevo: va en el de siempre
 

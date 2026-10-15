@@ -72,13 +72,18 @@ def _dashboard_insights(quotes: Sequence[Mapping[str, Any]], services: Counter, 
 def _notifications_panel(notifications: list[dict], plegar: bool = False) -> Markup:
     if not notifications:
         return Markup("")
-    items = [
+    por_caso: dict[str, list[dict]] = {}
+    for item in notifications:
+        por_caso.setdefault(item["thread_id"], []).append(item)
+    items = [        # una fila por caso (U-40): la novedad más reciente, con cuántas hay
         {
-            "title": item["title"], "project_name": item["project_name"],
-            "message": item["message"], "thread_id": item["thread_id"],
-            "timestamp": item["created_at"][:16].replace("T", " ") if item["created_at"] else "",
+            "title": novedades[0]["title"], "project_name": novedades[0]["project_name"],
+            "message": novedades[0]["message"],
+            "otras": [n["title"] for n in novedades[1:] if n["title"] != novedades[0]["title"]],
+            "thread_id": thread_id,
+            "timestamp": novedades[0]["created_at"][:16].replace("T", " ") if novedades[0]["created_at"] else "",
         }
-        for item in notifications
+        for thread_id, novedades in por_caso.items()
     ]
     return render("notifications_panel.html", items=items, plegar=plegar)
 

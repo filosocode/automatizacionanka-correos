@@ -164,7 +164,7 @@ class ArchivosEnUnaLinea(Base):
         self.assertLess(tabla.index("planos.dwg"), tabla.index("solicitud.pdf"))       # lo que hay que revisar, primero
         fila = tabla.split('<tr class="fila-resumen falta">')[1].split("</tr>")[0]
         self.assertIn("planos.dwg", fila)
-        self.assertIn(">No se pudo leer: ábrelo tú<", fila)
+        self.assertIn(">No se pudo leer: ábrelo tú o pídele al cliente un PDF<", fila)
         self.assertEqual(tabla.count(">Leído<"), 2)
         self.assertIn('<details class="more archivos-detalle">', panel)               # el detalle técnico, a un clic
 
@@ -231,9 +231,9 @@ class TablaDelPrototipo(Base):
         pagina = pantalla_caso.render_case("t-1")
         cabecera = pagina[pagina.index('class="acts-head"'):pagina.index('class="act-resumen"')]
         self.assertIn("<h2>Actividades detectadas</h2>", cabecera)
-        # Botones reales (no casillas ocultas): «Editar tabla» dice si está abierta (U-37)
+        # Botones reales (no casillas ocultas): «Corregir la tabla» dice si está abierta (U-37)
         self.assertIn('<button type="button" class="button secondary" id="agregar-fila" aria-controls="editar-tabla">+ Agregar</button>', cabecera)
-        self.assertIn('id="editar-boton" aria-expanded="false" aria-controls="editar-tabla">Editar tabla</button>', cabecera)
+        self.assertIn('id="editar-boton" aria-expanded="false" aria-controls="editar-tabla">Corregir la tabla</button>', cabecera)
         self.assertNotIn("editar-toggle", pagina)
         self.assertNotIn("toggle-oculto", pagina)
         self.assertNotIn('id="editar-boton" aria-expanded="true"', pagina)     # cerrada al cargar

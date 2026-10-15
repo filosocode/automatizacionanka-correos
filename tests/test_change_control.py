@@ -712,7 +712,8 @@ class UxFixesTests(Base):
         esperando = self._aviso()
         self.assertIn("Esperando al cliente", esperando)
         self.assertIn('href="#seguimiento"', esperando)
-        self.assertIn("Ver seguimiento", esperando)
+        self.assertIn("Nada que hacer", esperando)        # U-40: esperar no es una tarea, no lleva botón
+        self.assertNotIn('class="button"', esperando)
         self.assign()
         sin_carpeta = self._aviso()
         self.assertIn("T26145 · cotizando", sin_carpeta)
