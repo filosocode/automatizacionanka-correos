@@ -13,12 +13,13 @@ from anka.web import server as web
 
 PLANTILLAS = Path(web.__file__).with_name("templates")
 LAYOUT = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+APP = (PLANTILLAS / "app.js").read_text(encoding="utf-8")      # desde U-49 el código vive en un archivo con huella
 CSS = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
 
 
 def _script() -> str:
-    inicio = LAYOUT.index("// <física>")
-    return LAYOUT[inicio:LAYOUT.index("})();", inicio)]
+    inicio = APP.index("// <física>")
+    return APP[inicio:APP.index("})();", inicio)]
 
 
 class NodosDeFondo(unittest.TestCase):
@@ -48,7 +49,8 @@ class NodosDeFondo(unittest.TestCase):
         js = _script()
         for prohibido in ("import ", "fetch(", "XMLHttpRequest", "http://", "https://", "WebSocket", "eval("):
             self.assertNotIn(prohibido, js)
-        self.assertNotRegex(LAYOUT, r"<script[^>]+\bsrc=")
+        self.assertEqual(re.findall(r'<script[^>]+\bsrc="([^"]+)"', LAYOUT),
+                         ["{{ url_del_script('tema') }}", "{{ url_del_script('app') }}"])      # solo los propios, con huella
         self.assertNotRegex(LAYOUT.lower(), r"cdn\.|unpkg|jsdelivr|cdnjs|importscripts")
 
     def test_parametros_del_original(self) -> None:

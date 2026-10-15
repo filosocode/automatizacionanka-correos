@@ -93,11 +93,14 @@ Las acciones con «⚠» actúan de verdad (envían correo, crean carpetas, elim
   o con más de 10.000 campos, `400`.
 - Toda respuesta (páginas, JSON, `303`, `/eventos`; la excepción de `Cache-Control` son los archivos de `/static`, abajo) lleva `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: same-origin`, `Cache-Control: no-store`, `X-Frame-Options: DENY` y una CSP: en las páginas
-  `default-src 'self'` con scripts y estilos en línea (las plantillas los usan; no hay manejadores de eventos en
-  línea), en `/docs` además el CDN de Swagger UI y el `nonce`.
+  `default-src 'self'` con `script-src 'self'` (sin scripts en línea: están en `/static`, U-49) y estilos en línea
+  (un `<noscript><style>` y los anchos de las barras), en `/docs` además el CDN de Swagger UI y el `nonce`.
 - `/static/{archivo}` (U-48) es la única excepción a `no-store`: lleva `ETag` y responde `304` si llega `If-None-Match`; el CSS
-  compartido se llama `style.<huella>.css` (huella del contenido) y es `public, max-age=31536000, immutable`; la fuente y el
-  logo, `public, max-age=86400`. El resto de nombres es `404`.
+  compartido se llama `style.<huella>.css` y los dos guiones `app.<huella>.js` y `tema.<huella>.js` (huella del contenido; U-49):
+  los tres son `public, max-age=31536000, immutable`; la fuente y el logo, `public, max-age=86400`. El resto de nombres es `404`.
+- `GET /` y `GET /requests` buscan y filtran en el servidor sobre todos los casos (U-49): `q` (texto, hasta 200 caracteres),
+  `etapa` (`atender`, `esperando`, `listo`, `cotizando`, `todos`), `mostrar` (filas: 200 por defecto, `Ver más` suma 200) y, solo en
+  `/requests`, `tipo` (tipo de cliente), `orden` (`reciente`, `antigua`, `urgencia`) y `agrupar`. Un valor desconocido se ignora.
 - Si el cliente manda `Accept-Encoding: gzip`, el HTML, el JSON y el CSS de 1 KB o más salen comprimidos (`Content-Encoding: gzip`,
   `Vary: Accept-Encoding`). El JSON de la API es compacto (sin sangrías). El servidor habla HTTP/1.1.
 - Un `500` muestra «Ocurrió un error inesperado» con un **código de error** de 8 caracteres; el detalle está en el

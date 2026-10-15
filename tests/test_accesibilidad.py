@@ -17,7 +17,10 @@ CSS = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
 
 
 def plantilla(nombre: str) -> str:
-    return (PLANTILLAS / nombre).read_text(encoding="utf-8")
+    texto = (PLANTILLAS / nombre).read_text(encoding="utf-8")
+    if nombre == "layout.html":            # el JavaScript vive en archivos con huella (U-49): se busca en todo
+        texto += (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8")
+    return texto
 
 
 class AvanceYElecciones(Base):

@@ -115,13 +115,13 @@ La descripción es la primera frase de su docstring.
 ### `anka/web/`
 
 Los archivos fijos del diseño (fuente Inter y logo) viven en `anka/web/static/` y se sirven por `GET /static/{archivo}` (U-36, D-101).
-El fondo animado de nodos (U-38, D-103) no es un archivo: es un `<canvas>` y un `<script>` en línea en `layout.html`.
+El JavaScript de las páginas vive en `templates/app.js` (el de cada página, con el fondo animado de nodos de U-38/D-103) y `templates/tema.js` (el primer pintado del tema), servidos con huella en `/static` (U-49, D-114); `layout.html` solo los enlaza.
 
 | Módulo | Para qué sirve |
 |---|---|
 | `acciones` | Las acciones de los formularios del dashboard (POST): una función por ruta. |
 | `api` | Representación JSON de los casos para las rutas de lectura `/api/...` (ver spec/07-api.md). |
-| `estaticos` | Archivos fijos de `/static` (fuente, logo y el CSS compartido con huella), `ETag` y compresión gzip de las respuestas (U-48). |
+| `estaticos` | Archivos fijos de `/static` (fuente, logo, el CSS compartido y los dos guiones con huella), `ETag` y compresión gzip de las respuestas (U-48, U-49). |
 | `formularios_pendientes` | Lo que la persona escribió en un formulario que no se pudo procesar, para devolvérselo y que no lo pierda (U-31). |
 | `marcador` | El marcador de cambios que comparten todas las pestañas con avisos en vivo: una consulta por segundo (U-48). |
 | `openapi` | La documentación OpenAPI 3 del dashboard y la página de Swagger UI (spec/07-api.md, requisito T-13). |

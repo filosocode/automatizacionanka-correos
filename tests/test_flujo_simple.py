@@ -197,7 +197,7 @@ class TablaCompacta(Base):
 
     def test_el_motivo_sigue_apareciendo_solo_con_cambios(self) -> None:
         # Cubre: U-40
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("motivo.hidden = !hay;", layout)
 
 
@@ -341,7 +341,7 @@ class AjustesYNovedades(Base):
 
     def test_un_campo_obligatorio_dentro_de_algo_plegado_lo_abre(self) -> None:
         # Cubre: U-40
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("addEventListener('invalid'", layout)
 
 

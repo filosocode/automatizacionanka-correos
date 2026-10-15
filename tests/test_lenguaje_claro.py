@@ -12,6 +12,7 @@ from anka.dominio.status import QuoteStatus
 from anka.servicios import quotes
 from anka.web import acciones, paginas, pantalla_caso
 from anka.web import formularios_pendientes as pendientes
+from tests.js_de_las_paginas import JS
 from tests.test_pantalla_por_pasos import Base
 
 RAIZ = Path(__file__).resolve().parents[1]
@@ -82,7 +83,7 @@ class EncabezadoYAvisos(unittest.TestCase):
 
     def test_los_avisos_de_la_revision_de_correos_no_dicen_puente(self) -> None:
         # Cubre: U-35
-        pagina = paginas.render_page("t", "x", "", 0, "chatgpt_work")
+        pagina = paginas.render_page("t", "x", "", 0, "chatgpt_work") + JS     # los avisos los escribe el guion (U-49)
         for frase in ("Revisión de correos: activa", "Revisión de correos: con avisos", "Revisión de correos: detenida",
                       "Revisión de correos: sin iniciar", "Volver a conectar"):
             with self.subTest(frase=frase):

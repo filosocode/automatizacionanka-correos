@@ -1,8 +1,10 @@
 """Archivos fijos del diseño (`/static/…`) y compresión de las respuestas (U-48).
 
-Solo se sirven los nombres de la lista (nunca una ruta armada con lo que escribe la persona). El CSS compartido se
-publica con la huella de su contenido en el nombre (`/static/style.<huella>.css`): como cambia cuando cambia el CSS,
-el navegador puede guardarlo para siempre y no se repite en cada página. Los demás archivos llevan `ETag`.
+Solo se sirven los nombres de la lista (nunca una ruta armada con lo que escribe la persona). El CSS compartido y los
+dos guiones (`app.js`, el de cada página, y `tema.js`, el primer pintado) se publican con la huella de su contenido en
+el nombre (`/static/style.<huella>.css`, `/static/app.<huella>.js`…): como cambia cuando cambia el archivo, el navegador
+puede guardarlo para siempre y no se repite en cada página (U-49 sacó el JavaScript de las páginas). Los demás
+archivos llevan `ETag`.
 """
 
 from __future__ import annotations
@@ -15,12 +17,17 @@ from pathlib import Path
 
 STATIC_DIR = Path(__file__).with_name("static")
 ESTILO = Path(__file__).with_name("templates") / "style.css"
+# Guiones con huella: nombre corto -> archivo. `tema` va en el <head> sin `defer` (pinta el tema antes del 1.er cuadro).
+GUIONES: dict[str, Path] = {"app": Path(__file__).with_name("templates") / "app.js",
+                            "tema": Path(__file__).with_name("templates") / "tema.js"}
+TIPO_DE_GUION = "text/javascript; charset=utf-8"
 FIJOS: dict[str, str] = {"inter-latin-wght.woff2": "font/woff2", "logo-anka.png": "image/png"}
 CACHE_DE_FIJOS = "public, max-age=86400"
 CACHE_CON_HUELLA = "public, max-age=31536000, immutable"
 
 # Se comprime solo texto y solo si pesa lo bastante para que valga la pena.
-COMPRIMIBLES = ("text/html", "text/css", "application/json", "application/javascript", "image/svg+xml")
+COMPRIMIBLES = ("text/html", "text/css", "text/javascript", "application/json", "application/javascript",
+                "image/svg+xml")
 MINIMO_PARA_COMPRIMIR = 1024
 
 
@@ -63,11 +70,25 @@ def url_del_estilo() -> str:
     return f"/static/{nombre_del_estilo()}"
 
 
+def nombre_del_guion(guion: str) -> str:
+    """`app.<huella>.js` (o `tema.<huella>.js`): el nombre con que se publica ese guion."""
+    return f"{guion}.{_leer(GUIONES[guion])[1]}.js"
+
+
+def url_del_guion(guion: str) -> str:
+    """La dirección de un guion, con la huella de su contenido (la usa el `<script src>` de todas las páginas)."""
+    return f"/static/{nombre_del_guion(guion)}"
+
+
 def buscar(nombre: str) -> Archivo | None:
     """El archivo fijo con ese nombre exacto, o `None` si no está en la lista."""
     if nombre == nombre_del_estilo():
         datos, huella = _leer(ESTILO)
         return Archivo(datos, "text/css; charset=utf-8", f'"{huella}"', CACHE_CON_HUELLA)
+    for guion, ruta in GUIONES.items():
+        if nombre == nombre_del_guion(guion):
+            datos, huella = _leer(ruta)
+            return Archivo(datos, TIPO_DE_GUION, f'"{huella}"', CACHE_CON_HUELLA)
     tipo = FIJOS.get(nombre)
     if tipo is None:
         return None

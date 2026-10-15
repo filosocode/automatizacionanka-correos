@@ -7,6 +7,7 @@ plantillas y el código que ya existía siguen funcionando mientras se migra a a
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import cast, Any
 import json
@@ -33,7 +34,7 @@ class Caso(MapaDeSoloLectura):
     sector: str
     notes: str
     analysis: Analisis
-    reception_assessment: dict
+    reception_assessment: Mapping[str, Any]
     services: list[str]
     first_seen_at: str
     updated_at: str
@@ -195,6 +196,105 @@ def model_proposal(analysis: Analisis) -> list[dict]:
     return changes
 
 
+# --- El resumen de un caso para las listas (U-49): lo que pintan sin leer el análisis completo
+
+VERSION_DEL_RESUMEN = 1
+# Claves del análisis que leen las listas y las fichas de proyecto; el resumen guarda su valor exacto, así que leerlas
+# del resumen da lo mismo que leerlas del análisis. Si una lista empieza a leer otra clave, no se rompe nada (se lee el
+# análisis completo): solo se pierde la ventaja hasta añadirla aquí y subir `VERSION_DEL_RESUMEN`.
+CLAVES_DE_LISTA = ("project_name", "received_at", "routing", "attachments", "preguntas_enviadas")
+
+
+def resumen_de_analisis(analysis: Analisis) -> dict[str, Any]:
+    """Lo que las listas necesitan de un análisis: sus claves de lista (valor exacto), si está vacío y lo derivado
+    que cuesta recorrer actividades (servicios y propuesta del modelo). Es JSON puro, listo para guardarse."""
+    return {
+        "v": VERSION_DEL_RESUMEN,
+        "vacio": not analysis,
+        "claves": {k: v for k, v in cast(Mapping[str, Any], analysis).items() if k in CLAVES_DE_LISTA},
+        "servicios": service_names(analysis),
+        "propuesta": model_proposal(analysis),
+    }
+
+
+class AnalisisPerezoso(Mapping[str, Any]):
+    """El análisis de un caso visto desde una lista: las claves de lista salen del resumen y, solo si alguien pide
+    otra cosa, se lee y se interpreta el análisis completo (una vez). Se comporta como el diccionario de siempre."""
+
+    __slots__ = ("_claves", "_vacio", "_cargar", "_completo")
+
+    def __init__(self, claves: Mapping[str, Any], vacio: bool, cargar: Callable[[], Analisis]) -> None:
+        self._claves = claves
+        self._vacio = vacio
+        self._cargar = cargar
+        self._completo: Analisis | None = None
+
+    @property
+    def cargado(self) -> bool:
+        """¿Ya se leyó el análisis completo? (las pruebas lo usan para comprobar que una lista no lo lee)"""
+        return self._completo is not None
+
+    def _todo(self) -> Analisis:
+        if self._completo is None:
+            self._completo = self._cargar()
+        return self._completo
+
+    def __getitem__(self, clave: str) -> Any:
+        if self._completo is None and clave in CLAVES_DE_LISTA:
+            return self._claves[clave]
+        return cast(Mapping[str, Any], self._todo())[clave]
+
+    def get(self, clave: str, default: Any = None) -> Any:
+        """El valor de la clave, o `default`; las claves de lista salen del resumen sin leer el análisis."""
+        if self._completo is None and clave in CLAVES_DE_LISTA:
+            return self._claves.get(clave, default)
+        return cast(Mapping[str, Any], self._todo()).get(clave, default)
+
+    def __contains__(self, clave: object) -> bool:
+        if self._completo is None and clave in CLAVES_DE_LISTA:
+            return clave in self._claves
+        return clave in self._todo()
+
+    def __bool__(self) -> bool:
+        return not self._vacio if self._completo is None else bool(self._completo)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._todo())
+
+    def __len__(self) -> int:
+        return len(self._todo())
+
+    def __repr__(self) -> str:
+        return repr(self._todo())
+
+
+class EvaluacionPerezosa(Mapping[str, Any]):
+    """La evaluación de recepción de un caso de una lista: se calcula la primera vez que alguien la mira."""
+
+    __slots__ = ("_calcular", "_valor")
+
+    def __init__(self, calcular: Callable[[], dict]) -> None:
+        self._calcular = calcular
+        self._valor: dict | None = None
+
+    def _todo(self) -> dict:
+        if self._valor is None:
+            self._valor = self._calcular()
+        return self._valor
+
+    def __getitem__(self, clave: str) -> Any:
+        return self._todo()[clave]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._todo())
+
+    def __len__(self) -> int:
+        return len(self._todo())
+
+    def __repr__(self) -> str:
+        return repr(self._todo())
+
+
 def combine_activities(current: list[Actividad], incoming: list[Actividad]) -> list[Actividad]:
     """La tabla vigente más lo que trae otro análisis: actualiza las actividades de igual nombre y agrega las nuevas.
 
@@ -224,7 +324,7 @@ def waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None, sin
     return sent_at
 
 
-def status_label(status: Any, assessment: dict) -> str:
+def status_label(status: Any, assessment: Mapping[str, Any]) -> str:
     """El nombre del estado, el mismo en la insignia, la lista y los pasos (U-31, D-86).
 
     Sale del estado del flujo y no de la evaluación de recepción: así nunca contradice a la tarjeta «Ahora».

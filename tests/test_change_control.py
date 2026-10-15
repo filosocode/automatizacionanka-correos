@@ -1,6 +1,7 @@
 """Código de la oferta (T / T&E), control de cambios y evidencia del historial."""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.js_de_las_paginas import JS
 
 import base64
 import json
@@ -734,7 +735,7 @@ class UxFixesTests(Base):
         css = (base / "style.css").read_text(encoding="utf-8")
         self.assertFalse([linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea])
         self.assertNotIn(":has(~ .ahora)", css)                              # ya no se esconde por CSS (U-31.18)
-        layout = (base / "layout.html").read_text(encoding="utf-8")
+        layout = ((base / "layout.html").read_text(encoding="utf-8") + (base / "app.js").read_text(encoding="utf-8") + (base / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("'--header-h'", layout)
         self.assertIn("addEventListener('resize', medirEncabezado)", layout)
 
@@ -749,7 +750,7 @@ class UxFixesTests(Base):
         self.assertGreater(validada.index("<h2>Respuesta al cliente</h2>"), validada.index('class="more respuesta-plegada"'))   # sigue ahí, plegado
         self.assign()
         self.assertIn('<details class="more respuesta-plegada" id="respuesta">', self._pagina())
-        self.assertIn("destino.open = true", (Path(__file__).resolve().parents[1] / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8"))
+        self.assertIn("destino.open = true", (Path(__file__).resolve().parents[1] / "anka" / "web" / "templates" / "app.js").read_text(encoding="utf-8"))
 
     # 3. historial citado plegado
     def test_quoted_history_is_split_from_the_new_message(self):
@@ -848,11 +849,8 @@ class DoubleSendTests(Base):
         self.assertEqual(box.split(">", 1)[1].strip(), "")
 
     def test_the_send_button_blocks_itself_after_the_first_click(self):
-        from anka.web.views import render_page
-        page = render_page("t", "x", "", 0, "chatgpt_work")
-        self.assertIn("Enviando", page)
-        self.assertIn("'/send': 'Enviando…'", page)
-        self.assertIn("sender.disabled = true", page)
+        self.assertIn("'/send': 'Enviando…'", JS)
+        self.assertIn("sender.disabled = true", JS)
 
 
 # Cubre: T-05, R13, F1-06

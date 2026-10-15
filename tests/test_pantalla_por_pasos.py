@@ -6,6 +6,8 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+
+from tests.js_de_las_paginas import JS
 from unittest.mock import patch
 
 from anka.dominio.status import QuoteStatus
@@ -554,7 +556,7 @@ class CorreoAmigable(Base):
         # Cubre: U-31
         pagina = self.correo()
         self.assertIn('id="caja-esperar"', pagina)
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("cajaEsperar.hidden = n > 0", layout)
 
     def test_cambiaste_de_idea_es_una_linea_discreta(self) -> None:
@@ -712,7 +714,7 @@ class PaginaPrincipalEsLaLista(Base):
         for etiqueta in ("Por atender", "Esperando al cliente", "Listas para la T", "Con código de oferta"):
             self.assertIn(etiqueta, chips)
         self.assertRegex(chips, r'data-etapa="" aria-pressed="false">Todos <b>1</b>')
-        self.assertIn('data-inicial="atender"', chips)
+        self.assertRegex(chips, r'value="atender" class="chip-filter" data-etapa="atender" aria-pressed="true">Por atender')
 
     def test_sin_casos_por_atender_entra_en_todos(self) -> None:
         # Cubre: U-32
@@ -723,7 +725,7 @@ class PaginaPrincipalEsLaLista(Base):
                    (datetime.now().astimezone().isoformat(timespec="seconds"),))
         db.commit()
         db.close()
-        self.assertIn('data-inicial=""', self.lista())
+        self.assertRegex(self.lista(), r'data-etapa="" aria-pressed="true">Todos')      # sin nada que atender entra en «Todos»
 
     def test_el_orden_va_del_mas_urgente_al_menos(self) -> None:
         # Cubre: U-32
@@ -735,9 +737,9 @@ class PaginaPrincipalEsLaLista(Base):
 
     def test_el_script_filtra_por_etapa_y_avisa_si_no_hay(self) -> None:
         # Cubre: U-32
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
-        for pieza in ("[data-filtro-etapas]", "fila.dataset.etapa === etapa", "getElementById('sin-casos')", "chips.dataset.inicial"):
-            self.assertIn(pieza, layout)
+        # Desde U-49 la etapa la filtra el servidor (chips que envían el formulario); el script solo afina lo escrito.
+        for pieza in ("getElementById('sin-casos')", "fila.dataset.search"):
+            self.assertIn(pieza, JS)
         self.assertIn(".queue-row[hidden]", (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
 
     def test_buscar_o_exportar_y_el_aviso_de_work_siguen_en_la_pagina(self) -> None:
@@ -761,9 +763,8 @@ class UnaSolaListaEnElCamino(Base):
         self.assertIn('data-search="', fila)
         self.assertIn("parque solar llanos", fila)
         self.assertIn("cliente", fila)
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
-        for pieza in ("getElementById('buscar-casos')", "fila.dataset.search", "buscador.addEventListener('input', aplicar)"):
-            self.assertIn(pieza, layout)
+        for pieza in ("getElementById('buscar-casos')", "fila.dataset.search", "buscador.addEventListener('input'"):
+            self.assertIn(pieza, JS)
 
     def test_ajustes_lleva_a_administrar_casos_que_trae_el_regreso(self) -> None:
         # Cubre: U-32
@@ -799,7 +800,7 @@ class MisCasos(Base):
         self.assertIn("2 con novedades", marca)
         self.assertIn("<span class='nav-count'>2</span>", marca)
         self.assertIn("<title>(2) Mis casos - Anka</title>", html)
-        self.assertIn("document.querySelector('.brand .nav-count')", html)
+        self.assertIn("document.querySelector('.brand .nav-count')", JS)
 
     def test_lo_raro_queda_fuera_del_camino(self) -> None:
         # Cubre: U-32
@@ -883,7 +884,7 @@ class SeguridadDelUsuario(Base):
 
     def test_el_script_protege_el_doble_envio_el_salir_con_lo_escrito_y_agregar(self) -> None:
         # Cubre: U-31
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         for pieza in ("dataset.enviando", "beforeunload", "cuerpo.defaultValue", "history.replaceState",
                       "searchParams.delete('message')", "getElementById('agregar-fila')", "abrirEditor(true)"):
             self.assertIn(pieza, layout)
@@ -928,7 +929,7 @@ class TablaAccesible(Base):
         self.assertIn("<div class='notice error' role=\"alert\">", caso)
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
         self.assertIn("scroll-padding-top: calc(var(--header-h, 0px) + 12px)", css)
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("mensaje.focus({preventScroll: true})", layout)
 
 
@@ -1028,7 +1029,7 @@ class Pestanas(Base):
 
     def test_el_script_abre_la_pestana_de_un_enlace_y_responde_a_las_flechas(self) -> None:
         # Cubre: U-31
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         for pieza in ("data-tabs", "ArrowRight", "closest('[role=\"tabpanel\"]')", "hashchange"):
             self.assertIn(pieza, layout)
 

@@ -1,4 +1,8 @@
-"""Todo <script> de las páginas renderizadas pasa `node --check` (si hay Node): un error de sintaxis no pasa desapercibido.
+"""Todo JavaScript de las páginas pasa `node --check` (si hay Node): un error de sintaxis no pasa desapercibido.
+
+Desde U-49 las páginas no llevan scripts en línea: el código vive en `templates/app.js` y `templates/tema.js` (se sirven
+con huella en `/static`). Se revisan esos archivos y, por si vuelve a aparecer uno en línea, también los `<script>` de las
+páginas renderizadas.
 
 El commit 5d9dca3 dejó en `layout.html` una expresión regular con saltos de línea literales; el navegador descartó el segundo
 script entero y ninguna prueba lo notó, porque el HTML se comparaba como texto. Esta prueba lo habría detectado.
@@ -20,7 +24,7 @@ from unittest.mock import patch
 from anka.cli import work_sync as sync
 from anka.infra import settings, work_heartbeat
 from anka.servicios import work_import
-from anka.web import paginas, pantalla_caso
+from anka.web import estaticos, paginas, pantalla_caso
 from tests.test_app import test_config
 from tests.test_html_render import Pages
 from tests.test_puente_determinista import GmailConHilos, borrador_sin_json, recibido
@@ -97,15 +101,27 @@ class ScriptsDeLasPaginas(Pages):
         for nombre, pagina in {**self.pages, **self.extra}.items():
             for extension, codigo in scripts_de(pagina):
                 unicos.setdefault(hashlib.sha256(codigo.encode()).hexdigest() + extension, (nombre, extension, codigo))
-        self.assertGreaterEqual(len(unicos), 2, "No se encontró ningún script: la comprobación no comprueba nada")
+        # Desde U-49 no debería haber ninguno en línea (ver la prueba de los guiones estáticos); si vuelve a aparecer, se revisa.
         for huella, (nombre, extension, codigo) in unicos.items():
             with self.subTest(pagina=nombre, script=huella[:10]):
                 self.assertEqual(revisar(codigo, extension), "")
 
-    def test_el_layout_trae_los_dos_scripts_de_siempre(self) -> None:
-        # Cubre: U-41
-        scripts = scripts_de(self.pages["index"])
-        self.assertGreaterEqual(len(scripts), 2)        # el del tema y el del cuerpo; si baja, algo se rompió al renderizar
+    def test_los_guiones_estaticos_tienen_sintaxis_valida(self) -> None:
+        # Cubre: U-49
+        for guion, ruta in estaticos.GUIONES.items():
+            with self.subTest(guion=guion):
+                self.assertTrue(ruta.exists())
+                self.assertEqual(revisar(ruta.read_text(encoding="utf-8")), "")
+
+    def test_las_paginas_cargan_los_guiones_con_huella_y_ninguno_en_linea(self) -> None:
+        # Cubre: U-49
+        for nombre, pagina in {**self.pages, **self.extra}.items():
+            with self.subTest(pagina=nombre):
+                self.assertEqual(scripts_de(pagina), [], "ninguna página lleva JavaScript en línea")
+        indice = self.pages["index"]
+        self.assertIn(f'<script src="{estaticos.url_del_guion("tema")}"></script>', indice)
+        self.assertIn(f'<script src="{estaticos.url_del_guion("app")}" defer></script>', indice)
+        self.assertLess(len(indice), 100_000, "la página ya no repite el JavaScript")
 
 
 if __name__ == "__main__":

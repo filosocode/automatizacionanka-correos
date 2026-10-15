@@ -12,7 +12,7 @@ from typing import Any
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 import os
-from urllib.parse import quote as url_quote
+from urllib.parse import quote as url_quote, urlencode
 from markupsafe import Markup
 from anka.dominio.preguntas import era_un_acuse
 from anka.dominio.errores import ErrorDeAnka
@@ -141,9 +141,7 @@ def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False, mis
     code = quote.get("quote_code")
     return render(
         "queue_row.html", position=position, is_new=is_new, mismos=mismos, etapa=grupo_de_etapa(quote),
-        busqueda=" ".join([str(quote["analysis"].get("project_name") or ""), str(quote["client_name"] or ""),
-                           str(code_label(code, quote.get("code_stage") or "T") if code else ""),
-                           *[str(servicio) for servicio in quote.get("services", [])]]).casefold(),
+        busqueda=_busqueda_de_cola(quote),
         primaria=position == 1 and bool(case_stage(quote)[1]),
         project=quote["analysis"].get("project_name") or "Solicitud sin nombre",
         client_name=quote["client_name"], reason=case_stage(quote)[0], verb=verb,
@@ -169,20 +167,45 @@ def _work_rejected_panel() -> Markup:
     return render("work_rejected.html", items=items, alerta=alerta) if items or alerta else Markup("")
 
 
+MAX_BUSQUEDA = 200      # largo máximo de lo que se busca (U-49)
 POR_PAGINA = 200      # filas que se muestran de una vez en las listas; «Ver más» agrega otras tantas (U-48)
 
 
-def _pagina(total: int, mostrar: int, ruta: str, extra: str = "") -> Markup:
+def _pagina(total: int, mostrar: int, ruta: str, filtros: Mapping[str, str] | None = None) -> Markup:
     """El pie «Se muestran 200 de 500… Ver 200 más» de una lista larga; vacío si todas caben (U-48).
 
     `mostrar` es cuántas filas se piden (la dirección guarda `?mostrar=N`): al pedir más se vuelve a mostrar todo lo
-    anterior, para que la búsqueda, el orden y los filtros de la página sigan viendo lo que ya se cargó."""
+    anterior. `total` son las filas que cumplen la búsqueda y los filtros (U-49): el enlace los conserva."""
     mostrar = max(POR_PAGINA, mostrar)
     if total <= mostrar:
         return Markup("")
     siguiente = mostrar + POR_PAGINA
+    consulta = urlencode({**{k: v for k, v in (filtros or {}).items() if v}, "mostrar": siguiente})
     return render("ver_mas.html", mostradas=mostrar, total=total, proximas=min(POR_PAGINA, total - mostrar),
-                  href=f"{ruta}?{extra}mostrar={siguiente}")
+                  href=f"{ruta}?{consulta}")
+
+
+# --- Búsqueda y filtros en el servidor (U-49): miran todos los casos, no solo las filas que se muestran
+def _etapa_valida(etapa: str | None) -> str | None:
+    """La etapa pedida: una de `ETAPAS_FILTRO`, «» para todas (`todos` o algo desconocido) o `None` si no pidió."""
+    if etapa is None:
+        return None
+    return etapa if etapa in dict(ETAPAS_FILTRO) else ""
+
+
+def _busqueda_de_cola(quote: Mapping[str, Any]) -> str:
+    """El texto en que busca «Mis casos»: proyecto, cliente, código y servicios, sin mayúsculas."""
+    code = quote.get("quote_code")
+    return " ".join([str(quote["analysis"].get("project_name") or ""), str(quote["client_name"] or ""),
+                     str(code_label(code, quote.get("code_stage") or "T") if code else ""),
+                     *[str(servicio) for servicio in quote.get("services", [])]]).casefold()
+
+
+def _busqueda_de_fila(quote: Mapping[str, Any]) -> str:
+    """El texto en que busca «Administrar casos»: proyecto, cliente y servicios, sin mayúsculas."""
+    project = quote["analysis"].get("project_name") or "Solicitud sin nombre"
+    services = ", ".join(quote["services"]) or "Servicio por clasificar"
+    return (project + " " + quote["client_name"] + " " + services).casefold()
 
 
 def _grupos(quotes: Sequence[Mapping[str, Any]]) -> list[Grupo]:
@@ -190,8 +213,11 @@ def _grupos(quotes: Sequence[Mapping[str, Any]]) -> list[Grupo]:
     return agrupar_solicitudes(quotes, separated_project_pairs(), change_marker())
 
 
-def render_index(message: str = "", mostrar: int = POR_PAGINA) -> str:
-    """«Mis casos» (U-32): la lista de todos los casos, del más urgente al menos, con novedades y estadísticas."""
+def render_index(message: str = "", mostrar: int = POR_PAGINA, q: str = "", etapa: str | None = None) -> str:
+    """«Mis casos» (U-32): la lista de todos los casos, del más urgente al menos, con novedades y estadísticas.
+
+    `q` y `etapa` buscan y filtran entre todos los casos en el servidor (U-49); sin `etapa`, entra en «Por atender»
+    si hay algo que atender."""
     quotes = all_quotes()
     notifications = unread_notifications(8)
     unread_threads = {item["thread_id"] for item in notifications}
@@ -201,12 +227,20 @@ def render_index(message: str = "", mostrar: int = POR_PAGINA) -> str:
     grupo_de = {q["thread_id"]: g for g in _grupos(quotes) for q in g.miembros}
     por_atender = cola_de_hoy(quotes)
     resto = sorted((q for q in quotes if not case_stage(q)[1]), key=lambda q: -fecha_de_recepcion(q))
-    unidades: list[tuple[Mapping[str, Any], Grupo]] = []
-    for q in por_atender + resto:                       # un proyecto ocupa una sola fila: la de su hilo más urgente
-        if all(grupo_de[q["thread_id"]] is not g for _, g in unidades):
-            unidades.append((q, grupo_de[q["thread_id"]]))
+    todas: list[tuple[Mapping[str, Any], Grupo]] = []
+    for caso in por_atender + resto:                    # un proyecto ocupa una sola fila: la de su hilo más urgente
+        if all(grupo_de[caso["thread_id"]] is not g for _, g in todas):
+            todas.append((caso, grupo_de[caso["thread_id"]]))
+    elegida = _etapa_valida(etapa)
+    if elegida is None:
+        elegida = "atender" if por_atender else ""
+    q = q[:MAX_BUSQUEDA]
+    termino = q.strip().casefold()
+    unidades = [(u, g) for u, g in todas
+                if (not elegida or grupo_de_etapa(u) == elegida) and (not termino or termino in _busqueda_de_cola(u))]
     visibles = unidades[:max(POR_PAGINA, mostrar)]
-    en_lista = {m["thread_id"] for _, g in visibles for m in g.miembros}
+    # «ya están en tu lista» se refiere a la lista entera, no a lo que dejó pasar el filtro de esta vez
+    en_lista = {m["thread_id"] for _, g in todas[:max(POR_PAGINA, mostrar)] for m in g.miembros}
     body = render(
         "index.html",
         sync_text=sync_status_text(),
@@ -215,9 +249,9 @@ def render_index(message: str = "", mostrar: int = POR_PAGINA) -> str:
             item["thread_id"] in en_lista for item in notifications)),
         total=len(quotes),
         unique_clients=len({q["client_email"].casefold() for q in quotes if q["client_email"]}),
-        action_count=sum(1 for q, _ in unidades if case_stage(q)[1]),
+        action_count=sum(1 for caso, _ in todas if case_stage(caso)[1]),
         etapas=[(key, label, sum(grupo_de_etapa(q) == key for q in quotes)) for key, label in ETAPAS_FILTRO],
-        inicial="atender" if por_atender else "",
+        etapa_actual=elegida, busqueda=q.strip(), coinciden=len(unidades),
         waiting=sum(stages[q["thread_id"]][0] == "Esperando al cliente" for q in quotes),
         quoting=sum(bool(q.get("quote_code")) and q.get("code_stage") != "TE" for q in quotes),
         approved=sum(q.get("code_stage") == "TE" for q in quotes),
@@ -227,7 +261,7 @@ def render_index(message: str = "", mostrar: int = POR_PAGINA) -> str:
         insights=_dashboard_insights(quotes, services, clients),
         todo=[queue_row(q, n, q["thread_id"] in unread_threads, mismos=len(g.miembros) - 1)
               for n, (q, g) in enumerate(visibles, 1)],
-        ver_mas=_pagina(len(unidades), mostrar, "/"),
+        ver_mas=_pagina(len(unidades), mostrar, "/", {"q": q.strip(), "etapa": elegida or "todos"}),
     )
     return page("Mis casos", body, message)
 
@@ -241,7 +275,7 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
     return render(
         "quote_row.html",
         project=project, services=services, is_new=is_new, selectable=selectable,
-        search=(project + " " + quote["client_name"] + " " + services).casefold(),
+        search=_busqueda_de_fila(quote),
         status=quote["status"], client_type=quote["client_type"],
         client_name=quote["client_name"], sector=quote["sector"],
         badge_class="warn" if case_stage(quote)[1] else "info",
@@ -319,8 +353,29 @@ def _unidad_de_lista(grupo: Grupo, unread_threads: set[str]) -> Markup:
         urgencia=min(urgencia_de_caso(q) for q in hilos), proyecto=hilos[0]["analysis"].get("project_name") or "")
 
 
-def render_requests(message: str = "", agrupar_hilos: bool = True, mostrar: int = POR_PAGINA) -> str:
-    """Lista de todas las solicitudes, la más reciente primero; en el navegador se puede reordenar."""
+ORDENES = ("reciente", "antigua", "urgencia")
+
+
+def _ordenar_grupos(grupos: list[Grupo], orden: str) -> list[Grupo]:
+    """Los grupos por «más recientes primero» (por defecto), «más antiguas primero» o «más urgentes primero».
+
+    Lo mismo que hacía la página en el navegador: un grupo cuenta con su correo más reciente y su urgencia mínima;
+    lo que no tiene fecha queda al final en cualquier orden por fecha y, a igual clave, se conserva el orden previo."""
+    def fecha(g: Grupo) -> int:
+        return int(max(fecha_de_recepcion(q) for q in g.miembros))
+
+    por_fecha = sorted(grupos, key=lambda g: -max(fecha_de_recepcion(q) for q in g.miembros))
+    if orden == "antigua":
+        return sorted(por_fecha, key=lambda g: (fecha(g) == 0, fecha(g)))
+    if orden == "urgencia":
+        return sorted(por_fecha, key=lambda g: min(urgencia_de_caso(q) for q in g.miembros))
+    return por_fecha
+
+
+def render_requests(message: str = "", agrupar_hilos: bool = True, mostrar: int = POR_PAGINA, q: str = "",
+                    etapa: str | None = None, tipo: str = "", orden: str = "reciente") -> str:
+    """Lista de todas las solicitudes, la más reciente primero. La búsqueda, la etapa, el tipo de cliente y el orden se
+    aplican en el servidor a todos los casos (U-49)."""
     quotes = all_quotes()
     unread_threads = {item["thread_id"] for item in unread_notifications(100)}
     pending_links = [
@@ -333,16 +388,35 @@ def render_requests(message: str = "", agrupar_hilos: bool = True, mostrar: int 
     grupos = _grupos(quotes)
     hay_grupos = any(len(g.miembros) > 1 for g in grupos)
     if not agrupar_hilos:
-        grupos = [Grupo((q,)) for q in quotes]
-    grupos = sorted(grupos, key=lambda g: -max(fecha_de_recepcion(q) for q in g.miembros))
+        grupos = [Grupo((caso,)) for caso in quotes]
+    elegida = _etapa_valida(etapa) or ""
+    tipo = tipo if tipo in CLIENT_TYPES else ""
+    orden = orden if orden in ORDENES else "reciente"
+    q = q[:MAX_BUSQUEDA]
+    termino = q.strip().casefold()
+    if elegida or tipo or termino:               # de cada grupo quedan los correos que cumplen lo pedido
+        filtrados = []
+        for g in grupos:
+            miembros = tuple(m for m in g.miembros
+                             if (not elegida or grupo_de_etapa(m) == elegida) and (not tipo or m["client_type"] == tipo)
+                             and (not termino or termino in _busqueda_de_fila(m)))
+            if miembros:
+                filtrados.append(Grupo(miembros, g.motivo))
+        grupos = filtrados
+    grupos = _ordenar_grupos(grupos, orden)
+    filtros = {"q": q.strip(), "etapa": elegida, "tipo": tipo, "orden": "" if orden == "reciente" else orden}
+    activos = {k: v for k, v in filtros.items() if v}
     body = render(
         "requests.html",
         rows=[_unidad_de_lista(g, unread_threads) for g in grupos[:max(POR_PAGINA, mostrar)]],
-        ver_mas=_pagina(len(grupos), mostrar, "/requests", "" if agrupar_hilos else "agrupar=0&"),
+        ver_mas=_pagina(len(grupos), mostrar, "/requests", {**filtros, "agrupar": "" if agrupar_hilos else "0"}),
         hay_grupos=hay_grupos, agrupado=agrupar_hilos,
         pending_links=pending_links,
-        etapas=[(key, label, sum(grupo_de_etapa(q) == key for q in quotes)) for key, label in ETAPAS_FILTRO],
-        type_options=CLIENT_TYPES,
+        etapas=[(key, label, sum(grupo_de_etapa(caso) == key for caso in quotes)) for key, label in ETAPAS_FILTRO],
+        type_options=CLIENT_TYPES, busqueda=q.strip(), etapa_actual=elegida, tipo_actual=tipo, orden_actual=orden,
+        coinciden=len(grupos), total_casos=len(quotes),
+        sin_agrupar_href="/requests?" + urlencode({**activos, "agrupar": "0"}),
+        agrupar_href="/requests" + (("?" + urlencode(activos)) if activos else ""),
     )
     return page("Administrar casos", body, message)
 

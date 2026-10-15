@@ -138,7 +138,7 @@ class ElDetectorNoConfundeFrases(unittest.TestCase):
         self.assertTrue(incluye_mensaje_citado("Hola\nOn Mon, 5 Oct 2026, Ana wrote:\n> x"))
 
     def test_el_dialogo_de_envio_y_de_emision_avisan_sin_recortar(self) -> None:
-        layout = (Path(__file__).resolve().parents[1] / "anka" / "web" / "templates" / "layout.html").read_text(
+        layout = (Path(__file__).resolve().parents[1] / "anka" / "web" / "templates" / "app.js").read_text(
             encoding="utf-8")
         self.assertIn("Tu respuesta incluye un mensaje citado. ¿Enviar así?", layout)
         self.assertEqual(layout.count("return avisoDeCita(boton, filas)"), 2)

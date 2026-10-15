@@ -196,7 +196,8 @@ class Canonical(HTMLParser):
 def canonical(html_text: str) -> Canonical:
     parser = Canonical()
     # La huella del CSS cambia con cada retoque de estilo; las instantáneas no deben cambiar por eso (U-48).
-    parser.feed(re.sub(r"/static/style\.[0-9a-f]{12}\.css", "/static/style.HUELLA.css", html_text))
+    sin_huella = re.sub(r"/static/(style|app|tema)\.[0-9a-f]{12}\.(css|js)", r"/static/\1.HUELLA.\2", html_text)
+    parser.feed(sin_huella)
     parser.close()
     return parser
 
@@ -262,9 +263,9 @@ class InjectionTests(Pages):
         safe = [canonical(self.pages[name]) for name in baseline_pages]
         allowed_tags = set().union(*(p.tags for p in safe)) | {"pre", "ol", "ul", "li", "small", "fieldset", "legend", "noscript"}
         allowed_attrs = set().union(*(p.attrs for p in safe))
-        # Scripts propios: el del tema (en el encabezado, antes de pintar), el de confirmación en toda página
-        # y el de filtros en /requests.
-        legit_scripts = {name: 3 if name == "requests" else 2 for name in self.pages}
+        # Scripts propios, los dos con `src` y huella (U-49): el del tema (en el encabezado, antes de pintar) y el de la
+        # página (`defer`). Ninguna página lleva JavaScript en línea.
+        legit_scripts = {name: 2 for name in self.pages}
         for name, page in self.pages.items():
             parsed = canonical(page)
             with self.subTest(page=name):

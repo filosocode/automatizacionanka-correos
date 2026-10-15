@@ -1,6 +1,7 @@
 """El dashboard se actualiza solo y el puente atiende «Buscar correos nuevos». Cubre: U-23, T-30"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.js_de_las_paginas import JS
 
 import io
 import tempfile
@@ -110,9 +111,8 @@ class AvisosDelServidor(unittest.TestCase):
         # Cubre: U-23
         self.assertIn("/eventos", web.GET_ROUTES)
         self.assertIn("/eventos", web.STREAM_ROUTES)
-        pagina = render_page("t", "x", "", 0, "chatgpt_work")
-        self.assertIn("new EventSource('/eventos')", pagina)
-        self.assertIn("setInterval(poll", pagina)                   # la consulta periódica sigue de respaldo
+        self.assertIn("new EventSource('/eventos')", JS)
+        self.assertIn("setInterval(poll", JS)                   # la consulta periódica sigue de respaldo
 
 
 class RevisarAhora(unittest.TestCase):

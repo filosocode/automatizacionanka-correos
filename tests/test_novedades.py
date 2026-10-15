@@ -1,6 +1,7 @@
 """Novedades: qué cuenta, cuándo se leen y cómo avisan. Cubre: U-25"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.js_de_las_paginas import JS
 
 import io
 import tempfile
@@ -166,11 +167,8 @@ class ComoAvisa(Base):
         self.assertEqual(respuesta["json"]["sin_leer"], 1)
 
     def test_the_page_script_updates_the_title_asks_permission_and_marks_seen_only_when_visible(self):
-        pagina = render_page("t", "x", "", 0, "local")
-        self.assertIn("document.title", pagina)
-        self.assertIn("Notification.requestPermission", pagina)
-        self.assertIn("new Notification(", pagina)
-        self.assertIn("visibilityState", pagina)
+        for pieza in ("document.title", "Notification.requestPermission", "new Notification(", "visibilityState"):
+            self.assertIn(pieza, JS)
 
     def test_the_browser_alert_is_opt_in_and_hidden_when_already_decided(self):
         pagina = render_page("t", "x", "", 0, "local")

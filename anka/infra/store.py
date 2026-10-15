@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from anka.dominio.analisis import Analisis
+from anka.dominio.caso import VERSION_DEL_RESUMEN, load_analysis, resumen_de_analisis
 from anka.dominio.status import QuoteStatus, sql_in
 from anka.infra import settings
 
@@ -316,6 +317,51 @@ def _migration_17_indices(db: sqlite3.Connection) -> None:
         db.execute(sentencia)
 
 
+def resumenes_pendientes(db: sqlite3.Connection) -> dict[str, tuple[str, dict[str, Any]]]:
+    """Los casos sin resumen para las listas (o con uno de una versión anterior): `{hilo: (análisis, resumen)}` (U-49).
+
+    Solo lee: devuelve también el análisis con que se calculó, para guardar el resumen solo si no cambió."""
+    pendientes = {}
+    for fila in db.execute("SELECT thread_id, analysis_json FROM quotes "
+                           "WHERE resumen_json IS NULL OR resumen_v IS NOT ?", (VERSION_DEL_RESUMEN,)).fetchall():
+        texto = fila["analysis_json"]
+        pendientes[fila["thread_id"]] = (texto, resumen_de_analisis(load_analysis(texto)))
+    return pendientes
+
+
+def guardar_resumenes(db: sqlite3.Connection, pendientes: dict[str, tuple[str, dict[str, Any]]]) -> int:
+    """Guarda los resúmenes calculados; un caso cuyo análisis cambió mientras tanto se deja para la próxima (U-49).
+
+    Quien llama ya tiene el candado de escritura. Devuelve cuántos guardó."""
+    guardados = 0
+    for hilo, (texto, resumen) in pendientes.items():
+        guardados += db.execute(
+            "UPDATE quotes SET resumen_json=?, resumen_v=? WHERE thread_id=? AND analysis_json=?",
+            (json.dumps(resumen, ensure_ascii=False, separators=(",", ":")), VERSION_DEL_RESUMEN, hilo, texto),
+        ).rowcount
+    return guardados
+
+
+def _migration_18_resumen_de_casos(db: sqlite3.Connection) -> None:
+    """Resumen de cada caso para las listas, sin tocar su análisis (U-49).
+
+    Dos columnas nuevas (`resumen_json`, `resumen_v`), un disparador que borra el resumen cuando cambia
+    `analysis_json` (así nunca queda uno viejo, lo escriba quien lo escriba) y el relleno de los casos que ya existen.
+    Idempotente: las columnas y el disparador solo se crean si faltan, y el relleno solo toca casos sin resumen."""
+    existentes = {fila["name"] for fila in db.execute("PRAGMA table_info(quotes)").fetchall()}
+    if "resumen_json" not in existentes:
+        db.execute("ALTER TABLE quotes ADD COLUMN resumen_json TEXT")
+    if "resumen_v" not in existentes:
+        db.execute("ALTER TABLE quotes ADD COLUMN resumen_v INTEGER")
+    db.execute("""CREATE TRIGGER IF NOT EXISTS trg_quotes_resumen_vencido
+                  AFTER UPDATE OF analysis_json ON quotes
+                  WHEN NEW.analysis_json IS NOT OLD.analysis_json
+                  BEGIN
+                      UPDATE quotes SET resumen_json = NULL, resumen_v = NULL WHERE thread_id = NEW.thread_id;
+                  END""")
+    guardar_resumenes(db, resumenes_pendientes(db))
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -336,6 +382,7 @@ MIGRATIONS = (
     _migration_15_work_rejections,
     _migration_16_orphan_metadata,
     _migration_17_indices,
+    _migration_18_resumen_de_casos,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

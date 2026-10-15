@@ -14,21 +14,26 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import datetime
-from typing import NamedTuple, Any
+from typing import NamedTuple, Any, cast
 from uuid import uuid4
 
+from anka.dominio.analisis import Analisis
 from anka.dominio.preguntas import era_un_acuse
 from anka.dominio.caso import (
-    Caso, load_analysis, model_proposal, service_names, status_label, unanalyzed_reply, waiting_since,
+    VERSION_DEL_RESUMEN, AnalisisPerezoso, Caso, EvaluacionPerezosa, load_analysis, model_proposal, service_names,
+    status_label, unanalyzed_reply, waiting_since,
 )
 from anka.dominio.reception import reception_assessment
 from anka.dominio.registros import Cambio, Evento, Vinculo
 from anka.dominio.status import QuoteStatus
 from anka.infra.logging_setup import get_logger
-from anka.infra.store import begin_immediate, case_events, connect, record_event, verify_chain
+from anka.infra.store import (
+    BUSY_TIMEOUT_MS, begin_immediate, case_events, connect, guardar_resumenes, record_event, resumenes_pendientes,
+    verify_chain,
+)
 
 log = get_logger(__name__)
 
@@ -48,6 +53,22 @@ def actualizar_caso(db: sqlite3.Connection, thread_id: str, **campos: Any) -> No
     db.execute(f'UPDATE quotes SET {assignments} WHERE thread_id=?', (*campos.values(), thread_id))
 
 
+# Las columnas de `quotes` que usa una lista: todas menos `analysis_json` (U-49).
+COLUMNAS_DE_LISTA = (
+    "thread_id", "last_inbound_id", "status", "recipient", "folder_id", "sent_message_id", "first_seen_at",
+    "updated_at", "draft_id", "draft_body", "sent_at", "quote_code", "code_stage", "code_assigned_at",
+    "contact_email", "sheet_id", "sheet_modified", "sheet_synced_at", "sheet_error", "resumen_json", "resumen_v",
+)
+
+
+def _orden_de_lista(fila: sqlite3.Row) -> tuple[str, str]:
+    """La clave del orden «más reciente primero»: la fecha de actualización (o de primera vista, o vacía) y el hilo."""
+    cuando = fila["updated_at"]
+    if cuando is None:
+        cuando = fila["first_seen_at"]
+    return ("" if cuando is None else cuando, fila["thread_id"])
+
+
 class _CaseRelations(NamedTuple):
     """Lo que se guarda aparte de cada caso y que `Caso` necesita (todo indexado por hilo)."""
 
@@ -58,13 +79,26 @@ class _CaseRelations(NamedTuple):
     pending_links: dict[str, list[Vinculo]]
 
 
-def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
-    """Arma el `Caso` de una fila con lo que se guardó aparte."""
+def _build_caso(row: sqlite3.Row, rel: _CaseRelations, resumen: dict | None = None,
+                cargar: Callable[[str], Analisis] | None = None) -> Caso:
+    """Arma el `Caso` de una fila con lo que se guardó aparte.
+
+    Con `resumen` (y `cargar`) arma el de una lista (U-49): el análisis es perezoso y lo derivado sale del resumen, sin
+    leer el análisis completo; sin `resumen` lee el análisis completo, como siempre."""
     thread = row["thread_id"]
-    analysis = load_analysis(row["analysis_json"])
-    routing = analysis.get("routing", {})
+    if resumen is None:
+        analysis = load_analysis(row["analysis_json"])
+        claves: Mapping[str, Any] = analysis
+        assessment: Mapping[str, Any] = reception_assessment(analysis) if analysis else {}
+        services, proposal = service_names(analysis), model_proposal(analysis)
+    else:
+        assert cargar is not None
+        claves = resumen["claves"]
+        analysis = cast(Analisis, AnalisisPerezoso(claves, resumen["vacio"], lambda: cargar(thread)))
+        assessment = EvaluacionPerezosa(lambda: reception_assessment(analysis) if analysis else {})
+        services, proposal = list(resumen["servicios"]), list(resumen["propuesta"])
+    routing = claves.get("routing", {})
     client_email = routing.get("original_sender_email") or row["recipient"]
-    assessment = reception_assessment(analysis) if analysis else {}
     followup = rel.followups.get(thread, {})
     latest = rel.latest_reply.get(thread)
     return Caso(
@@ -80,19 +114,19 @@ def _build_caso(row: sqlite3.Row, rel: _CaseRelations) -> Caso:
         notes=row["notes"] or "",
         analysis=analysis,
         reception_assessment=assessment,
-        services=service_names(analysis),
-        first_seen_at=row["first_seen_at"] or analysis.get("received_at") or "",
+        services=services,
+        first_seen_at=row["first_seen_at"] or claves.get("received_at") or "",
         updated_at=row["updated_at"] or "",
         folder_id=row["folder_id"],
         draft_id=row["draft_id"],
         draft_body=row["draft_body"] or "",
         sent_at=row["sent_at"] or "",
         reply_pending=unanalyzed_reply(
-            latest, row["last_inbound_id"], analysis, row["first_seen_at"] or "", row["status"]),
-        proposal=model_proposal(analysis),
+            latest, row["last_inbound_id"], cast(Analisis, claves), row["first_seen_at"] or "", row["status"]),
+        proposal=proposal,
         links=rel.pending_links.get(thread, []),
         changes=rel.changes.get(thread, []),
-        waiting_since=waiting_since(row["status"], row["sent_at"] or "", latest, sin_preguntas=era_un_acuse(analysis)),
+        waiting_since=waiting_since(row["status"], row["sent_at"] or "", latest, sin_preguntas=era_un_acuse(claves)),
         followup={
             "auto_enabled": bool(followup.get("auto_enabled")),
             "paused": bool(followup.get("paused")),
@@ -133,33 +167,77 @@ class RepositorioDeCasos:
             db.close()
 
     # ------------------------------------------------------------------ casos
-    def listar(self, incluir_ignorados: bool = False) -> list[Caso]:
-        """Todos los casos con sus cambios, vínculos, seguimiento y espera, el más reciente primero."""
-        return self._armar(incluir_ignorados, None)
+    def listar(self, incluir_ignorados: bool = False, completo: bool = False) -> list[Caso]:
+        """Todos los casos con sus cambios, vínculos, seguimiento y espera, el más reciente primero.
+
+        Sin `completo`, el análisis de cada caso es perezoso (U-49): la lista sale del resumen guardado y el análisis
+        completo solo se lee del caso que lo pida. Con `completo=True` se lee el de todos (p. ej. para exportar)."""
+        return self._armar(incluir_ignorados, None, completo)
 
     def obtener(self, thread_id: str) -> Caso | None:
-        """Un caso por su hilo, o `None` si no existe (solo consulta las filas de ese caso)."""
-        return next(iter(self._armar(True, thread_id)), None)
+        """Un caso por su hilo, o `None` si no existe (solo sus filas; lee su análisis completo)."""
+        return next(iter(self._armar(True, thread_id, True)), None)
 
-    def _armar(self, incluir_ignorados: bool, thread_id: str | None) -> list[Caso]:
+    def _armar(self, incluir_ignorados: bool, thread_id: str | None, completo: bool) -> list[Caso]:
         with self._conexion() as db:
-            rows = self._filas(db, incluir_ignorados, thread_id)
+            rows = self._filas(db, incluir_ignorados, thread_id, completo)
             relations = self._relaciones(db, thread_id)
-        return [_build_caso(row, relations) for row in rows]
+            resumenes = {} if completo else self._resumenes(db, rows)
+        if completo:
+            return [_build_caso(row, relations) for row in rows]
+        return [_build_caso(row, relations, resumenes[row["thread_id"]], self._analisis_de) for row in rows]
+
+    def _analisis_de(self, thread_id: str) -> Analisis:
+        """El análisis completo de un caso (lo pide `AnalisisPerezoso` solo cuando alguien lo necesita)."""
+        with self._conexion() as db:
+            fila = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        return load_analysis(fila["analysis_json"]) if fila else {}
 
     @staticmethod
-    def _filas(db: sqlite3.Connection, incluir_ignorados: bool, thread_id: str | None) -> list[sqlite3.Row]:
-        """Filas de los casos con sus datos comerciales, el más reciente primero."""
+    def _resumenes(db: sqlite3.Connection, rows: list[sqlite3.Row]) -> dict[str, dict]:
+        """El resumen de cada fila; los que faltan o son de otra versión se calculan y se guardan (U-49).
+
+        Guardar es un favor para la próxima lista: si la base está ocupada se sigue con lo calculado, sin esperar."""
+        resumenes: dict[str, dict] = {}
+        faltan = []
+        for row in rows:
+            if row["resumen_json"] is not None and row["resumen_v"] == VERSION_DEL_RESUMEN:
+                resumenes[row["thread_id"]] = json.loads(row["resumen_json"])
+            else:
+                faltan.append(row["thread_id"])
+        if faltan:
+            pendientes = resumenes_pendientes(db)
+            for hilo in faltan:       # si el caso desapareció mientras tanto, se muestra vacío
+                resumenes[hilo] = pendientes[hilo][1] if hilo in pendientes else {
+                    "v": VERSION_DEL_RESUMEN, "vacio": True, "claves": {}, "servicios": [], "propuesta": []}
+            db.execute("PRAGMA busy_timeout = 0")
+            try:
+                begin_immediate(db)
+                guardar_resumenes(db, pendientes)
+                db.commit()
+            except sqlite3.OperationalError:
+                db.rollback()
+            finally:
+                db.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+        return resumenes
+
+    @staticmethod
+    def _filas(db: sqlite3.Connection, incluir_ignorados: bool, thread_id: str | None,
+               completo: bool = True) -> list[sqlite3.Row]:
+        """Filas de los casos con datos comerciales, el más reciente primero (sin `analysis_json` salvo `completo`)."""
         conditions = [] if incluir_ignorados else [f"q.status <> '{QuoteStatus.IGNORED}'"]
         if thread_id is not None:
             conditions.append("q.thread_id = ?")
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-        return db.execute(f"""SELECT q.*, m.client_type, m.sector, m.client_name, m.notes
-                              FROM quotes q
-                              LEFT JOIN quote_metadata m ON m.thread_id = q.thread_id
-                              {where}
-                              ORDER BY COALESCE(q.updated_at, q.first_seen_at, '') DESC, q.thread_id DESC""",
-                          (thread_id,) if thread_id is not None else ()).fetchall()
+        columnas = "q.*" if completo else ", ".join(f"q.{c}" for c in COLUMNAS_DE_LISTA)
+        filas = db.execute(f"""SELECT {columnas}, m.client_type, m.sector, m.client_name, m.notes
+                               FROM quotes q
+                               LEFT JOIN quote_metadata m ON m.thread_id = q.thread_id
+                               {where}""", (thread_id,) if thread_id is not None else ()).fetchall()
+        # El orden de siempre (`COALESCE(updated_at, first_seen_at, '') DESC, thread_id DESC`), hecho aquí: recorrer la
+        # tabla en su orden y ordenar en memoria cuesta menos que saltar por el índice entre filas de varios KB.
+        filas.sort(key=_orden_de_lista, reverse=True)
+        return filas
 
     @staticmethod
     def _relaciones(db: sqlite3.Connection, thread_id: str | None) -> _CaseRelations:

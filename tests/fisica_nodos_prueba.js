@@ -1,10 +1,10 @@
 // Prueba en Node de la física de los nodos de fondo (U-38, D-103). La lanza tests/test_particulas.py.
-// Extrae el bloque «física» de layout.html (el que se ejecuta en el navegador), lo compara con una transcripción
+// Extrae el bloque «física» de app.js (el que se ejecuta en el navegador), lo compara con una transcripción
 // aparte de la matemática de tsparticles 3.9.1 y escribe un JSON con las medidas.
 const fs = require('fs');
 const path = require('path');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'anka', 'web', 'templates', 'layout.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'anka', 'web', 'templates', 'app.js'), 'utf8');
 const a = html.indexOf('// <física>'), b = html.indexOf('// </física>');
 if (a < 0 || b < 0) throw new Error('falta el bloque de física');
 const F = new Function(html.slice(a, b) + '\nreturn { NODOS, cuantos, nodoNuevo, ajustar, repulsar, rebotar, avanzar };')();

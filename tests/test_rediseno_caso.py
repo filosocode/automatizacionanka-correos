@@ -5,6 +5,8 @@ import re
 import unittest
 from pathlib import Path
 
+from tests.js_de_las_paginas import JS
+
 from anka.dominio.attachments import compactar_paginas
 from anka.dominio.status import QuoteStatus
 from anka.web import paginas
@@ -167,11 +169,12 @@ class ListaDeSolicitudes(unittest.TestCase):
 
     def test_el_orden_se_puede_cambiar_sin_recargar(self) -> None:
         # Cubre: U-16
+        # Desde U-49 el orden lo resuelve el servidor (sobre todos los casos) y el navegador solo envía el formulario.
         plantilla = (RAIZ / "anka" / "web" / "templates" / "requests.html").read_text(encoding="utf-8")
-        self.assertIn("function ordenar()", plantilla)
-        self.assertIn("orden.addEventListener('input', ordenar)", plantilla)
+        self.assertIn('name="orden"', plantilla)
         for criterio in ("reciente", "antigua", "urgencia"):
             self.assertIn(criterio, plantilla)
+        self.assertIn("campo.form.requestSubmit(buscar)", JS)
 
 
 class TablaYLenguaje(unittest.TestCase):
@@ -215,11 +218,11 @@ class TablaYLenguaje(unittest.TestCase):
 
     def test_el_script_iguala_la_fila_al_arrastrar_la_esquina(self) -> None:
         # Cubre: U-14
-        layout = (RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8")
+        layout = ((RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8") + (RAIZ / "anka" / "web" / "templates" / "app.js").read_text(encoding="utf-8") + (RAIZ / "anka" / "web" / "templates" / "tema.js").read_text(encoding="utf-8"))
         for pieza in ("document.querySelector('.act-table')", "new MutationObserver", "attributeFilter: ['style']",
                       "caja.closest('.act-main, .act-grid')", "c.style.height = alto"):
             self.assertIn(pieza, layout)
-        self.assertEqual(layout.count("<script>"), 2)                             # sin script nuevo: va en el de siempre
+        self.assertEqual(layout.count("<script>"), 0)                             # ningún script en línea (U-49)
 
     def test_barra_de_guardado_con_motivo_dentro_y_exportar_aparte(self) -> None:
         # Cubre: U-21
@@ -249,12 +252,12 @@ class TablaYLenguaje(unittest.TestCase):
         css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
         self.assertIn(".act-row.por-quitar .act-main textarea", css)             # atenuada y tachada
         self.assertIn("text-decoration: line-through", css)
-        layout = (RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8")
+        layout = ((RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8") + (RAIZ / "anka" / "web" / "templates" / "app.js").read_text(encoding="utf-8") + (RAIZ / "anka" / "web" / "templates" / "tema.js").read_text(encoding="utf-8"))
         for pieza in ("getElementById('barra-guardado')", "motivo.hidden = !hay", "guardar.disabled = !hay",
                       "classList.toggle('por-quitar', c.checked || vaciada)", "guardar.dataset.confirm", "Se quitará ", "Se quitarán ",
                       "Cambios sin guardar: "):
             self.assertIn(pieza, layout)
-        self.assertEqual(layout.count("<script>"), 2)                             # sin script nuevo
+        self.assertEqual(layout.count("<script>"), 0)                             # ningún script en línea (U-49)
 
     def test_la_guia_habla_al_comercial(self) -> None:
         # Cubre: U-14
@@ -313,9 +316,12 @@ class TemaClaroYOscuro(unittest.TestCase):
 
     def test_el_boton_de_tema_y_su_aplicacion_previa_al_pintado(self) -> None:
         # Cubre: U-15
-        layout = (RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8")
+        layout = ((RAIZ / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8") + (RAIZ / "anka" / "web" / "templates" / "app.js").read_text(encoding="utf-8") + (RAIZ / "anka" / "web" / "templates" / "tema.js").read_text(encoding="utf-8"))
         self.assertIn('id="theme-toggle"', layout)
-        self.assertLess(layout.index("localStorage.getItem('anka-tema')"), layout.index("<style>"))  # sin parpadeo
+        self.assertIn("localStorage.getItem('anka-tema')", layout)
+        # sin parpadeo: el guion del primer pintado va en el <head>, sin `defer` y antes del CSS
+        self.assertLess(layout.index("url_del_script('tema')"), layout.index("url_del_estilo()"))
+        self.assertNotIn("url_del_script('tema') }}\" defer", layout)
         for estado in ("system", "light", "dark"):
             self.assertIn(estado, layout)
 
@@ -348,7 +354,7 @@ class ResumenYControles(unittest.TestCase):
     def test_mis_casos_trae_su_buscador_y_no_el_boton_de_buscar_o_exportar(self) -> None:
         # Cubre: U-32
         html = self._resumen([_caso(f"t{n}", QuoteStatus.REVIEW) for n in range(7)], [])
-        self.assertIn('id="buscar-casos" type="search"', html)
+        self.assertIn('id="buscar-casos" name="q" type="search"', html)
         self.assertNotIn("Buscar o exportar", html)
 
     def test_controles_de_44_px_y_botones_de_etapa_con_espacio(self) -> None:

@@ -78,7 +78,7 @@ class UnSoloCamino(Base):
 
     def test_rearmar_tras_editar_pide_confirmar(self) -> None:
         # Cubre: U-28
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("getElementById('armar-correo')", layout)
         self.assertIn("se reemplazará lo que escribiste en el cuadro", layout)
 
@@ -103,7 +103,7 @@ class BorradorPrimeroYEnvioAparte(Base):
 
 class ConfirmacionPropia(unittest.TestCase):
     def setUp(self) -> None:
-        self.layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        self.layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
 
     def test_un_dialogo_accesible_con_vuelta_al_confirm_nativo(self) -> None:
         # Cubre: U-28
@@ -116,7 +116,7 @@ class ConfirmacionPropia(unittest.TestCase):
                       "'Adjuntos', 'Ninguno: la respuesta va sin archivos'", "getElementById('aviso-espera')"):
             self.assertIn(pieza, self.layout)
         self.assertNotIn("innerHTML", self.layout)                         # los datos del cliente van como texto
-        self.assertEqual(self.layout.count("<script>"), 2)                 # sin script nuevo
+        self.assertEqual(self.layout.count("<script>"), 0)                 # ningún script en línea (U-49)
         self.assertNotRegex(self.layout, r"\son[a-z]+=")                   # ni manejadores en línea
 
 
@@ -152,7 +152,7 @@ class Accesibilidad(unittest.TestCase):
 
     def test_el_boton_de_tema_dice_el_actual_y_el_siguiente(self) -> None:
         # Cubre: U-28
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         self.assertIn('aria-label="Tema: sistema. Pulsa para usar el claro"', layout)
         self.assertIn("boton.setAttribute('aria-label', ayuda)", layout)
 

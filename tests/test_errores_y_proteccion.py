@@ -186,7 +186,7 @@ class EmitirLaT(Base):
         self.assertIn('data-resumen="emision"', panel)
         for atributo in ("data-para=", "data-sugerido=", "data-anio="):
             self.assertIn(atributo, panel)
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         for pieza in ("=== 'emision'", "Número de la T", "no es el sugerido", "no es el actual"):
             self.assertIn(pieza, layout)
         pagina = pantalla_caso.render_case("t-1")
@@ -197,7 +197,7 @@ class EmitirLaT(Base):
 class RecargaAutomatica(unittest.TestCase):
     def test_no_recarga_si_hay_trabajo_en_curso_y_el_aviso_es_un_estado(self) -> None:
         # Cubre: U-34
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         for pieza in ("function puedeRecargar()", "window.scrollY > 0", "dialogo.open", "campo.value !== campo.defaultValue",
                       "if (puedeRecargar()) location.reload();", 'id="fresh-banner" class="notice" role="status"'):
             self.assertIn(pieza, layout)
@@ -312,7 +312,7 @@ class TablaDeActividades(Base):
 
     def test_el_script_cuenta_como_quitada_la_fila_vaciada(self) -> None:
         # Cubre: U-34
-        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("const vaciada = !fila.querySelector('.act-main.nueva')", layout)
         self.assertIn("c.checked || vaciada", layout)
 

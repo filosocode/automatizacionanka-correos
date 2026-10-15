@@ -62,9 +62,11 @@ def is_same_origin(origin: str, host: str) -> bool:
 
 
 # --- cabeceras de seguridad (D-71)
-# Las plantillas llevan <script> y <style> en línea (y atributos `style`), pero ningún manejador de eventos en línea
-# (T-07): por eso se permite 'unsafe-inline' solo para scripts y estilos y todo lo demás queda en el propio origen.
-CSP_PAGINAS = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+# Los scripts van todos en archivos de `/static` (U-49, D-114): `script-src 'self'` sin 'unsafe-inline', así que una
+# etiqueta <script> o un manejador `onclick` metido en un texto del cliente no se ejecuta. Los estilos siguen
+# admitiendo 'unsafe-inline' (un <style> dentro de <noscript> y los anchos de las barras de las estadísticas son
+# atributos `style`): un estilo no ejecuta código, y quitarlos obligaría a cambiar el diseño.
+CSP_PAGINAS = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
                "img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; "
                "frame-ancestors 'none'")
 

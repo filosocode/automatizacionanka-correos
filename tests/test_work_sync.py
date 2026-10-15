@@ -563,7 +563,7 @@ class HeartbeatTests(unittest.TestCase):
         # Cubre: T-28
         from anka.servicios import salud
         base = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
-        layout = (base / "layout.html").read_text(encoding="utf-8")
+        layout = ((base / "layout.html").read_text(encoding="utf-8") + (base / "app.js").read_text(encoding="utf-8") + (base / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("attention: 'Revisión de correos: hay un análisis por revisar'", layout)
         self.assertIn('.bridge-chip[data-state="attention"]', (base / "style.css").read_text(encoding="utf-8"))
         with patch("anka.servicios.salud.bridge_state", return_value=("attention", "activo, con un borrador")):

@@ -25,6 +25,7 @@ _env = Environment(
 )
 _env.filters["urlquote"] = urllib.parse.quote
 _env.globals["url_del_estilo"] = estaticos.url_del_estilo     # el CSS compartido va aparte, con huella (U-48)
+_env.globals["url_del_script"] = estaticos.url_del_guion      # igual el JavaScript: nada va en línea (U-49)
 
 
 def render(template: str, **context: Any) -> Markup:

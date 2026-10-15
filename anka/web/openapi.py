@@ -74,6 +74,12 @@ class Operacion:
 _ID = Campo("thread_id", "Id del hilo de Gmail del caso (aparece en la URL de `/case`).", requerido=True,
             ejemplo="18f3a9c2d4e5b601")
 _MENSAJE = Campo("message", "Texto que se muestra como aviso arriba de la pantalla.")
+_Q = Campo("q", "Texto que se busca (sin mayúsculas) en el proyecto, el cliente y los servicios de todos los casos "
+           "(hasta 200 caracteres).", ejemplo="llanos")
+_ETAPA = Campo("etapa", "Solo los casos de esa etapa; «todos» los muestra todos. Sin este campo, «Mis casos» entra en "
+               "«atender» si hay algo que atender.", opciones=("atender", "esperando", "listo", "cotizando", "todos"))
+_MOSTRAR = Campo("mostrar", "Cuántas filas se muestran (200 por defecto; «Ver más» suma 200 y vuelve a mostrar todo "
+                 "lo anterior).", "integer", ejemplo=400)
 _FILA = ("Filas de la tabla de actividades: `a0_activity`, `a0_servicio_tecnica`, `a0_ubicacion`, `a0_quantity`, "
          "`a0_unit`, `a0_entregable`, `a0_plazo_restriccion`, `a0_fuente`, `a0_estado`, `a0_notes`; "
          "la fila 1 usa `a1_…` y así. Se aceptan hasta 200 filas.")
@@ -96,8 +102,10 @@ OPERACIONES: tuple[Operacion, ...] = (
                             ejemplo="18f3a9c2d4e5b601"),),
               contenido="json"),
     Operacion("get", "/static/{archivo}", "Páginas", "Archivos fijos del diseño",
-              "Sirve la fuente Inter (`inter-latin-wght.woff2`) y el logo (`logo-anka.png`) que usan las páginas. "
-              "Solo esos dos nombres; cualquier otro responde 404.",
+              "Sirve la fuente Inter (`inter-latin-wght.woff2`), el logo (`logo-anka.png`), el CSS "
+              "(`style.<huella>.css`) y los dos guiones (`app.<huella>.js`, `tema.<huella>.js`) que usan las páginas; "
+              "la huella es la del contenido, así que los tres últimos se guardan para siempre en el navegador. "
+              "Solo esos nombres; cualquier otro responde 404.",
               campos=(Campo("archivo", "Nombre del archivo.", requerido=True, en="path",
                             ejemplo="logo-anka.png"),), contenido="estatico"),
     Operacion("get", "/api/salud", "Lectura (JSON)", "¿Conecta todo? Salud de las conexiones",
@@ -137,12 +145,21 @@ OPERACIONES: tuple[Operacion, ...] = (
               contenido="eventos"),
     # ------------------------------------------------------------------ páginas
     Operacion("get", "/", "Páginas", "Resumen («qué hacer hoy»)",
-              "Novedades, casos que esperan acción y métricas.", campos=(_MENSAJE,)),
+              "Novedades, casos que esperan acción y métricas. La búsqueda y la etapa se resuelven en el servidor "
+              "sobre todos los casos; la lista muestra 200 filas y `mostrar` pide más (U-49).",
+              campos=(_MENSAJE, _Q, _ETAPA, _MOSTRAR)),
     Operacion("get", "/requests", "Páginas", "Lista de solicitudes",
               "Todas las solicitudes con su etapa, la más reciente primero; los hilos del mismo proyecto van "
-              "agrupados.",
-              campos=(_MENSAJE, Campo("agrupar", "«1» (por defecto) agrupa los hilos del mismo proyecto; «0» "
-                                      "los muestra por separado.", opciones=("1", "0")))),
+              "agrupados. La búsqueda, la etapa, el tipo de cliente y el orden se resuelven en el servidor sobre "
+              "todos los casos (U-49).",
+              campos=(_MENSAJE, _Q, _ETAPA, _MOSTRAR,
+                      Campo("tipo", "Solo los casos de ese tipo de cliente (vacío: todos).",
+                            opciones=("No clasificado", "Empresa privada", "Entidad pública", "Consultor o aliado",
+                                      "Particular")),
+                      Campo("orden", "«reciente» (por defecto), «antigua» o «urgencia».",
+                            opciones=("reciente", "antigua", "urgencia")),
+                      Campo("agrupar", "«1» (por defecto) agrupa los hilos del mismo proyecto; «0» "
+                            "los muestra por separado.", opciones=("1", "0")))),
     Operacion("get", "/discarded", "Páginas", "Descartadas",
               "Hilos descartados con su motivo y el botón de rescatar.", campos=(_MENSAJE,)),
     Operacion("get", "/archive", "Páginas", "Archivo",

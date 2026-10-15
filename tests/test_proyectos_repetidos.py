@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 import unittest
+
+from tests.js_de_las_paginas import JS
 from pathlib import Path
 from unittest import mock
 
@@ -152,16 +154,18 @@ class VistaAgrupada(unittest.TestCase):
 
     def test_el_resumen_pone_un_proyecto_en_una_sola_entrada(self) -> None:
         # Cubre: U-19
-        html = self._pagina(paginas.render_index)
+        html = self._pagina(paginas.render_index, etapa="todos")
         self.assertEqual(html.count('class="queue-row"'), 2)                             # el proyecto y el suelto
         self.assertIn("+2 correo(s) más del mismo proyecto", html)
         self.assertIn("2 esperan algo de ti", html)
 
     def test_el_script_despliega_filtra_y_ordena_los_grupos(self) -> None:
         # Cubre: U-19
-        plantilla = (RAIZ / "anka" / "web" / "templates" / "requests.html").read_text(encoding="utf-8")
-        for pieza in ("function abrirGrupo", "grupo.hidden = coinciden === 0", "classList.contains('grupo')"):
-            self.assertIn(pieza, plantilla)
+        for pieza in ("function abrirGrupo", "grupo.hidden = coinciden === 0"):
+            self.assertIn(pieza, JS)
+        # el orden de los grupos lo da el servidor (U-49): más antiguas primero deja el grupo de septiembre antes que el suelto
+        antiguas = self._pagina(paginas.render_requests, orden="antigua")
+        self.assertLess(antiguas.index("thread_id=sola"), antiguas.index("thread_id=nueva"))
 
 
 if __name__ == "__main__":

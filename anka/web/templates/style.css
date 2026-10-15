@@ -767,3 +767,13 @@ ol.preguntas-enviadas { margin: 0; padding-left: 1.25rem; font-size: .875rem; }
 .aviso-motor { margin: 4px 0; }
 
 .ver-mas { margin: 16px 0; display: grid; gap: 8px; justify-items: start; }
+
+/* Búsqueda y filtros en el servidor (U-49): el botón «Buscar» va junto al campo */
+.buscar-fila { display: flex; gap: 8px; align-items: stretch; }
+.buscar-fila input { flex: 1; min-width: 0; }
+.buscar-fila button, .filters.con-boton > button { width: auto; align-self: end; }
+.filters.con-boton { grid-template-columns: 2fr 1fr 1fr auto; align-items: end; }
+@media (max-width: 720px) {
+  .filters.con-boton { grid-template-columns: 1fr; }
+  .buscar-fila button, .filters.con-boton > button { width: auto; justify-self: start; }
+}

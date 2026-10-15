@@ -194,12 +194,16 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
     # --- páginas (GET)
     def _get_index(self, query: dict[str, list[str]]) -> None:
-        self._send_html(paginas.render_index(_mensaje(query), int_field(query, "mostrar")))
+        self._send_html(paginas.render_index(
+            _mensaje(query), int_field(query, "mostrar"), field(query, "q"),
+            field(query, "etapa") if "etapa" in query else None))
 
     def _get_requests(self, query: dict[str, list[str]]) -> None:
         agrupar = field(query, "agrupar", "1") != "0"
         self._send_html(paginas.render_requests(
-            _mensaje(query), agrupar_hilos=agrupar, mostrar=int_field(query, "mostrar")))
+            _mensaje(query), agrupar_hilos=agrupar, mostrar=int_field(query, "mostrar"), q=field(query, "q"),
+            etapa=field(query, "etapa") if "etapa" in query else None, tipo=field(query, "tipo"),
+            orden=field(query, "orden", "reciente")))
 
     def _get_discarded(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.render_discarded(_mensaje(query)))

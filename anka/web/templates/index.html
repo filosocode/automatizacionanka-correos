@@ -3,15 +3,18 @@
 </div>
 {{ notifications }}
 {% if total %}
-<div class="buscar-casos"><label for="buscar-casos">Buscar un caso</label><input id="buscar-casos" type="search" placeholder="Buscar por proyecto, cliente o servicio"></div>
-<p id="n-visibles" class="solo-lectores" role="status"></p>
-<div class="chips" role="group" aria-label="Filtrar por etapa" data-filtro-etapas data-inicial="{{ inicial }}">
-  {% for key, label, count in etapas %}<button type="button" class="chip-filter" data-etapa="{{ key }}" aria-pressed="false">{{ label }} <b>{{ count }}</b></button>
-  {% endfor %}<button type="button" class="chip-filter" data-etapa="" aria-pressed="false">Todos <b>{{ total }}</b></button>
-</div>
+<form class="filtro-casos" method="get" action="/" role="search" data-filtro-etapas>
+  <div class="buscar-casos"><label for="buscar-casos">Buscar un caso</label>
+    <div class="buscar-fila"><input id="buscar-casos" name="q" type="search" value="{{ busqueda }}" placeholder="Buscar por proyecto, cliente o servicio"><button type="submit" name="etapa" value="{{ etapa_actual or 'todos' }}" class="secondary">Buscar</button></div></div>
+  <p id="n-visibles" class="solo-lectores" role="status">{% if coinciden %}{{ coinciden }} caso{{ '' if coinciden == 1 else 's' }} a la vista{% else %}Ningún caso coincide{% endif %}</p>
+  <div class="chips" role="group" aria-label="Filtrar por etapa">
+    {% for key, label, count in etapas %}<button type="submit" name="etapa" value="{{ key }}" class="chip-filter" data-etapa="{{ key }}" aria-pressed="{{ 'true' if etapa_actual == key else 'false' }}">{{ label }} <b>{{ count }}</b></button>
+    {% endfor %}<button type="submit" name="etapa" value="todos" class="chip-filter" data-etapa="" aria-pressed="{{ 'true' if not etapa_actual else 'false' }}">Todos <b>{{ total }}</b></button>
+  </div>
+</form>
 <ol class="queue" id="casos">{% for row in todo %}{{ row }}{% endfor %}</ol>
 {{ ver_mas }}
-<div id="sin-casos" class="empty" hidden>No hay casos con esos filtros.</div>
+<div id="sin-casos" class="empty"{% if coinciden %} hidden{% endif %}>No hay casos con esos filtros.</div>
 {% else %}<div class='empty'>Todavía no hay casos. Cuando llegue una solicitud por correo aparecerá aquí.</div>{% endif %}
 {{ work_rejected }}
 <details class="more">

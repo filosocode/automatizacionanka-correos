@@ -363,7 +363,8 @@ class ListasDeA200(unittest.TestCase):
         pagina = paginas.render_index()
         self.assertEqual(pagina.count('class="queue-row"'), 200)
         self.assertIn("Se muestran 200 de 450 casos.", pagina)
-        self.assertIn('href="/?mostrar=400"', pagina)
+        self.assertNotIn("miran solo los que se muestran", pagina)          # ahora buscan en todos (U-49)
+        self.assertIn('href="/?etapa=atender&amp;mostrar=400"', pagina)       # el enlace conserva el filtro (U-49)
         self.assertIn("Ver 200 más", pagina)
         self.assertIn('aria-label="Más casos"', pagina)
         self.assertIn("450 casos", pagina)                                   # el resumen cuenta todos

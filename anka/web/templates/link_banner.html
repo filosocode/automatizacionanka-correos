@@ -1,4 +1,4 @@
-<section class="next-step warn" aria-label="Posibles actualizaciones">
+<section class="next-step warn" aria-label="Posibles actualizaciones" data-banner-vinculos>
   <div>
     <strong>{{ links|length }} correo(s) de otras conversaciones podrían ser de este caso</strong>
     <span>Marca los que NO son de este caso y pulsa «Descartar». Solo se oculta el aviso en este caso; no borra el correo ni el otro caso.</span>
@@ -37,30 +37,3 @@
     {% endfor %}
   </div>
 </section>
-<script>
-(() => {
-  const root = document.currentScript.previousElementSibling;
-  const toggle = root && root.querySelector('[data-select-all-links]');
-  if (!toggle) return;
-  const sync = () => root.querySelectorAll('[data-link-checkbox]').forEach(hidden => {
-    const visible = root.querySelector(`[data-link-id="${hidden.value}"]`);
-    hidden.checked = Boolean(visible && visible.checked);
-  });
-  root.querySelectorAll('[data-link-id]').forEach(box => box.addEventListener('change', sync));
-  toggle.addEventListener('change', () => {
-    root.querySelectorAll('[data-link-id]').forEach(box => { box.checked = toggle.checked; });
-    sync();
-  });
-  root.querySelector('.link-bulk-form').addEventListener('submit', event => {
-    sync();
-    root.querySelector('[data-links-error]').hidden = true;
-    if (!root.querySelector('[data-link-checkbox]:checked')) {
-      event.preventDefault();
-      const aviso = root.querySelector('[data-links-error]');
-      aviso.hidden = false;
-      const primera = root.querySelector('[data-link-id]');
-      if (primera) primera.focus();
-    }
-  });
-})();
-</script>
