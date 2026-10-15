@@ -66,20 +66,64 @@
   </dialog>
   <script>
     // Nodos que se juntan y se mueven detrás de todo (U-38, D-103): JavaScript puro en un <canvas>, sin librerías.
-    // Parámetros del login de ANKA Inventario; la intensidad baja porque aquí se trabaja, no se espera.
+    // Reproduce la matemática de tsparticles 3.9.1 tal como la usa el login de ANKA Inventario (ver D-103);
+    // la intensidad baja un poco porque aquí se trabaja, no se espera.
     (function () {
+      // <física> (sin DOM: tests/fisica_nodos_prueba.js la ejecuta en Node)
+      const NODOS = { cantidad: 40, densidad: 2, areaBase: 1920 * 1080, minimo: 16, radioMin: 1.5, radioMax: 3.5,
+                      distanciaLinea: 140, velocidad: 0.6, repulsion: 100, factorRepulsion: 100, maxEmpuje: 50,
+                      fps: 60, maxDt: 100 };
+      const facil = t => 1 - (1 - t) * (1 - t);                      // easeOutQuad
+      function cuantos(ancho, alto) {                                  // densidad de tsparticles: 40 nodos en 1920x1080, proporcional al área; aquí x2 porque las tarjetas tapan buena parte
+        const base = NODOS.cantidad * NODOS.densidad, meta = base * ancho * alto / NODOS.areaBase;
+        return Math.max(NODOS.minimo, meta <= base ? Math.floor(meta) : Math.ceil(meta));
+      }
+      function nodoNuevo(ancho, alto, azar) {
+        const angulo = azar() * Math.PI * 2;                           // dirección libre; vector unitario
+        return { x: azar() * ancho, y: azar() * alto, vx: Math.cos(angulo), vy: Math.sin(angulo),
+                 r: NODOS.radioMin + azar() * (NODOS.radioMax - NODOS.radioMin), color: azar() < 0.5 ? 0 : 1 };
+      }
+      function ajustar(nodos, ancho, alto, azar) {
+        const meta = cuantos(ancho, alto);
+        while (nodos.length < meta) nodos.push(nodoNuevo(ancho, alto, azar));
+        if (nodos.length > meta) nodos.splice(0, nodos.length - meta);
+      }
+      function repulsar(nodos, raton) {                                // empuja la posición, sin suavizar, en cada cuadro
+        for (const n of nodos) {
+          const dx = n.x - raton.x, dy = n.y - raton.y, d = Math.hypot(dx, dy);
+          if (d > NODOS.repulsion) continue;
+          const fuerza = Math.min(Math.max(facil(1 - d / NODOS.repulsion) * NODOS.factorRepulsion, 0), NODOS.maxEmpuje);
+          n.x += d ? dx / d * fuerza : NODOS.factorRepulsion;
+          n.y += d ? dy / d * fuerza : NODOS.factorRepulsion;
+        }
+      }
+      function rebotar(n, ancho, alto) {                               // outModes: bounce (rebote total)
+        const r = n.r;
+        if (n.x - r > ancho) n.x = ancho - r; else if (n.x + r < 0) n.x = r;
+        if (n.y - r > alto) n.y = alto - r; else if (n.y + r < 0) n.y = r;
+        if (n.x + r >= ancho && n.vx > 0) { n.vx = -n.vx; n.x = ancho - r; } else if (n.x - r <= 0 && n.vx < 0) { n.vx = -n.vx; n.x = r; }
+        if (n.y + r >= alto && n.vy > 0) { n.vy = -n.vy; n.y = alto - r; } else if (n.y - r <= 0 && n.vy < 0) { n.vy = -n.vy; n.y = r; }
+      }
+      // factor = 60 * milisegundos / 1000 (1 con 60 cuadros por segundo); la velocidad real es velocidad * factor / 2 px
+      function avanzar(nodos, ancho, alto, factor, raton) {
+        const paso = NODOS.velocidad * factor / 2;
+        for (const n of nodos) { n.x += n.vx * paso; n.y += n.vy * paso; }
+        if (raton) repulsar(nodos, raton);
+        for (const n of nodos) rebotar(n, ancho, alto);
+      }
+      // </física>
+
       const lienzo = document.getElementById('particulas');
       if (!lienzo || !window.requestAnimationFrame || !window.matchMedia) return;
-      const PARTICULAS = 40, PARTICULAS_MOVIL = 20, RADIO_MIN = 1.5, RADIO_MAX = 3.5, OPACIDAD = 0.6;
-      const DISTANCIA_LINEA = 140, OPACIDAD_LINEA = 0.35, VELOCIDAD = 0.6, DISTANCIA_REPULSION = 100;
-      const FPS = 60, INTENSIDAD = 0.55, MAX_DPR = 2;
+      const OPACIDAD = 0.6, OPACIDAD_LINEA = 0.35, INTENSIDAD = 0.7, MAX_DPR = 2;
       const COLORES = { claro: ['#2f4d73', '#f47c27'], oscuro: ['#8fb0dc', '#f9a668'] };   // el oscuro aclara el azul: #2f4d73 casi no se ve sobre #0d1117
+      const INTERVALO = 1000 / NODOS.fps;
       const sinMovimiento = matchMedia('(prefers-reduced-motion: reduce)');
       const sistemaOscuro = matchMedia('(prefers-color-scheme: dark)');
       const ctx = lienzo.getContext('2d');
       if (!ctx) return;
       let nodos = [], ancho = 0, alto = 0, cuadro = 0, ultimo = 0, oscuro = false;
-      const raton = { x: -9999, y: -9999 };
+      const raton = { x: 0, y: 0, activo: false };
 
       function esOscuro() {
         const tema = document.documentElement.dataset.theme;
@@ -93,39 +137,18 @@
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         for (const n of nodos) { n.x = ancho ? n.x * nuevoAncho / ancho : n.x; n.y = alto ? n.y * nuevoAlto / alto : n.y; }
         ancho = nuevoAncho; alto = nuevoAlto;
-      }
-      function crear() {
-        const total = ancho < 600 ? PARTICULAS_MOVIL : PARTICULAS;
-        nodos = [];
-        for (let i = 0; i < total; i++) {
-          const angulo = Math.random() * Math.PI * 2;
-          nodos.push({ x: Math.random() * ancho, y: Math.random() * alto, color: i % 2,
-                       r: RADIO_MIN + Math.random() * (RADIO_MAX - RADIO_MIN),
-                       vx: Math.cos(angulo) * VELOCIDAD, vy: Math.sin(angulo) * VELOCIDAD });
-        }
-      }
-      function mover(paso) {
-        for (const n of nodos) {
-          n.x += n.vx * paso; n.y += n.vy * paso;
-          const dx = n.x - raton.x, dy = n.y - raton.y, d = Math.hypot(dx, dy);
-          if (d < DISTANCIA_REPULSION && d > 0.01) {          // el ratón los aparta, más cuanto más cerca
-            const empuje = (1 - d / DISTANCIA_REPULSION) * 3 * paso;
-            n.x += dx / d * empuje; n.y += dy / d * empuje;
-          }
-          if (n.x < n.r) { n.x = n.r; n.vx = Math.abs(n.vx); } else if (n.x > ancho - n.r) { n.x = ancho - n.r; n.vx = -Math.abs(n.vx); }
-          if (n.y < n.r) { n.y = n.r; n.vy = Math.abs(n.vy); } else if (n.y > alto - n.r) { n.y = alto - n.r; n.vy = -Math.abs(n.vy); }
-        }
+        ajustar(nodos, ancho, alto, Math.random);
       }
       function dibujar() {
         const paleta = oscuro ? COLORES.oscuro : COLORES.claro;
-        const intensidad = oscuro ? INTENSIDAD * 1.25 : INTENSIDAD;   // sobre fondo oscuro hace falta algo más de opacidad
+        const intensidad = oscuro ? Math.min(INTENSIDAD * 1.2, 1) : INTENSIDAD;   // sobre fondo oscuro hace falta algo más de opacidad
         ctx.clearRect(0, 0, ancho, alto);
         ctx.lineWidth = 1; ctx.strokeStyle = paleta[0];
         for (let i = 0; i < nodos.length; i++) {
           for (let j = i + 1; j < nodos.length; j++) {
             const d = Math.hypot(nodos[i].x - nodos[j].x, nodos[i].y - nodos[j].y);
-            if (d >= DISTANCIA_LINEA) continue;
-            ctx.globalAlpha = OPACIDAD_LINEA * intensidad * (1 - d / DISTANCIA_LINEA);
+            if (d > NODOS.distanciaLinea) continue;
+            ctx.globalAlpha = (1 - d / NODOS.distanciaLinea) * OPACIDAD_LINEA * intensidad;   // más tenue cuanto más lejos
             ctx.beginPath(); ctx.moveTo(nodos[i].x, nodos[i].y); ctx.lineTo(nodos[j].x, nodos[j].y); ctx.stroke();
           }
         }
@@ -133,32 +156,37 @@
         for (const n of nodos) { ctx.fillStyle = paleta[n.color]; ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill(); }
         ctx.globalAlpha = 1;
       }
-      function paso(ahora) {
-        cuadro = requestAnimationFrame(paso);
+      function siguiente(ahora) {
+        cuadro = requestAnimationFrame(siguiente);
         const transcurrido = ahora - ultimo;
-        if (transcurrido < 1000 / FPS - 2) return;           // tope de ~60 cuadros por segundo
+        if (transcurrido < INTERVALO - 2) return;            // tope de ~60 cuadros por segundo
         ultimo = ahora;
-        mover(Math.min(transcurrido, 50) / (1000 / 60));
+        // el movimiento sigue al reloj, no a los cuadros; un cuadro muy tardío no da un salto (máx. 100 ms)
+        avanzar(nodos, ancho, alto, 60 * Math.min(transcurrido, NODOS.maxDt) / 1000, raton.activo ? raton : null);
         dibujar();
       }
       function arrancar() {
         if (cuadro || document.hidden || sinMovimiento.matches) return;
         lienzo.hidden = false; oscuro = esOscuro();
-        if (!nodos.length) { medir(); crear(); }
-        ultimo = performance.now();
-        cuadro = requestAnimationFrame(paso);
+        if (!nodos.length) medir();
+        ultimo = performance.now();                           // reloj nuevo: al volver de una pestaña oculta no hay salto
+        cuadro = requestAnimationFrame(siguiente);
       }
       function detener() { if (cuadro) cancelAnimationFrame(cuadro); cuadro = 0; }
       function apagar() { detener(); lienzo.hidden = true; nodos = []; }
-
       function escuchar(consulta, funcion) { consulta.addEventListener ? consulta.addEventListener('change', funcion) : consulta.addListener(funcion); }
+
       escuchar(sinMovimiento, () => sinMovimiento.matches ? apagar() : arrancar());
       escuchar(sistemaOscuro, () => { oscuro = esOscuro(); });
       new MutationObserver(() => { oscuro = esOscuro(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
       document.addEventListener('visibilitychange', () => document.hidden ? detener() : arrancar());
       window.addEventListener('resize', () => { if (nodos.length) medir(); });
-      window.addEventListener('mousemove', e => { raton.x = e.clientX; raton.y = e.clientY; }, { passive: true });
-      document.documentElement.addEventListener('mouseleave', () => { raton.x = raton.y = -9999; });
+      // El ratón se escucha en window (el canvas no recibe eventos): el lienzo ocupa toda la ventana, así clientX/Y ya son sus coordenadas.
+      window.addEventListener('mousemove', e => { raton.x = e.clientX; raton.y = e.clientY; raton.activo = true; }, { passive: true });
+      const soltar = () => { raton.activo = false; };
+      document.documentElement.addEventListener('mouseleave', soltar);
+      document.addEventListener('mouseout', e => { if (!e.relatedTarget) soltar(); });
+      window.addEventListener('blur', soltar);
       arrancar();
     })();
     // Evita el doble envío (U-31.18): un formulario que escribe se envía una sola vez y su botón queda bloqueado.
@@ -302,18 +330,11 @@
       let origen = null;
       // Un mensaje citado de verdad (cabecera con fecha o correo, o varias líneas con «>»): se avisa, nunca se recorta (U-39).
       function citaEn(texto) {
-        return /^[ 	]*(El|On)\s[^
-]*(\d|@)[^
-]*(escribi[óo]|wrote)[ 	]*:[ 	]*$/im.test(texto) || /^[ 	]*>[^
-]*
-[ 	]*>/m.test(texto);
+        return /^[ \t]*(El|On)\s[^\n]*(\d|@)[^\n]*(escribi[óo]|wrote)[ \t]*:[ \t]*$/im.test(texto) || /^[ \t]*>[^\n]*\n[ \t]*>/m.test(texto);
       }
       function avisoDeCita(boton, filas) {
         const campo = boton.form && boton.form.elements['body'];
-        if (campo && citaEn(campo.value.replace(/
-
-/g, '
-'))) filas.push(['Ojo', 'Tu respuesta incluye un mensaje citado. ¿Enviar así?']);
+        if (campo && citaEn(campo.value.replace(/\r\n/g, '\n'))) filas.push(['Ojo', 'Tu respuesta incluye un mensaje citado. ¿Enviar así?']);
         return filas;
       }
       function resumenDe(boton) {
