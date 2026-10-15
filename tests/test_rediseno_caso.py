@@ -182,10 +182,10 @@ class TablaYLenguaje(unittest.TestCase):
         # Cubre: U-14
         html = str(activities_editor("h1", [self.ACTIVIDAD]))
         editor = html[html.index('class="act-table"'):]                # la tabla completa, tras «Editar tabla» (U-31)
-        cabecera = editor[editor.index("<thead>"):editor.index("</thead>")]
-        self.assertEqual(cabecera.count("<th>"), 6)             # cinco columnas y la de «Quitar»
+        cabecera = editor[editor.index("<thead"):editor.index("</thead>")]
+        self.assertEqual(cabecera.count("<th role="), 6)         # cinco columnas y la de «Quitar»
         for titulo in ("Actividad", "Servicio/técnica", "Cantidad y unidad", "Estado", "Notas"):
-            self.assertIn(f"<th>{titulo}</th>", cabecera)
+            self.assertIn(f'<th role="columnheader">{titulo}</th>', cabecera)
         for clave, _ in ACTIVITY_COLUMNS:                       # el formulario guarda lo mismo que antes
             self.assertIn(f"name='a0_{clave}'", html)
             self.assertIn(f"name='a1_{clave}'", html)           # y la fila nueva

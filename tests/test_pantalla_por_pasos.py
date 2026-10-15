@@ -236,7 +236,7 @@ class TablaDelPrototipo(Base):
         self.assertRegex(pagina, r'<input type="checkbox" id="editar-toggle" class="toggle-oculto">')
         self.assertNotIn('id="editar-toggle" class="toggle-oculto" checked', pagina)     # cerrada al cargar
         editor = pagina[pagina.index('class="editor-tabla" id="editar-tabla"'):]
-        for conservado in ("<th>Servicio/técnica</th>", "Guardar tabla", "Ver historial de cambios", "Descargar Excel",
+        for conservado in ('<th role="columnheader">Servicio/técnica</th>', "Guardar tabla", "Ver historial de cambios", "Descargar Excel",
                            "Más datos: ubicación, entregable, plazo y fuente"):
             self.assertIn(conservado, editor)
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
@@ -891,6 +891,42 @@ class SeguridadDelUsuario(Base):
         pagina = pantalla_caso.render_case("t-1", message="Listo: guardado.")
         self.assertIn("<div class='notice flash' role=\"status\">Listo: guardado.</div>", pagina)
         self.assertIn(".flash { position: sticky;", (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
+
+
+class TablaAccesible(Base):
+    def editor(self, cuantas: int = 3) -> str:
+        self.crear(actividades=[actividad(f"Actividad {n}", "pendiente") for n in range(1, cuantas + 1)])
+        pagina = pantalla_caso.render_case("t-1")
+        return pagina[pagina.index('id="editar-tabla"'):]
+
+    def test_cada_campo_dice_de_que_actividad_es_y_ninguno_se_repite(self) -> None:
+        # Cubre: U-31
+        editor = self.editor()
+        nombres = re.findall(r"<(?:textarea|select|input)[^>]*aria-label=['\"]([^'\"]+)['\"]", editor)
+        self.assertGreater(len(nombres), 20)
+        self.assertEqual(len(nombres), len(set(nombres)), "hay campos con el mismo nombre accesible")
+        for esperado in ("Notas de Actividad 2", "Estado de Actividad 3", "Actividad de Actividad 1", "Quitar Actividad 2",
+                         "Notas de la fila nueva"):
+            self.assertIn(esperado, nombres)
+
+    def test_la_tabla_conserva_su_semantica(self) -> None:
+        # Cubre: U-31
+        editor = self.editor()
+        tabla = editor[editor.index('class="act-table"'):editor.index("</table>", editor.index('class="act-table"'))]
+        self.assertIn('<thead role="rowgroup">', tabla)
+        self.assertEqual(tabla.count('<tbody class="act-row" role="rowgroup">'), len(re.findall(r"<tbody[ >]", tabla)))
+        self.assertEqual(len(re.findall(r"<th[ >]", tabla)), tabla.count('<th role="columnheader"'))
+        self.assertEqual(len(re.findall(r"<td[ >]", tabla)), tabla.count('<td role="cell"'))
+        self.assertNotRegex(tabla, r"<td(?![^>]*role=)")
+
+    def test_errores_como_alerta_foco_no_tapado_y_foco_al_mensaje(self) -> None:
+        # Cubre: U-31
+        caso = (PLANTILLAS / "case.html").read_text(encoding="utf-8")
+        self.assertIn("<div class='notice error' role=\"alert\">", caso)
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn("scroll-padding-top: calc(var(--header-h, 0px) + 12px)", css)
+        layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
+        self.assertIn("mensaje.focus({preventScroll: true})", layout)
 
 
 class CorreoPorRevisar(Base):

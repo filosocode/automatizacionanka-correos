@@ -85,6 +85,8 @@
         interruptor.checked = true;
         editor.scrollIntoView({block: 'start'});
       });
+      const mensaje = document.querySelector('.notice.flash');
+      if (mensaje) { mensaje.tabIndex = -1; mensaje.focus({preventScroll: true}); }     // el foco va al mensaje, no al inicio (U-31.25)
       const direccion = new URL(location.href);
       if (direccion.searchParams.has('message')) {
         direccion.searchParams.delete('message');

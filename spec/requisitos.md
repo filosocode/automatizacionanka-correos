@@ -622,7 +622,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88, D-89, D-90, D-95. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88, D-89, D-90, D-95, D-98. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -705,6 +705,10 @@ la carpeta de Drive.
 24. **Un solo texto por decisión y por acción (D-97).** Cada decisión y cada acción se llama igual en toda la interfaz: «Con esto alcanza» (la opción) y «Confirmar que alcanza» (su botón); «Hay que preguntarle al cliente» y
     «Preparar el correo»; «Cambiar las preguntas» (abre el cuadro) y «Preparar el correo de nuevo»; «Volver a decidir»; «No preguntar: con esto alcanza»; y siempre «Enviar al cliente» para enviar (el diálogo dice «Sí, enviar al cliente»).
     No quedan «Marcar como suficiente», «Redactar de nuevo», «Volver a redactar», «Volver a elegir», «Armar correo» ni «Enviar ahora». Una prueba de vocabulario lee las plantillas y los textos de la pantalla y falla si aparece alguno.
+25. **Tabla y formularios accesibles (D-98, WCAG 2.2 AA).** a) Cada campo de la tabla de edición dice de qué actividad es («Notas de Planimetría», «Estado de Altimetría»; la fila nueva, «de la fila nueva»), y la casilla de quitar
+    dice «Quitar» más la actividad; no hay dos campos con el mismo nombre en la página. b) La tabla conserva su semántica aunque se dibuje con cuadrícula: grupos de filas, encabezados de columna y celdas con su rol.
+    c) Los errores se anuncian como alerta. d) Al saltar a un ancla, el encabezado fijo no tapa el elemento (`scroll-padding-top`). e) Tras una acción con mensaje, el foco se mueve al mensaje para que el teclado y el lector de
+    pantalla no queden al inicio de la página.
 
 **Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
 - E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
@@ -741,6 +745,8 @@ la carpeta de Drive.
 - E12 · «Enviar al cliente», «Guardar borrador en Gmail» y la línea de preguntas están dentro de una barra `.barra-accion` pegada abajo (`position: sticky; bottom: 0`); el mensaje crece con su contenido (`field-sizing: content`) y no tiene tope de altura.
 - E12 · En el navegador, con el caso largo (CLL 170) y la pantalla en el arranque, la barra queda dentro de la pantalla visible.
 - E13 · Ninguna plantilla ni texto de la pantalla del caso contiene los sinónimos retirados; cada decisión y cada acción usa el texto único de U-31.24.
+- E14 · Con tres actividades, todos los campos de la tabla de edición tienen nombre accesible distinto y que incluye el nombre de su actividad; la casilla «Quitar» también; la fila nueva dice «de la fila nueva».
+- E14 · `thead` y `tbody` llevan `role="rowgroup"`, los `th` `role="columnheader"` y los `td` `role="cell"`; el aviso de error de destinatario lleva `role="alert"`; hay `scroll-padding-top` y el script enfoca el mensaje.
 - E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; con el correo redactado sin enviar, «Correo por revisar»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

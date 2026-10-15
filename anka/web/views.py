@@ -360,11 +360,12 @@ def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
 
     rows = [
-        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)}}
+        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)},
+         "nombre": str(item.get("activity") or "").strip() or f"la fila {index + 1}"}
         for index, item in enumerate(activities)
     ]
     new_row = {key: "" for key, _ in ACTIVITY_COLUMNS} | {"estado": "pendiente"}
-    rows.append({"index": len(activities), "is_new": True, "cells": cells(new_row),
+    rows.append({"index": len(activities), "is_new": True, "nombre": "la fila nueva", "cells": cells(new_row),
                  "by": {c["key"]: c["value"] for c in cells(new_row)}})
     return render(
         "activities_editor.html",

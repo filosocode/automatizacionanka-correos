@@ -15,16 +15,16 @@
   <p class="meta">Estado: <strong>confirmado</strong> = el dato está completo; <strong>pendiente</strong> = falta confirmar algo; <strong>contradictorio</strong> = las fuentes no coinciden. En Notas escribe qué falta o qué valores chocan, de dónde salen y quién lo resuelve (el cliente o el equipo de Anka). Abre «Más datos» para ver ubicación, entregable, plazo y fuente. Las cajas se ajustan a su texto; arrastra la esquina de una para cambiar la altura de su fila (si el texto no cabe, la caja se desplaza por dentro).</p></details>
   <p class="meta"><button type="button" class="secondary" id="ajustar-cajas">Ajustar cajas al texto</button></p>
 
-{% macro campo(row, key, label, filas=2) %}<textarea name='a{{ row.index }}_{{ key }}' rows='{{ filas }}' aria-label='{{ label }}'{% if not row.by[key] or row.by[key] == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ row.by[key] }}</textarea>{% endmacro %}
-  <div class="scroll-x"><table class="act-table" role="table"><thead><tr class="act-head" role="row"><th>Actividad</th><th>Servicio/técnica</th><th>Cantidad y unidad</th><th>Estado</th><th>Notas</th><th></th></tr></thead>
-  {% for row in rows %}<tbody class="act-row"><tr class="act-main{% if row.is_new %} nueva{% endif %}" role="row">
-    <td data-etiqueta="Actividad">{{ campo(row, 'activity', 'Actividad') }}</td>
-    <td data-etiqueta="Servicio o técnica">{{ campo(row, 'servicio_tecnica', 'Servicio o técnica') }}</td>
-    <td class="cant" data-etiqueta="Cantidad y unidad"><div class="cant-par">{{ campo(row, 'quantity', 'Cantidad', 1) }}{{ campo(row, 'unit', 'Unidad', 1) }}</div></td>
-    <td data-etiqueta="Estado"><select name='a{{ row.index }}_estado' aria-label='Estado' class='estado-{{ row.by.estado or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == row.by.estado %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>
-    <td data-etiqueta="Notas">{{ campo(row, 'notes', 'Notas') }}</td>
-    {% if row.is_new %}<td class='del'>Fila nueva</td>{% else %}<td class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1'><span class="q-off">Quitar</span><span class="q-on">Se quitará al guardar. Deshacer</span></label></td>{% endif %}</tr>
-    <tr class="act-more"><td colspan="6"><details><summary>Más datos: ubicación, entregable, plazo y fuente</summary>
+{% macro campo(row, key, label, filas=2) %}<textarea name='a{{ row.index }}_{{ key }}' rows='{{ filas }}' aria-label='{{ label }} de {{ row.nombre }}'{% if not row.by[key] or row.by[key] == 'no indicado' %} class='vacio'{% endif %} placeholder='no indicado'>{{ row.by[key] }}</textarea>{% endmacro %}
+  <div class="scroll-x"><table class="act-table" role="table"><thead role="rowgroup"><tr class="act-head" role="row"><th role="columnheader">Actividad</th><th role="columnheader">Servicio/técnica</th><th role="columnheader">Cantidad y unidad</th><th role="columnheader">Estado</th><th role="columnheader">Notas</th><th role="columnheader"><span class="solo-lectores">Quitar</span></th></tr></thead>
+  {% for row in rows %}<tbody class="act-row" role="rowgroup"><tr class="act-main{% if row.is_new %} nueva{% endif %}" role="row">
+    <td role="cell" data-etiqueta="Actividad">{{ campo(row, 'activity', 'Actividad') }}</td>
+    <td role="cell" data-etiqueta="Servicio o técnica">{{ campo(row, 'servicio_tecnica', 'Servicio o técnica') }}</td>
+    <td role="cell" class="cant" data-etiqueta="Cantidad y unidad"><div class="cant-par">{{ campo(row, 'quantity', 'Cantidad', 1) }}{{ campo(row, 'unit', 'Unidad', 1) }}</div></td>
+    <td role="cell" data-etiqueta="Estado"><select name='a{{ row.index }}_estado' aria-label='Estado de {{ row.nombre }}' class='estado-{{ row.by.estado or 'pendiente' }}'>{% for state in states %}<option value='{{ state }}'{% if state == row.by.estado %} selected{% endif %}>{{ state }}</option>{% endfor %}</select></td>
+    <td role="cell" data-etiqueta="Notas">{{ campo(row, 'notes', 'Notas') }}</td>
+    {% if row.is_new %}<td role="cell" class='del'>Fila nueva</td>{% else %}<td role="cell" class='del'><label><input type='checkbox' name='a{{ row.index }}_del' value='1' aria-label='Quitar {{ row.nombre }}'><span class="q-off">Quitar</span><span class="q-on">Se quitará al guardar. Deshacer</span></label></td>{% endif %}</tr>
+    <tr class="act-more" role="row"><td role="cell" colspan="6"><details><summary>Más datos: ubicación, entregable, plazo y fuente</summary>
       <div class="act-grid"><label>Ubicación{{ campo(row, 'ubicacion', 'Ubicación') }}</label><label>Entregable{{ campo(row, 'entregable', 'Entregable') }}</label><label>Plazo o restricción{{ campo(row, 'plazo_restriccion', 'Plazo o restricción') }}</label><label>Fuente{{ campo(row, 'fuente', 'Fuente') }}</label></div>
     </details></td></tr></tbody>{% endfor %}
   </table></div>
