@@ -23,7 +23,7 @@ from anka.dominio.status import QuoteStatus, estado_tras_un_analisis
 from anka.dominio.tolerancia_work import Rechazo, comprobar_identidad, normalizar_analisis
 from anka.infra.logging_setup import get_logger
 from anka.infra import rechazos_de_work
-from anka.infra.store import begin_immediate, connect, record_event, save
+from anka.infra.store import begin_immediate, record_event, save, transaccion
 from anka.servicios.change_control import apply_guard
 from anka.servicios.estados import verificar_transicion
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
@@ -348,15 +348,12 @@ def dashboard_upsert(payload_base64: str) -> None:
     raw, payload = _decode_work_payload(payload_base64)
     analysis = _work_analysis(payload)
     thread_id = payload["thread_id"]
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:      # `_store_work_analysis` toma el candado y confirma lo suyo
         _store_work_analysis(db, raw, payload, analysis)
         saved = db.execute(
             "SELECT client_type, sector, client_name, notes FROM quote_metadata WHERE thread_id=?",
             (thread_id,),
         ).fetchone()
-    finally:
-        db.close()
     client_name, client_type, sector, notes = _commercial_metadata(payload, saved)
     save_quote_metadata(thread_id, client_name, client_type, sector, notes)
     programar_actualizacion_de_hoja(thread_id)   # si el análisis cambió la tabla, la hoja de Google lo refleja
@@ -373,14 +370,10 @@ def dejar_para_despues_el_rechazo(draft_id: str, message_id: str, thread_id: str
         raise ErrorDeValidacion("Ese aviso ya no está a la vista. Recarga la página.")
     if thread_id.strip():
         ahora = datetime.now().astimezone().isoformat(timespec="seconds")
-        db = connect()
-        try:
+        with transaccion(inmediata=False) as db:
             if db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (thread_id,)).fetchone():
                 ref = f"{ahora}-{hashlib.sha1(draft_id.encode()).hexdigest()[:6]}"
                 record_event(db, thread_id, "analysis_notice", "dashboard", ref,
                              "Una persona dejó para después el aviso de que el análisis de Work no se pudo leer.",
                              ahora)
-                db.commit()
-        finally:
-            db.close()
     return "Listo: el aviso queda para después. Si Work vuelve a mandar el análisis, se revisa solo."

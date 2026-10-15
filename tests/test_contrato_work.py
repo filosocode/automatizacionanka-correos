@@ -23,7 +23,7 @@ BRIDGE_ONLY = {"draft_reply", "draft_id"}   # los agrega el puente, Work no los 
 class SchemaTests(unittest.TestCase):
     def test_a_complete_payload_is_valid(self):
         data = payload(
-            client_name="Ana", summary="x", received_at="2026-10-01T10:00:00-05:00", gmail_url="https://x",
+            client_name="Ana", summary="x", received_at="2026-10-01T10:00:00-05:00", gmail_url="https://mail.google.com/mail/u/0/#all/x",
             requested_by_email="ana@acme.com", requested_by_name="Ana", cited_codes=["T26145"],
             missing_data=["Crítico: datum"], attachments=[{"filename": "a.kml", "status": "legible", "reason": "",
                                                           "blocked_fields": []}],

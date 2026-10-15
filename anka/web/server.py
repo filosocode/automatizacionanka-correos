@@ -14,7 +14,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
-from datetime import datetime
+from anka.dominio.reloj import ahora
+from anka.infra.acciones_en_curso import en_curso
 from anka.dominio.errores import AutorizacionDeGoogle, ErrorDeAnka
 from anka.dominio.activities import build_workbook
 from anka.infra.logging_setup import get_logger
@@ -38,7 +39,8 @@ from anka.web import pantalla_caso
 from anka.web.views import marcar_como_error
 from anka.web.seguridad import (
     CSRF_TOKEN, CuerpoNoValido, add_csrf_tokens, cabeceras_de_seguridad, csp_docs, es_mensaje_para_la_persona,
-    id_de_error, is_local_host_header, is_same_origin, longitud_del_cuerpo, nombre_seguro,
+    firmar_mensaje, id_de_error, is_local_host_header, is_same_origin, longitud_del_cuerpo, mensaje_de_la_direccion,
+    nombre_seguro,
 )
 
 log = get_logger(__name__)
@@ -80,7 +82,7 @@ MAX_CAMPOS = 10_000         # campos de un formulario: la tabla más grande (200
 
 def _mensaje(query: dict[str, list[str]]) -> str:
     """El aviso de la dirección; con `aviso=error` se marca como fallo para anunciarlo como alerta (U-37)."""
-    texto = field(query, "message")
+    texto = mensaje_de_la_direccion(field(query, "message"), field(query, "firma"))
     return marcar_como_error(texto) if field(query, "aviso") == "error" else texto
 
 
@@ -92,10 +94,27 @@ def _senalar_fallo(location: str) -> str:
     return ruta + ("&" if "?" in ruta else "?") + "aviso=error" + almohadilla + ancla
 
 
+def _firmar_aviso(location: str) -> str:
+    """Añade la firma del aviso a la dirección de una redirección propia: así `?message=` se muestra completo solo si lo
+    escribió este servidor, y uno puesto a mano en un enlace se recorta (U-61, B2-04)."""
+    ruta, almohadilla, ancla = location.partition("#")
+    base, interrogante, consulta = ruta.partition("?")
+    mensaje = urllib.parse.parse_qs(consulta).get("message")
+    if not interrogante or not mensaje:
+        return location
+    return f"{ruta}&firma={firmar_mensaje(mensaje[0])}{almohadilla}{ancla}"
+
+
 class ReviewHandler(BaseHTTPRequestHandler):
     """Servidor HTTP local del dashboard: páginas por GET y acciones por POST con token."""
     timeout = 30      # una conexión que no habla en 30 s se corta y libera su hilo (U-43)
     protocol_version = "HTTP/1.1"      # la conexión se reutiliza; toda respuesta lleva su longitud (U-48)
+
+    def _host_permitido(self) -> bool:
+        """¿El Host es local y, si trae puerto, el de este servidor? (sin servidor conocido, solo se mira el nombre)."""
+        direccion = getattr(getattr(self, "server", None), "server_address", None)
+        puerto = direccion[1] if isinstance(direccion, tuple) and len(direccion) > 1 else None
+        return is_local_host_header(self.headers.get("Host", ""), puerto if isinstance(puerto, int) else None)
 
     def _send_bytes(self, status: int, content_type: str, data: bytes,
                     extra_headers: dict[str, str] | None = None) -> None:
@@ -200,7 +219,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def _metodo_no_permitido(self) -> None:
         """405 con `Allow` si la ruta existe con otro método; 404 si no existe. El cuerpo de la petición no se leyó."""
         self.close_connection = True
-        if not is_local_host_header(self.headers.get("Host", "")):
+        if not self._host_permitido():
             return self._reject("Host no permitido.")
         ruta = urllib.parse.urlparse(self.path).path
         permitidos = self._metodos_de(ruta)
@@ -229,7 +248,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         return field(consulta, "thread_id")[:200]
 
     def _get(self) -> None:
-        if not is_local_host_header(self.headers.get("Host", "")):
+        if not self._host_permitido():
             return self._reject("Host no permitido.")
         parsed = urllib.parse.urlparse(self.path)
         query = urllib.parse.parse_qs(parsed.query)
@@ -298,7 +317,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         quotes = [item for item in quotes if item]
         if thread_id and not quotes:
             return self._aviso("No encontrado", "La solicitud no existe.", 404)
-        stamp = datetime.now().strftime("%Y%m%d-%H%M")
+        stamp = ahora().strftime("%Y%m%d-%H%M")
         caso = (nombre_seguro(thread_id)[:8] or "caso") if thread_id else "todas"   # el id viene de la URL
         name = f"actividades-{caso}-{stamp}.xlsx"
         self._send_bytes(
@@ -388,10 +407,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         """Valida host, origen y token y ejecuta la acción de `POST_ROUTES`; redirige al resultado."""
         host = self.headers.get("Host", "")
-        if not is_local_host_header(host):
+        if not self._host_permitido():
             self.close_connection = True          # el cuerpo no se leyó: no se reutiliza la conexión
             return self._reject("Host no permitido.")
-        if not is_same_origin(self.headers.get("Origin", ""), host):
+        if not is_same_origin(self.headers.get("Origin", ""), host, self.headers.get("Sec-Fetch-Site", "")):
             self.close_connection = True
             return self._reject("Origen no permitido.")
         path = urllib.parse.urlparse(self.path).path
@@ -414,7 +433,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         if hilo:
             pendientes.guardar(hilo, path, form)         # si algo falla, la persona recupera lo que escribió (U-31)
         try:
-            with request_scope():
+            with en_curso(path), request_scope():       # el lanzador espera a que termine antes de reiniciar
                 location = action(form)
             hubo_fallo = pendientes.hubo_fallo()
             if hilo and not hubo_fallo:
@@ -439,7 +458,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self.send_response(303)
         for name, value in cabeceras_de_seguridad().items():
             self.send_header(name, value)
-        self.send_header("Location", location)
+        self.send_header("Location", _firmar_aviso(location))
         self.send_header("Content-Length", "0")
         self.end_headers()
 

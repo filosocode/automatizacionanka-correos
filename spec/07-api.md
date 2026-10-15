@@ -16,7 +16,7 @@ Todas las rutas que atiende el servidor, agrupadas en etiquetas:
 
 | Etiqueta | Contenido |
 |---|---|
-| **Lectura (JSON)** | `GET /api/salud`, `GET /api/casos`, `GET /api/casos/{thread_id}`, `GET /state`: devuelven JSON, no cambian nada. |
+| **Lectura (JSON)** | `GET /api/salud`, `GET /api/casos`, `GET /api/casos/{thread_id}`, `GET /api/autorizacion`, `GET /state`: devuelven JSON, no cambian nada. `GET /eventos` es el canal de avisos en vivo (`text/event-stream`, no JSON; sus errores sí son JSON). |
 | **Páginas** | Las pantallas HTML (`/`, `/requests`, `/case`, `/acta`, `/discarded`, `/archive`) y la descarga `/export.xlsx`. |
 | **Acciones del caso** | Los formularios `POST` que actúan sobre un caso (tabla, respuesta, código T, cambios, vínculos…). |
 | **Acciones generales** | `POST` que no son de un caso: modo de operación, revisar Gmail, rescatar, eliminar, novedades. |
@@ -85,8 +85,13 @@ Cómo funciona:
 Las acciones con «⚠» actúan de verdad (envían correo, crean carpetas, eliminan): úsalas con casos de prueba.
 
 ## Reglas que no cambian
-- Las peticiones `POST` exigen `Host` local, `Origin` igual al del servidor y el `csrf_token` (T-07). Swagger UI
-  se sirve desde el mismo origen, así que las cumple sin configuración.
+- Las peticiones `POST` exigen `Host` local y el `csrf_token` (T-07); además (U-61): si el `Host` trae puerto, debe ser el del
+  servidor; si llega `Sec-Fetch-Site`, debe ser `same-origin` o `none`; si llega `Origin`, debe ser el del servidor (`null` y los
+  ajenos, `403`). Sin `Origin` ni `Sec-Fetch-Site` (un script, `curl`, las pruebas) se acepta: el token, que solo está en las páginas
+  del propio dashboard, es lo que protege. Swagger UI se sirve desde el mismo origen, así que las cumple sin configuración.
+- El aviso `?message=` de una página se recorta a 300 caracteres salvo que lo haya firmado este servidor (U-61): toda redirección
+  propia añade `firma` (HMAC del texto con el token del dashboard), así que los avisos largos legítimos se ven completos y un enlace
+  manipulado no puede mostrar un texto largo como si fuera del dashboard.
 - `/openapi.json` **no lleva el token**: se puede copiar o importar en otra herramienta sin llevarse el secreto
   (D-71). `/docs` lo toma de su propia página y su único script en línea va autorizado por un `nonce` de la CSP.
 - Un `POST` de más de **2 MiB** responde `413`; un `Content-Length` no numérico o negativo, un cuerpo que no es UTF-8
@@ -125,6 +130,10 @@ Las acciones con «⚠» actúan de verdad (envían correo, crean carpetas, elim
   las cabeceras, no abre la conexión larga). Pedir una acción con `GET`, o una página con `POST`, es `405` con `Allow`, no `404`.
 - Un `500` muestra «Ocurrió un error inesperado» con un **código de error** de 8 caracteres; el detalle está en el
   registro junto a ese código. Un `400` muestra el motivo solo si es un mensaje de Anka para la persona.
+- **Envíos inciertos (U-59).** `POST /send` rechaza un envío si el mismo caso tiene otro reciente (menos de 2 minutos) sin confirmar, aunque
+  el texto cambie; uno de más de 2 minutos se aclara antes con Gmail y, si había alguno, ese envío no sale (se explica qué pasó).
+  `POST /mark-sent` («Ya salió: marcar como enviado») cierra una reserva incierta por declaración de la persona, con huella en el
+  historial; no envía ni consulta nada.
 - La documentación **se genera de las rutas reales** (`GET_ROUTES` y `POST_ROUTES`): una prueba falla si hay una
   ruta sin documentar o documentada que ya no existe.
 - La única dependencia externa es Swagger UI (`swagger-ui-dist`, versión fijada y con huella de integridad SRI),

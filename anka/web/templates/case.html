@@ -26,6 +26,11 @@
     {% if ahora %}<div class="eyebrow">Ahora</div>{% endif %}
     <h2>{% if ahora %}Revisa el correo y envíalo{% else %}Respuesta al cliente{% endif %}</h2>
     {% if ahora %}{{ nota_de_ronda() }}{% endif %}
+    {% if envios_inciertos %}<div class="notice" id="envio-incierto" role="status"><strong>Hay un correo sin confirmar.</strong>
+      {% for envio in envios_inciertos %}Se intentó enviar uno a {{ envio.recipient }} el {{ envio.created_at[:16] | replace('T', ' ') }} y Gmail no confirmó si salió. {% endfor %}
+      No se enviará otro mientras tanto: la aplicación lo aclara sola con Gmail pasados unos minutos. Puedes mirarlo en Gmail (carpeta Enviados); si ya salió, márcalo aquí.
+      <form method="post" action="/mark-sent" class="cambiaste-idea"><input type="hidden" name="thread_id" value="{{ thread_id }}">
+        <button type="submit" class="secondary" data-confirm="Vas a dejar constancia de que el correo sí salió. No se enviará nada. ¿Lo marcamos como enviado?">Ya salió: marcar como enviado</button></form></div>{% endif %}
     {% if blank_reply or review.quote_code %}<p class="nota">{% if blank_reply %}Está en blanco para que escribas lo que quieras; si prefieres, <a href="/case?thread_id={{ thread_id | urlquote }}&template=acuse#respuesta">usa un acuse de recibo sugerido</a>.{% endif %}
       {% if review.quote_code %}Correos con el código: <a href="/case?thread_id={{ thread_id | urlquote }}&template=received#respuesta">proyecto recibido</a>{% if review.code_stage == 'TE' %} · <a href="/case?thread_id={{ thread_id | urlquote }}&template=te_aprobada#respuesta">oferta aprobada (T&amp;E)</a>{% endif %}.{% endif %}</p>{% endif %}
     {% if email == 'form' %}

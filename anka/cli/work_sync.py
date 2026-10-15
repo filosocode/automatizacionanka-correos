@@ -1,5 +1,6 @@
 """Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. Nunca envía ni modifica Gmail."""
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteGmail
 import argparse
 import base64
 from datetime import datetime
@@ -128,7 +129,7 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
     return None
 
 
-def _list_drafts(gmail: Any) -> list[dict]:
+def _list_drafts(gmail: ClienteGmail) -> list[dict]:
     drafts: list[dict] = []
     page = None
     while True:
@@ -147,7 +148,7 @@ def _hora_del_borrador(marca_ms: int) -> str:
         return ""
 
 
-def _verify_origin(gmail: Any, payload: dict) -> dict:
+def _verify_origin(gmail: ClienteGmail, payload: dict) -> dict:
     """Verifica el origen de contratos con preflight; un fallo de acceso se reintenta, nunca se inventa."""
     if (not payload.get("DRIVE_PREFLIGHT") and payload.get("skill_version") != "PRECISO_V4.5_DRIVE"
             and not usa_verificacion_por_adjuntos(payload)):
@@ -199,7 +200,7 @@ def _verificar_con_el_expediente(payload: dict, instantaneas: Path) -> list[str]
     return [*avisos, *avisos_de(resultado)]
 
 
-def _extract_verified(gmail: Any, message: dict, draft_id: str,
+def _extract_verified(gmail: ClienteGmail, message: dict, draft_id: str,
                       instantaneas: Path | None = None, propias: set[str] | None = None) -> tuple[dict, str] | None:
     """Extrae el contrato y recupera metadatos del mensaje origen antes de admitirlo en la caché.
 
@@ -284,7 +285,7 @@ def _se_puede_recordar(found: object) -> bool:
     return not (isinstance(found, tuple) and found[0].get("_lectura_sin_verificar"))
 
 
-def _minimo_desde_gmail(gmail: Any, thread_id: str, rechazo: dict, propias: set[str]) -> dict | None:
+def _minimo_desde_gmail(gmail: ClienteGmail, thread_id: str, rechazo: dict, propias: set[str]) -> dict | None:
     """El caso mínimo de un hilo con un borrador de Work inválido (T-36); `None` si Gmail no da un mensaje recibido.
 
     Del rechazo solo pasan el motivo, los nombres de campo y la fecha.
@@ -296,7 +297,7 @@ def _minimo_desde_gmail(gmail: Any, thread_id: str, rechazo: dict, propias: set[
                         rechazo.get("fecha", "")) if recibidos else None)
 
 
-def _casos_minimos(gmail: Any, rejected: list[dict], candidates: dict, state: dict,
+def _casos_minimos(gmail: ClienteGmail, rejected: list[dict], candidates: dict, state: dict,
                    propias: set[str]) -> dict[str, str]:
     """Añade a `candidates` el caso mínimo de cada hilo con un borrador rechazado y sin análisis (T-36).
 
@@ -348,7 +349,7 @@ def _olvidar_borradores_retirados(cache: dict, drafts: list[dict]) -> None:
         del cache[stale]
 
 
-def _leer_borrador(gmail: Any, draft: dict, cache: dict, instantaneas: Path,
+def _leer_borrador(gmail: ClienteGmail, draft: dict, cache: dict, instantaneas: Path,
                    propias: set[str]) -> tuple[str | None, int, object]:
     """(message_id, marca, hallazgo) de un borrador: de la caché si Gmail no lo cambió; si no, lo baja y lo verifica.
 
@@ -412,7 +413,7 @@ def _codificar_para_importar(payload: dict, raw: str, stamp: int) -> str:
     return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
 
 
-def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
+def sync_once(gmail: ClienteGmail, upsert: Callable[[str], None], checkpoint: Path,
               cache: dict | None = None, propias: set[str] | None = None) -> dict:
     """Una pasada. `cache` (draft_id -> (message_id, stamp, hallazgo)) evita bajar de nuevo
     borradores sin cambios: Gmail da un message id nuevo cada vez que se edita un borrador.

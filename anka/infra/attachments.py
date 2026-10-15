@@ -7,9 +7,7 @@ from anka.dominio.attachments import (
     build_attachment_evidence as build_attachment_evidence,
 )
 import re
-import zipfile
 from collections.abc import Mapping
-from io import BytesIO
 from pathlib import Path
 from anka.dominio.attachments import (
     MAX_ATTACHMENT_BYTES,
@@ -35,14 +33,14 @@ from anka.dominio.lectores_geograficos import (
 )
 from anka.infra.lectores_office import docx_text, ods_text, odp_text, odt_text, pptx_text, xls_text, xlsx_text
 from anka.infra.lectores_pdf import pdf_text
-from anka.infra.lectores_zip import shapefile_zip_text
+from anka.infra.lectores_zip import shapefile_zip_text, zip_acotado
 from anka.infra.lectores_imagen import image_text, office_legacy_text
 from anka.infra.presupuesto_ocr import presupuesto_de_archivo
 
 
 def _zip_text(content: bytes) -> str:
     """Inspecciona paquetes ZIP sin extraerlos a disco; limita expansión y cantidad de entradas."""
-    with zipfile.ZipFile(BytesIO(content)) as archive:
+    with zip_acotado(content, "paquete ZIP") as archive:
         entries = [item for item in archive.infolist() if not item.is_dir()]
         supported_extensions = TEXT_ATTACHMENT_EXTENSIONS | {
             ".pdf",

@@ -6,6 +6,7 @@ from collections.abc import Iterable
 import html
 import csv
 import json
+import logging
 import math
 import re
 import zipfile
@@ -19,6 +20,14 @@ from anka.dominio.attachments import (
 )
 from anka.dominio.lectores_texto import Unreadable
 from anka.dominio.xml_tolerante import parsear_xml
+
+log = logging.getLogger(__name__)
+
+
+def _descartado(motivo: str, cuantos: int = 1) -> None:
+    """Deja constancia (nivel depuración) de lo que el lector tuvo que ignorar sin avisar al texto (U-63, B1-08)."""
+    if cuantos:
+        log.debug("Lector geográfico: %d elemento(s) descartado(s): %s", cuantos, motivo)
 
 
 def local_name(tag: str) -> str:
@@ -37,6 +46,7 @@ def child_text(element: ElementTree.Element, name: str) -> str:
 def coordinate_rows(element: ElementTree.Element) -> list[tuple[float, float, float | None]]:
     """Extrae longitud, latitud y altitud de coordenadas KML válidas."""
     coordinates = []
+    descartadas = 0
     for node in element.iter():
         kind = local_name(node.tag)
         if kind == "coord" and node.text:
@@ -46,20 +56,23 @@ def coordinate_rows(element: ElementTree.Element) -> list[tuple[float, float, fl
                     altitude = float(parts[2]) if len(parts) >= 3 else None
                     coordinates.append((float(parts[0]), float(parts[1]), altitude))
                 except ValueError:
-                    pass
+                    descartadas += 1
             continue
         if kind != "coordinates" or not node.text:
             continue
         for item in node.text.split():
             parts = item.split(",")
             if len(parts) < 2:
+                descartadas += 1
                 continue
             try:
                 longitude, latitude = float(parts[0]), float(parts[1])
                 altitude = float(parts[2]) if len(parts) >= 3 and parts[2] else None
             except ValueError:
+                descartadas += 1
                 continue
             coordinates.append((longitude, latitude, altitude))
+    _descartado("coordenadas KML ilegibles", descartadas)
     return coordinates
 
 
@@ -633,6 +646,7 @@ def _gpx_point_rows(
             elevation = float(elevation_text) if elevation_text else None
         except ValueError:
             elevation = None
+            _descartado("elevación GPX ilegible")
         name_value = child_text(point, "name") or label
         when = child_text(point, "time")
         result.append((lon, lat, elevation, when))
@@ -696,8 +710,10 @@ def _mission_coordinate(params: Any) -> tuple[float, float, float] | None:
             lat, lon, altitude = float(params[4]), float(params[5]), float(params[6])
             if -90 <= lat <= 90 and -180 <= lon <= 180:
                 coordinate = (lon, lat, altitude)
+            else:
+                _descartado("coordenada de misión fuera de rango")
         except (TypeError, ValueError):
-            pass
+            _descartado("coordenada de misión ilegible")
     return coordinate
 
 
@@ -727,7 +743,7 @@ def _csv_coordinates(
             try:
                 altitude = float(row[indices["alt"]])
             except ValueError:
-                pass
+                _descartado("altitud CSV ilegible")
         sequence = (
             row[indices["seq"]] if indices["seq"] is not None and indices["seq"] < len(row) else str(row_number - 1)
         )

@@ -22,7 +22,7 @@ from anka.infra.modes import (
     print_mode, set_mode,
 )
 from anka.infra.logging_setup import configure_logging
-from anka.infra.settings import ACTIVE_MODES, load_config, unknown_config_keys
+from anka.infra.settings import ACTIVE_MODES, config_warnings, load_config, unknown_config_keys
 from anka.servicios.cola_del_piloto import pending_reviews
 from anka.servicios.work_import import dashboard_upsert
 from anka.servicios.work_attachment_packet import prepare_work_attachment_packet
@@ -270,14 +270,17 @@ from anka.web.server import review_ui
 def warn_unknown_config_keys() -> None:
     """Avisa de claves de config.json que el programa no usa (suelen ser errores de tipeo)."""
     try:
-        unknown = unknown_config_keys(load_config())
+        config = load_config()
     except ErrorDeAnka:
         return  # el comando informará del problema de configuración por su cuenta
+    unknown = unknown_config_keys(config)
     if unknown:
         print(
             "Aviso: config.json tiene claves que el programa no usa: " + ", ".join(unknown),
             file=sys.stderr,
         )
+    for aviso in config_warnings(config):
+        print("Aviso: " + aviso, file=sys.stderr)
 
 
 COMMANDS_ORDER = (

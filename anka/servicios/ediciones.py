@@ -19,7 +19,9 @@ from anka.dominio.analisis import Actividad
 from anka.infra.logging_setup import get_logger
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.repositorio import RepositorioDeCasos
-from anka.infra.store import add_table_version, begin_immediate, connect, latest_table_version, record_event
+from anka.infra.store import (
+    add_table_version, latest_table_version, lectura, record_event, transaccion,
+)
 from anka.dominio.caso import load_analysis
 
 log = get_logger(__name__)
@@ -100,8 +102,7 @@ def table_versions(thread_id: str) -> list[dict]:
 
 def last_manual_version(thread_id: str) -> dict | None:
     """Última edición de una persona y si ya se avisó al cliente de ella."""
-    db = connect()
-    try:
+    with lectura() as db:
         row = db.execute(
             "SELECT * FROM table_versions WHERE thread_id=? AND source='dashboard' "
             "ORDER BY version DESC LIMIT 1", (thread_id,)).fetchone()
@@ -110,8 +111,6 @@ def last_manual_version(thread_id: str) -> dict | None:
         notified = db.execute(
             "SELECT 1 FROM case_events WHERE thread_id=? AND kind='scope_update_sent' "
             "AND recorded_at >= ?", (thread_id, row["created_at"])).fetchone()
-    finally:
-        db.close()
     return {**dict(row), "notified": notified is not None}
 
 
@@ -129,9 +128,7 @@ def save_activities(thread_id: str, activities: list[Actividad], reason: str = "
     sin perder lo escrito (U-34.5). `filas_enviadas` es el `row_count` del formulario: 0 con una tabla que tiene
     filas es un formulario truncado. Una edición que no cambia nada no crea versión.
     """
-    db = connect()
-    try:
-        begin_immediate(db)       # leer y escribir bajo el mismo candado (U-42)
+    with transaccion() as db:       # leer y escribir bajo el mismo candado (U-42)
         row = db.execute(
             "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
         ).fetchone()
@@ -164,8 +161,5 @@ def save_activities(thread_id: str, activities: list[Actividad], reason: str = "
         actualizar_caso(db, thread_id,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
             updated_at=now)
-        db.commit()
-    finally:
-        db.close()
     programar_actualizacion_de_hoja(thread_id)   # la hoja de Google se actualiza sola
     return f"Tabla guardada. {summary}."

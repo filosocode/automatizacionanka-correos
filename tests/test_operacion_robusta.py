@@ -211,13 +211,13 @@ class LanzadorTests(unittest.TestCase):
                 patch.object(supervisor, "code_snapshot", return_value={"a": 1.0}), \
                 patch.object(supervisor, "work_mode", side_effect=[True, False]), \
                 patch.object(supervisor, "work_drive_enabled", side_effect=[True, False]), \
-                patch.object(supervisor, "backup_due", side_effect=[True, False]), \
-                patch.object(supervisor, "run_backup") as copia, \
+                patch.object(supervisor, "CopiaDeSeguridad") as copia, patch.object(supervisor, "Reconciliador"), \
                 patch.object(supervisor, "run_due_reminders", side_effect=RuntimeError("sin red")), \
                 patch.object(supervisor.time, "sleep", side_effect=[None, KeyboardInterrupt]), \
                 self.assertLogs("anka.cli.supervisor", "INFO") as registro:
             self.assertEqual(supervisor.servicio(), 0)                 # Ctrl+C: parada normal
-        copia.assert_called_once()
+        self.assertEqual(copia.return_value.check.call_count, 2)       # la copia se vigila en cada vuelta, sin esperarla
+        copia.return_value.stop.assert_called_once()                   # y se cancela al salir
         self.assertTrue(any("recordatorios" in linea for linea in registro.output))
         puente, preparador = hijos["Puente Work"], hijos["Expedientes Work"]
         self.assertEqual((puente.stop_calls, preparador.stop_calls), (2, 2))  # al cambiar de modo y al salir
@@ -363,6 +363,7 @@ class CopiasTests(_DatosTemporales):
         self.assertEqual(salida.exception.code, 0)
         archivo = json.loads(out.getvalue())["file"]
         with patch.object(sys, "argv", ["backup.py", "--restore", str(backup.backups_dir() / archivo)]), \
+                patch.object(backup, "dashboard_en_marcha", return_value=False), \
                 patch.object(backup, "configure_logging"), redirect_stdout(io.StringIO()) as salida_restaurar:
             backup.main()
         self.assertIn("Restaurada:", salida_restaurar.getvalue())

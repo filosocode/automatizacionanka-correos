@@ -13,6 +13,8 @@ from anka.dominio.attachments import MAX_OCR_PIXELS
 from anka.dominio.lectores_texto import Unreadable, plain_text
 from anka.infra.presupuesto_ocr import OcrOmitidoPorTiempo, presupuesto_actual
 
+TOPE_DE_PILLOW = MAX_OCR_PIXELS      # Pillow avisa por encima y rechaza al doble, antes de decodificar nada
+
 
 @lru_cache(maxsize=1)
 def ocr_engine() -> Any:
@@ -31,6 +33,7 @@ def ocr_image(content: bytes) -> str:
         import numpy as np
     except ImportError:
         raise Unreadable("falta instalar Pillow y numpy para leer imágenes") from None
+    Image.MAX_IMAGE_PIXELS = TOPE_DE_PILLOW       # tope explícito, no el de la versión de Pillow (U-61, B2-10)
     try:
         with Image.open(BytesIO(content)) as source:
             if source.width * source.height > MAX_OCR_PIXELS:

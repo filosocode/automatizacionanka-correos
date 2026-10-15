@@ -100,6 +100,7 @@
   }
   function arrancar() {
     if (cuadro || document.hidden || sinMovimiento.matches) return;
+    if (document.hasFocus && !document.hasFocus()) return;      // sin el foco de la ventana no se anima (U-65)
     lienzo.hidden = false; oscuro = esOscuro();
     if (!nodos.length) medir();
     ultimo = performance.now();                           // reloj nuevo: al volver de una pestaña oculta no hay salto
@@ -119,7 +120,8 @@
   const soltar = () => { raton.activo = false; };
   document.documentElement.addEventListener('mouseleave', soltar);
   document.addEventListener('mouseout', e => { if (!e.relatedTarget) soltar(); });
-  window.addEventListener('blur', soltar);
+  window.addEventListener('blur', () => { soltar(); detener(); });      // sin el foco de la ventana no se anima (U-65)
+  window.addEventListener('focus', arrancar);
   arrancar();
 })();
 // Evita el doble envío (U-31.18): un formulario que escribe se envía una sola vez y su botón queda bloqueado.

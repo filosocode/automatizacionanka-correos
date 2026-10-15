@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from datetime import date, datetime
 
 from anka.infra.logging_setup import get_logger
-from anka.infra.store import connect
+from anka.infra.store import lectura, transaccion
 
 log = get_logger(__name__)
 UMBRAL_POR_DIA = 3      # más de tantos en un día pide revisar el prompt de Work
@@ -27,16 +27,12 @@ def registrar(draft_id: str, message_id: str, thread_id: str, causa: str, campos
     """Anota un análisis rechazado, una sola vez por borrador y mensaje. Nunca lanza: es una métrica."""
     cuando = cuando or _ahora()
     try:
-        db = connect()
-        try:
+        with transaccion(inmediata=False) as db:
             db.execute(
                 "INSERT OR IGNORE INTO work_rejections"
                 " (draft_id, message_id, thread_id, day, at, cause, fields, reason) VALUES (?,?,?,?,?,?,?,?)",
                 (draft_id, message_id, thread_id, cuando.date().isoformat(), cuando.isoformat(timespec="seconds"),
                  causa, json.dumps(list(campos), ensure_ascii=False), motivo[:MAX_MOTIVO]))
-            db.commit()
-        finally:
-            db.close()
     except Exception as exc:   # la métrica no debe frenar al puente
         log.warning("No se pudo anotar el rechazo de Work (%s)", type(exc).__name__, exc_info=True)
 
@@ -44,12 +40,9 @@ def registrar(draft_id: str, message_id: str, thread_id: str, causa: str, campos
 def cuenta_del_dia(dia: date | None = None) -> int:
     """Cuántos análisis de Work se rechazaron ese día (hoy por omisión); 0 si no se puede leer."""
     try:
-        db = connect()
-        try:
+        with lectura() as db:
             fila = db.execute("SELECT COUNT(*) FROM work_rejections WHERE day=?",
                               ((dia or _ahora().date()).isoformat(),)).fetchone()
-        finally:
-            db.close()
         return int(fila[0])
     except Exception as exc:
         log.warning("No se pudo contar los rechazos de Work (%s)", type(exc).__name__, exc_info=True)
@@ -66,26 +59,19 @@ def alerta_del_dia() -> str:
 
 def dejar_para_despues(draft_id: str, message_id: str) -> bool:
     """Marca el aviso de un rechazo como pospuesto; True si existía y estaba a la vista."""
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         cambio = db.execute(
             "UPDATE work_rejections SET dismissed_at=? WHERE draft_id=? AND message_id=? AND dismissed_at IS NULL",
             (_ahora().isoformat(timespec="seconds"), draft_id, message_id)).rowcount
-        db.commit()
-    finally:
-        db.close()
     return bool(cambio)
 
 
 def pospuestos() -> set[tuple[str, str]]:
     """Los (borrador, mensaje) cuyo aviso se dejó para después; vacío si no se puede leer."""
     try:
-        db = connect()
-        try:
+        with lectura() as db:
             filas = db.execute("SELECT draft_id, message_id FROM work_rejections WHERE dismissed_at IS NOT NULL")
             return {(fila[0], fila[1]) for fila in filas}
-        finally:
-            db.close()
     except Exception as exc:
         log.warning("No se pudieron leer los avisos pospuestos (%s)", type(exc).__name__, exc_info=True)
         return set()

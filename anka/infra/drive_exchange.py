@@ -1,6 +1,7 @@
 """Archivos de intercambio en Drive, identificados por claves estables y con paginación."""
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteDrive
 
 import hashlib
 import json
@@ -9,7 +10,6 @@ from contextlib import contextmanager
 from collections.abc import Iterator
 from io import BytesIO
 from pathlib import Path
-from typing import Any
 
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra.google_services import FOLDER_MIME
@@ -46,7 +46,7 @@ def preparation_lock(path: Path) -> Iterator[None]:
 class DriveExchange:
     """Acceso a expedientes propios sin alterar archivos ajenos ni sus permisos."""
 
-    def __init__(self, drive: Any):
+    def __init__(self, drive: ClienteDrive):
         self.drive = drive
 
     def find(self, parent: str, key: str) -> dict | None:

@@ -1,9 +1,9 @@
 """Contrato entre ChatGPT Work y el puente: valida el JSON del borrador contra `spec/contrato_work.schema.json`.
 
 El esquema es la fuente de verdad (campos, tipos y estados permitidos). Se valida un subconjunto de
-JSON Schema —type, required, enum, properties, items, minLength— sin dependencias externas. Un valor
+JSON Schema —type, required, enum, properties, items, minLength, pattern— sin dependencias externas. Un valor
 `null` en un campo opcional se trata como ausente: Work a veces lo escribe así y no debe rechazar el caso.
-Una palabra clave del esquema que el validador no sabe comprobar (`pattern`, `oneOf`, `additionalProperties`…) o
+Una palabra clave del esquema que el validador no sabe comprobar (`oneOf`, `additionalProperties`, `minItems`…) o
 un `type` desconocido no se ignora en silencio: `validate` lo devuelve como error (U-51).
 """
 
@@ -27,7 +27,7 @@ _TYPES: dict[str, type | tuple[type, ...]] = {
 
 
 # Lo que el validador comprueba, y las anotaciones que no comprueban nada (comentarios, descripciones, versión).
-PALABRAS_COMPROBADAS = frozenset({"type", "required", "enum", "properties", "items", "minLength"})
+PALABRAS_COMPROBADAS = frozenset({"type", "required", "enum", "properties", "items", "minLength", "pattern"})
 PALABRAS_DE_ANOTACION = frozenset({"$comment", "$schema", "$id", "title", "description", "version", "default",
                                    "examples"})
 
@@ -93,6 +93,8 @@ def validate(instance: Any, schema: dict | None = None, path: str = "") -> list[
         errors.append(f"{where} tiene un valor no permitido: {instance!r}.")
     if isinstance(instance, str) and "minLength" in schema and len(instance.strip()) < schema["minLength"]:
         errors.append(f"{where} no puede estar vacío.")
+    if isinstance(instance, str) and "pattern" in schema and not re.search(schema["pattern"], instance):
+        errors.append(f"{where} no tiene el formato esperado.")
     if isinstance(instance, dict):
         for key in schema.get("required", []):
             if instance.get(key) is None:

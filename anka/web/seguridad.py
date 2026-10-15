@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import re
 import secrets
 import urllib.parse
@@ -47,18 +48,54 @@ def add_csrf_tokens(content: str) -> str:
     return POST_FORM_PATTERN.sub(lambda m: m.group(1) + field, content)
 
 
-def is_local_host_header(value: str) -> bool:
-    """Acepta solo Host locales; bloquea DNS rebinding."""
+def is_local_host_header(value: str, puerto: int | None = None) -> bool:
+    """Acepta solo Host locales; bloquea DNS rebinding. Con `puerto` (el del servidor), el puerto del Host, si lo trae,
+    debe ser ese (U-61, B2-06); sin puerto en el Host se acepta (HTTP/1.0 y clientes sencillos)."""
     value = (value or "").lower()
-    hostname = value.rsplit(":", 1)[0] if value.count(":") == 1 or value.startswith("[") and "]:" in value else value
-    return hostname in LOCAL_HOSTS
+    tiene_puerto = value.count(":") == 1 or value.startswith("[") and "]:" in value
+    hostname, _, escrito = value.rpartition(":") if tiene_puerto else (value, "", "")
+    if hostname not in LOCAL_HOSTS:
+        return False
+    if puerto is not None and tiene_puerto:
+        return escrito.isascii() and escrito.isdigit() and int(escrito) == puerto
+    return True
 
 
-def is_same_origin(origin: str, host: str) -> bool:
-    """¿La petición viene de esta misma página (o no declara origen)?"""
+# `Sec-Fetch-Site` lo escribe el navegador y la página no puede cambiarlo. Un POST legítimo del dashboard es siempre
+# «same-origin»; «none» es lo que declara una acción de la propia persona (marcador, barra de direcciones).
+FETCH_SITE_PERMITIDOS = frozenset({"same-origin", "none"})
+
+
+def is_same_origin(origin: str, host: str, fetch_site: str = "") -> bool:
+    """¿La petición viene de esta misma página? Política de un POST (U-61, B2-05):
+
+    - `Sec-Fetch-Site` presente: debe ser `same-origin` o `none`; `cross-site` y `same-site` se rechazan.
+    - `Origin` presente: debe ser el mismo sitio que el Host (`null` y los ajenos se rechazan).
+    - Ninguno de los dos (un script, `curl`, las pruebas): se acepta, porque el token CSRF —que solo está en las
+      páginas del propio dashboard— es lo que protege; así no se rompe ningún cliente legítimo.
+    """
+    if fetch_site and fetch_site.strip().lower() not in FETCH_SITE_PERMITIDOS:
+        return False
     if not origin:
         return True  # navegadores omiten Origin en algunas navegaciones; el token cubre ese caso
     return urllib.parse.urlparse(origin).netloc.lower() == (host or "").lower()
+
+
+# --- el aviso de la dirección (`?message=`)
+MAX_MENSAJE = 300     # un enlace con un texto de otro no puede mostrar más que esto como «aviso» del dashboard
+
+
+def firmar_mensaje(texto: str) -> str:
+    """Firma corta del aviso que el propio servidor pone en una redirección (con el token, que no sale del equipo)."""
+    return hmac.new(CSRF_TOKEN.encode(), texto.encode("utf-8"), "sha256").hexdigest()[:16]
+
+
+def mensaje_de_la_direccion(texto: str, firma: str = "") -> str:
+    """El aviso que se muestra: completo si lo firmó este servidor; si no, recortado a `MAX_MENSAJE` (un enlace
+    manipulado no puede hacer pasar un texto largo por aviso del dashboard)."""
+    if firma and hmac.compare_digest(firma, firmar_mensaje(texto)):
+        return texto
+    return texto if len(texto) <= MAX_MENSAJE else texto[:MAX_MENSAJE - 1].rstrip() + "…"
 
 
 # --- cabeceras de seguridad (D-71)

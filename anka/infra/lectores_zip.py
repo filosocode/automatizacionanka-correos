@@ -15,7 +15,7 @@ from anka.dominio.lectores_texto import Unreadable
 from anka.infra.lectores_imagen import ocr_image
 
 
-def zip_acotado(content: bytes) -> zipfile.ZipFile:
+def zip_acotado(content: bytes, que: str = "el archivo") -> zipfile.ZipFile:
     """Abre un ZIP (o un documento Office/OpenDocument, que lo es) rechazando bombas de descompresión.
 
     Los tamaños se leen del directorio central sin descomprimir nada; `zipfile` no lee más de lo declarado,
@@ -25,7 +25,7 @@ def zip_acotado(content: bytes) -> zipfile.ZipFile:
     entries = [item for item in archive.infolist() if not item.is_dir()]
     if len(entries) > MAX_ARCHIVE_FILES or sum(item.file_size for item in entries) > MAX_ARCHIVE_EXPANDED_BYTES:
         archive.close()
-        raise Unreadable("el archivo excede el límite de entradas o de tamaño expandido; requiere revisión manual")
+        raise Unreadable(f"{que} excede el límite de entradas o de tamaño expandido; requiere revisión manual")
     return archive
 
 

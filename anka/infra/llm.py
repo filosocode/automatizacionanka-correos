@@ -114,6 +114,20 @@ def caracteres_por_tramo(llm: ConfigLlm) -> int:
     return max(1000, min(llm.get("chunk_chars", por_defecto), cabida))
 
 
+SEPARADOR_DE_MENSAJES = "--- MENSAJE ---"
+SEPARADOR_DE_TEXTO = "--- TEXTO ---"
+
+
+def como_dato(texto: str, *marcas: str) -> str:
+    """El texto de un cliente o de un adjunto, sin las marcas con que el prompt separa sus partes.
+
+    Un correo que escribiera «--- MENSAJE ---» podría fingir que ahí empieza otro mensaje (o que terminaron los datos
+    y siguen las instrucciones). Las marcas se reemplazan por una variante inofensiva; lo demás no cambia (U-61)."""
+    for marca in marcas:
+        texto = texto.replace(marca, marca.replace("---", "—"))
+    return texto
+
+
 def hallazgos_prompt(
     contexto: str, origen: str, fragmento: str, posicion: str, consolidar: bool = False, vigente: str = "",
 ) -> str:
@@ -145,7 +159,7 @@ def hallazgos_prompt(
         "en él palabras como «tramo», «parte» o «consolidación».\n"
         f"{contexto}\nOrigen: {origen}; {posicion}\n"
         + (f"Este tramo continúa dentro de: {vigente} (úsalo si el texto no trae otro marcador).\n" if vigente else "")
-        + f"\n--- TEXTO ---\n{fragmento}"
+        + f"\n{SEPARADOR_DE_TEXTO}\n{como_dato(fragmento, SEPARADOR_DE_TEXTO)}"
     )
 
 
@@ -313,9 +327,9 @@ def analysis_prompt(
     for message in messages:
         conversation.append(
             f"Fuente: correo {message.get('id', 'no-indicado')} del {message_datetime(message)}\n"
-            f"De: {header(message, 'From')}\n"
-            f"Asunto: {header(message, 'Subject')}\n"
-            f"Texto: {message_text(message.get('payload', {}))}"
+            + como_dato(f"De: {header(message, 'From')}\n"
+                        f"Asunto: {header(message, 'Subject')}\n"
+                        f"Texto: {message_text(message.get('payload', {}))}", SEPARADOR_DE_MENSAJES)
         )
     for attachment in attachments or []:
         # Un adjunto con lectura parcial conserva texto útil; su estado y cobertura viajan en el encabezado de la
@@ -333,7 +347,7 @@ def analysis_prompt(
         if text:
             source += (
                 "\nTexto extraído con localizadores de página, párrafo, tabla/fila, hoja/celda, diapositiva, "
-                f"elemento KML/KMZ o archivo interno del ZIP:\n{text}"
+                f"elemento KML/KMZ o archivo interno del ZIP:\n{como_dato(text, SEPARADOR_DE_MENSAJES)}"
             )
         conversation.append(source)
     return (
@@ -393,7 +407,7 @@ def analysis_prompt(
         "proponga. No repitas datos obligatorios. "
         "Si no hay solicitud, devuelve listas vacías.\n"
         f"Datos obligatorios: {json.dumps(required_fields, ensure_ascii=False)}\n\n"
-        + "\n\n--- MENSAJE ---\n\n".join(conversation)
+        + f"\n\n{SEPARADOR_DE_MENSAJES}\n\n".join(conversation)
     )
 
 

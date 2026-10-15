@@ -1,11 +1,11 @@
 """Prepara expedientes versionados de Gmail en Drive con originales y extracción para Work."""
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteDrive, ClienteGmail
 
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
 
 from anka.dominio.attachments import MAX_ATTACHMENT_BYTES, hermanos_de_shapefile
 from anka.dominio.configuracion import Configuracion
@@ -41,7 +41,7 @@ def _messages(thread: dict, own: set[str]) -> list[dict]:
     return [m for m in inbound_messages(thread, own) if "DRAFT" not in m.get("labelIds", [])]
 
 
-def prepare_thread(gmail: Any, exchange: DriveExchange, parent: str, thread: dict, own: set[str],
+def prepare_thread(gmail: ClienteGmail, exchange: DriveExchange, parent: str, thread: dict, own: set[str],
                    instantaneas: Path | None = None) -> dict:
     """Publica una instantánea del hilo; solo confirma el manifiesto después de todas las subidas.
 
@@ -107,7 +107,7 @@ def _guardar_copias_locales(exchange: DriveExchange, directorio: Path | None, ma
         log.warning("No se pudo bajar el texto del expediente %s para comprobar la tabla", thread_id, exc_info=True)
 
 
-def _prepare_version(gmail: Any, exchange: DriveExchange, folder: str, case_folder: str, thread_id: str,
+def _prepare_version(gmail: ClienteGmail, exchange: DriveExchange, folder: str, case_folder: str, thread_id: str,
                      messages: list[dict], revision: str) -> dict:
     originals = exchange.folder(case_folder, "originals", "Originales")
     reading = exchange.folder(case_folder, "reading", "Lectura")
@@ -146,7 +146,7 @@ def _prepare_version(gmail: Any, exchange: DriveExchange, folder: str, case_fold
                             "Cobertura parcial/no_legible requiere revisión interna, no preguntas al cliente."}
 
 
-def _attachment_record(gmail: Any, exchange: DriveExchange, originals: str, reading: str,
+def _attachment_record(gmail: ClienteGmail, exchange: DriveExchange, originals: str, reading: str,
                        message_id: str, index: int, part: dict, records: list[dict], total: int,
                        companeros: dict[str, bytes] | None = None) -> dict:
     record = {"filename": part["filename"], "message_id": message_id, "attachment_index": index,
@@ -199,7 +199,9 @@ def _publish_segments(exchange: DriveExchange, folder: str, source: str, text: s
     return result
 
 
-def sync_work_drive(gmail: Any, drive: Any, config: Configuracion, thread_id: str | None = None) -> dict:
+def sync_work_drive(
+    gmail: ClienteGmail, drive: ClienteDrive, config: Configuracion, thread_id: str | None = None,
+) -> dict:
     """Prepara los hilos de la búsqueda configurada, sin escribir Gmail ni el estado comercial."""
     if not config.get("work_drive_enabled") or config.get("active_mode") != "chatgpt_work":
         raise ErrorDeAnka("La preparación de expedientes de Work está desactivada.")

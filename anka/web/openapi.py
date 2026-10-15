@@ -74,7 +74,8 @@ class Operacion:
 
 _ID = Campo("thread_id", "Id del hilo de Gmail del caso (aparece en la URL de `/case`).", requerido=True,
             ejemplo="18f3a9c2d4e5b601")
-_MENSAJE = Campo("message", "Texto que se muestra como aviso arriba de la pantalla.")
+_MENSAJE = Campo("message", "Texto que se muestra como aviso arriba de la pantalla (si no lo firmó este servidor "
+                 "en una redirección, se recorta a 300 caracteres).")
 _Q = Campo("q", "Texto que se busca (sin mayúsculas) en el proyecto, el cliente y los servicios de todos los casos "
            "(hasta 200 caracteres).", ejemplo="llanos")
 _ETAPA = Campo("etapa", "Solo los casos de esa etapa; «todos» los muestra todos. Sin este campo, «Mis casos» entra en "
@@ -208,7 +209,10 @@ OPERACIONES: tuple[Operacion, ...] = (
                Campo("to", "Destinatario; si se omite, el del caso.")), "redirect"),
     Operacion("post", "/send", "Acciones del caso", "⚠ Enviar la respuesta al cliente",
               "**Envía un correo real** desde Gmail. Si lleva preguntas (o `esperar=1`) deja el caso esperando al "
-              "cliente; si no, queda como respuesta enviada. Rechaza repetir el mismo texto en 15 minutos.", "correo",
+              "cliente; si no, queda como respuesta enviada. Rechaza repetir el mismo texto en 15 minutos y rechaza "
+              "cualquier envío si el mismo caso tiene otro reciente sin confirmar (U-59); un envío incierto de más de "
+              "2 minutos "
+              "se aclara antes con Gmail y, en ese caso, no se envía nada ahora.", "correo",
               (_ID, Campo("body", "Texto del correo.", requerido=True, ejemplo="Hola, ¿podría confirmar…?"),
                Campo("to", "Destinatario; si se omite, el del caso."),
                Campo("change_id", "Cambio al que responde este correo.", "integer", ejemplo=0),
@@ -217,6 +221,10 @@ OPERACIONES: tuple[Operacion, ...] = (
                      opciones=("ack", "ask_code", "notify_contact", "scope_update")),
                Campo("state_token", "Marca del estado del caso que la pantalla tenía al abrirse; si el caso cambió "
                      "desde entonces, el envío se rechaza (opcional).")), "redirect"),
+    Operacion("post", "/mark-sent", "Acciones del caso", "Marcar como enviado un correo sin confirmar",
+              "Cuando un envío quedó incierto (Gmail no confirmó si salió), la persona declara que sí salió. Cierra "
+              "la reserva, actualiza el caso con el texto que se había revisado y deja constancia en el historial con "
+              "su huella. **No envía nada** ni consulta a Gmail.", "guarda", (_ID,), "redirect"),
     Operacion("post", "/activities", "Acciones del caso", "Guardar la tabla de actividades",
               "Reemplaza la tabla con las filas enviadas y guarda una versión nueva con lo que cambió. Rechaza un "
               "formulario sin `row_count`, una fila sin nombre y, si se envía `base_version`, una tabla que cambió.",

@@ -90,7 +90,8 @@ class CabecerasDeSeguridad(Base):
     def test_la_redireccion_303_tambien_las_lleva(self):
         with patch.dict(web.POST_ROUTES, {"/mode": lambda form: "/?message=ok"}):
             estado, cabeceras, _, _ = atender("POST", "/mode", formulario(mode="local"))
-        self.assertEqual((estado, cabeceras["Location"]), (303, "/?message=ok"))
+        self.assertEqual(estado, 303)
+        self.assertTrue(cabeceras["Location"].startswith("/?message=ok&firma="), cabeceras["Location"])      # U-61
         self.comprobar(cabeceras)
 
     def test_el_canal_de_avisos_tambien_las_lleva(self):

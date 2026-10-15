@@ -6,6 +6,7 @@ empresa en OTRO hilo: no los une al caso por su cuenta, los propone para que una
 """
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteGmail
 from anka.servicios.estados import cambiar_estado
 
 import base64
@@ -84,7 +85,7 @@ def match_reason(sender: str, subject: str, contacts: set[str], analysis: Analis
     return reason
 
 
-def _read_raw(gmail: Any, message_id: str) -> tuple[bytes, str]:
+def _read_raw(gmail: ClienteGmail, message_id: str) -> tuple[bytes, str]:
     """Correo completo (para guardarlo como evidencia) y su texto (asunto + cuerpo)."""
     raw = gmail.users().messages().get(userId="me", id=message_id, format="raw").execute()["raw"]
     data = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
@@ -108,7 +109,7 @@ def _save_eml(thread_id: str, message_id: str, data: bytes) -> None:
         target.write_bytes(data)
 
 
-def _list_messages(gmail: Any, query: str = FOLLOWUP_QUERY) -> list[dict]:
+def _list_messages(gmail: ClienteGmail, query: str = FOLLOWUP_QUERY) -> list[dict]:
     found, page = [], None
     while True:
         result = gmail.users().messages().list(
@@ -173,7 +174,7 @@ def _note_sent_message(db: Any, thread_id: str, message_id: str, headers: dict[s
     return events, new_status
 
 
-def _note_received_message(gmail: Any, db: Any, thread_id: str, message_id: str, headers: dict[str, str],
+def _note_received_message(gmail: ClienteGmail, db: Any, thread_id: str, message_id: str, headers: dict[str, str],
                            snippet: str, when: int, analyzed: int, case: Any) -> int:
     """Anota un correo del cliente: el hecho, un posible cambio tras la T y el aviso de que respondió."""
     name, address = parseaddr(headers.get("from", ""))
@@ -194,7 +195,7 @@ def _note_received_message(gmail: Any, db: Any, thread_id: str, message_id: str,
     return 1
 
 
-def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
+def sync_thread_activity(gmail: ClienteGmail, seen: set[str]) -> dict:
     """Anota en cada caso conocido los correos enviados y recibidos y mueve su estado si procede.
 
     `seen` guarda los mensajes ya revisados en este proceso; la base evita duplicar entre reinicios.
@@ -252,7 +253,7 @@ def sync_thread_activity(gmail: Any, seen: set[str]) -> dict:
         db.close()
 
 
-def _register_post_code_change(gmail: Any, db: Any, thread_id: str, case: Any, message_id: str,
+def _register_post_code_change(gmail: ClienteGmail, db: Any, thread_id: str, case: Any, message_id: str,
                                 sender: str, name: str, subject: str, snippet: str, when: str) -> None:
     """Mensaje posterior a la T: guarda el correo original y anota si cita el código."""
     try:
@@ -267,7 +268,7 @@ def _register_post_code_change(gmail: Any, db: Any, thread_id: str, case: Any, m
                     mentions_code(text, case["quote_code"]), sender == contact, same_company)
 
 
-def _find_related(gmail: Any, db: Any, cases: dict, seen: set[str], linked: set[str]) -> int:
+def _find_related(gmail: ClienteGmail, db: Any, cases: dict, seen: set[str], linked: set[str]) -> int:
     """Correos de la misma persona o empresa en otro hilo: se proponen, nunca se unen solos."""
     created = 0
     for query in _related_queries(cases):
@@ -331,7 +332,7 @@ def _find_related(gmail: Any, db: Any, cases: dict, seen: set[str], linked: set[
 
 
 
-def _backfill_messages(gmail: Any, db: Any, limit: int = 20) -> None:
+def _backfill_messages(gmail: ClienteGmail, db: Any, limit: int = 20) -> None:
     """Guarda el texto de correos ya anotados antes de existir la lectura de mensajes (no toca el historial)."""
     rows = db.execute(
         """SELECT e.thread_id, e.ref, e.kind FROM case_events e

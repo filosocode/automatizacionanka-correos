@@ -16,11 +16,11 @@ import json
 import sqlite3
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from datetime import datetime
 from typing import NamedTuple, Any, cast
 from uuid import uuid4
 
 from anka.dominio.errores import ErrorDeValidacion
+from anka.dominio.reloj import ahora_iso, clave_de_orden
 from anka.dominio.analisis import Analisis
 from anka.dominio.preguntas import era_un_acuse
 from anka.dominio.caso import (
@@ -94,12 +94,13 @@ COLUMNAS_DE_LISTA = (
 )
 
 
-def _orden_de_lista(fila: sqlite3.Row) -> tuple[str, str]:
-    """La clave del orden «más reciente primero»: la fecha de actualización (o de primera vista, o vacía) y el hilo."""
+def _orden_de_lista(fila: sqlite3.Row) -> tuple[tuple[float, str], str]:
+    """La clave del orden «más reciente primero»: el instante de la última actualización (o de la primera vista, o
+    vacío) y el hilo. Por instante y no por texto: dos fechas con desfases distintos se comparan bien (U-62)."""
     cuando = fila["updated_at"]
     if cuando is None:
         cuando = fila["first_seen_at"]
-    return ("" if cuando is None else cuando, fila["thread_id"])
+    return (clave_de_orden(cuando), fila["thread_id"])
 
 
 class _CaseRelations(NamedTuple):
@@ -182,7 +183,7 @@ def _build_caso(row: sqlite3.Row, rel: _CaseRelations, resumen: dict | None = No
 TABLAS_DEL_CASO = ("dashboard_notifications", "quote_metadata", "case_messages", "case_followup", "table_versions",
                    "analysis_failures", "quotes")
 TABLAS_CON_DOS_HILOS = ("case_links", "project_dismissals")
-TABLAS_QUE_SE_CONSERVAN = ("case_events", "case_changes", "mail_operations", "work_rejections")
+TABLAS_QUE_SE_CONSERVAN = ("case_events", "event_anchors", "case_changes", "mail_operations", "work_rejections")
 
 
 class RepositorioDeCasos:
@@ -278,9 +279,13 @@ class RepositorioDeCasos:
         scope = (thread_id,) if thread_id is not None else ()
         only = " AND thread_id = ?" if thread_id is not None else ""
         only_where = " WHERE thread_id = ?" if thread_id is not None else ""
-        latest_reply = {r["thread_id"]: (r["occurred_at"], r["ref"]) for r in db.execute(
-            "SELECT thread_id, ref, occurred_at FROM case_events "
-            f"WHERE kind='received'{only} ORDER BY occurred_at, id", scope)}
+        latest_reply: dict[str, tuple[str, str]] = {}
+        for r in db.execute("SELECT thread_id, ref, occurred_at FROM case_events "
+                            f"WHERE kind='received'{only} ORDER BY id", scope):
+            # la más reciente por instante, no por texto (desfases distintos); a igual instante gana la última (U-62)
+            previa = latest_reply.get(r["thread_id"])
+            if previa is None or clave_de_orden(r["occurred_at"])[0] >= clave_de_orden(previa[0])[0]:
+                latest_reply[r["thread_id"]] = (r["occurred_at"], r["ref"])
         followups = {r["thread_id"]: dict(r) for r in db.execute(f"SELECT * FROM case_followup{only_where}", scope)}
         reminders: dict[str, list[str]] = {}
         for r in db.execute(
@@ -329,8 +334,10 @@ class RepositorioDeCasos:
         with self._conexion() as db:
             rows = db.execute(
                 "SELECT direction, sender, subject, body, occurred_at FROM case_messages WHERE thread_id=? "
-                "ORDER BY occurred_at DESC, id DESC LIMIT ?", (thread_id, limite)).fetchall()
-        return [dict(row) for row in rows]
+                "ORDER BY id DESC", (thread_id,)).fetchall()
+        # por instante (a igual instante, el último guardado primero); un hilo tiene pocos correos (U-62)
+        rows.sort(key=lambda row: clave_de_orden(row["occurred_at"])[0], reverse=True)
+        return [dict(row) for row in rows[:limite]]
 
     def versiones_de_tabla(self, thread_id: str) -> list[dict]:
         """Versiones guardadas de la tabla de actividades (la del modelo, cada edición, cada propuesta), de la primera
@@ -343,16 +350,18 @@ class RepositorioDeCasos:
     def primer_mensaje(self, thread_id: str) -> dict | None:
         """El primer correo que escribió el cliente en el hilo: la solicitud inicial, tal como llegó."""
         with self._conexion() as db:
-            row = db.execute(
+            rows = db.execute(
                 "SELECT sender, subject, body, occurred_at FROM case_messages WHERE thread_id=? "
-                "AND direction='received' ORDER BY occurred_at, id LIMIT 1", (thread_id,)).fetchone()
+                "AND direction='received' ORDER BY id", (thread_id,)).fetchall()
+        row = min(rows, key=lambda fila: clave_de_orden(fila["occurred_at"])[0], default=None)
         return dict(row) if row else None
 
     def cambios(self, thread_id: str) -> list[Cambio]:
         """Todas las solicitudes de cambio del caso (cualquier estado), de la más antigua a la más nueva."""
         with self._conexion() as db:
-            return [Cambio.from_row(row) for row in db.execute(
-                "SELECT * FROM case_changes WHERE thread_id=? ORDER BY occurred_at", (thread_id,))]
+            filas = db.execute("SELECT * FROM case_changes WHERE thread_id=? ORDER BY id", (thread_id,)).fetchall()
+        filas.sort(key=lambda fila: clave_de_orden(fila["occurred_at"])[0])
+        return [Cambio.from_row(fila) for fila in filas]
 
     def eventos(self, thread_id: str) -> list[Evento]:
         """Seguimiento del caso, del más reciente al más antiguo."""
@@ -398,7 +407,7 @@ class RepositorioDeCasos:
     # ---------------------------------------------------------------- escrituras
     def guardar_datos_comerciales(self, thread_id: str, cliente: str, tipo: str, sector: str, notas: str) -> None:
         """Guarda cliente, tipo, sector y notas del caso (la validación de las listas es de quien llama)."""
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        now = ahora_iso("seconds")
         with self._conexion() as db:
             db.execute("""INSERT INTO quote_metadata
                           (thread_id, client_type, sector, client_name, notes, updated_at)
@@ -412,7 +421,7 @@ class RepositorioDeCasos:
 
     def fijar_cliente(self, thread_id: str, cliente: str) -> None:
         """Guarda el cliente confirmado de un caso sin tocar el resto de sus datos comerciales."""
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        now = ahora_iso("seconds")
         with self._conexion() as db:
             db.execute("""INSERT INTO quote_metadata
                           (thread_id, client_type, sector, client_name, notes, updated_at)
@@ -424,7 +433,7 @@ class RepositorioDeCasos:
 
     def guardar_hoja(self, thread_id: str, sheet_id: str, modificada: str) -> None:
         """Recuerda la hoja del caso y cuándo la dejamos: así se nota si alguien la editó directamente en Drive."""
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        now = ahora_iso("seconds")
         with self._conexion() as db:
             db.execute("UPDATE quotes SET sheet_id=?, sheet_modified=?, sheet_synced_at=?, sheet_error='' "
                        "WHERE thread_id=?", (sheet_id, modificada, now, thread_id))
@@ -453,7 +462,7 @@ class RepositorioDeCasos:
                 found_marks = ",".join("?" * len(found))
                 for thread_id in found:
                     record_event(db, thread_id, "deleted", "dashboard",
-                                 f"{datetime.now().astimezone().isoformat(timespec='seconds')}-{uuid4().hex[:6]}",
+                                 f"{ahora_iso('seconds')}-{uuid4().hex[:6]}",
                                  "El caso se eliminó del dashboard; su historial se conserva en el archivo.")
                 for table in TABLAS_DEL_CASO:
                     db.execute(f"DELETE FROM {table} WHERE thread_id IN ({found_marks})", found)
@@ -479,6 +488,6 @@ class RepositorioDeCasos:
             db.execute(
                 "UPDATE quotes SET last_inbound_id='', analysis_json=?, updated_at=? WHERE thread_id=?",
                 (json.dumps(analysis, ensure_ascii=False),
-                 datetime.now().astimezone().isoformat(timespec="seconds"), thread_id),
+                 ahora_iso("seconds"), thread_id),
             )
             db.commit()

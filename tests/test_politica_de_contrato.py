@@ -112,7 +112,7 @@ class UnSoloCriterio(unittest.TestCase):
 # Cubre: U-51
 class ElValidadorNoIgnoraEnSilencio(unittest.TestCase):
     def test_una_palabra_clave_que_no_comprueba_es_un_error_y_no_se_ignora(self):
-        for palabra, valor in (("pattern", "^a"), ("minItems", 1), ("oneOf", []), ("additionalProperties", False),
+        for palabra, valor in (("format", "date"), ("minItems", 1), ("oneOf", []), ("additionalProperties", False),
                                ("$ref", "#/x"), ("maxLength", 3)):
             with self.subTest(palabra=palabra):
                 esquema = {"type": "object", "properties": {"a": {"type": "string", palabra: valor}}}
@@ -135,7 +135,7 @@ class ElValidadorNoIgnoraEnSilencio(unittest.TestCase):
         self.assertEqual(work_contract.palabras_no_soportadas(work_contract.load_schema()), [])
 
     def test_un_esquema_con_palabra_nueva_se_nota_tambien_en_items(self):
-        esquema = {"type": "array", "items": {"type": "string", "pattern": "x"}}
+        esquema = {"type": "array", "items": {"type": "string", "format": "x"}}
         self.assertTrue(work_contract.palabras_no_soportadas(esquema))
 
 

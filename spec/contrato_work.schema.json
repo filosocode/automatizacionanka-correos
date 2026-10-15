@@ -72,7 +72,9 @@
       "$comment": "ISO 8601."
     },
     "gmail_url": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^(https://mail\\.google\\.com/.*)?$",
+      "$comment": "Solo enlaces de Gmail (o vacío): un enlace de otro esquema se deja vacío con aviso (U-61)."
     },
     "requested_by_email": {
       "type": "string",

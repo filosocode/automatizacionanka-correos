@@ -19,7 +19,7 @@ from anka.dominio.reception import reception_assessment
 from anka.dominio.status import QuoteStatus
 from anka.dominio.work_contract import archivos_sin_verificar, lectura_sin_verificar
 from anka.infra.logging_setup import get_logger
-from anka.infra.store import add_table_version, begin_immediate, connect, record_event
+from anka.infra.store import add_table_version, record_event, transaccion
 from anka.servicios.estados import cambiar_estado
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.repositorio import actualizar_caso
@@ -29,9 +29,7 @@ log = get_logger(__name__)
 
 def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
     """La persona adopta la tabla que propone el modelo o conserva la suya."""
-    db = connect()
-    try:
-        begin_immediate(db)
+    with transaccion() as db:
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
             raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
@@ -54,9 +52,6 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
             analysis_json=json.dumps(analysis, ensure_ascii=False),
             updated_at=now)
         record_event(db, thread_id, "proposal", "dashboard", f"{now}-{uuid4().hex[:6]}", summary, now)
-        db.commit()
-    finally:
-        db.close()
     programar_actualizacion_de_hoja(thread_id)   # la tabla pudo cambiar: la hoja de Google se actualiza sola
     if not use_proposal:
         summary += " Si fue un error, puedes recuperar la propuesta en la pestaña «Historial»."
@@ -67,9 +62,7 @@ def recuperar_propuesta(thread_id: str) -> str:
     """Deshace «Dejar mi tabla»: la propuesta que Work había hecho vuelve a quedar por revisar (U-57).
 
     No toca la tabla de la persona ni envía nada; solo vuelve a poner la propuesta como pendiente y lo anota."""
-    db = connect()
-    try:
-        begin_immediate(db)
+    with transaccion() as db:
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
             raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
@@ -84,9 +77,6 @@ def recuperar_propuesta(thread_id: str) -> str:
         summary = f"Recuperaste la propuesta de Work que habías dejado de lado ({len(guardada)} actividades)."
         actualizar_caso(db, thread_id, analysis_json=json.dumps(analysis, ensure_ascii=False), updated_at=now)
         record_event(db, thread_id, "proposal", "dashboard", f"{now}-{uuid4().hex[:6]}", summary, now)
-        db.commit()
-    finally:
-        db.close()
     return summary + " Arriba puedes aceptarla o dejar tu tabla."
 
 
@@ -99,9 +89,7 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
     """
     if accion not in ("reconsiderar", "suficiente"):
         raise ErrorDeValidacion("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
-    db = connect()
-    try:
-        begin_immediate(db)
+    with transaccion() as db:
         row = db.execute(
             "SELECT status, analysis_json, sent_at, draft_id FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
@@ -128,9 +116,6 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
         cambiar_estado(db, thread_id, nuevo, "volver_a_decidir", updated_at=now,
                        analysis_json=json.dumps(analysis, ensure_ascii=False))
         record_event(db, thread_id, "review_decision", "dashboard", f"{now}-{uuid4().hex[:6]}", texto, now)
-        db.commit()
-    finally:
-        db.close()
     log.info("%s: volvió a la decisión técnica antes de enviar (%s)", thread_id, accion)
     return mensaje
 
@@ -141,9 +126,7 @@ def aceptar_lectura_revisada(thread_id: str) -> str:
     No cambia el estado ni envía nada: levanta el bloqueo de la pantalla y deja constancia en el historial de quién lo
     hizo, cuándo y sobre qué archivos. Un análisis nuevo de Work reemplaza esta marca y se verifica de nuevo.
     """
-    db = connect()
-    try:
-        begin_immediate(db)
+    with transaccion() as db:
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
             raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
@@ -157,9 +140,6 @@ def aceptar_lectura_revisada(thread_id: str) -> str:
         cuales = f": {', '.join(archivos)}" if archivos else ""
         record_event(db, thread_id, "reading_reviewed", "dashboard", f"{now}-{uuid4().hex[:6]}",
                      f"Una persona asumió la revisión de los archivos que Anka no pudo verificar{cuales}.", now)
-        db.commit()
-    finally:
-        db.close()
     log.info("%s: una persona asumió la revisión de la lectura sin verificar", thread_id)
     return "Listo: la lectura quedó como revisada por ti. Ya puedes ver los resultados de Work y decidir cómo seguir."
 
@@ -181,9 +161,7 @@ def resolve_technical_review(
         raise ErrorDeValidacion("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
     if decision == "internal_only" and elecciones is None:
         raise ErrorDeValidacion("Falta elegir qué hacer con alguna pregunta.")
-    db = connect()
-    try:
-        begin_immediate(db)
+    with transaccion() as db:
         row = db.execute(
             "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
         ).fetchone()
@@ -228,9 +206,6 @@ def resolve_technical_review(
             analysis_json=json.dumps(analysis, ensure_ascii=False),
             updated_at=now)
         record_event(db, thread_id, "review_decision", "dashboard", f"{now}-{uuid4().hex[:6]}", texto, now)
-        db.commit()
-    finally:
-        db.close()
     log.info("%s: revisión técnica resuelta por una persona (%s)", thread_id, decision)
     if decision == "sufficient":
         return "Listo: con esto alcanza. Ya puedes crear la carpeta del proyecto en Drive."

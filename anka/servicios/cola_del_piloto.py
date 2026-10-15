@@ -11,7 +11,7 @@ from pathlib import Path
 from anka.dominio.analisis import Analisis
 from anka.dominio.status import QuoteStatus
 from anka.infra import settings
-from anka.infra.store import connect
+from anka.infra.store import lectura
 from anka.servicios.repositorio import filas_de_la_cola_de_revision
 
 
@@ -91,11 +91,8 @@ def review_action(status: str) -> tuple[str, str]:
 
 def pending_reviews() -> list[dict]:
     """Casos que esperan revisión humana, con su paquete de texto."""
-    db = connect()
-    try:
+    with lectura() as db:
         rows = filas_de_la_cola_de_revision(db)
-    finally:
-        db.close()
     reviews = []
     for thread_id, status, recipient, analysis_json in rows:
         try:

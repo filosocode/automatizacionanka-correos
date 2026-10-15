@@ -13,13 +13,13 @@ detiene y avisa en vez de duplicar el proyecto.
 """
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteDrive
 
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from functools import lru_cache
-from typing import Any
 
 from anka.dominio.errores import ErrorDeValidacion
 from anka.infra.google_services import ensure_folder, list_file_names, list_folders
@@ -144,7 +144,7 @@ def project_title(folder_name: str) -> str:
     return match.group(1) if match else folder_name
 
 
-def similar_client_folders(drive: Any, parent_id: str, client_name: str) -> list[dict]:
+def similar_client_folders(drive: ClienteDrive, parent_id: str, client_name: str) -> list[dict]:
     """Carpetas de cliente de nombre parecido (pero no equivalente) al dado."""
     key = normalize_client_name(client_name)
     return [
@@ -155,7 +155,7 @@ def similar_client_folders(drive: Any, parent_id: str, client_name: str) -> list
 
 
 def similar_project_folders(
-    drive: Any, client_id: str, request_name: str, attachment_names: Iterable[str] = (),
+    drive: ClienteDrive, client_id: str, request_name: str, attachment_names: Iterable[str] = (),
     *, max_scan: int = 30,
 ) -> list[dict]:
     """Solicitudes del cliente que parecen ser el mismo proyecto: nombre parecido o mismo adjunto."""
@@ -188,7 +188,7 @@ def clean_folder_name(name: str) -> str:
     return clean
 
 
-def find_client_folders(drive: Any, parent_id: str, client_name: str) -> list[dict]:
+def find_client_folders(drive: ClienteDrive, parent_id: str, client_name: str) -> list[dict]:
     """Carpetas de cliente bajo `parent_id` cuyo nombre equivale al dado."""
     key = normalize_client_name(client_name)
     if not key:
@@ -197,7 +197,7 @@ def find_client_folders(drive: Any, parent_id: str, client_name: str) -> list[di
 
 
 def resolve_client_folder(
-    drive: Any, parent_id: str, client_name: str, *, create: bool, auto_create: bool = False,
+    drive: ClienteDrive, parent_id: str, client_name: str, *, create: bool, auto_create: bool = False,
 ) -> tuple[dict, bool]:
     """Devuelve (carpeta del cliente, ¿recién creada?).
 
@@ -227,7 +227,7 @@ def resolve_client_folder(
 
 
 def create_project_folder(
-    drive: Any, parent_id: str, client_name: str, request_name: str, *, create_client: bool = False,
+    drive: ClienteDrive, parent_id: str, client_name: str, request_name: str, *, create_client: bool = False,
     auto_create_client: bool = False, attachment_names: Iterable[str] = (),
     allow_similar_project: bool = False,
 ) -> ProjectFolder:
@@ -249,7 +249,7 @@ def create_project_folder(
     return ProjectFolder(client=client, client_created=created, folder=folder)
 
 
-def trash_project_folder(drive: Any, parent_id: str, folder_id: str) -> bool:
+def trash_project_folder(drive: ClienteDrive, parent_id: str, folder_id: str) -> bool:
     """Mueve a la papelera de Drive la carpeta de una solicitud creada por este sistema.
 
     Solo actúa sobre `<padre>/<cliente>/<solicitud>`: si la carpeta no está exactamente a ese
@@ -275,7 +275,7 @@ def trash_project_folder(drive: Any, parent_id: str, folder_id: str) -> bool:
     return True
 
 
-def year_mismatch(drive: Any, parent_id: str, received_at: str) -> str | None:
+def year_mismatch(drive: ClienteDrive, parent_id: str, received_at: str) -> str | None:
     """Aviso si la carpeta padre es de un año distinto al de la solicitud; None si todo bien."""
     year = (received_at or "")[:4]
     if not (len(year) == 4 and year.isdigit()):

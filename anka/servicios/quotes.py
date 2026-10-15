@@ -16,7 +16,7 @@ from anka.dominio.errores import ErrorDeValidacion
 from anka.dominio.novedades import REQUIEREN_ACCION
 from anka.dominio.registros import Cambio, Evento
 from anka.infra.logging_setup import get_logger
-from anka.infra.store import connect
+from anka.infra.store import connect, lectura, transaccion  # noqa: F401  (connect se reexporta: lo importan las pruebas)
 from anka.servicios.cola_del_piloto import (  # noqa: F401  (se reexportan: quien ya los importaba de aquí no cambia)
     get_review, pending_reviews, review_action, review_packet_path, save_review_packet,
 )
@@ -40,28 +40,22 @@ _TIPOS_QUE_CUENTAN = ", ".join(f"'{tipo}'" for tipo in sorted(REQUIEREN_ACCION))
 
 def unread_thread_count() -> int:
     """Cuántos casos tienen novedades sin leer que piden acción: lo que muestra el contador (U-25)."""
-    db = connect()
-    try:
+    with lectura() as db:
         return int(db.execute(
             f"""SELECT COUNT(DISTINCT n.thread_id) FROM dashboard_notifications n
                 JOIN quotes q ON q.thread_id = n.thread_id
                 WHERE n.read_at IS NULL AND n.kind IN ({_TIPOS_QUE_CUENTAN})""").fetchone()[0])
-    finally:
-        db.close()
 
 
 def unread_notifications(limit: int = 20) -> list[dict]:
     """Novedades del dashboard sin leer, las más recientes primero."""
-    db = connect()
-    try:
+    with lectura() as db:
         rows = db.execute(f"""SELECT n.*, q.analysis_json
                              FROM dashboard_notifications n
                              JOIN quotes q ON q.thread_id = n.thread_id
                              WHERE n.read_at IS NULL AND n.kind IN ({_TIPOS_QUE_CUENTAN})
                              ORDER BY n.created_at DESC, n.id DESC
                              LIMIT ?""", (limit,)).fetchall()
-    finally:
-        db.close()
     result = []
     for row in rows:
         analysis = load_analysis(row["analysis_json"])
@@ -77,8 +71,7 @@ def unread_notifications(limit: int = 20) -> list[dict]:
 def mark_notifications_read(thread_id: str | None = None) -> None:
     """Marca como leídas las novedades de un caso o todas."""
     now = datetime.now().astimezone().isoformat(timespec="seconds")
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         if thread_id:
             db.execute("""UPDATE dashboard_notifications SET read_at=?
                           WHERE read_at IS NULL AND thread_id=?""", (now, thread_id))
@@ -86,9 +79,6 @@ def mark_notifications_read(thread_id: str | None = None) -> None:
             db.execute(
                 "UPDATE dashboard_notifications SET read_at=? WHERE read_at IS NULL", (now,)
             )
-        db.commit()
-    finally:
-        db.close()
 
 
 def minutes_since(value: str) -> int:
@@ -203,16 +193,13 @@ def thread_events(thread_id: str) -> list[Evento]:
 
 def change_marker() -> str:
     """Cambia cuando se añade, edita o borra cualquier caso (para refrescar el dashboard)."""
-    db = connect()
-    try:
+    with lectura() as db:
         row = db.execute(
             "SELECT COUNT(*) AS n, MAX(COALESCE(updated_at, first_seen_at, '')) AS ts, "
             "(SELECT COUNT(*) FROM dashboard_notifications WHERE read_at IS NULL "
             f"AND kind IN ({_TIPOS_QUE_CUENTAN})) AS unread, "
             "(SELECT COUNT(*) || MAX(recorded_at) FROM case_events) AS ev FROM quotes"
         ).fetchone()
-    finally:
-        db.close()
     return f"{row['n']}|{row['ts'] or ''}|{row['unread']}|{row['ev']}"
 
 

@@ -41,7 +41,10 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(sum(value is not None for value in values), 1)
         with self.assertRaises(ValueError):
             envios.reservar("T1", "A@example.com", "Hola")
-        self.assertIsNotNone(envios.reservar("T1", "b@example.com", "Hola"))
+        # otro destinatario del mismo caso tampoco entra mientras el primero siga sin confirmar (U-59)
+        with self.assertRaises(ValueError):
+            envios.reservar("T1", "b@example.com", "Hola")
+        self.assertIsNotNone(envios.reservar("T2", "b@example.com", "Hola"))      # otro caso sí
 
     def test_uncertain_send_is_reconciled_without_resending(self):
         key, message_id = envios.reservar("T1", "a@example.com", "Hola")
@@ -205,7 +208,8 @@ class RetentionTests(unittest.TestCase):
     def seed(self, key, state, days_old):
         created = (self.AHORA - timedelta(days=days_old)).isoformat()
         db = store.connect()
-        db.execute("INSERT INTO mail_operations VALUES (?, 't', 'a@x.com', ?, ?, 'g', ?, '')",
+        db.execute("INSERT INTO mail_operations (operation_key, thread_id, recipient, message_id, state, gmail_id,"
+                   " created_at, error) VALUES (?, 't', 'a@x.com', ?, ?, 'g', ?, '')",
                    (key, f"<{key}@anka.local>", state, created))
         db.commit()
         db.close()

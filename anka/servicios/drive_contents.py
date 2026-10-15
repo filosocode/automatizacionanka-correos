@@ -12,6 +12,7 @@ deshacer la creación de la carpeta; por eso `populate_project_folder` informa e
 """
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteDrive, ClienteGmail
 
 import mimetypes
 from collections.abc import Mapping
@@ -64,7 +65,7 @@ class ContentReport:
         return text
 
 
-def _upload(drive: Any, folder_id: str, name: str, content: bytes, mime: str,
+def _upload(drive: ClienteDrive, folder_id: str, name: str, content: bytes, mime: str,
             target_mime: str | None = None) -> None:
     from googleapiclient.http import MediaIoBaseUpload
 
@@ -75,7 +76,7 @@ def _upload(drive: Any, folder_id: str, name: str, content: bytes, mime: str,
     drive.files().create(body=body, media_body=media, fields="id,name").execute()
 
 
-def _create_sheet(drive: Any, folder_id: str, name: str, quote: Mapping[str, Any]) -> None:
+def _create_sheet(drive: ClienteDrive, folder_id: str, name: str, quote: Mapping[str, Any]) -> None:
     """Crea la hoja de Google del caso con el libro completo (tabla, solicitud inicial, historial) y recuerda su id."""
     from datetime import datetime
 
@@ -88,7 +89,7 @@ def _create_sheet(drive: Any, folder_id: str, name: str, quote: Mapping[str, Any
     repo.guardar_hoja(thread_id, hecho.id, hecho.modificada)
 
 
-def client_attachments(gmail: Any, thread: dict, own_addresses: set[str]) -> list[tuple[str, bytes]]:
+def client_attachments(gmail: ClienteGmail, thread: dict, own_addresses: set[str]) -> list[tuple[str, bytes]]:
     """(nombre, contenido) de todos los adjuntos de los mensajes del cliente, salvo logos de firma."""
     own = {normalized_address(a) for a in own_addresses}
     found: list[tuple[str, bytes]] = []
@@ -112,7 +113,7 @@ def client_attachments(gmail: Any, thread: dict, own_addresses: set[str]) -> lis
 
 
 def populate_project_folder(
-    gmail: Any, drive: Any, thread: dict, folder_id: str, quote: Mapping[str, Any] | None,
+    gmail: ClienteGmail, drive: ClienteDrive, thread: dict, folder_id: str, quote: Mapping[str, Any] | None,
     own_addresses: set[str],
 ) -> ContentReport:
     """Copia a `folder_id` todos los adjuntos del cliente y crea la tabla de actividades (Sheet)."""

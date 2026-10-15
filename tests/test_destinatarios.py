@@ -64,8 +64,8 @@ class Origen(unittest.TestCase):
     def test_el_envio_a_un_externo_deja_su_origen_en_el_historial(self):
         from anka.servicios import case_actions
         quote = {"analysis": {}}
-        case_actions._record_sent_reply(quote, "T1", "id-1", "Hola", "tercero@otro.co", "waiting",
-                                        "2026-10-02T10:00:00-05:00")
+        case_actions._record_sent_reply(quote, case_actions.RespuestaEnviada(
+            "T1", "id-1", "Hola", "tercero@otro.co", "waiting", "2026-10-02T10:00:00-05:00"))
         db = store.connect()
         textos = [r["summary"] for r in db.execute("SELECT summary FROM case_events WHERE kind='sent'")]
         db.close()

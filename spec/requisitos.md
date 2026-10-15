@@ -889,7 +889,7 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 1. **Qué es.** Un `<canvas id="particulas">` en el layout común (todas las pantallas), fijo detrás de todo (`position: fixed; inset: 0; z-index: -1; pointer-events: none`) y con `aria-hidden="true"`. Dibuja la animación del login de ANKA Inventario en JavaScript puro, en el `<script>` en línea del layout (sin librería, sin archivo externo, sin red). Su física reproduce la de tsparticles 3.9.1 (D-103): nodos azul `#2f4d73` y naranja `#f47c27` (al azar) de 1,5 a 3,5 px y opacidad 0,6; dirección libre con vector unitario; movimiento `velocidad · factor / 2` px por cuadro, con `factor = 60 · ms / 1000` (18 px/s con `velocidad` 0,6, con cualquier frecuencia de cuadros); rebote total en los bordes; líneas de hasta 140 px con opacidad `0,35 · (1 − d/140)`; repulsión del ratón a 100 px que suma directamente a la posición `min(easeOutQuad(1 − d/100) · 100, 50)` px por cuadro, sin suavizar. La cantidad sigue la densidad de tsparticles (40 nodos por 1920×1080, proporcional al área) multiplicada por 2 porque las tarjetas opacas tapan buena parte de la pantalla, con un mínimo de 16.
 2. **No estorba.** La intensidad (opacidad de nodos y líneas) se multiplica por 0,7 (0,84 en oscuro): el texto y las tablas siempre van sobre superficies opacas y el contraste que mide `test_estilo_visual` no cambia; la repulsión es de posición, así que su efecto no depende de la intensidad. El ratón se escucha en `window` (el canvas no recibe eventos) y se suelta al salir de la ventana, perder el foco o salir del documento. En modo oscuro el azul se aclara (`#8fb0dc`) y el naranja es `#f9a668`.
 3. **Movimiento reducido.** Con `prefers-reduced-motion: reduce` no se monta (el canvas queda `hidden`); si la preferencia cambia en vivo, se detiene o arranca. En alto contraste (`forced-colors`) y al imprimir el canvas no se muestra.
-4. **Gasto y fluidez.** Se pausa cuando la pestaña está oculta (`visibilitychange`) y al volver reinicia el reloj; se limita a ~60 cuadros por segundo con `requestAnimationFrame`; el movimiento sigue al reloj (no a pasos fijos por cuadro) y un cuadro tardío mueve como mucho lo de 100 ms; sigue el tamaño de la ventana (reajusta la cantidad) y la densidad de pantalla (`devicePixelRatio`, tope 2).
+4. **Gasto y fluidez.** Se pausa cuando la pestaña está oculta (`visibilitychange`) o la ventana pierde el foco (`blur`; `focus` la reanuda, U-65) y al volver reinicia el reloj; se limita a ~60 cuadros por segundo con `requestAnimationFrame`; el movimiento sigue al reloj (no a pasos fijos por cuadro) y un cuadro tardío mueve como mucho lo de 100 ms; sigue el tamaño de la ventana (reajusta la cantidad) y la densidad de pantalla (`devicePixelRatio`, tope 2).
 
 **Casos de aceptación**
 - A1 · Toda página trae un solo `<canvas id="particulas" aria-hidden="true">` y el CSS lo deja fijo, detrás y sin eventos.
@@ -1342,3 +1342,126 @@ en «Lectura pendiente: falta leer el PDF», aunque Work había leído el origin
    en bytes (`size_bytes` entero, algo que V5 y anteriores no emiten), se verifica contra Gmail. Sin adjuntos o con alguno sin `size_bytes`, sigue el camino
    de siempre.
 3. **El prompt lo exige.** El prompt de Work dice que `skill_version` es obligatorio y se copia tal cual (`PRECISO_V6.1`).
+
+
+### U-59 · Un envío incierto no se duplica ni se queda atascado (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_envios_inciertos.py`; ajusta `tests/test_fiabilidad.py`). Decisión: D-124. Toca R8 **solo para añadir protección**: nada se envía ni se reenvía solo; la reserva durable (`BEGIN IMMEDIATE`) y el `Message-ID` estable no cambian.
+
+**Motivo.** La reserva de un envío se identificaba por el hash del texto: dos pestañas con textos distintos (o una coma editada) reservaban dos envíos del mismo caso y salían dos correos. Y un envío que quedaba incierto (el proceso murió entre «Gmail lo aceptó» y «el caso se actualizó») solo se aclaraba si la persona volvía a pulsar «Enviar» con el mismo texto. El lanzador, además, reiniciaba por un cambio de código sin esperar a que una acción en curso terminara.
+
+**Qué debe cumplirse**
+1. **Un solo envío en curso por caso.** `envios.reservar` rechaza —dentro de la misma transacción que reserva— cualquier envío si el mismo hilo tiene otra reserva `pending` de menos de 2 minutos (`MINUTOS_EN_CURSO`), aunque el texto o el destinatario difieran. Mensaje: «Ya hay un envío en curso para este caso. Espera un momento y recarga la página, o revisa Gmail (carpeta Enviados) para ver si el correo salió. No se envió otro.» Con el mismo texto sigue valiendo el mensaje de siempre.
+2. **Se guarda lo revisado.** La reserva guarda el texto que la persona revisó (`mail_operations.body`, migración 19; las filas anteriores quedan con el texto vacío) para poder completar el caso después sin pedirlo otra vez.
+3. **Se aclara solo, nunca se reenvía.** Una reserva `pending` de más de 2 minutos se aclara consultando Gmail por su `Message-ID`: si está en Enviados se da por enviada y el caso avanza como un envío normal (estado, mensaje, evento y novedad); si no está, se libera la reserva con un evento en el historial y un aviso, **sin enviar nada**. Lo hace (a) el lanzador cada 5 minutos, en un hilo aparte, solo si hay reservas viejas, y (b) el propio botón «Enviar»: antes de enviar aclara las viejas del caso y, si hubo alguna, **no envía esa vez** (la persona ve qué pasó y decide). Si Gmail no responde, no se libera nada.
+4. **«Ya salió: marcar como enviado».** En el caso con un envío sin confirmar, la persona puede declarar que el correo sí salió (`POST /mark-sent`). Cierra la reserva, completa el caso con el texto guardado y deja en el historial, con huella, que fue una declaración de la persona. No consulta ni envía nada.
+5. **Cierre ordenado.** Antes de reiniciar por un cambio de código, el lanzador espera hasta 20 s a que no haya acciones del dashboard en curso (`en_curso/` en la carpeta de datos, una marca por acción POST; las de más de 5 minutos se ignoran) ni una reserva de envío de menos de 2 minutos. Pasado el tope reinicia igual y lo anota. Las acciones se escriben para que, si aun así se cortan, la base quede consistente (transacciones) y el envío incierto se aclare como en 3.
+
+**Casos de aceptación**
+- Q1 · Con una reserva `pending` reciente del hilo, reservar otro texto (u otro destinatario) lanza el aviso; con una de otro hilo, no; con una de más de 2 minutos, no bloquea la reserva (pero `send_dashboard_reply` la aclara antes).
+- Q2 · Dos pestañas con el mismo `state_token` y textos distintos: sale un solo correo.
+- Q3 · Reserva vieja con el correo en Enviados: queda `sent`, el caso avanza y hay un evento `send_reconciled`; sin el correo: la reserva desaparece, hay un evento `send_released` y no se llamó a `messages.send` ni a `drafts.send`; con Gmail caído: nada cambia.
+- Q4 · «Ya salió» cierra la reserva y avanza el caso con el texto guardado; sin envíos pendientes se rechaza; la acción está en `POST_ROUTES` y en `openapi.py`.
+- Q5 · `cierre_ordenado` espera mientras haya una marca reciente o una reserva reciente, y se rinde al pasar el tope; una marca vieja no cuenta.
+
+### U-60 · La copia de seguridad no frena al lanzador y la cadena de huellas no se puede acortar (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_respaldo_robusto.py`). Decisión: D-125. No cambia qué contiene una copia ni cómo se restaura (B0).
+
+**Motivo.** La copia diaria corría dentro del bucle del lanzador, sin tope de tiempo: un Drive colgado congelaba la vigilancia del dashboard y los recordatorios. La copia no se comprobaba una vez hecha el zip. Borrar los últimos hechos del historial de un caso pasaba por «íntegro». Y la copia previa a migrar (`.bak-vN`) no se renovaba si ya existía de un intento fallido.
+
+**Qué debe cumplirse**
+1. **Fuera del bucle.** El lanzador lanza la copia como un proceso aparte (`python -m anka.infra.backup`) y solo lo vigila: tope de 15 minutos (`COPIA_TOPE`), pasado el cual lo cancela, lo anota en `last_backup.json` y espera una hora antes de reintentar; una copia que falla tampoco se repite en cada vuelta sino pasada una hora.
+2. **Verificada.** Tras escribir el zip, `create_backup` lo abre, comprueba cada entrada y revisa la base (`integrity_check` y versión de esquema); si no pasa, borra la copia y falla. La copia de la base ya se comprobaba antes de comprimirla.
+3. **Restauración con todo parado.** Además de exigir el puente parado, `restore` se niega si hay acciones del dashboard en curso o si otro proceso tiene una escritura abierta en la base; el comando `--restore` se niega también si algo contesta en el puerto 8765. La instalación atómica (`os.replace`, borrado de `-wal/-shm`) no cambia.
+4. **Ancla de la cadena.** Cada caso guarda el último hecho anotado (`event_anchors`: id, huella y cuántos hechos hay; migración 20, que parte de lo que ya existe). `verify_chain` devuelve «no íntegra» si la huella del último hecho o la cantidad ya no coinciden con la ancla, así que borrar la cola se detecta. Es una ancla dentro de la misma base: detecta pérdidas y borrados parciales, no a quien reescriba la base entera (eso lo cubre la copia en Drive). Eliminar un caso conserva sus hechos y su ancla; reiniciar los datos vacía todo.
+5. **Copia previa a migrar.** Si `.bak-vN` ya existe y tiene más de 5 minutos, se hace una nueva y la vieja pasa a `.bak-vN.anterior`; una de menos de 5 minutos (de otro proceso que migra a la vez) se respeta.
+
+**Casos de aceptación**
+- R1 · `CopiaDeSeguridad.check` lanza un proceso, no espera, lo cancela al pasar el tope y no reintenta antes de una hora; `servicio()` ya no llama a `run_backup`.
+- R2 · Un zip dañado o con una base corrupta hace fallar `create_backup` y no deja archivo.
+- R3 · `restore` se niega con una escritura abierta o una acción en curso, sin tocar la base.
+- R4 · Borrar el último hecho de un caso (o todos) hace que `verify_chain` dé falso; añadir hechos sigue dando verdadero; una base del esquema 19 llega al 20 con las anclas puestas.
+- R5 · Con `.bak-vN` vieja se crea una nueva y queda `.anterior`; con una reciente no se toca.
+
+### U-61 · Seguridad menor del dashboard y de la lectura de archivos (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_seguridad_menor.py`). Decisión: D-126. No cambia R8, D-27 ni la paridad de los tres modos.
+
+**Motivo.** Ocho hallazgos de severidad baja de la auditoría de seguridad (B2-04 a B2-15): avisos de la dirección sin límite, política de `Origin` laxa, `Host` sin puerto, `gmail_url` de Work sin formato, tope de píxeles implícito, ZIP leídos sin tope, `llm.base_url` sin advertencia, dependencias sin auditar y sin corpus de instrucciones inyectadas.
+
+**Qué debe cumplirse**
+1. **Avisos de la dirección.** `?message=` se recorta a 300 caracteres salvo que lo haya firmado este servidor: toda redirección propia añade `firma` (HMAC del texto con el token del dashboard), de modo que los avisos largos legítimos se ven completos y un enlace manipulado no puede mostrar un texto largo como si fuera del dashboard.
+2. **Origen de un POST.** Si llega `Sec-Fetch-Site`, debe ser `same-origin` o `none` (`cross-site` y `same-site` se rechazan con 403); si llega `Origin`, debe coincidir con el `Host` (`null` se rechaza); si no llega ninguno de los dos (un script, `curl`, las pruebas) se acepta, porque el token CSRF —que solo está en las páginas del propio dashboard— es la protección. Así no se rompe ningún cliente legítimo.
+3. **Puerto del `Host`.** Si el `Host` trae puerto, debe ser el del servidor; sin puerto se acepta.
+4. **`gmail_url`.** El esquema declara `pattern` `^(https://mail\.google\.com/.*)?$`; el validador del contrato ahora comprueba `pattern`; un enlace de otro tipo no rechaza el análisis: se deja vacío con el aviso de siempre («Work escribió algo distinto de lo esperado»).
+5. **Imágenes y ZIP.** `Image.MAX_IMAGE_PIXELS` se fija en `MAX_OCR_PIXELS` (el mismo tope del lector). Todo ZIP que se lee de un adjunto pasa por `zip_acotado` (`_zip_text` ya no lo abre a mano); las excepciones, con su propio tope equivalente, están nombradas en una prueba: el KMZ del dominio (que no puede importar `infra`), las copias propias de `backup` y la lectura de un `.docx` local del índice comercial (tope de 50 MB al XML).
+6. **`llm.base_url` fuera del equipo.** `settings.config_warnings` avisa (no rechaza) si el host no es `127.0.0.1`, `localhost` ni `::1`; el comando lo imprime al arrancar.
+7. **Dependencias.** El workflow de CI corre `pip-audit` sobre `requirements.lock` y `requirements-dev.lock` (solo ese paso; no se instala nada en el equipo del desarrollador; `docs/ESTANDAR_CAMBIOS.md` explica cómo correrlo a mano).
+8. **Instrucciones dentro de un correo.** Un corpus de pruebas (`tests/test_inyeccion_de_instrucciones.py`) comprueba que el texto del cliente y el del OCR viajan en el prompt como datos delimitados, que ni la salida del modelo ni un borrador de Work con instrucciones inyectadas cambian un destinatario, un estado o envían algo (R8: el envío solo sale de la acción de una persona), y que el contrato rechaza lo que no cumple el esquema.
+
+**Casos de aceptación**
+- S1 · `?message=` de 1 000 caracteres sin firma se muestra de 300; con la firma de una redirección propia se muestra completo; una firma de otro texto no sirve.
+- S2 · POST con `Sec-Fetch-Site: cross-site` o `Origin` ajeno → 403; con `same-origin`, con `none` o sin ninguno → pasa; sigue valiendo el token.
+- S3 · `Host: 127.0.0.1:9999` contra un servidor en 8765 → 403; `127.0.0.1:8765` y `127.0.0.1` pasan; `[::1]:8765` pasa.
+- S4 · `gmail_url: "javascript:alert(1)"` queda vacío con aviso; `https://mail.google.com/mail/u/0/#all/abc` se conserva.
+- S5 · Una prueba recorre `anka/` y falla si aparece `zipfile.ZipFile(` fuera de las excepciones nombradas.
+- S6 · `config_warnings` avisa con `http://10.0.0.5:11434` y calla con `http://127.0.0.1:11434`.
+- S7 · El workflow de CI contiene el paso `pip-audit`.
+
+### U-62 · Un solo reloj y las fechas se ordenan por instante (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_reloj.py`). Decisión: D-127. No cambia ninguna fecha ya guardada.
+
+**Motivo.** Varios módulos tomaban la hora con `datetime.now()` sin zona (el año de la T, el nombre de una copia, el sello de una exportación) y otros con `astimezone()`. Y las listas se ordenaban comparando el **texto** de la fecha: dos fechas con desfases distintos (un correo recibido en UTC y un envío local) se desordenaban.
+
+**Qué debe cumplirse**
+1. **Un reloj.** `anka/dominio/reloj.py`: `ahora()` (la hora local **con** zona, la que Anka ya guardaba), `ahora_iso()`, `instante()` y `clave_de_orden()`. `backup.py`, `change_control.py`, `pantalla_caso.py`, `server.py`, `repositorio.py`, `store.py`, `envios.py` y `case_actions.py` lo usan; no queda `datetime.now()` sin zona en esos módulos. La zona sigue siendo la del equipo (en la oficina, Bogotá, -05:00) para coincidir con lo guardado; el horario hábil de los recordatorios conserva su propia zona fija.
+2. **Orden por instante.** La lista de casos, la última respuesta del cliente, el seguimiento del caso, la conversación, el primer mensaje y los cambios se ordenan por instante, no por texto; a igual instante manda el orden de guardado. Una fecha sin zona se entiende en hora local y una ilegible va primero.
+3. **Sin tocar lo guardado.** Los textos guardados no se reescriben ni se migran.
+
+**Casos de aceptación**
+- T1 · `ahora()` trae zona; el año de la T sale de `ahora()`.
+- T2 · Dos fechas con desfases distintos se ordenan por instante en la lista de casos, en `case_events` y en la última respuesta; el orden por texto habría dado el contrario.
+- T3 · Una fecha sin zona, una vacía y una ilegible no rompen el orden.
+
+### U-63 · Consistencia entre las tablas del caso y lo que el lector descarta (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_consistencia_de_tablas.py`; la comprobación original sigue en `tests/test_reinicio.py`). Decisión: D-128. No cambia ningún texto que el lector entrega.
+
+**Qué debe cumplirse**
+1. **Toda tabla con `thread_id` está clasificada.** Una prueba compara las tablas de la base que tienen `thread_id` con `TABLAS_DEL_CASO`, `TABLAS_CON_DOS_HILOS` y `TABLAS_QUE_SE_CONSERVAN`, en los dos sentidos: una tabla nueva sin clasificar falla y una lista que nombra una tabla inexistente también; ninguna tabla está en dos listas. `event_anchors` se conserva con el historial.
+2. **El lector geográfico deja constancia.** Las coordenadas y datos que descarta sin avisar en el texto (coordenadas KML ilegibles, coordenadas de misión fuera de rango o ilegibles, altitudes CSV y elevaciones GPX ilegibles) se anotan en el registro a nivel depuración con su cantidad; el texto que se entrega no cambia.
+
+**Casos de aceptación**
+- U1 · Un KML con coordenadas rotas deja el mismo texto y una línea de registro con el número de descartes.
+
+### U-64 · Una sola forma de escribir en la base: `transaccion()` (Ola B3 del plan de backend)
+**Estado: parcial** (migración incremental; pruebas en `tests/test_transaccion.py`). Decisión: D-129. No cambia ningún comportamiento ni texto.
+
+**Motivo.** Cada servicio abría la base con `connect()`, hacía `commit()` donde le parecía y cerraba en un `finally`: unas cincuenta veces el mismo patrón de seis líneas, con candados de escritura tomados (o no) a mano y sin una unidad de trabajo explícita.
+
+**Qué debe cumplirse**
+1. **Dos contextos en `infra/store.py`.** `transaccion(inmediata=True)` abre la base (o comparte la de la petición web, `request_scope`), toma el candado de escritura al entrar (o con la primera escritura si `inmediata=False`), **confirma al salir bien y revierte si algo falla** (también con una interrupción), y cierra. `lectura()` abre para leer y descarta lo que quedara sin confirmar.
+2. **Migrados** (sin cambiar su comportamiento; las pruebas que ya existían pasan sin tocarse, salvo la que llamaba a `_record_sent_reply` con 9 parámetros): `envios`, `case_actions` (salvo `approve_review`), `change_control` (salvo la conexión opcional de `origen_de_destinatario`), `ediciones`, `work_import`, `vinculos`, `revision_tecnica`, `quotes`, `estado_de_revision`, `salud`, `cola_del_piloto` y `infra/rechazos_de_work`.
+3. **Pendientes** (listados en `PENDIENTES` de la prueba; la lista solo puede bajar): `case_actions.approve_review` (pasa su conexión a `_send_questions` y `_create_case_folder`), `gmail_followup.sync_thread_activity` (lee Gmail dentro de la transacción y confirma por tandas, hay que separarlo antes), `pipeline` (el ciclo de revisión comparte una conexión durante toda la pasada) y la conexión opcional de `change_control.origen_de_destinatario`. Tampoco se tocaron `repositorio.py` (ya es el repositorio del agregado «caso» y administra sus conexiones), `reintentos`, `followup_reminders` y `reinicio`, que reciben la conexión de quien los llama.
+4. **Repositorios por agregado.** Queda como propuesta: `RepositorioDeCasos` ya cubre el caso; `envios` (reserva de correos) es el siguiente candidato natural.
+
+**Casos de aceptación**
+- V1 · Dos escrituras dentro de `transaccion()` quedan juntas; si la segunda falla, no queda ninguna (también con `KeyboardInterrupt`).
+- V2 · Con `inmediata=True` otro proceso no puede tomar el candado mientras dura el bloque; al salir queda libre.
+- V3 · Dentro de `request_scope` comparte la conexión, confirma y revierte igual.
+- V4 · `lectura()` descarta lo que se escriba por error; una prueba cuenta los `connect()` que quedan fuera de `store.py` y falla si suben.
+
+### U-65 · Integración continua, desarrollo y tipos en las fronteras (Ola B3 del plan de backend)
+**Estado: parcial** (pruebas en `tests/test_ci_y_desarrollo.py`). Decisión: D-130. No cambia ningún comportamiento visible.
+
+**Qué debe cumplirse**
+1. **CI.** Cada trabajo de `.github/workflows/ci.yml` lleva `timeout-minutes` y el flujo `concurrency` con `cancel-in-progress` (una corrida nueva de la misma rama cancela la vieja).
+2. **`check.bat quick`.** Corre ruff, mypy, `check_spec` y las pruebas rápidas (`tools/pruebas_rapidas.py --rapido`, sin los módulos lentos de `LENTOS` y sin cobertura); `check.bat` sin argumentos sigue siendo lo mismo que el CI y lo único que cierra un cambio. Equivalente sin `.bat` documentado en `docs/ESTANDAR_CAMBIOS.md`.
+3. **Sin deriva de `spec/07-api.md`.** Una prueba exige que el documento nombre cada ruta `GET` que documenta `openapi.py` y las etiquetas de las acciones; las cabeceras y la política de `Origin` del documento son las vigentes.
+4. **Animación.** Los nodos de fondo se pausan también cuando la ventana pierde el foco (`blur`) y se reanudan con `focus`; la física y sus parámetros (60 cuadros por segundo como tope, `tests/fisica_nodos_prueba.js`) no cambian (U-38).
+5. **Parámetros largos.** Lo que se anota tras enviar un correo se agrupa en `RespuestaEnviada` (frozen dataclass, antes 9 parámetros). Queda para después `record_event` (9) y `register_change` (11), porque tienen decenas de llamadores y pruebas.
+6. **Glosario.** `spec/06-arquitectura.md` fija el vocabulario (caso/solicitud/hilo/«quote»/revisión…); no se renombra nada.
+7. **Protocolos de Gmail y Drive.** `anka/infra/clientes_google.py` define `ClienteGmail` y `ClienteDrive` (`Protocol`); `services()` y los parámetros `gmail`/`drive` de los módulos de `anka/` los usan en vez de `Any` (ninguno queda como `Any`). Los resultados de cada llamada siguen siendo `Any`: son JSON de Google.
+
+**Casos de aceptación**
+- W1 · El workflow tiene `timeout-minutes` en todos sus trabajos y `cancel-in-progress: true`.
+- W2 · `check.bat` reconoce `quick`, la herramienta existe y todo módulo de `LENTOS` es un módulo de pruebas real.
+- W3 · `spec/07-api.md` nombra cada ruta `GET` documentada; el script de la animación se detiene en `blur` y arranca en `focus`.
+- W4 · No queda `gmail: Any` ni `drive: Any` en `anka/`; los dobles de prueba cumplen los protocolos.

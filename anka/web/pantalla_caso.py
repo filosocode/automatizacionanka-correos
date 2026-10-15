@@ -13,7 +13,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from anka.dominio.reloj import ahora
 from markupsafe import Markup
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.caso import Caso, timestamp
@@ -42,6 +42,7 @@ from anka.web.deshacer import panel_deshacer
 from anka.web.templating import render
 
 from anka.servicios.case_actions import con_codigo_final, resolve_case_recipient
+from anka.servicios.envios import pendientes_del_hilo
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
     STAGE_LABELS, code_label, origen_de_destinatario, origen_en_texto, required_messages, suggest_number,
@@ -327,7 +328,7 @@ def _code_panel(review: Caso, escrito: Mapping[str, list[str]] | None = None,
         "code_panel.html", code=code_label(code, stage or "T") if code else "", stage=stage,
         stage_label=STAGE_LABELS.get(stage, ""), thread_id=review["thread_id"],
         approved_code=code_label(code, "TE") if code else "", can_assign=can_assign and not code,
-        suggestion=suggestion, contact=contact, anio_actual=datetime.now().strftime("%y"),
+        suggestion=suggestion, contact=contact, anio_actual=ahora().strftime("%y"),
         numero_escrito=(escrito or {}).get("number", [""])[0],
         corregir_cliente=_datos_comerciales(review) if con_cliente and can_assign and not code else Markup(""),
         received_text=((escrito or {}).get("body", [""])[0]
@@ -971,6 +972,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         email=email, email_body=email_body, recipient_error=recipient_error, blank_reply=blank_reply,
         sufficient=not reading_blocked and assessment.get("status") == "sufficient_for_internal_review",
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
+        envios_inciertos=pendientes_del_hilo(thread_id),
         can_resolve=espera_decision, preguntas_sugeridas=sugeridas,
         puede_volver=puede_volver,
         preguntas=preguntas, cuadro_preguntas=cuadro_preguntas, lo_que_falta=lo_que_falta,
@@ -1031,7 +1033,7 @@ def render_acta(thread_id: str) -> str:
     body = render(
         "acta.html", project=(review["analysis"].get("project_name") if review else "") or "Caso eliminado",
         code=code, contact=contact, stage_label=STAGE_LABELS.get(stage, ""),
-        generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        generated=ahora().strftime("%Y-%m-%d %H:%M"),
         integrity_ok=ok, event_count=count, events=events, changes=case_change_log(thread_id),
         people=case_people(thread_id, {contact}) if contact else case_people(thread_id, set()),
         versions=_acta_versions(thread_id, review),

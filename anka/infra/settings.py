@@ -10,6 +10,7 @@ import os
 from collections.abc import Mapping
 from typing import Any, cast
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 
@@ -144,6 +145,24 @@ def _engine_problems(engine: dict, mode: str) -> list[str]:
             if isinstance(context, bool) or not isinstance(context, int) or context < 2048:
                 problems.append(f"llm.{key} debe ser un entero de al menos 2048.")
     return problems
+
+
+HOSTS_DE_ESTE_EQUIPO = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def config_warnings(config: Mapping[str, Any]) -> list[str]:
+    """Avisos de una configuración válida pero arriesgada (no la rechazan): hoy, un motor que no está en este equipo.
+
+    El texto de los correos del cliente viaja en el prompt hacia `llm.base_url`: si esa dirección no es de este
+    equipo, esos correos salen de él (U-61, B2-13)."""
+    base_url = (config.get("llm") or {}).get("base_url") if isinstance(config.get("llm"), Mapping) else None
+    if not isinstance(base_url, str) or not base_url.startswith(("http://", "https://")):
+        return []
+    host = (urlparse(base_url).hostname or "").lower()
+    if host in HOSTS_DE_ESTE_EQUIPO:
+        return []
+    return [f"llm.base_url apunta a «{host or base_url}», que no es este equipo: los correos de los clientes se "
+            "enviarán allí dentro del prompt. Si no es lo que quieres, usa http://127.0.0.1:11434."]
 
 
 def unknown_config_keys(config: Mapping[str, Any]) -> list[str]:

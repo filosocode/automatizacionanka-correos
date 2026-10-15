@@ -46,3 +46,18 @@ No prueban:
 - que ChatGPT Work **interprete bien** la skill (de ahí la prueba manual del paso 6);
 - que el modelo clasifique bien un correo concreto (eso lo mide la muestra etiquetada, `evaluacion/`);
 - la sincronización de `config.json` con la skill.
+
+## Auditar dependencias (pip-audit)
+
+El CI corre `pip-audit` sobre `requirements.lock` y `requirements-dev.lock` cada lunes y en cada subida (trabajo `auditoria` de `.github/workflows/ci.yml`). No es una dependencia del proyecto y no se instala en la máquina de desarrollo. Si quieres correrlo a mano en un entorno aparte:
+
+```
+python -m venv %TEMP%\auditoria && %TEMP%\auditoria\Scripts\python -m pip install pip-audit==2.9.0
+%TEMP%\auditoria\Scripts\python -m pip_audit --require-hashes --disable-pip --no-deps -r requirements.lock -r requirements-dev.lock
+```
+
+Un hallazgo no rompe nada solo: se actualiza el rango en `requirements*.txt`, se regeneran los `.lock` (ver README) y se corre `check.bat`.
+
+## Verificación rápida mientras trabajas
+
+`check.bat quick` corre ruff, mypy, `check_spec.py` y las pruebas sin los módulos lentos (`tools/pruebas_rapidas.py --rapido`; `--medir` muestra los más lentos y `LENTOS` se ajusta ahí). No sustituye a `check.bat`: no mide cobertura y salta lo lento. En una terminal sin `.bat`: `python tools/pruebas_rapidas.py --rapido` después de `python -m ruff check .`, `python -m mypy` y `python check_spec.py`.

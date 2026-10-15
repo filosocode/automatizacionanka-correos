@@ -1,6 +1,7 @@
 """Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica."""
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteDrive, ClienteGmail
 from anka.servicios.estados import cambiar_estado, verificar_transicion
 
 import json
@@ -69,7 +70,7 @@ class RevisorDeHilos:
     (`db=None`) es una simulación: decide e informa, pero no guarda ni envía nada.
     """
 
-    def __init__(self, config: Configuracion, gmail: Any, drive: Any, db: sqlite3.Connection | None,
+    def __init__(self, config: Configuracion, gmail: ClienteGmail, drive: ClienteDrive, db: sqlite3.Connection | None,
                  account_addresses: set[str], review_only: bool, gmail_drafts: bool,
                  comprobar_modo: Callable[[], None] | None = None, respetar_espera: bool = True) -> None:
         self.config = config

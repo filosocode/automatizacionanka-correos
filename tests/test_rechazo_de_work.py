@@ -286,7 +286,7 @@ class AlertaDelDia(Base):
 
     def test_un_fallo_de_la_cuenta_no_tumba_la_pagina(self) -> None:
         # Cubre: U-41
-        with patch.object(rechazos_de_work, "connect", side_effect=OSError("disco")):
+        with patch.object(rechazos_de_work, "lectura", side_effect=OSError("disco")),                 patch.object(rechazos_de_work, "transaccion", side_effect=OSError("disco")):
             self.assertEqual(rechazos_de_work.cuenta_del_dia(), 0)
             rechazos_de_work.registrar("d", "m", "t", "x", [], "motivo")        # no lanza
 

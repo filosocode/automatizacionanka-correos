@@ -29,6 +29,7 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `activities` | Edicion y exportacion de la tabla de actividades (sin acceso a Gmail ni Drive). |
+| `reloj` | El reloj de Anka: una sola hora «de ahora» con zona horaria y una forma de ordenar fechas por instante (U-62). |
 | `caso_minimo` | El caso mínimo para un borrador de Work sin análisis válido, con solo lo verificable en Gmail (T-36). |
 | `verificacion_de_evidencia` | Comprobación mecánica de que lo que Work puso en la tabla está en los textos del expediente (T-38). |
 | `analisis` | La forma del análisis de una solicitud: lo que el modelo (o Work) devuelve y el dashboard guarda como JSON. |
@@ -69,8 +70,10 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `backup` | Copias de seguridad de la base del dashboard: local y en Drive (sin credenciales ni token). |
+| `acciones_en_curso` | Marcas de lo que el dashboard está haciendo, para que el lanzador no lo corte a la mitad al reiniciar (U-59). |
 | `archivos_privados` | Escritura completa y privada de archivos sensibles (token de Google, token CSRF): temporal + `os.replace` y permiso solo del usuario. |
 | `reinicio` | Reinicio de los datos locales para volver a probar desde cero: vista previa, copia de seguridad y vaciado. |
+| `clientes_google` | La forma mínima de los clientes de Gmail y de Drive que usa Anka (`Protocol`), para tiparlos sin `Any` (U-65). |
 | `google_services` | Cliente de Gmail y Drive: credenciales, servicios y carpetas. |
 | `drive_exchange` | Intercambio de archivos propios en Drive con claves estables, paginación y bloqueo local. |
 | `llm` | Análisis del correo con el motor elegido (Ollama u OpenAI). |
@@ -148,6 +151,28 @@ El JavaScript de las páginas vive en `templates/app.js` (el de cada página, co
 | `supervisor` | Lanzador único: arranca dashboard y puente, los reinicia si se caen o si cambia el código (y se reinicia a sí mismo), y hace la copia de seguridad diaria. |
 | `work_sync` | Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. |
 | `work_drive` | Proceso de preparación de expedientes, separado del puente de borradores. |
+
+## Glosario
+
+El código mezcla inglés y español por su historia; no se renombra (cientos de cambios sin valor para quien usa el programa). Este es el vocabulario: dónde veas uno de los de la izquierda, es lo de la derecha. Lo nuevo se escribe en español y se migra al tocar un módulo.
+
+| En el código | En la pantalla y la especificación | Qué es |
+|---|---|---|
+| `quote`, `quotes` (tabla), `Caso` | **caso** / solicitud | Una solicitud de cotización de un cliente y todo lo que cuelga de ella. La tabla se llama `quotes` por su origen; el objeto de dominio, `Caso`. |
+| `thread_id` | **hilo** | La conversación de Gmail; es la clave de un caso. |
+| `review`, `REVIEW` | **revisión técnica** | Que una persona de Anka decida qué falta antes de pedirlo al cliente (el estado `review`); no confundir con «revisar el correo» antes de enviarlo (R8). |
+| `draft`, `work_reply` | **borrador** | El texto del correo al cliente, antes de enviarse; puede estar en Gmail (borrador) o solo en el dashboard. |
+| `T`, `quote_code`, `TE` | **código T** / **T&E** | El código de la solicitud aceptada y el de la oferta aprobada (T-xx). |
+| `bridge`, `work_sync` | **puente** | El proceso que lee los borradores de Work en Gmail y los importa al dashboard. |
+| `supervisor` | **lanzador** | `Iniciar Anka.bat`: arranca dashboard y puente, los reinicia y hace las copias. |
+| `mode`, `active_mode` | **modo** | `local` (Ollama), `api` o `chatgpt_work`. |
+| `status`, `QuoteStatus`, `ESTADOS` | **estado** | Dónde está el caso en su flujo (`spec/transiciones.json`); la **etapa** es lo que se ve en la lista. |
+| `event`, `case_events`, `hash` | **historial** y **huella** | Lo que pasó en el caso, encadenado con huellas; el **ancla** es la última huella guardada aparte (U-60). |
+| `mail_operations`, `reservar` | **reserva de envío** | El registro durable de «voy a enviar esto» antes de hablar con Gmail (U-59). |
+| `notification` | **novedad** | Un aviso del dashboard sobre un caso. |
+| `link`, `case_links` | **vínculo** | Un correo de otro hilo que parece del mismo proyecto. |
+| `change`, `case_changes` | **cambio** | Un mensaje posterior a la T que pide algo distinto al alcance. |
+| `marker`, `change_marker` | **marcador de cambios** | Un texto barato que cambia cuando algo cambia, para refrescar pantallas. |
 
 ## Clases y funciones: cuándo cada una
 Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funciones donde no:

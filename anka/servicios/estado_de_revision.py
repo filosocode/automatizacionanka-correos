@@ -15,7 +15,7 @@ from anka.infra.logging_setup import get_logger
 from anka.dominio.errores import ModoNoPermitido
 from anka.infra.modes import ensure_local_or_api_mode
 from anka.infra.settings import load_config
-from anka.infra.store import connect
+from anka.infra.store import lectura
 
 
 
@@ -29,14 +29,11 @@ MODE_CHECK_SECONDS = 5  # cada cuánto se revisa el modo activo mientras el bot 
 
 
 def _quote_snapshot() -> dict[str, tuple]:
-    db = connect()
-    try:
+    with lectura() as db:
         return {
             row["thread_id"]: (row["status"], row["updated_at"])
             for row in db.execute("SELECT thread_id, status, updated_at FROM quotes")
         }
-    finally:
-        db.close()
 
 
 def read_last_check() -> dict | None:
@@ -92,12 +89,9 @@ def _ago(iso: str) -> str:
 
 def latest_case_activity() -> str:
     """Marca de tiempo de la actividad más reciente de cualquier caso."""
-    db = connect()
-    try:
+    with lectura() as db:
         row = db.execute(
             "SELECT MAX(COALESCE(updated_at, first_seen_at)) AS ts FROM quotes").fetchone()
-    finally:
-        db.close()
     return row["ts"] or ""
 
 

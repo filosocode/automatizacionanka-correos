@@ -1,6 +1,7 @@
 """Cliente de Gmail y Drive: credenciales, servicios y carpetas."""
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteDrive, ClienteGmail
 
 import os
 import shutil
@@ -142,7 +143,7 @@ def authorize_interactive(timeout_seconds: int | None = None) -> Credentials:
     return creds
 
 
-def services() -> tuple[Any, Any]:
+def services() -> tuple[ClienteGmail, ClienteDrive]:
     """Clientes de Gmail y de Drive ya autenticados: `(gmail, drive)`."""
     import google_auth_httplib2
     import httplib2
@@ -159,7 +160,7 @@ def services() -> tuple[Any, Any]:
     return cliente("gmail", "v1"), cliente("drive", "v3")
 
 
-def list_folders(drive: Any, parent_id: str = "root") -> list[dict]:
+def list_folders(drive: ClienteDrive, parent_id: str = "root") -> list[dict]:
     """Carpetas (no borradas) que hay directamente dentro de una carpeta de Drive."""
     escaped = parent_id.replace("\\", "\\\\").replace("'", "\\'")
     query = f"'{escaped}' in parents and mimeType = '{FOLDER_MIME}' and trashed = false"
@@ -176,7 +177,7 @@ def list_folders(drive: Any, parent_id: str = "root") -> list[dict]:
             return sorted(folders, key=lambda f: f["name"].casefold())
 
 
-def list_file_names(drive: Any, parent_id: str) -> list[str]:
+def list_file_names(drive: ClienteDrive, parent_id: str) -> list[str]:
     """Nombres de los archivos (no carpetas) directamente dentro de `parent_id`."""
     escaped = parent_id.replace("\\", "\\\\").replace("'", "\\'")
     query = f"'{escaped}' in parents and mimeType != '{FOLDER_MIME}' and trashed = false"
@@ -184,7 +185,7 @@ def list_file_names(drive: Any, parent_id: str) -> list[str]:
     return [str(f["name"]) for f in result.get("files", [])]
 
 
-def ensure_folder(drive: Any, parent_id: str, name: str) -> dict:
+def ensure_folder(drive: ClienteDrive, parent_id: str, name: str) -> dict:
     """Devuelve la subcarpeta con ese nombre exacto; la crea si no existe."""
     for folder in list_folders(drive, parent_id):
         if folder["name"] == name:

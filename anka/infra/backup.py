@@ -6,21 +6,23 @@
 """
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteDrive
 
 import argparse
 import json
 import os
 import sqlite3
 import shutil
+import socket
 import stat
 from contextlib import closing
 import tempfile
 import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
-from typing import Any
 
-from anka.infra import settings
+from anka.dominio.reloj import ahora, ahora_iso
+from anka.infra import acciones_en_curso, settings
 from anka.infra.logging_setup import configure_logging, get_logger
 
 log = get_logger(__name__)
@@ -29,6 +31,7 @@ PREFIX = "anka-respaldo-"
 KEEP = 14                      # copias que se conservan (local y Drive)
 EVERY = timedelta(hours=24)
 ESPERA_DE_LA_BASE = 15       # segundos que se espera si otro proceso escribe (igual que la base viva)
+PUERTO_DEL_DASHBOARD = 8765  # puerto del dashboard del lanzador: restaurar por consola lo exige libre
 DRIVE_FOLDER = "Anka respaldos"
 LAST_FILE = "last_backup.json"
 # Solo estos archivos entran en la copia: nunca token.json ni credentials.json.
@@ -46,7 +49,7 @@ def create_backup() -> Path:
     if not source.exists():
         raise FileNotFoundError(f"No existe {source}.")
     backups_dir().mkdir(parents=True, exist_ok=True)
-    target = backups_dir() / f"{PREFIX}{datetime.now():%Y%m%d-%H%M%S}.zip"
+    target = backups_dir() / f"{PREFIX}{ahora():%Y%m%d-%H%M%S}.zip"
     with tempfile.TemporaryDirectory() as temp:
         snapshot = Path(temp) / "quotes.sqlite3"
         origin, copy = sqlite3.connect(source, timeout=ESPERA_DE_LA_BASE), sqlite3.connect(snapshot)
@@ -68,7 +71,22 @@ def create_backup() -> Path:
             for path in sorted(evidence.rglob('*.eml')):
                 if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(evidence.resolve()):
                     archive.write(path, path.relative_to(settings.DATA_DIR).as_posix())
+    try:
+        _verificar_zip(target)
+    except Exception:
+        target.unlink(missing_ok=True)       # una copia que no se puede abrir no es una copia: no se deja ni se cuenta
+        raise
     return target
+
+
+def _verificar_zip(path: Path) -> None:
+    """Abre la copia recién hecha en una carpeta temporal y comprueba que su base sirve (integridad y versión)."""
+    with tempfile.TemporaryDirectory() as temporal, zipfile.ZipFile(path) as archive:
+        malo = archive.testzip()                  # lee todo el zip: detecta una entrada dañada
+        if malo is not None:
+            raise ValueError(f"La copia recién hecha tiene dañada la entrada {malo}.")
+        archive.extract("quotes.sqlite3", temporal)
+        _comprobar_base(Path(temporal) / "quotes.sqlite3")
 
 
 def prune_local(keep: int = KEEP) -> list[Path]:
@@ -80,7 +98,7 @@ def prune_local(keep: int = KEEP) -> list[Path]:
     return old
 
 
-def _drive_folder(drive: Any) -> str:
+def _drive_folder(drive: ClienteDrive) -> str:
     query = (f"name = '{DRIVE_FOLDER}' and mimeType = 'application/vnd.google-apps.folder' "
              "and 'root' in parents and trashed = false")
     found = drive.files().list(q=query, fields="files(id)", pageSize=1).execute().get("files", [])
@@ -92,7 +110,7 @@ def _drive_folder(drive: Any) -> str:
     return created["id"]
 
 
-def upload_to_drive(drive: Any, path: Path, keep: int = KEEP) -> int:
+def upload_to_drive(drive: ClienteDrive, path: Path, keep: int = KEEP) -> int:
     """Sube la copia y borra de Drive solo las copias propias (prefijo) más antiguas."""
     from googleapiclient.http import MediaIoBaseUpload
 
@@ -111,9 +129,9 @@ def upload_to_drive(drive: Any, path: Path, keep: int = KEEP) -> int:
     return len(old)
 
 
-def run_backup(use_drive: bool = True, drive: Any = None) -> dict:
+def run_backup(use_drive: bool = True, drive: ClienteDrive | None = None) -> dict:
     """Crea la copia, la sube a Drive y deja constancia en last_backup.json."""
-    result = {"at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    result = {"at": ahora_iso("seconds"),
               "file": "", "drive": False, "error": ""}
     try:
         path = create_backup()
@@ -142,13 +160,22 @@ def run_backup(use_drive: bool = True, drive: Any = None) -> dict:
     return result
 
 
+def anotar_fallo(mensaje: str) -> None:
+    """Deja en last_backup.json que la copia falló (p. ej. porque el lanzador la canceló por tardar demasiado)."""
+    resultado = {"at": ahora_iso("seconds"), "file": "", "drive": False, "error": mensaje[:200]}
+    try:
+        (settings.DATA_DIR / LAST_FILE).write_text(json.dumps(resultado), encoding="utf-8")
+    except OSError as exc:
+        log.warning("No se pudo anotar el fallo de la copia (%s)", type(exc).__name__)
+
+
 def backup_due(now: datetime | None = None) -> bool:
     """True si la última copia exitosa tiene más de 24 h (o no hay ninguna)."""
     try:
         last = json.loads((settings.DATA_DIR / LAST_FILE).read_text(encoding="utf-8"))
         if not last.get("file"):
             return True
-        return (now or datetime.now().astimezone()) - datetime.fromisoformat(last["at"]) >= EVERY
+        return (now or ahora()) - datetime.fromisoformat(last["at"]) >= EVERY
     except (OSError, ValueError, KeyError):
         return True
 
@@ -158,6 +185,8 @@ def restore(archive_path: Path) -> Path:
     from anka.infra.work_heartbeat import other_bridge_running
     if other_bridge_running():
         raise ValueError('El puente está corriendo: cierra el lanzador («Iniciar Anka») antes de restaurar.')
+    if acciones_en_curso.acciones_activas() or _base_en_uso():
+        raise ValueError('La base está en uso: cierra el lanzador («Iniciar Anka») antes de restaurar.')
     with tempfile.TemporaryDirectory() as temporary, zipfile.ZipFile(archive_path) as archive:
         stage = Path(temporary)
         names = _validate_archive(archive)
@@ -166,6 +195,27 @@ def restore(archive_path: Path) -> Path:
         _comprobar_base(stage / 'quotes.sqlite3')
         _install_restore(stage, names)
     return settings.DATA_DIR / 'quotes.sqlite3'
+
+
+def _base_en_uso() -> bool:
+    """¿Otro proceso tiene una escritura en curso en la base viva? (no puede cambiarse de debajo a quien la usa)."""
+    base = settings.DATA_DIR / "quotes.sqlite3"
+    if not base.exists():
+        return False
+    try:
+        with closing(sqlite3.connect(base, timeout=1, isolation_level=None)) as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("ROLLBACK")
+    except sqlite3.OperationalError:
+        return True
+    return False
+
+
+def dashboard_en_marcha(puerto: int = PUERTO_DEL_DASHBOARD) -> bool:
+    """¿Contesta algo en el puerto del dashboard? (la restauración desde la línea de comandos pide que no)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conexion:
+        conexion.settimeout(0.5)
+        return conexion.connect_ex(("127.0.0.1", puerto)) == 0
 
 
 def _comprobar_base(path: Path) -> None:
@@ -240,7 +290,7 @@ def _copia_previa(target: Path, previous: Path) -> None:
 
 
 def _install_restore(stage: Path, names: list[str]) -> None:
-    stamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+    stamp = ahora().strftime('%Y%m%d-%H%M%S-%f')
     installed: list[tuple[Path, Path | None]] = []
     try:
         # La base se instala al final, cuando su evidencia ya está disponible.
@@ -274,6 +324,8 @@ def main() -> None:
     args = parser.parse_args()
     configure_logging()
     if args.restore:
+        if dashboard_en_marcha():
+            raise SystemExit("El dashboard está abierto: cierra el lanzador («Iniciar Anka») antes de restaurar.")
         print("Restaurada:", restore(Path(args.restore)))
         return
     result = run_backup(use_drive=not args.no_drive)

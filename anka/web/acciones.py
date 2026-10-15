@@ -22,7 +22,8 @@ from anka.infra.settings import load_config
 from anka.infra.work_heartbeat import request_check_now
 
 from anka.servicios.case_actions import (
-    AVISO, approve_review, delete_cases, issue_code_and_notify, save_dashboard_draft, send_dashboard_reply,
+    AVISO, approve_review, delete_cases, issue_code_and_notify, marcar_enviado_a_mano, save_dashboard_draft,
+    send_dashboard_reply,
 )
 from anka.infra.logging_setup import get_logger
 from anka.servicios.autorizacion import reautorizar_google
@@ -140,6 +141,12 @@ def _post_send(form: Form) -> str:
         int_field(form, "change_id"), field(form, "purpose"), esperar=field(form, "esperar") == "1",
         state_token=field(form, "state_token")))
     return _to_case(thread_id, message)
+
+
+def _post_mark_sent(form: Form) -> str:
+    """«Ya salió»: la persona confirma que un correo incierto sí se envió (U-59). No envía nada."""
+    thread_id = field(form, "thread_id")
+    return _to_case(thread_id, _guidance(lambda: marcar_enviado_a_mano(thread_id)))
 
 
 def _post_activities(form: Form) -> str:
@@ -324,6 +331,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/metadata": _post_metadata,
     "/draft": _post_draft,
     "/send": _post_send,
+    "/mark-sent": _post_mark_sent,
     "/activities": _post_activities,
     "/mode": _post_mode,
     "/rescue": _post_rescue,

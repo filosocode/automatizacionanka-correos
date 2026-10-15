@@ -111,7 +111,7 @@ python -m ruff check .
 python -m mypy
 ```
 
-`check.bat` corre lint, tipos, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `anka/web/server.py` (manejadores HTTP) y `anka/cli/`.
+`check.bat` corre lint, tipos, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). `check.bat quick` corre solo ruff, mypy, `check_spec` y las pruebas rápidas para revisar mientras trabajas (no cierra un cambio; ver `docs/ESTANDAR_CAMBIOS.md`). El CI además audita las dependencias con `pip-audit` (solo como paso del workflow). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `anka/web/server.py` (manejadores HTTP) y `anka/cli/`.
 
 En los tests, parchea cada nombre en el módulo que lo **usa** (por ejemplo `anka.servicios.pipeline.services`), no en el que lo define. Los tests que tocan datos parchean `settings.DATA_DIR` (`anka.infra.settings`).
 

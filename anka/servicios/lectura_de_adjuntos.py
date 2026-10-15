@@ -1,11 +1,11 @@
 """Verifica la lectura de Work contra los adjuntos que Gmail tiene en el hilo y deja su texto local para T-38 (T-41)."""
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteGmail
 
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
 
 from anka.dominio.attachments import MAX_ATTACHMENT_BYTES, hermanos_de_shapefile
 from anka.dominio.correo import (
@@ -29,7 +29,7 @@ def _huella_del_hilo(mensajes: list[dict], adjuntos: list[dict]) -> str:
     return hashlib.sha256(json.dumps(contenido, sort_keys=True).encode()).hexdigest()
 
 
-def _contenido(gmail: Any, adjunto: dict) -> bytes:
+def _contenido(gmail: ClienteGmail, adjunto: dict) -> bytes:
     """Los bytes del adjunto: vienen en el mensaje si son pequeños y, si no, se piden a Gmail."""
     codificado = adjunto.get("data")
     if not codificado and adjunto.get("attachment_id"):
@@ -38,7 +38,7 @@ def _contenido(gmail: Any, adjunto: dict) -> bytes:
     return decode_websafe(codificado) if codificado else b""
 
 
-def _textos_del_hilo(gmail: Any, thread: dict, adjuntos: list[dict], propias: set[str],
+def _textos_del_hilo(gmail: ClienteGmail, thread: dict, adjuntos: list[dict], propias: set[str],
                      directorio: Path) -> dict | None:
     """El texto del correo y de cada adjunto, extraído con Python y guardado solo en este equipo (T-38).
 
@@ -85,7 +85,9 @@ def _textos_del_hilo(gmail: Any, thread: dict, adjuntos: list[dict], propias: se
     return {"thread_id": thread["id"], "revision": huella, "correo": correo, "adjuntos": leidos, "incompleto": True}
 
 
-def verificar_lectura(gmail: Any, payload: dict, propias: set[str], directorio: Path) -> tuple[list[str], bool]:
+def verificar_lectura(
+    gmail: ClienteGmail, payload: dict, propias: set[str], directorio: Path,
+) -> tuple[list[str], bool]:
     """Verifica la lectura que Work declaró (T-41) y comprueba la tabla contra el texto local (T-38).
 
     Devuelve (avisos para el caso, si se pudo consultar Gmail). Si Gmail no responde (cuota, red) el borrador no se

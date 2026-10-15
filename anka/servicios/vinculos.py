@@ -16,7 +16,7 @@ from anka.dominio.analisis import Actividad, Analisis
 from anka.dominio.caso import combine_activities, load_analysis
 from anka.dominio.errores import ErrorDeValidacion
 from anka.dominio.status import QuoteStatus
-from anka.infra.store import connect, record_event, register_change
+from anka.infra.store import lectura, record_event, register_change, transaccion
 from anka.servicios.estados import cambiar_estado
 from anka.servicios.repositorio import RepositorioDeCasos, actualizar_caso
 
@@ -127,20 +127,16 @@ def _pair(thread_id: str, other_thread_id: str) -> tuple[str, str]:
 
 def separated_project_pairs() -> frozenset[frozenset[str]]:
     """Los pares de hilos que una persona dijo que no son el mismo proyecto."""
-    db = connect()
-    try:
+    with lectura() as db:
         return frozenset(frozenset((row["thread_id"], row["other_thread_id"]))
                          for row in db.execute("SELECT thread_id, other_thread_id FROM project_dismissals"))
-    finally:
-        db.close()
 
 
 def merge_project_thread(thread_id: str, other_thread_id: str) -> str:
     """Una persona confirma que otro hilo es el mismo proyecto: se une a este caso y queda en Descartadas."""
     if not other_thread_id or other_thread_id == thread_id:
         raise ErrorDeValidacion("Elige otra conversación para unir.")
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         target = db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         other = repositorio.obtener(other_thread_id)
         if not target or not other:
@@ -158,9 +154,6 @@ def merge_project_thread(thread_id: str, other_thread_id: str) -> str:
         record_event(db, thread_id, "project_merged", "dashboard", f"project-{other_thread_id}",
                      f"Confirmaste que la conversación «{name}» es el mismo proyecto: se unió a este caso y quedó en "
                      "Descartadas (se puede rescatar).", now)
-        db.commit()
-    finally:
-        db.close()
     return (f"Unido: «{name}» pasó a Descartadas, por si quieres rescatarlo. Si traía cambios para la tabla, los verás "
             "como propuesta para adoptar o descartar.")
 
@@ -169,8 +162,7 @@ def separate_project_thread(thread_id: str, other_thread_id: str) -> str:
     """Una persona dice que otro hilo NO es el mismo proyecto: no se vuelve a sugerir en ningún caso."""
     if not other_thread_id or other_thread_id == thread_id:
         raise ErrorDeValidacion("Elige otra conversación.")
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         first, second = _pair(thread_id, other_thread_id)
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         db.execute("INSERT OR IGNORE INTO project_dismissals (thread_id, other_thread_id, decided_at) VALUES (?, ?, ?)",
@@ -181,16 +173,12 @@ def separate_project_thread(thread_id: str, other_thread_id: str) -> str:
                              "Decidiste que otra conversación con nombre o archivo parecido no es el mismo "
                              "proyecto que este.",
                              now)
-        db.commit()
-    finally:
-        db.close()
     return "Listo: no volveremos a sugerir que esas conversaciones son el mismo proyecto."
 
 
 def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
     """Una persona confirma o descarta que un correo de otro hilo pertenece a este caso."""
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         link = db.execute(
             "SELECT * FROM case_links WHERE id=? AND thread_id=? AND state='pending'",
             (link_id, thread_id)).fetchone()
@@ -227,9 +215,6 @@ def resolve_link(thread_id: str, link_id: int, accept: bool) -> str:
                 db, thread_id, link["message_id"], link["sender_email"], link["sender_name"],
                 link["subject"], link["snippet"], link["occurred_at"], bool(link["has_code"]),
                 link["sender_email"] == contact, link["reason"].startswith("domain"))
-        db.commit()
-    finally:
-        db.close()
     return message
 
 
@@ -238,8 +223,7 @@ def dismiss_pending_links(thread_id: str, link_ids: list[int]) -> str:
     ids = sorted({int(value) for value in link_ids if int(value) > 0})
     if not ids:
         return "Selecciona al menos una posible actualización."
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         placeholders = ",".join("?" for _ in ids)
         rows = db.execute(
@@ -256,10 +240,7 @@ def dismiss_pending_links(thread_id: str, link_ids: list[int]) -> str:
                        f"{row['sender_name'] or row['sender_email']} sea de este caso.")
             record_event(db, thread_id, "dismissed", "dashboard", f"link-{row['id']}", summary,
                          now, row["sender_email"], row["sender_name"])
-        db.commit()
         return f"Descartaste {len(rows)} aviso(s). Los correos y los casos siguen guardados."
-    finally:
-        db.close()
 
 
 def dismiss_pending_links_many(references: list[tuple[str, int]]) -> str:
@@ -268,8 +249,7 @@ def dismiss_pending_links_many(references: list[tuple[str, int]]) -> str:
                        if str(thread).strip() and int(link_id) > 0})
     if not selected:
         return "Selecciona al menos una posible actualización."
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         dismissed = 0
         for thread_id, link_id in selected:
@@ -285,9 +265,6 @@ def dismiss_pending_links_many(references: list[tuple[str, int]]) -> str:
                          f"{row['sender_name'] or row['sender_email']} sea de este caso.",
                          now, row["sender_email"], row["sender_name"])
             dismissed += 1
-        db.commit()
         if not dismissed:
             return "Las posibles actualizaciones seleccionadas ya estaban resueltas."
         return f"Descartaste {dismissed} aviso(s). Los correos y los casos siguen guardados."
-    finally:
-        db.close()

@@ -14,13 +14,17 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
 from anka.dominio.configuracion import es_modo_work
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
-from anka.infra.backup import backup_due, run_backup
+from anka.infra import acciones_en_curso
+from anka.infra.backup import anotar_fallo, backup_due
+from anka.servicios import envios
+from anka.servicios.case_actions import reconciliar_envios_pendientes
 from anka.servicios.followup_reminders import run_due_reminders
 from anka.infra.logging_setup import configure_logging, get_logger
 
@@ -31,6 +35,9 @@ EXIT_STOP = 2                       # el puente pide no reiniciarlo (modo o cuen
 EXIT_RELANZAR = 75                  # el servicio pide que el guardián lo lance de nuevo (cambió el código)
 SERVICIO = "--servicio"             # argumento con el que el guardián lanza el servicio
 REMINDER_EVERY = 300                # segundos entre revisiones de recordatorios
+COPIA_TOPE = 900                    # segundos que puede tardar una copia antes de cancelarla (B3-09)
+COPIA_REINTENTO = 3600              # segundos de espera para volver a intentar una copia que falló o se canceló
+RECONCILIAR_CADA = 300              # segundos entre revisiones de envíos inciertos (B3-06)
 MODE_RECHECK = 30          # segundos entre lecturas de config.json para saber si el puente debe estar activo
 WATCH_EVERY = 3                     # segundos entre revisiones de cambios y de procesos
 CHILD_PYTHON = sys.executable.replace("pythonw.exe", "python.exe")
@@ -160,6 +167,91 @@ class Child:
         log.warning("%s terminó (código %s); se reinicia en %d s", self.name, code, wait)
 
 
+class CopiaDeSeguridad:
+    """La copia diaria en un proceso aparte con tope de tiempo: un Drive colgado no congela la supervisión (B3-09).
+
+    Lanza `python -m anka.infra.backup` (que copia, verifica y sube) y lo vigila desde el bucle sin esperarlo; si
+    pasa del tope lo cancela y lo anota. Una copia que falla no se reintenta en cada vuelta, sino pasada una hora."""
+
+    def __init__(self) -> None:
+        self.process: subprocess.Popen | None = None
+        self.started = 0.0
+        self.retry_at = 0.0
+
+    def start(self) -> None:
+        """Lanza la copia en un proceso aparte."""
+        self.process = subprocess.Popen(
+            [CHILD_PYTHON, "-m", "anka.infra.backup"], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=0x08000000 if sys.stdout is None else 0)
+        self.started = time.time()
+        log.info("Copia de seguridad iniciada en un proceso aparte (PID %s)", self.process.pid)
+
+    def stop(self) -> None:
+        """Cancela la copia si sigue en curso."""
+        if self.process and self.process.poll() is None:
+            self.process.kill()
+        self.process = None
+
+    def check(self) -> None:
+        """Vigila la copia en curso (la cancela si tarda demasiado) o la lanza si toca y no hay una corriendo."""
+        if self.process is not None:
+            code = self.process.poll()
+            if code is None:
+                if time.time() - self.started > COPIA_TOPE:
+                    self.stop()
+                    anotar_fallo(f"La copia tardó más de {COPIA_TOPE // 60} minutos y se canceló.")
+                    log.error("La copia de seguridad pasó el tope de %d s y se canceló", COPIA_TOPE)
+                    self.retry_at = time.time() + COPIA_REINTENTO
+                return
+            self.process = None
+            if code != 0:
+                log.warning("La copia de seguridad terminó con código %s; se reintenta en una hora", code)
+                self.retry_at = time.time() + COPIA_REINTENTO
+            return
+        if time.time() >= self.retry_at and backup_due():
+            self.start()
+
+
+class Reconciliador:
+    """Aclara con Gmail los envíos inciertos en un hilo aparte, de uno en uno, sin frenar la supervisión (B3-06)."""
+
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self.last = 0.0
+
+    def check(self) -> None:
+        """Cada RECONCILIAR_CADA segundos lanza una ronda, si la anterior ya terminó."""
+        if time.time() - self.last < RECONCILIAR_CADA or (self.thread and self.thread.is_alive()):
+            return
+        self.last = time.time()
+        self.thread = threading.Thread(target=self._ronda, name="reconciliar-envios", daemon=True)
+        self.thread.start()
+
+    @staticmethod
+    def _ronda() -> None:
+        try:
+            for hecho in reconciliar_envios_pendientes():
+                log.info("Envío incierto aclarado: %s", hecho)
+        except Exception:
+            log.exception("Error al aclarar los envíos inciertos")
+
+
+def cierre_ordenado(tope: float = acciones_en_curso.ESPERA_MAXIMA) -> bool:
+    """Antes de reiniciar por un cambio de código: espera (hasta `tope` s) a que terminen las acciones del dashboard
+    y no haya un envío saliendo, para no cortarlos a la mitad (B3-15). Devuelve si ya no quedaba nada en curso."""
+    limite = time.monotonic() + tope
+    while True:
+        en_curso = acciones_en_curso.acciones_activas()
+        saliendo = envios.hay_envios_en_curso()
+        if not en_curso and not saliendo:
+            return True
+        if time.monotonic() >= limite:
+            log.warning("Se reinicia con acciones aún en curso (%s%s)", ", ".join(en_curso),
+                        "; hay un envío saliendo" if saliendo else "")
+            return False
+        time.sleep(0.5)
+
+
 def servicio() -> int:
     """Arranca dashboard y puente, los reinicia si se caen, copia a diario y pide relanzarse si cambia el código."""
     configure_logging(console=sys.stdout is not None)
@@ -170,6 +262,8 @@ def servicio() -> int:
     children = [dashboard, bridge, preparer]
     snapshot = code_snapshot()
     last_reminders = 0.0
+    copia = CopiaDeSeguridad()
+    reconciliador = Reconciliador()
     mode_checked, in_work_mode = 0.0, False   # config.json se relee cada MODE_RECHECK s, no en cada vuelta
     prepare_enabled = False
     log.info("Anka iniciado: dashboard en http://127.0.0.1:8765/")
@@ -177,6 +271,7 @@ def servicio() -> int:
         while True:
             if code_snapshot() != snapshot:
                 time.sleep(2)                       # que terminen de guardarse los archivos
+                cierre_ordenado()                   # sin cortar un envío ni una acción a la mitad
                 log.info("Cambió el código: el lanzador se reinicia solo, con el dashboard y el puente")
                 return EXIT_RELANZAR                # el `finally` detiene a los hijos; el guardián lanza el código nuevo
             if time.time() - mode_checked >= MODE_RECHECK:
@@ -193,8 +288,8 @@ def servicio() -> int:
                 preparer.stop()
                 preparer.stopped = False
             dashboard.check()
-            if backup_due():
-                run_backup()
+            copia.check()
+            reconciliador.check()
             if time.time() - last_reminders >= REMINDER_EVERY:
                 last_reminders = time.time()
                 try:
@@ -205,6 +300,7 @@ def servicio() -> int:
     except KeyboardInterrupt:
         log.info("Anka detenido")
     finally:
+        copia.stop()
         for child in children:
             child.stop()
     return 0

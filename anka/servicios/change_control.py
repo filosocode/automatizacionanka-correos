@@ -8,6 +8,7 @@ seguimiento del caso. Los correos que resultan son siempre borradores que revisa
 
 from __future__ import annotations
 from anka.dominio.errores import ErrorDeValidacion
+from anka.dominio.reloj import ahora, ahora_iso
 from anka.servicios.repositorio import actualizar_caso
 
 import json
@@ -18,7 +19,7 @@ from uuid import uuid4
 
 from anka.dominio.analisis import Analisis
 from anka.infra.logging_setup import get_logger
-from anka.infra.store import connect, record_event, register_change
+from anka.infra.store import connect, lectura, record_event, register_change, transaccion
 
 log = get_logger(__name__)
 
@@ -140,7 +141,7 @@ def apply_guard(db: sqlite3.Connection, thread_id: str, analysis: Analisis, requ
     proposed = analysis.get("activities") or []
     if sender:
         register_change(db, thread_id, message_id or f"{source}-{when}", sender, requested_by_name,
-                        subject, snippet, when or datetime.now().astimezone().isoformat(timespec="seconds"),
+                        subject, snippet, when or ahora_iso("seconds"),
                         has_code, is_contact, same_company)
     if proposed != previous:
         analysis["pending_model_activities"] = proposed
@@ -162,19 +163,16 @@ def suggest_number(year: int | None = None) -> str:
 
     Es una sugerencia: el consecutivo oficial puede ir más adelante, por eso se confirma a mano.
     """
-    prefix = f"{(year or datetime.now().year) % 100:02d}"
-    db = connect()
-    try:
+    prefix = f"{(year or ahora().year) % 100:02d}"
+    with lectura() as db:
         used = [int(row["quote_code"][2:]) for row in db.execute(
             "SELECT quote_code FROM quotes WHERE quote_code LIKE ? AND length(quote_code)=5",
             (prefix + "%",)) if row["quote_code"][2:].isdigit()]
-    finally:
-        db.close()
     return f"{prefix}{(max(used) + 1 if used else 1):03d}"
 
 
 def _action_ref() -> str:
-    return f"{datetime.now().astimezone().isoformat(timespec='seconds')}-{uuid4().hex[:6]}"
+    return f"{ahora_iso('seconds')}-{uuid4().hex[:6]}"
 
 
 def normalize_number(number: str) -> str:
@@ -200,21 +198,17 @@ def comprobar_numero(thread_id: str, number: str) -> str:
 
     Sirve para fallar antes de hacer algo irreversible: la T no se puede deshacer (D-08)."""
     number = normalize_number(number)
-    db = connect()
-    try:
+    with lectura() as db:
         _validar_numero(db, thread_id, number)
-    finally:
-        db.close()
     return number
 
 
 def assign_code(thread_id: str, number: str) -> str:
     """Acepta el proyecto: le asigna su T. Desde aquí cualquier cambio debe citarla."""
     number = normalize_number(number)
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         _validar_numero(db, thread_id, number)
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        now = ahora_iso("seconds")
         actualizar_caso(db, thread_id,
             quote_code=number,
             code_stage='T',
@@ -223,45 +217,37 @@ def assign_code(thread_id: str, number: str) -> str:
         record_event(db, thread_id, "code_assigned", "dashboard", _action_ref(),
                      f"Se aceptó el proyecto y se asignó el código {code_label(number, 'T')}. "
                      "Desde aquí todo cambio debe citarlo.", now)
-        db.commit()
-    finally:
-        db.close()
     return (f"Código {code_label(number, 'T')} asignado. Revisa el correo de «proyecto recibido» "
             "y envíalo para informar al cliente.")
 
 
 def promote_to_te(thread_id: str) -> str:
     """La oferta fue aprobada: la T pasa a T&E (mismo número)."""
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         row = db.execute("SELECT quote_code, code_stage FROM quotes WHERE thread_id=?",
                          (thread_id,)).fetchone()
         if not row or not row["quote_code"]:
             raise ErrorDeValidacion("Este caso todavía no tiene código.")
         if row["code_stage"] == "TE":
             return "La oferta ya figuraba como aprobada."
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        now = ahora_iso("seconds")
         actualizar_caso(db, thread_id,
             code_stage='TE',
             updated_at=now)
         record_event(db, thread_id, "code_approved", "dashboard", _action_ref(),
                      f"La oferta fue aprobada: {code_label(row['quote_code'], 'T')} pasa a "
                      f"{code_label(row['quote_code'], 'TE')}.", now)
-        db.commit()
-    finally:
-        db.close()
     return f"Listo: la oferta quedó aprobada ({code_label(row['quote_code'], 'TE')})."
 
 
 def resolve_change(thread_id: str, change_id: int, is_change: bool) -> str:
     """Una persona decide si el mensaje posterior a la T pide un cambio o es otra cosa."""
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         change = db.execute("SELECT * FROM case_changes WHERE id=? AND thread_id=? AND state='pending'",
                             (change_id, thread_id)).fetchone()
         if not change:
             return "Ese mensaje ya se había revisado."
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        now = ahora_iso("seconds")
         who = change["sender_name"] or change["sender_email"]
         db.execute("UPDATE case_changes SET state=?, decided_at=? WHERE id=?",
                    ("change" if is_change else "not_change", now, change_id))
@@ -275,51 +261,40 @@ def resolve_change(thread_id: str, change_id: int, is_change: bool) -> str:
                        "(«Decisiones que puedes deshacer»).")
         record_event(db, thread_id, "change_confirmed" if is_change else "change_dismissed", "dashboard",
                      f"change-{change_id}", summary, now, change["sender_email"], change["sender_name"])
-        db.commit()
-    finally:
-        db.close()
     return message
 
 
 def reabrir_cambio(thread_id: str, change_id: int) -> str:
     """Deshace «No es un cambio»: el mensaje vuelve a quedar por revisar y se anota quién lo reabrió (U-57)."""
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         change = db.execute("SELECT * FROM case_changes WHERE id=? AND thread_id=?", (change_id, thread_id)).fetchone()
         if not change:
             return "Ese mensaje ya no está en este caso."
         if change["state"] != "not_change":
             return "Ese mensaje ya estaba por revisar." if change["state"] == "pending" else (
                 "Ese mensaje ya se había confirmado como un cambio.")
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        now = ahora_iso("seconds")
         who = change["sender_name"] or change["sender_email"]
         db.execute("UPDATE case_changes SET state='pending', decided_at=NULL WHERE id=?", (change_id,))
         record_event(db, thread_id, "change_reopened", "dashboard", f"change-{change_id}-reopened-{uuid4().hex[:6]}",
                      f"Reabriste el mensaje de {who} «{change['subject'][:80]}» que habías marcado como no relacionado "
                      "con un cambio.", now, change["sender_email"], change["sender_name"])
-        db.commit()
-    finally:
-        db.close()
     return "Reabierto: el mensaje vuelve a estar por revisar arriba, en el caso."
 
 
 def cambios_descartados(thread_id: str) -> list[dict[str, str]]:
     """Los mensajes que una persona marcó como «No es un cambio» y se pueden reabrir (los 5 más recientes)."""
-    db = connect()
-    try:
+    with lectura() as db:
         rows = db.execute("SELECT id, sender_name, sender_email, subject, decided_at FROM case_changes "
                           "WHERE thread_id=? AND state='not_change' ORDER BY decided_at DESC, id DESC LIMIT 5",
                           (thread_id,)).fetchall()
-    finally:
-        db.close()
     return [{"id": str(r["id"]), "quien": r["sender_name"] or r["sender_email"], "asunto": r["subject"],
              "cuando": (r["decided_at"] or "")[:16].replace("T", " ")} for r in rows]
 
 
 def known_addresses(thread_id: str) -> set[str]:
     """Direcciones que ya participan en el caso: solo a ellas se puede escribir desde el dashboard."""
-    db = connect()
-    try:
+    with lectura() as db:
         found = {row[0].casefold() for row in db.execute(
             "SELECT contact_email FROM quotes WHERE thread_id=? "
             "UNION SELECT recipient FROM quotes WHERE thread_id=? "
@@ -327,8 +302,6 @@ def known_addresses(thread_id: str) -> set[str]:
             "UNION SELECT sender_email FROM case_changes WHERE thread_id=? "
             "UNION SELECT sender_email FROM case_links WHERE thread_id=?",
             (thread_id,) * 5) if row[0]}
-    finally:
-        db.close()
     return found
 
 
@@ -376,13 +349,9 @@ def mark_change_sent(thread_id: str, change_id: int, purpose: str, to: str) -> N
     column = "contact_notified_at" if purpose == "notify_contact" else "reply_sent_at"
     labels = {"ack": "Se envió «cambio recibido» a", "ask_code": "Se pidió el código a",
               "notify_contact": "Se avisó al contacto registrado,"}
-    db = connect()
-    try:
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+    with transaccion(inmediata=False) as db:
+        now = ahora_iso("seconds")
         db.execute(f"UPDATE case_changes SET {column}=? WHERE id=? AND thread_id=?",
                    (now, change_id, thread_id))
         record_event(db, thread_id, "change_reply", "dashboard", f"{purpose}-{change_id}",
                      f"{labels.get(purpose, 'Se envió un correo a')} {to} por el cambio #{change_id}.", now)
-        db.commit()
-    finally:
-        db.close()

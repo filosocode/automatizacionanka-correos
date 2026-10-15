@@ -5,9 +5,9 @@ El análisis de un mensaje (cabeceras, texto, adjuntos, enrutamiento) son funcio
 """
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteGmail
 
 import base64
-from typing import Any
 
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Adjunto
@@ -23,7 +23,7 @@ from anka.infra.logging_setup import get_logger
 log = get_logger(__name__)
 
 
-def descargar_parte(gmail: Any, message_id: str, part: dict) -> bytes:
+def descargar_parte(gmail: ClienteGmail, message_id: str, part: dict) -> bytes:
     """Los bytes de un adjunto: vienen en el mensaje si son pequeños y, si no, se piden a Gmail (vacío si no hay)."""
     encoded = part.get("data")
     if not encoded and part.get("attachment_id"):
@@ -32,7 +32,7 @@ def descargar_parte(gmail: Any, message_id: str, part: dict) -> bytes:
     return decode_websafe(encoded) if encoded else b""
 
 
-def companeros_del_shapefile(gmail: Any, message_id: str, partes: list[dict], hermanos: dict[str, str]
+def companeros_del_shapefile(gmail: ClienteGmail, message_id: str, partes: list[dict], hermanos: dict[str, str]
                              ) -> dict[str, bytes]:
     """Contenido de los archivos hermanos (`.shx`, `.dbf`, `.prj`, `.cpg`) de un `.shp`, por extensión."""
     por_nombre = {parte["filename"]: parte for parte in partes}
@@ -40,7 +40,7 @@ def companeros_del_shapefile(gmail: Any, message_id: str, partes: list[dict], he
             if (contenido := descargar_parte(gmail, message_id, por_nombre[nombre]))}
 
 
-def extract_message_attachments(gmail: Any, message: dict) -> list[Adjunto]:
+def extract_message_attachments(gmail: ClienteGmail, message: dict) -> list[Adjunto]:
     """Descarga y lee los adjuntos de un mensaje; nunca falla: un adjunto ilegible queda «bloqueado» con su motivo."""
     results: list[Adjunto] = []
     partes = [p for p in attachment_parts(message.get("payload", {})) if not is_inline_signature_image(p)]
@@ -89,7 +89,7 @@ def extract_message_attachments(gmail: Any, message: dict) -> list[Adjunto]:
     return results
 
 
-def own_addresses(config: Configuracion, gmail: Any) -> set[str]:
+def own_addresses(config: Configuracion, gmail: ClienteGmail) -> set[str]:
     """Direcciones de la cuenta propia (las de config.json más la principal de Gmail)."""
     addresses = {
         normalized_address(value) for value in config.get("own_addresses", []) if value
@@ -104,7 +104,7 @@ def own_addresses(config: Configuracion, gmail: Any) -> set[str]:
 
 
 def send_reply(
-    gmail: Any, thread: dict, recipient: str, body: str,
+    gmail: ClienteGmail, thread: dict, recipient: str, body: str,
     own_email_addresses: list[str] | set[str] | None = None,
 ) -> str:
     """Envía la respuesta en el hilo y devuelve el id del mensaje enviado."""
@@ -117,7 +117,7 @@ def send_reply(
 
 
 def create_reply_draft(
-    gmail: Any, thread: dict, recipient: str, body: str,
+    gmail: ClienteGmail, thread: dict, recipient: str, body: str,
     own_email_addresses: list[str] | set[str] | None = None,
 ) -> str:
     """Guarda la respuesta como borrador de Gmail en el hilo y devuelve el id del borrador."""
@@ -129,7 +129,7 @@ def create_reply_draft(
     return str(result["id"])
 
 
-def candidate_thread_versions(gmail: Any, query: str) -> dict[str, str]:
+def candidate_thread_versions(gmail: ClienteGmail, query: str) -> dict[str, str]:
     """Hilo → `historyId` de los hilos que coinciden con la búsqueda: cambia cuando el hilo cambia en Gmail (T-40)."""
     versiones: dict[str, str] = {}
     page_token = None
@@ -152,7 +152,7 @@ def es_error_de_cuota(exc: Exception) -> bool:
         marca in texto for marca in ("Quota exceeded", "rateLimitExceeded", "userRateLimitExceeded")))
 
 
-def candidate_thread_ids(gmail: Any, query: str) -> list[str]:
+def candidate_thread_ids(gmail: ClienteGmail, query: str) -> list[str]:
     """Ids de los hilos que coinciden con la búsqueda de Gmail (recorre todas las páginas)."""
     ids: set[str] = set()
     page_token = None

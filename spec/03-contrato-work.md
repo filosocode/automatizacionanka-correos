@@ -52,7 +52,7 @@ Opcionales y solo internos (T-32): `model` y `skill_version`, el modelo que decl
 en el caso y en el historial, nunca en un correo al cliente.
 Opcional y fuera del esquema (U-51): `schema_version`, la versión del contrato que Work dice seguir (1 si no escribe nada; el esquema
 declara `"version": 1`). Si es mayor que la que Anka entiende, el análisis se acepta y el caso lo avisa. El prompt de Work no lo pide.
-Recomendados: `client_name`, `summary`, `received_at`, `gmail_url`, `activities`, `fields`, `missing_data`,
+Recomendados: `client_name`, `summary`, `received_at`, `gmail_url` (solo enlaces `https://mail.google.com/…`; otro valor se deja vacío con aviso, U-61), `activities`, `fields`, `missing_data`,
 `attachments`, `contradictions`, `scope_dependencies`. `fields` contiene objetos `name`, `value` y `source`.
 `missing_data` acepta textos por compatibilidad y objetos `{ "name": "dato pendiente", "type": "critical"|"recommended" }`;
 el importador los normaliza a etiquetas legibles para el dashboard.

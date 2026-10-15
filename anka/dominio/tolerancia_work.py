@@ -243,6 +243,9 @@ def _reparar_valor(valor: Any, esq: dict, ruta: str, cor: _Correcciones) -> Any:
         valor = elegido
     if isinstance(valor, str) and esq.get("minLength") and not valor.strip():
         return _OMITIR
+    if isinstance(valor, str) and esq.get("pattern") and not re.search(esq["pattern"], valor):
+        cor.anotar(ruta, "no tenía el formato permitido (p. ej. un enlace que no es de Gmail); se dejó vacío")
+        return ""
     if isinstance(valor, dict):
         return _reparar_objeto(valor, esq, ruta, cor)
     if isinstance(valor, list) and "items" in esq:
