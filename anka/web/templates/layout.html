@@ -11,6 +11,7 @@
   <noscript><style>.editor-tabla { display: block; } .fila-resumen.extra { display: table-row !important; } .ver-todas-boton, #agregar-fila, #editar-boton { display: none; }</style></noscript>
 </head>
 <body>
+  <canvas id="particulas" aria-hidden="true" hidden></canvas>
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
   <header>
     {% macro actual(ruta) %}{% if nav_actual == ruta %} aria-current="page"{% endif %}{% endmacro %}
@@ -55,6 +56,102 @@
     </form>
   </dialog>
   <script>
+    // Nodos que se juntan y se mueven detrás de todo (U-38, D-103): JavaScript puro en un <canvas>, sin librerías.
+    // Parámetros del login de ANKA Inventario; la intensidad baja porque aquí se trabaja, no se espera.
+    (function () {
+      const lienzo = document.getElementById('particulas');
+      if (!lienzo || !window.requestAnimationFrame || !window.matchMedia) return;
+      const PARTICULAS = 40, PARTICULAS_MOVIL = 20, RADIO_MIN = 1.5, RADIO_MAX = 3.5, OPACIDAD = 0.6;
+      const DISTANCIA_LINEA = 140, OPACIDAD_LINEA = 0.35, VELOCIDAD = 0.6, DISTANCIA_REPULSION = 100;
+      const FPS = 60, INTENSIDAD = 0.55, MAX_DPR = 2;
+      const COLORES = { claro: ['#2f4d73', '#f47c27'], oscuro: ['#8fb0dc', '#f9a668'] };   // el oscuro aclara el azul: #2f4d73 casi no se ve sobre #0d1117
+      const sinMovimiento = matchMedia('(prefers-reduced-motion: reduce)');
+      const sistemaOscuro = matchMedia('(prefers-color-scheme: dark)');
+      const ctx = lienzo.getContext('2d');
+      if (!ctx) return;
+      let nodos = [], ancho = 0, alto = 0, cuadro = 0, ultimo = 0, oscuro = false;
+      const raton = { x: -9999, y: -9999 };
+
+      function esOscuro() {
+        const tema = document.documentElement.dataset.theme;
+        return tema === 'dark' || (tema !== 'light' && sistemaOscuro.matches);
+      }
+      function medir() {
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+        const nuevoAncho = window.innerWidth, nuevoAlto = window.innerHeight;
+        lienzo.width = Math.round(nuevoAncho * dpr);
+        lienzo.height = Math.round(nuevoAlto * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        for (const n of nodos) { n.x = ancho ? n.x * nuevoAncho / ancho : n.x; n.y = alto ? n.y * nuevoAlto / alto : n.y; }
+        ancho = nuevoAncho; alto = nuevoAlto;
+      }
+      function crear() {
+        const total = ancho < 600 ? PARTICULAS_MOVIL : PARTICULAS;
+        nodos = [];
+        for (let i = 0; i < total; i++) {
+          const angulo = Math.random() * Math.PI * 2;
+          nodos.push({ x: Math.random() * ancho, y: Math.random() * alto, color: i % 2,
+                       r: RADIO_MIN + Math.random() * (RADIO_MAX - RADIO_MIN),
+                       vx: Math.cos(angulo) * VELOCIDAD, vy: Math.sin(angulo) * VELOCIDAD });
+        }
+      }
+      function mover(paso) {
+        for (const n of nodos) {
+          n.x += n.vx * paso; n.y += n.vy * paso;
+          const dx = n.x - raton.x, dy = n.y - raton.y, d = Math.hypot(dx, dy);
+          if (d < DISTANCIA_REPULSION && d > 0.01) {          // el ratón los aparta, más cuanto más cerca
+            const empuje = (1 - d / DISTANCIA_REPULSION) * 3 * paso;
+            n.x += dx / d * empuje; n.y += dy / d * empuje;
+          }
+          if (n.x < n.r) { n.x = n.r; n.vx = Math.abs(n.vx); } else if (n.x > ancho - n.r) { n.x = ancho - n.r; n.vx = -Math.abs(n.vx); }
+          if (n.y < n.r) { n.y = n.r; n.vy = Math.abs(n.vy); } else if (n.y > alto - n.r) { n.y = alto - n.r; n.vy = -Math.abs(n.vy); }
+        }
+      }
+      function dibujar() {
+        const paleta = oscuro ? COLORES.oscuro : COLORES.claro;
+        const intensidad = oscuro ? INTENSIDAD * 1.25 : INTENSIDAD;   // sobre fondo oscuro hace falta algo más de opacidad
+        ctx.clearRect(0, 0, ancho, alto);
+        ctx.lineWidth = 1; ctx.strokeStyle = paleta[0];
+        for (let i = 0; i < nodos.length; i++) {
+          for (let j = i + 1; j < nodos.length; j++) {
+            const d = Math.hypot(nodos[i].x - nodos[j].x, nodos[i].y - nodos[j].y);
+            if (d >= DISTANCIA_LINEA) continue;
+            ctx.globalAlpha = OPACIDAD_LINEA * intensidad * (1 - d / DISTANCIA_LINEA);
+            ctx.beginPath(); ctx.moveTo(nodos[i].x, nodos[i].y); ctx.lineTo(nodos[j].x, nodos[j].y); ctx.stroke();
+          }
+        }
+        ctx.globalAlpha = OPACIDAD * intensidad;
+        for (const n of nodos) { ctx.fillStyle = paleta[n.color]; ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill(); }
+        ctx.globalAlpha = 1;
+      }
+      function paso(ahora) {
+        cuadro = requestAnimationFrame(paso);
+        const transcurrido = ahora - ultimo;
+        if (transcurrido < 1000 / FPS - 2) return;           // tope de ~60 cuadros por segundo
+        ultimo = ahora;
+        mover(Math.min(transcurrido, 50) / (1000 / 60));
+        dibujar();
+      }
+      function arrancar() {
+        if (cuadro || document.hidden || sinMovimiento.matches) return;
+        lienzo.hidden = false; oscuro = esOscuro();
+        if (!nodos.length) { medir(); crear(); }
+        ultimo = performance.now();
+        cuadro = requestAnimationFrame(paso);
+      }
+      function detener() { if (cuadro) cancelAnimationFrame(cuadro); cuadro = 0; }
+      function apagar() { detener(); lienzo.hidden = true; nodos = []; }
+
+      function escuchar(consulta, funcion) { consulta.addEventListener ? consulta.addEventListener('change', funcion) : consulta.addListener(funcion); }
+      escuchar(sinMovimiento, () => sinMovimiento.matches ? apagar() : arrancar());
+      escuchar(sistemaOscuro, () => { oscuro = esOscuro(); });
+      new MutationObserver(() => { oscuro = esOscuro(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      document.addEventListener('visibilitychange', () => document.hidden ? detener() : arrancar());
+      window.addEventListener('resize', () => { if (nodos.length) medir(); });
+      window.addEventListener('mousemove', e => { raton.x = e.clientX; raton.y = e.clientY; }, { passive: true });
+      document.documentElement.addEventListener('mouseleave', () => { raton.x = raton.y = -9999; });
+      arrancar();
+    })();
     // Evita el doble envío (U-31.18): un formulario que escribe se envía una sola vez y su botón queda bloqueado.
     document.addEventListener('submit', event => {
       const formulario = event.target;

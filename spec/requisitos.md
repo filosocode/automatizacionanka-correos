@@ -848,6 +848,20 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 - E3 · El CSS declara `@font-face` con `font-display: swap`, no menciona Google Fonts y la regla de «reducir movimiento» cubre `*`, `::before` y `::after`.
 - E4 · La cabecera trae `<img … alt="Anka">` hacia `/static/logo-anka.png`.
 
+### U-38 · Nodos animados de fondo, sin librerías y sin molestar
+**Estado: implementado** (pruebas en `tests/test_particulas.py`; instantáneas regeneradas). Decisión: D-103. Solo estilo: no cambia textos ni estructura (U-35, D-97) y respeta D-27 y la CSP de D-71.
+
+**Qué debe cumplirse**
+1. **Qué es.** Un `<canvas id="particulas">` en el layout común (todas las pantallas), fijo detrás de todo (`position: fixed; inset: 0; z-index: -1; pointer-events: none`) y con `aria-hidden="true"`. Dibuja la animación del login de ANKA Inventario en JavaScript puro, en un `<script>` en línea del layout (sin librería, sin archivo externo, sin red): 40 nodos (20 en pantallas de menos de 600 px) azul `#2f4d73` y naranja `#f47c27` de 1,5 a 3,5 px, líneas de hasta 140 px (opacidad 0,35, más tenues cuanto más lejos), velocidad 0,6, rebote en los bordes y repulsión del ratón a 100 px.
+2. **No estorba.** La intensidad se multiplica por 0,55 (por 0,69 en oscuro): el texto y las tablas siempre van sobre superficies opacas y el contraste que mide `test_estilo_visual` no cambia. El ratón se escucha en `window` (el canvas no recibe eventos). En modo oscuro el azul se aclara (`#8fb0dc`) y el naranja es `#f9a668`.
+3. **Movimiento reducido.** Con `prefers-reduced-motion: reduce` no se monta (el canvas queda `hidden`); si la preferencia cambia en vivo, se detiene o arranca. En alto contraste (`forced-colors`) y al imprimir el canvas no se muestra.
+4. **Gasto.** Se pausa cuando la pestaña está oculta (`visibilitychange`), se limita a ~60 cuadros por segundo con `requestAnimationFrame`, sigue el tamaño de la ventana y la densidad de pantalla (`devicePixelRatio`, tope 2).
+
+**Casos de aceptación**
+- A1 · Toda página trae un solo `<canvas id="particulas" aria-hidden="true">` y el CSS lo deja fijo, detrás y sin eventos.
+- A2 · El script consulta `prefers-reduced-motion`, `visibilitychange` y `devicePixelRatio`, y no carga nada externo (ni `src=`, ni `import`, ni `fetch`).
+- A3 · Los parámetros clave (40, 140, 0,35, 0,6, 100, 60, colores) están en el script.
+
 ### U-37 · Accesibilidad de la pantalla: lo que se elige y se avisa no depende del color ni del ratón (Ola 2 del plan de experiencia)
 **Estado: implementado** (pruebas en `tests/test_accesibilidad.py`; instantáneas regeneradas). Decisión: D-102. Es de forma, no de contenido: no cambia textos únicos (D-97), «Sí, enviar al cliente» ni el vocabulario de `test_vocabulario`; el texto añadido solo para lectores de pantalla (`solo-lectores`) usa ese mismo vocabulario. Complementa U-31 punto 25 (D-98) y U-36.
 

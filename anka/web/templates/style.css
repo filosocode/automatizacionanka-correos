@@ -738,3 +738,6 @@ html { scroll-padding-bottom: 9rem; }
 table.people { display: block; max-width: 100%; overflow-x: auto; }
 #cargando.notice { margin: 8px 24px; }
 a.bridge-chip { display: inline-flex; align-items: center; min-height: 44px; }
+/* Nodos animados de fondo (U-38, D-103): detrás de todo, sin recibir clics; se apagan con alto contraste e impresión. */
+#particulas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+@media (forced-colors: active), print { #particulas { display: none; } }

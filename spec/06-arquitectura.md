@@ -111,6 +111,7 @@ La descripción es la primera frase de su docstring.
 ### `anka/web/`
 
 Los archivos fijos del diseño (fuente Inter y logo) viven en `anka/web/static/` y se sirven por `GET /static/{archivo}` (U-36, D-101).
+El fondo animado de nodos (U-38, D-103) no es un archivo: es un `<canvas>` y un `<script>` en línea en `layout.html`.
 
 | Módulo | Para qué sirve |
 |---|---|
