@@ -16,7 +16,7 @@ from datetime import datetime
 from anka.dominio.analisis import Actividad, Analisis
 from anka.dominio.registros import Cambio, MapaDeSoloLectura, Vinculo
 from anka.dominio.correo import valid_email_address
-from anka.dominio.status import CLOSED_STATUSES, QuoteStatus
+from anka.dominio.status import CLOSED_STATUSES, ESTADOS, QuoteStatus
 
 
 @dataclass(frozen=True)
@@ -104,18 +104,7 @@ class Caso(MapaDeSoloLectura):
 
 # --- Datos que se derivan de lo guardado de un caso (funciones puras: no tocan la base)
 
-STATUS_LABELS = {
-    QuoteStatus.REVIEW_PENDING: "Correo por revisar",
-    QuoteStatus.READY_REVIEW: "Información validada",
-    QuoteStatus.SENDING: "Enviando",
-    QuoteStatus.REVIEW: "Por decidir",
-    QuoteStatus.WAITING: "Esperando al cliente",
-    QuoteStatus.DRAFT_CREATED: "Correo por revisar",
-    QuoteStatus.RESPONSE_SENT: "Respuesta enviada",
-    QuoteStatus.READY: "Proyecto creado",
-    QuoteStatus.MISSING: "Ya no está en Gmail",
-    QuoteStatus.IGNORED: "Descartada",
-}
+STATUS_LABELS = {estado: info.etiqueta for estado, info in ESTADOS.items()}      # la tabla única: dominio/status.py
 
 
 CLIENT_TYPES = [

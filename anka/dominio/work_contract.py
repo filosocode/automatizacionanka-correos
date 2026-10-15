@@ -3,6 +3,8 @@
 El esquema es la fuente de verdad (campos, tipos y estados permitidos). Se valida un subconjunto de
 JSON Schema —type, required, enum, properties, items, minLength— sin dependencias externas. Un valor
 `null` en un campo opcional se trata como ausente: Work a veces lo escribe así y no debe rechazar el caso.
+Una palabra clave del esquema que el validador no sabe comprobar (`pattern`, `oneOf`, `additionalProperties`…) o
+un `type` desconocido no se ignora en silencio: `validate` lo devuelve como error (U-51).
 """
 
 from __future__ import annotations
@@ -24,16 +26,47 @@ _TYPES: dict[str, type | tuple[type, ...]] = {
 }
 
 
+# Lo que el validador comprueba, y las anotaciones que no comprueban nada (comentarios, descripciones, versión).
+PALABRAS_COMPROBADAS = frozenset({"type", "required", "enum", "properties", "items", "minLength"})
+PALABRAS_DE_ANOTACION = frozenset({"$comment", "$schema", "$id", "title", "description", "version", "default",
+                                   "examples"})
+
+
 @lru_cache(maxsize=1)
 def load_schema() -> dict:
     """Carga el esquema JSON del contrato con Work (`spec/contrato_work.schema.json`)."""
     return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
+def version_del_contrato(schema: dict | None = None) -> int:
+    """La versión del contrato que declara el esquema (1 si no dice)."""
+    declarada = (schema if schema is not None else load_schema()).get("version", 1)
+    return declarada if isinstance(declarada, int) and not isinstance(declarada, bool) else 1
+
+
+def palabras_no_soportadas(schema: Any, ruta: str = "") -> list[str]:
+    """Las palabras clave del esquema que `validate` no comprueba (ni son anotaciones) y los `type` desconocidos."""
+    if not isinstance(schema, dict):
+        return []
+    donde = ruta or "el esquema"
+    problemas = [f"{donde} usa «{clave}», que el validador del contrato no sabe comprobar."
+                 for clave in schema if clave not in PALABRAS_COMPROBADAS | PALABRAS_DE_ANOTACION]
+    tipos = schema.get("type", [])
+    for nombre in [tipos] if isinstance(tipos, str) else tipos if isinstance(tipos, list) else []:
+        if nombre not in _TYPES:
+            problemas.append(f"{donde} declara el tipo «{nombre}», que el validador del contrato no conoce.")
+    for clave, sub in schema.get("properties", {}).items():
+        problemas += palabras_no_soportadas(sub, f"{ruta + '.' if ruta else ''}{clave}")
+    problemas += palabras_no_soportadas(schema.get("items"), f"{donde}[]")
+    return problemas
+
+
 def _type_ok(value: Any, expected: str | list) -> bool:
     names = expected if isinstance(expected, list) else [expected]
     for name in names:
-        python_type = _TYPES[name]
+        python_type = _TYPES.get(name)
+        if python_type is None:
+            continue                      # tipo desconocido: no se cumple (y `validate` lo dice con su nombre)
         if isinstance(value, bool) and name in ("number", "integer"):
             continue
         if isinstance(value, python_type):
@@ -51,6 +84,8 @@ def validate(instance: Any, schema: dict | None = None, path: str = "") -> list[
     schema = schema if schema is not None else load_schema()
     where = path or "el JSON"
     errors: list[str] = []
+    if not path:      # una sola vez, desde la raíz: el esquema entero se revisa antes de usarlo
+        errors.extend(palabras_no_soportadas(schema))
     if "type" in schema and not _type_ok(instance, schema["type"]):
         expected = schema["type"] if isinstance(schema["type"], str) else " o ".join(schema["type"])
         return [f"{where} debe ser de tipo {expected}."]

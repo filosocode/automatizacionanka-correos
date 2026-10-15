@@ -1,5 +1,6 @@
 {
   "$comment": "Contrato entre la tarea de ChatGPT Work y el puente (work_dashboard_sync.py): el JSON que va entre [ANKA_DASHBOARD_JSON_V1] y [/ANKA_DASHBOARD_JSON_V1] dentro del borrador de Gmail. Es la fuente de verdad: el puente lo valida y las pruebas lo usan. Subconjunto de JSON Schema: type, required, enum, properties, items, minLength. T-28, D-106 (tolerar y avisar): el puente solo rechaza la identidad (thread_id, message_id, client_email), un status desconocido o un JSON irrecuperable; lo demás se repara con aviso (tipos, enumerados escritos en español o con punto final, listas escritas como texto, filas sin fuente o sin cita) según spec/03-contrato-work.md. Lo que aquí dice required o type es la forma ideal, no el criterio de rechazo.",
+  "version": 1,
   "type": "object",
   "required": [
     "thread_id",

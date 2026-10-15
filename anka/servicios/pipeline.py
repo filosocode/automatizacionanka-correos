@@ -50,9 +50,10 @@ from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
 from anka.servicios.change_control import apply_guard, find_codes
 from email.utils import parseaddr
 from anka.infra.store import connect, save
+from anka.servicios.repositorio import hilos_descartados_por_reanalizar, hilos_en_estado
 
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
-from anka.servicios.quotes import save_review_packet
+from anka.servicios.cola_del_piloto import save_review_packet
 
 
 log = get_logger(__name__)
@@ -88,17 +89,10 @@ class RevisorDeHilos:
             self.gmail, self.config.get("gmail_query", "in:inbox newer_than:7d")
         ))
         if self.db:
-            thread_ids.update(row[0] for row in self.db.execute(
-                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.WAITING}'"
-            ))
-            thread_ids.update(row[0] for row in self.db.execute(
-                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.IGNORED}' "
-                "AND json_extract(analysis_json, '$.force_analysis') = 1"
-            ))
+            thread_ids.update(hilos_en_estado(self.db, QuoteStatus.WAITING))
+            thread_ids.update(hilos_descartados_por_reanalizar(self.db))
             if self.gmail_drafts:
-                thread_ids.update(row[0] for row in self.db.execute(
-                    f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.REVIEW_PENDING}'"
-                ))
+                thread_ids.update(hilos_en_estado(self.db, QuoteStatus.REVIEW_PENDING))
         return thread_ids
 
     def run(self) -> None:

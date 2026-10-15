@@ -17,7 +17,10 @@ import unicodedata
 from collections.abc import Sequence
 from typing import Any
 
-from anka.dominio.work_contract import load_schema, tipo_cumple
+from anka.dominio.status import reconocer_estado_de_work
+from anka.dominio.work_contract import (
+    corregir_descuidos_de_tipo, load_schema, tipo_cumple, validate, version_del_contrato,
+)
 
 PREFIJO_DEL_AVISO = "Work escribió algo distinto de lo esperado; se corrigió solo: "
 SIN_NOMBRE = "Solicitud sin nombre"
@@ -377,3 +380,50 @@ def campos_de(errores: Sequence[str]) -> tuple[str, ...]:
         if encontrado:
             nombres.append(encontrado.group(1) or encontrado.group(2))
     return tuple(dict.fromkeys(nombres))
+
+
+def _version_declarada(valor: object) -> int:
+    """La versión que Work declara en `schema_version` (opcional, fuera del esquema); 1 si no dice o no se lee."""
+    if isinstance(valor, str) and valor.strip().isdigit():
+        return int(valor)
+    return valor if isinstance(valor, int) and not isinstance(valor, bool) else 1
+
+
+def comprobar_identidad(payload: dict) -> None:
+    """Sin `thread_id`, `message_id` y `client_email` no se sabe de qué correo habla el análisis: se rechaza."""
+    faltan = [campo for campo in IDENTIDAD if not isinstance(payload.get(campo), str) or not payload[campo].strip()]
+    if faltan:
+        raise Rechazo("Al análisis de Work le falta " + ", ".join(f"«{campo}»" for campo in faltan)
+                      + " o no es un texto: sin eso no se sabe de qué correo habla.", "falta_identidad", faltan)
+
+
+def normalizar_analisis(payload: dict) -> None:
+    """Deja el análisis listo para importar: estado oficial, descuidos de tipo corregidos y avisos de lo corregido.
+
+    Es la **única** política de validación del contrato con Work (U-51): la usan el puente (`work_sync`) y la
+    importación (`work_import`). Solo rechaza (`Rechazo`) un estado desconocido o lo que, tras reparar, aún incumple
+    el esquema; todo lo secundario se corrige solo y queda dicho en `_correcciones_de_work` (T-28, D-106).
+    """
+    avisos = corregir_descuidos_de_tipo(payload)  # p. ej. `unresolved: true`: queda vacío y el caso lo advierte
+    if avisos:
+        payload["_avisos_del_puente"] = avisos
+    status, aviso = reconocer_estado_de_work(payload.get("status"))
+    if status is None:
+        raise Rechazo("El estado que escribió Work en «status» no es uno de los permitidos.",
+                      "estado_desconocido", ["status"])
+    payload["status"] = status  # la etiqueta oficial (aunque venga sin tildes, con punto final o con un sinónimo)
+    if aviso:
+        payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso]
+    reparado = reparar(payload)
+    if reparado:
+        payload["_correcciones_de_work"] = [*payload.get("_correcciones_de_work", []), reparado]
+    errors = validate(payload)      # spec/contrato_work.schema.json es la fuente de verdad
+    entendida, declarada = version_del_contrato(), _version_declarada(payload.get("schema_version"))
+    if declarada > entendida and not errors:
+        payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), (
+            f"Work declara la versión {declarada} del contrato y Anka entiende hasta la {entendida}: "
+            "revisa este análisis con cuidado.")]
+    if errors:   # tras reparar no debería quedar nada; si queda, se dice dónde y nunca cuál era el contenido
+        campos = campos_de(errors)
+        raise Rechazo("El análisis de Work no cumple el formato esperado en: " + (", ".join(campos) or "varios campos")
+                      + ".", "formato", campos)

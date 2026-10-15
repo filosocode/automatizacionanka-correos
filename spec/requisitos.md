@@ -1060,6 +1060,72 @@ Fuera de alcance: guardar un borrador desde el dashboard sobre un caso `ready` o
 - F4 · Con 450 casos, buscar `q=obra 449` encuentra un caso que no estaba entre las 200 primeras; la etapa filtra antes de paginar; el enlace «Ver más» conserva los filtros; el contador dice el total real.
 - F5 · La página de «Mis casos» no lleva `<script>` en línea ni `onclick`; carga `tema` y `app` con huella; la CSP de las páginas no tiene `'unsafe-inline'` en `script-src`; `/static/app.<huella>.js` responde `304` con su `ETag`.
 
+### U-50 · Errores de la API con una sola forma (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_errores_de_api.py`). Decisión: D-115. No cambia ninguna página HTML ni ningún texto de la persona. No toca R8, D-27 ni la paridad de los tres modos.
+
+**Motivo.** Un cliente que lee `/api/...` recibía a veces JSON (`{"error": "..."}`), a veces una página HTML (un 500, un 404, un `Host` no permitido) y nunca un `405`: un `POST` a una ruta de lectura era «404» y `HEAD`/`PUT`/`OPTIONS` caían en el `501` HTML de `http.server`. No había un código que un programa pudiera leer.
+
+**Qué debe cumplirse**
+1. **Una sola forma.** Todo error bajo `/api/...` y en `/state`, `/eventos` y `/openapi.json` responde `application/json` con `{"error": {"codigo": "...", "mensaje": "..."}}`: `codigo` estable y sin tildes (`solicitud_no_valida` 400, `solicitud_rechazada` 403, `no_encontrado` 404, `metodo_no_permitido` 405, `cuerpo_demasiado_grande` 413, `error_interno` 500, `metodo_no_implementado` 501, `no_disponible` 503) y `mensaje` en español claro. Un `500` añade `id` (el código de 8 caracteres que ya queda en el registro) y nunca el detalle técnico.
+2. **Coherencia HTTP.** Una ruta que no existe es `404`; existe pero con otro método, `405` con `Allow`; `Host`/`Origin`/token inválidos, `403`; un valor que la aplicación rechaza, `400`; un fallo propio, `500`; un método que el servidor no conoce, `501`. `PUT`, `DELETE`, `PATCH` y `OPTIONS` no se aceptan en ninguna ruta. Pedir una acción con `GET` o una página con `POST` también es `405` (en HTML, con la misma página de aviso de siempre). Un token inválido sigue siendo `403` antes que `405`.
+3. **`HEAD`.** Funciona en todo `GET`: mismo estado, mismas cabeceras y `Content-Length`, sin cuerpo; en `/eventos` solo confirma las cabeceras y no abre la conexión larga.
+4. **Excepción deliberada.** `GET /api/salud` con una conexión caída sigue siendo `503` con el informe de salud: es el resultado de la consulta, no un fallo de ella.
+5. **Documentado.** El esquema `Error` está en `components.schemas` de `openapi.py` y lo referencian las respuestas `403`, `404`, `405`, `500` y `503` de las rutas JSON; `spec/07-api.md` explica la tabla de códigos. Las páginas HTML siguen mostrando su aviso con salida (y el código de error en un 500).
+
+**Casos de aceptación**
+- G1 · Para cada ruta JSON: `Host` ajeno es `403` JSON, `POST` es `405` JSON con `Allow: GET, HEAD`, `PUT`/`DELETE`/`PATCH`/`OPTIONS` es `405` JSON, `HEAD` no tiene cuerpo; `/api/xyz` y `/api/casos/no-existe` son `404` JSON.
+- G2 · Una excepción dentro de `/api/casos` es `500` JSON con `id`, el `id` está en el registro y el texto de la excepción no sale; un `ValueError` es `400` JSON.
+- G3 · `GET /no-existe` y `GET /mode` siguen siendo páginas HTML (`404` y `405`); un `POST` a cada página es `405` HTML.
+
+### U-51 · Una sola política de validación del contrato con Work (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_politica_de_contrato.py`; ajusta `tests/test_entradas_adversas.py`). Decisión: D-116. No cambia el prompt de Work ni el esquema salvo una anotación `"version": 1`. No toca R8 ni D-27.
+
+**Motivo.** El puente (`work_sync`) validaba con el esquema y la tolerancia «tolerar y avisar»; la importación (`dashboard-upsert`) usaba su propia lista de campos y tipos. Un mismo JSON podía entrar por un camino y rechazarse por el otro (sin `message_id` o con actividades como texto), y la tolerancia a un `size_bytes` como texto nunca se ejercía en el puente. Además el validador del esquema ignoraba en silencio cualquier palabra clave que no conocía y lanzaba `KeyError` con un `type` desconocido.
+
+**Qué debe cumplirse**
+1. **Un solo camino.** `work_sync` y `work_import._decode_work_payload` llaman a las mismas funciones de `anka/dominio/tolerancia_work.py` (`comprobar_identidad` y `normalizar_analisis`: identidad, estado, reparación con aviso y esquema). Se rechaza lo mismo (identidad ausente, estado desconocido, lo que tras reparar aún incumple el esquema) y se acepta con aviso lo mismo (tipos, enumerados, listas escritas como texto, nulos, `engine` o nombre de proyecto ausentes). Un mismo JSON deja el mismo análisis por los dos caminos. La importación a mano sigue diciendo qué estado llegó cuando es desconocido.
+2. **Cambio visible.** Lo que la importación a mano rechazaba por tipo (`activities` o `cited_codes` como número) ahora se acepta con aviso (el campo queda vacío y el caso lo cuenta en «Work escribió algo distinto de lo esperado»), como ya hacía el puente; y ahora exige `message_id`, como el puente.
+3. **El validador no calla.** `validate` devuelve como error —con el nombre de la palabra— toda palabra clave del esquema que no comprueba (`pattern`, `oneOf`, `additionalProperties`, `minItems`, `$ref`…) y todo `type` desconocido (ya no `KeyError`). Solo se ignoran las anotaciones (`$comment`, `description`, `version`…). Una prueba exige que el esquema real use solo lo que se comprueba.
+4. **Versión.** El esquema declara `"version": 1`. Work puede escribir `schema_version` (opcional, fuera del esquema, así que el prompt no cambia): si es mayor que la que Anka entiende, el análisis se acepta y el caso avisa «Work declara la versión N del contrato y Anka entiende hasta la 1». Ausente, ilegible o igual: sin aviso.
+
+**Casos de aceptación**
+- H1 · Para catorce variaciones de un mismo JSON (completo, sin `message_id`, sin `engine`, estado sin tildes, estado desconocido, tamaño como texto, actividades como texto o número, nulos…), el puente y la importación aceptan o rechazan igual y dejan el mismo análisis.
+- H2 · Un esquema con `pattern` o con `type: date` produce errores nombrados, no se ignora ni lanza.
+- H3 · `schema_version: 2` se acepta con un aviso; `"3"` también; `"x"`, `null` o `true` no avisan.
+
+### U-52 · Una tabla única de estados y consultas por estado solo en el repositorio (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_tabla_de_estados.py` y `tests/test_arquitectura.py`). Decisión: D-117. No cambia ninguna etiqueta, etapa ni estado. No toca R8, D-27 ni la paridad de los tres modos.
+
+**Motivo.** Añadir un estado obligaba a tocar a mano `STATUS_LABELS`, `CLOSED_STATUSES`, `ACTION_STATUSES`, `REVIEW_QUEUE_STATUSES`, los estados que un análisis no mueve, la etapa de la lista (`case_stage`) y las consultas con estados escritos en el SQL (`status='waiting'` en los recordatorios, f-strings en el ciclo de revisión), y solo una prueba avisaba si se olvidaba uno.
+
+**Qué debe cumplirse**
+1. **Una fila por estado.** `ESTADOS` (`anka/dominio/status.py`) dice, por cada `QuoteStatus`, su etiqueta, su etapa visible y si pide acción, si está cerrado, si espera acción humana, si está en la cola de revisión, si un análisis nunca lo mueve, si solo lo mueve un mensaje nuevo del cliente, si genera la novedad «Respuesta sugerida» y su etapa cuando el último correo fue un acuse. `STATUS_LABELS`, `CLOSED_STATUSES`, `ACTION_STATUSES`, `REVIEW_QUEUE_STATUSES`, `ESTADOS_QUE_UN_ANALISIS_NO_MUEVE`, `ESTADOS_CON_RESPUESTA_SUGERIDA`, `estado_tras_un_analisis` y el recurso por estado de `case_stage` salen de esa tabla. Añadir un estado = una fila en `ESTADOS` + `spec/transiciones.json` (+ el aviso de la pantalla del caso y las pruebas que ya exigen cada uno).
+2. **Exhaustividad.** Una prueba exige una fila por cada `QuoteStatus`, los estados de `transiciones.json` iguales a los del enum, y congela los grupos de siempre para que añadir un estado no cambie a los demás.
+3. **Consultas por estado en el repositorio.** Ninguna consulta fuera de `servicios/repositorio.py` escribe un estado en el SQL: `hilos_en_estado`, `hilos_descartados_por_reanalizar`, `casos_esperando_con_recordatorios` y `filas_de_la_cola_de_revision` los consultan con parámetros. Una prueba recorre el paquete y falla si aparece un literal de estado en una consulta.
+4. **Presupuestos de arquitectura.** Ningún módulo de `anka/` pasa de 800 líneas; los que ya pasaban (hoy `web/pantalla_caso.py`, tope 1100) tienen un tope congelado que solo puede bajar y una prueba avisa si ya sobra. Solo `servicios/repositorio.py` y `infra/store.py` escriben en la tabla `quotes`.
+
+### U-53 · Errores de validación tipados y fallos de red distintos de los propios (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_errores_internos.py`). Decisión: D-118. No cambia ningún texto de validación. No toca R8, D-27 ni la reserva de envío.
+
+**Motivo.** Los mensajes para la persona salían de `ValueError`, el mismo tipo que lanzan Python y las librerías: un bug se confundía con un dato mal escrito. Y al emitir la T, cualquier excepción decía «Gmail no respondió», aunque fuera un `KeyError` propio.
+
+**Qué debe cumplirse**
+1. **`ErrorDeValidacion`.** `anka/dominio/errores.py` define `ErrorDeValidacion(ErrorDeAnka, ValueError)` para lo que se le explica a la persona («Escribe algo antes de guardar.»). Es un `ErrorDeAnka` (su texto se muestra) y, por compatibilidad, un `ValueError` (quien lo capturaba sigue capturándolo; el servidor lo sigue respondiendo con `400`). Los módulos principales (tabla de actividades, preguntas, acciones del caso, control de cambios, carpetas, ediciones, recordatorios, `quotes`, `vinculos`, `revision_tecnica`, repositorio e importación de Work) lo lanzan en vez de `ValueError`; un `ValueError` suelto vuelve a significar un fallo de Python o de una librería, cuyo texto no se muestra. Quedan fuera, sin cambio: la reserva de envíos (`envios.py`), las copias de seguridad, el lector geográfico y el modelo.
+2. **Red o programa.** `es_fallo_externo` (`infra/google_services.py`) dice si un fallo viene de la red o de Google (`OSError`, tiempos agotados, errores de `httplib2`/`googleapiclient`/`google.auth`, `AutorizacionDeGoogle`). Al emitir la T, al llenar la carpeta y al crear la carpeta sola, un fallo externo se registra como aviso y se explica como antes («Gmail no respondió»); cualquier otro se registra como error con su traza y un código de 8 caracteres, y la persona lee «ocurrió un error del programa, no de Gmail; si se repite, avisa con el código …». La T emitida y el texto del correo se conservan igual.
+
+**Casos de aceptación**
+- I1 · `ErrorDeValidacion` es `ErrorDeAnka` y `ValueError`; una acción que lo lanza responde `400` con su texto; un `ValueError("invalid literal…")` responde `400` sin ese texto.
+- I2 · Emitir la T con `ConnectionError` en el envío dice «Gmail no respondió» y registra un aviso; con `KeyError` no culpa a Gmail, registra un error con traza y da un código.
+
+### U-54 · `quotes.py` deja de ser un módulo-cajón (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_arquitectura.py`, `tests/test_vinculos.py`, `tests/test_union_de_proyectos.py` y `tests/test_review_decision.py`, que no cambian). Decisión: D-119. No cambia ningún comportamiento.
+
+**Motivo.** `quotes.py` se presentaba como fachada pero alojaba, en ~800 líneas, la lógica de vínculos y unión de casos, las decisiones de revisión técnica, la cola del piloto local y un comando que imprime por consola.
+
+**Qué debe cumplirse**
+1. **Tres módulos propios.** `servicios/vinculos.py` (confirmar o descartar un correo de otro hilo, unir o separar proyectos), `servicios/revision_tecnica.py` (decidir la revisión técnica, volver a decidir, asumir una lectura sin verificar, adoptar o descartar la tabla del modelo) y `servicios/cola_del_piloto.py` (paquete de texto y casos que esperan a una persona en el modo local). `list_reviews`, que imprime, pasa a `cli/app.py`.
+2. **Fachada fina.** `quotes.py` conserva lo de lectura, datos comerciales, descartar/rescatar, eliminar, novedades y el marcador de cambios, y reexporta los nombres movidos: ningún importador, de código o de pruebas, cambia. Los módulos nuevos se nombran en el «Mapa de módulos» de `spec/06-arquitectura.md`.
+
 ### U-35 · Lenguaje claro: mensajes que dicen qué pasó y qué hacer (Ola 1 del plan de experiencia)
 **Estado: implementado** (pruebas en `tests/test_lenguaje_claro.py` y las de texto exacto de cada pantalla). Decisión: D-100. Acota U-31 puntos 24 y 25 (un solo texto por decisión y por acción), D-96/D-97 (nombres de estado y de decisión, que no cambian) y D-27 (la autorización de Google solo con acción explícita, que no cambia).
 

@@ -73,9 +73,13 @@ class ImportacionDeWork(ConBase):
         crudo = json.dumps(payload(thread="T24")).replace('"Proyecto"', '"\\ud800"')
         self.assertRechaza(b64(crudo), "no válido")
 
-    def test_listas_con_un_numero_se_rechazan_y_null_es_como_no_escribirlo(self):
-        self.assertRechaza(b64(json.dumps(payload(activities=5))), "activities")
-        self.assertRechaza(b64(json.dumps(payload(cited_codes=5))), "cited_codes")
+    def test_listas_con_un_numero_se_aceptan_con_aviso_y_null_es_como_no_escribirlo(self):
+        # Cubre: U-51  (una sola política con el puente: «tolerar y avisar»; antes la importación las rechazaba)
+        for campo in ("activities", "cited_codes"):
+            self.importar(thread=f"T8{campo[0]}", **{campo: 5})
+            caso = quotes.get_quote(f"T8{campo[0]}")
+            self.assertEqual(caso["analysis"].get(campo) or [], [])
+            self.assertIn(campo, " ".join(caso["analysis"].get("correcciones_de_work") or []))
         self.importar(thread="T9", activities=None, cited_codes=None)
         self.assertEqual(quotes.get_quote("T9")["analysis"]["activities"], [])
 

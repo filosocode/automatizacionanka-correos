@@ -14,6 +14,7 @@ from anka.dominio.caso import CLIENT_TYPES, SECTORS, Caso
 from anka.infra.settings import ACTIVE_MODES
 from anka.servicios.ediciones import EDIT_REASONS
 from anka.servicios.followup_reminders import ACTIONS as FOLLOWUP_ACTIONS
+from anka.web.api import CODIGOS_DE_ERROR
 
 # Swagger UI: versión fijada y huella de integridad (SRI), para que el navegador rechace un archivo alterado.
 SWAGGER_VERSION = "5.17.14"
@@ -407,6 +408,15 @@ _RESPUESTAS_POST = {
 }
 
 
+def _error_json(descripcion: str, codigo: str, mensaje: str, con_id: bool = False) -> dict[str, Any]:
+    """Una respuesta de error de la API: siempre el esquema `Error` (U-50)."""
+    ejemplo: dict[str, Any] = {"codigo": codigo, "mensaje": mensaje}
+    if con_id:
+        ejemplo["id"] = "ab12cd34"
+    return {"description": descripcion, "content": {"application/json": {
+        "schema": {"$ref": "#/components/schemas/Error"}, "example": {"error": ejemplo}}}}
+
+
 def _respuestas_get(operacion: Operacion) -> dict[str, Any]:
     if operacion.contenido == "json":
         schema: dict[str, Any] = {"$ref": "#/components/schemas/Caso"} if operacion.ruta.endswith("{thread_id}") \
@@ -423,15 +433,19 @@ def _respuestas_get(operacion: Operacion) -> dict[str, Any]:
             responses["503"] = {"description": "Alguna conexión falla; el cuerpo dice cuál.",
                                 "content": {"application/json": media}}
         if "{thread_id}" in operacion.ruta:
-            responses["404"] = {"description": "El caso no existe.",
-                                "content": {"application/json": {"example": {"error": "La solicitud no existe."}}}}
+            responses["404"] = _error_json("El caso no existe.", "no_encontrado", "La solicitud no existe.")
+        responses.setdefault("403", _error_json("Host no permitido.", "solicitud_rechazada", "Host no permitido."))
+        responses["405"] = _error_json("Solo acepta GET y HEAD.", "metodo_no_permitido",
+                                       "Esta dirección no acepta ese método.")
+        responses["500"] = _error_json("Error inesperado; el detalle queda en el registro bajo `id`.",
+                                       "error_interno", "Ocurrió un error inesperado.", con_id=True)
         return responses
     if operacion.contenido == "eventos":
         return {"200": {"description": "Avisos (Server-Sent Events): un `data:` con la marca de cambios "
                                        "cuando algo cambia y un latido cada 15 s.",
                         "content": {"text/event-stream": {"schema": {"type": "string"}}}},
-                "503": {"description": "Ya hay demasiadas pestañas conectadas; esa sigue con la consulta periódica.",
-                        "content": {"application/json": {"example": {"error": "Demasiadas pestañas conectadas."}}}}}
+                "503": _error_json("Ya hay demasiadas pestañas conectadas; esa sigue con la consulta periódica.",
+                                   "no_disponible", "Demasiadas pestañas conectadas.")}
     if operacion.contenido == "xlsx":
         return {"200": {"description": "Archivo Excel.", "content": {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
@@ -507,6 +521,13 @@ def build_spec() -> dict[str, Any]:
         "paths": paths,
         "components": {"schemas": {
             "Caso": _caso_schema(),
+            "Error": {"type": "object", "required": ["error"], "properties": {"error": {
+                "type": "object", "required": ["codigo", "mensaje"], "properties": {
+                    "codigo": {"type": "string", "enum": sorted(set(CODIGOS_DE_ERROR.values())),
+                               "description": "Código estable, para programas."},
+                    "mensaje": {"type": "string", "description": "Qué pasó, en español claro."},
+                    "id": {"type": "string", "description": "Solo en `error_interno`: el código del registro."}}}},
+                "description": "Forma única de todo error bajo `/api` (y de `/state`, `/eventos` y `/openapi.json`)."},
             "Salud": {"type": "object", "properties": {
                 "estado": {"type": "string", "enum": ["ok", "error"]}, "profundo": {"type": "boolean"},
                 "comprobaciones": {"type": "array", "items": {"type": "object", "properties": {

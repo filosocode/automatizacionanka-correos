@@ -19,12 +19,10 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.caso_minimo import caso_minimo
 from anka.dominio.correo import header, inbound_messages, normalized_address
 from anka.infra.logging_setup import configure_logging, get_logger
-from anka.dominio.status import reconocer_estado_de_work
-from anka.dominio.tolerancia_work import IDENTIDAD, Rechazo, campos_de, leer_json, reparar
+from anka.dominio.tolerancia_work import Rechazo, comprobar_identidad, leer_json, normalizar_analisis
 from anka.dominio.verificacion_de_evidencia import avisos_de, comprobar_tabla
 from anka.dominio.work_contract import (
-    corregir_descuidos_de_tipo, empieza_con_el_encabezado_interno, reconciliar_lectura, usa_verificacion_por_adjuntos,
-    validate,
+    empieza_con_el_encabezado_interno, reconciliar_lectura, usa_verificacion_por_adjuntos,
 )
 from anka.infra import instantaneas_de_manifiesto, rechazos_de_work
 from anka.infra import settings
@@ -96,40 +94,6 @@ def body_text(part: dict) -> list[str]:
         values.extend(body_text(child))
     return values
 
-def _comprobar_identidad(payload: dict) -> None:
-    """Sin `thread_id`, `message_id` y `client_email` no se sabe de qué correo habla el análisis: se rechaza."""
-    faltan = [campo for campo in IDENTIDAD if not isinstance(payload.get(campo), str) or not payload[campo].strip()]
-    if faltan:
-        raise Rechazo("Al análisis de Work le falta " + ", ".join(f"«{campo}»" for campo in faltan)
-                      + " o no es un texto: sin eso no se sabe de qué correo habla.", "falta_identidad", faltan)
-
-
-def _normalizar(payload: dict) -> None:
-    """Deja el análisis listo para importar: estado oficial, descuidos de tipo corregidos y avisos de lo corregido.
-
-    Solo rechaza (`Rechazo`) un estado desconocido; todo lo secundario se corrige solo y queda dicho en
-    `_correcciones_de_work` (T-28, D-106).
-    """
-    avisos = corregir_descuidos_de_tipo(payload)  # p. ej. `unresolved: true`: queda vacío y el caso lo advierte
-    if avisos:
-        payload["_avisos_del_puente"] = avisos
-    status, aviso = reconocer_estado_de_work(payload.get("status"))
-    if status is None:
-        raise Rechazo("El estado que escribió Work en «status» no es uno de los permitidos.",
-                      "estado_desconocido", ["status"])
-    payload["status"] = status  # la etiqueta oficial (aunque venga sin tildes, con punto final o con un sinónimo)
-    if aviso:
-        payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso]
-    reparado = reparar(payload)
-    if reparado:
-        payload["_correcciones_de_work"] = [*payload.get("_correcciones_de_work", []), reparado]
-    errors = validate(payload)      # spec/contrato_work.schema.json es la fuente de verdad
-    if errors:   # tras reparar no debería quedar nada; si queda, se dice dónde y nunca cuál era el contenido
-        campos = campos_de(errors)
-        raise Rechazo("El análisis de Work no cumple el formato esperado en: " + (", ".join(campos) or "varios campos")
-                      + ".", "formato", campos)
-
-
 def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
     """Saca el bloque JSON de Anka de un borrador de Work (con el borrador); `None` si no hay uno válido al inicio."""
     for text in body_text(message.get("payload", {})):
@@ -148,10 +112,10 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
         payload, aviso_json = leer_json(text.split(START, 1)[1].split(END, 1)[0].strip())
         if not isinstance(payload, dict):
             raise Rechazo("El análisis de Work debe ser un objeto, no una lista ni un texto suelto.", "no_es_objeto")
-        _comprobar_identidad(payload)
+        comprobar_identidad(payload)
         if aviso_json:
             payload["_correcciones_de_work"] = [aviso_json]
-        _normalizar(payload)
+        normalizar_analisis(payload)
         if payload["thread_id"] != message.get("threadId"):
             raise Rechazo("El «thread_id» del análisis no coincide con la conversación del borrador.",
                           "hilo_ajeno", ["thread_id"])

@@ -103,6 +103,26 @@ Las acciones con «⚠» actúan de verdad (envían correo, crean carpetas, elim
   `/requests`, `tipo` (tipo de cliente), `orden` (`reciente`, `antigua`, `urgencia`) y `agrupar`. Un valor desconocido se ignora.
 - Si el cliente manda `Accept-Encoding: gzip`, el HTML, el JSON y el CSS de 1 KB o más salen comprimidos (`Content-Encoding: gzip`,
   `Vary: Accept-Encoding`). El JSON de la API es compacto (sin sangrías). El servidor habla HTTP/1.1.
+- **Errores de la API (U-50).** Todo error bajo `/api/...` (y en `/state`, `/eventos` y `/openapi.json`, que también responden JSON) tiene
+  una sola forma, con `Content-Type: application/json`, y nunca una página HTML:
+  `{"error": {"codigo": "no_encontrado", "mensaje": "La solicitud no existe."}}`. El `mensaje` está en español y dice qué pasó; en un
+  `500` se añade `id` (8 caracteres, el mismo del registro) y el detalle técnico no sale. El esquema `Error` está en `components.schemas`.
+
+  | HTTP | `codigo` | Cuándo |
+  |---|---|---|
+  | 400 | `solicitud_no_valida` | Un valor que la aplicación rechaza (`ValueError`) o una petición mal formada. |
+  | 403 | `solicitud_rechazada` | `Host` u `Origen` no permitidos o `csrf_token` inválido. |
+  | 404 | `no_encontrado` | La ruta o el caso no existen. |
+  | 405 | `metodo_no_permitido` | Existe la ruta con otro método; lleva `Allow` (p. ej. `GET, HEAD`). Vale también para `PUT`, `DELETE`, `PATCH` y `OPTIONS`. |
+  | 413 | `cuerpo_demasiado_grande` | Un cuerpo de más de 2 MiB. |
+  | 500 | `error_interno` | Fallo inesperado; queda en el registro con el `id`. |
+  | 501 | `metodo_no_implementado` | Un método que el servidor no conoce. |
+  | 503 | `no_disponible` | Ya hay 16 pestañas conectadas a `/eventos`. |
+
+  Excepción deliberada: `GET /api/salud` con una conexión caída responde `503` con el **informe de salud** (no un `Error`): es el
+  resultado de la consulta, no un fallo de ella. Las páginas HTML siguen mostrando su aviso con salida, también en 404, 405 y 500.
+- **`HEAD` y `405` (U-50).** `HEAD` funciona en todo `GET`: mismas cabeceras y `Content-Length`, sin cuerpo (en `/eventos` solo confirma
+  las cabeceras, no abre la conexión larga). Pedir una acción con `GET`, o una página con `POST`, es `405` con `Allow`, no `404`.
 - Un `500` muestra «Ocurrió un error inesperado» con un **código de error** de 8 caracteres; el detalle está en el
   registro junto a ese código. Un `400` muestra el motivo solo si es un mensaje de Anka para la persona.
 - La documentación **se genera de las rutas reales** (`GET_ROUTES` y `POST_ROUTES`): una prueba falla si hay una

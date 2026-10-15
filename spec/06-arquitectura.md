@@ -104,7 +104,10 @@ La descripción es la primera frase de su docstring.
 | `internal_context` | Contexto comercial interno: solo lectura, nunca sale en correos. |
 | `pipeline` | Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica. |
 | `proyectos_repetidos` | Agrupar las solicitudes que parecen el mismo proyecto, solo para mostrarlas juntas (U-19). |
-| `quotes` | Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard. |
+| `quotes` | Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard: la fachada de los servicios. |
+| `vinculos` | Vínculos entre conversaciones: correos que parecen de otro caso y proyectos repetidos que se unen o se separan. |
+| `revision_tecnica` | Las decisiones de una persona sobre la revisión técnica de un caso y sobre lo que propone el modelo. |
+| `cola_del_piloto` | La cola de revisión del piloto local: el paquete de texto de cada caso y los casos que esperan a una persona. |
 | `estados` | Cambios de estado de un caso comprobados contra `spec/transiciones.json`: una no prevista se permite y se registra (U-46). |
 | `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
 | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
@@ -168,6 +171,10 @@ Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funcion
 - **Un `except Exception` nunca calla**: solo se usa en un límite (un bucle, una petición, una tarea opcional) y
   siempre registra el error, lo relanza o lo usa para explicarlo; una prueba lo comprueba. El puente de Work, que
   corre sin consola, registra sus fallos en el archivo de registro además de imprimirlos.
+- **Presupuestos de tamaño (U-52)**: ningún módulo de `anka/` pasa de 800 líneas; el que ya pasaba (`web/pantalla_caso.py`) tiene un tope congelado
+  que solo puede bajar. Solo `servicios/repositorio.py` y `infra/store.py` escriben en la tabla `quotes`, y solo el repositorio escribe
+  un estado en una consulta (`hilos_en_estado`…); los estados salen de la tabla única `ESTADOS` de `dominio/status.py`.
+- **Un error para la persona es `ErrorDeValidacion`** (U-53): un `ErrorDeAnka` que también es `ValueError`; un `ValueError` suelto es de Python.
 - **Lo privado no se importa**: un nombre con `_` es de su módulo; si otro lo necesita, se hace público o se mueve.
 - **Cada módulo empieza con un docstring** que dice para qué sirve; cada capa lo tiene en su `__init__.py`.
 - **Toda función, clase y método público del paquete tiene docstring** (una frase que dice qué hace, no cómo) y

@@ -15,11 +15,12 @@ from collections.abc import Callable
 from typing import Any
 
 from anka.dominio.analisis import Analisis
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.errores import ErrorDeAnka, ErrorDeValidacion
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado, unidades_en_cantidad
 from anka.dominio.correo import decode_websafe, reply_body_without_quoted_history
 from anka.dominio.reception import unresolved_scope_issues
-from anka.dominio.status import QuoteStatus, estado_tras_un_analisis, reconocer_estado_de_work
+from anka.dominio.status import QuoteStatus, estado_tras_un_analisis
+from anka.dominio.tolerancia_work import Rechazo, comprobar_identidad, normalizar_analisis
 from anka.infra.logging_setup import get_logger
 from anka.infra import rechazos_de_work
 from anka.infra.store import begin_immediate, connect, record_event, save
@@ -59,32 +60,15 @@ def _decode_work_payload(payload_base64: str) -> tuple[str, dict]:
         raise ErrorDeAnka(f"Registro de dashboard no válido: {exc}") from exc
     if not isinstance(payload, dict):
         raise ErrorDeAnka("Registro de dashboard no válido: el contrato debe ser un objeto JSON.")
-    required = ("client_email", "project_name", "status", "thread_id")
-    missing = sorted(field for field in required
-                     if not isinstance(payload.get(field), str) or not payload[field].strip())
-    if missing:
-        raise ErrorDeAnka("Faltan campos del dashboard (o no son texto): " + ", ".join(missing))
-    status, aviso = reconocer_estado_de_work(payload["status"])
-    if status is None:
-        # T-33: fuera de la lista cerrada y de los sinónimos conservadores se rechaza (igual que en el puente)
-        escrito = _declarado(payload["status"], 80)
-        raise ErrorDeAnka(f"Estado de Work no reconocido en el campo status: «{escrito}».")
-    payload["status"] = status
-    for campo, tipos in _TIPOS_DE_CAMPOS.items():
-        if payload.get(campo) is not None and not isinstance(payload[campo], tipos):
-            raise ErrorDeAnka(f"Registro de dashboard no válido: el campo {campo} tiene un tipo no admitido.")
-    if aviso:
-        payload["_avisos_del_puente"] = [*_como_lista(payload.get("_avisos_del_puente")), aviso]
+    try:        # la misma política que el puente (U-51): identidad, estado, reparación con aviso y esquema
+        comprobar_identidad(payload)
+        normalizar_analisis(payload)
+    except Rechazo as exc:
+        if exc.causa == "estado_desconocido":     # la importación a mano sí dice qué estado llegó (T-33)
+            raise ErrorDeAnka("Estado de Work no reconocido en el campo status: "
+                              f"«{_declarado(payload.get('status'), 80)}».") from exc
+        raise ErrorDeAnka(f"Registro de dashboard no válido: {exc.motivo}") from exc
     return raw, payload
-
-
-# Campos opcionales cuyo tipo se comprueba al importar (T-31): un texto donde va una lista se sigue aceptando, pero un
-# número o un booleano no se puede interpretar y se rechaza con su motivo, en vez de romper la importación.
-_TIPOS_DE_CAMPOS: dict[str, type | tuple[type, ...]] = {
-    "activities": (list, str), "cited_codes": (list, str), "missing_data": (list, str, dict),
-    "scope_dependencies": (list, str), "contradictions": (list, str), "attachments": (list, str, dict),
-    "_avisos_del_puente": (list, str), "_correcciones_de_work": (list, str),
-}
 
 
 def _como_lista(valor: Any) -> list:
@@ -384,9 +368,9 @@ def dejar_para_despues_el_rechazo(draft_id: str, message_id: str, thread_id: str
     No cambia el caso ni envía nada: oculta el aviso del Resumen y, si el caso existe, deja constancia en su historial.
     """
     if not draft_id.strip():
-        raise ValueError("No encontramos ese aviso. Recarga la página.")
+        raise ErrorDeValidacion("No encontramos ese aviso. Recarga la página.")
     if not rechazos_de_work.dejar_para_despues(draft_id, message_id):
-        raise ValueError("Ese aviso ya no está a la vista. Recarga la página.")
+        raise ErrorDeValidacion("Ese aviso ya no está a la vista. Recarga la página.")
     if thread_id.strip():
         ahora = datetime.now().astimezone().isoformat(timespec="seconds")
         db = connect()

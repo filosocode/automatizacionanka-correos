@@ -37,6 +37,22 @@ REINTENTOS = 3            # con espera creciente, solo en lecturas y escrituras 
 METODOS_REINTENTABLES = frozenset({"GET", "PUT", "PATCH"})   # nunca POST: enviar, crear borrador o carpeta
 
 
+def es_fallo_externo(exc: BaseException) -> bool:
+    """¿El fallo viene de la red o de Google (corte, tiempo agotado, respuesta de error de la API, autorización)?
+
+    Lo demás (`KeyError`, `TypeError`, `AttributeError`…) es un error del programa: no se le dice a la persona que
+    «Gmail no respondió» (U-53)."""
+    externos: tuple[type[BaseException], ...] = (OSError, TimeoutError, AutorizacionDeGoogle)
+    try:
+        import httplib2
+        from google.auth.exceptions import GoogleAuthError
+        from googleapiclient.errors import Error as ErrorDeGoogle
+        externos += (httplib2.HttpLib2Error, GoogleAuthError, ErrorDeGoogle)
+    except ImportError:          # sin las librerías de Google no hay llamadas que fallen por ellas
+        pass
+    return isinstance(exc, externos)
+
+
 def _oauth_browser() -> str | None:
     """Usa Chrome en Windows si el navegador predeterminado no abre desde el supervisor oculto."""
     candidates = [shutil.which("chrome.exe"), shutil.which("chrome")]

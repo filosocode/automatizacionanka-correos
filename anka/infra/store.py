@@ -16,7 +16,7 @@ from pathlib import Path
 
 from anka.dominio.analisis import Analisis
 from anka.dominio.caso import VERSION_DEL_RESUMEN, load_analysis, resumen_de_analisis
-from anka.dominio.status import QuoteStatus, sql_in
+from anka.dominio.status import ESTADOS_CON_RESPUESTA_SUGERIDA, QuoteStatus, sql_in
 from anka.infra import settings
 
 
@@ -442,8 +442,7 @@ _DERIVED_NOTIFICATIONS = (
     ("draft_suggested", "Respuesta sugerida lista para revisar",
      "Revisa el destinatario y el texto antes de guardarlo en Gmail o enviarlo.",
      "COALESCE(updated_at, first_seen_at)",
-     "status IN " + sql_in(QuoteStatus.REVIEW_PENDING, QuoteStatus.REVIEW,
-                           QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED)),
+     "status IN " + sql_in(*ESTADOS_CON_RESPUESTA_SUGERIDA)),
 )
 
 

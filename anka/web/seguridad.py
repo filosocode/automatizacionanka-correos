@@ -6,7 +6,7 @@ import re
 import secrets
 import urllib.parse
 
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.errores import ErrorDeAnka, codigo_de_error
 from anka.infra import settings
 from anka.infra.archivos_privados import escribir_privado
 
@@ -123,7 +123,7 @@ def nombre_seguro(texto: str) -> str:
 
 def id_de_error() -> str:
     """Código corto que se muestra a la persona y se anota en el registro junto con el detalle del error."""
-    return secrets.token_hex(4)
+    return codigo_de_error()
 
 
 _FINAL_DE_FRASE = (".", "?", "!", "»", ")")

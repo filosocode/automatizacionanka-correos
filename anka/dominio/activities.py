@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 
+from anka.dominio.errores import ErrorDeValidacion
 from anka.dominio.analisis import Actividad
 
 from collections.abc import Mapping, Sequence
@@ -122,10 +123,10 @@ def parse_activities_form(form: dict[str, list[str]]) -> list[Actividad]:
     try:
         count = int((form.get("row_count") or [""])[0])
     except ValueError:
-        raise ValueError("El formulario de la tabla llegó incompleto, así que no se guardó nada. Recarga el caso "
-                         "y vuelve a intentarlo.") from None
+        raise ErrorDeValidacion("El formulario de la tabla llegó incompleto, así que no se guardó nada. Recarga el "
+                                "caso y vuelve a intentarlo.") from None
     if count < 0 or count > MAX_ROWS:
-        raise ValueError(f"La tabla admite hasta {MAX_ROWS} actividades.")
+        raise ErrorDeValidacion(f"La tabla admite hasta {MAX_ROWS} actividades.")
     activities = []
     for index in range(count + 1):  # +1: fila nueva al final
         if form.get(f"a{index}_del", [""])[0]:
@@ -135,12 +136,13 @@ def parse_activities_form(form: dict[str, list[str]]) -> list[Actividad]:
         fila = "la fila nueva" if index == count else f"la fila {index + 1}"
         for key, etiqueta in ACTIVITY_COLUMNS:
             if len(item[key]) > MAX_CELL:
-                raise ValueError(f"«{etiqueta}» de {fila} tiene más de {MAX_CELL} caracteres: acórtalo para guardar.")
+                raise ErrorDeValidacion(
+                    f"«{etiqueta}» de {fila} tiene más de {MAX_CELL} caracteres: acórtalo para guardar.")
         if not any(item[key] for key, _ in ACTIVITY_COLUMNS if key != "estado"):
             continue
         if not item["activity"]:
-            raise ValueError(f"{fila[0].upper() + fila[1:]} tiene datos pero no tiene nombre de actividad: escríbelo "
-                             "o quítala.")
+            raise ErrorDeValidacion(f"{fila[0].upper() + fila[1:]} tiene datos pero no tiene nombre de actividad: "
+                                    "escríbelo o quítala.")
         if item["estado"] not in ESTADOS:
             item["estado"] = "pendiente"
         activities.append(cast(Actividad, item))

@@ -5,6 +5,7 @@ que un reproceso del modelo no la pise (R11/R12 en spec/02-reglas.md).
 """
 
 from __future__ import annotations
+from anka.dominio.errores import ErrorDeValidacion
 from anka.servicios.repositorio import actualizar_caso
 
 import json
@@ -135,17 +136,17 @@ def save_activities(thread_id: str, activities: list[Actividad], reason: str = "
             "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
         ).fetchone()
         if not row:
-            raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
+            raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
         analysis = load_analysis(row["analysis_json"])
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         before = analysis.get("activities") or []
         if base_version and base_version != huella_de_tabla(before):
-            raise ValueError("La tabla cambió desde que la abriste (otra edición o un análisis nuevo), así que no se "
-                             "guardó. Lo que escribiste sigue en el editor: compáralo con la tabla de arriba y "
-                             "vuelve a guardar.")
+            raise ErrorDeValidacion(
+                "La tabla cambió desde que la abriste (otra edición o un análisis nuevo), así que no se guardó. "
+                "Lo que escribiste sigue en el editor: compáralo con la tabla de arriba y vuelve a guardar.")
         if filas_enviadas == 0 and before:
-            raise ValueError("El formulario llegó sin las filas de la tabla, así que no se guardó nada. Recarga el "
-                             "caso y vuelve a intentarlo.")
+            raise ErrorDeValidacion("El formulario llegó sin las filas de la tabla, así que no se guardó nada. "
+                                    "Recarga el caso y vuelve a intentarlo.")
         if _celdas(before) == _celdas(activities):
             return "No hay cambios que guardar: la tabla sigue igual."
         if latest_table_version(db, thread_id) is None:

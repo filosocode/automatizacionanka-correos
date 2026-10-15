@@ -7,9 +7,24 @@ en un aviso. Los servicios nunca terminan el programa por sí mismos (antes lanz
 
 from __future__ import annotations
 
+import secrets
+
+
+def codigo_de_error() -> str:
+    """Código corto de un error inesperado: se muestra a la persona y se anota en el registro con la traza (U-53)."""
+    return secrets.token_hex(4)
+
 
 class ErrorDeAnka(Exception):
     """Un problema con explicación para la persona; `str(error)` es el texto que se le muestra."""
+
+
+class ErrorDeValidacion(ErrorDeAnka, ValueError):
+    """Un dato o una acción que no procede, explicado para la persona («Escribe algo antes de guardar.»; U-53).
+
+    Es un `ErrorDeAnka` —su texto se muestra tal cual— y, por compatibilidad, también un `ValueError`: quien ya
+    capturaba `ValueError` sigue capturándolo. Un `ValueError` que NO sea de esta clase es un fallo de Python o de una
+    librería (un bug): su texto no se muestra y queda registrado con su traza."""
 
 
 class ModoNoPermitido(ErrorDeAnka):

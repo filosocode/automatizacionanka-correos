@@ -81,7 +81,7 @@ class SchemaMatchesTheRestOfTheSystem(unittest.TestCase):
                     self.assertIn(field, INSTRUCTIONS)
 
     def test_the_schema_only_uses_keywords_the_validator_supports(self):
-        supported = {"type", "required", "enum", "properties", "items", "minLength", "$comment"}
+        supported = set(work_contract.PALABRAS_COMPROBADAS) | {"$comment", "version"}
 
         def walk(node):
             yield set(node)

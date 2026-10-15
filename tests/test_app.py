@@ -631,6 +631,7 @@ class QuoteFlowTests(unittest.TestCase):
     def test_dashboard_upsert_collects_commercial_metrics(self):
         payload = {
             "thread_id": "thread-dashboard",
+            "message_id": "msg-dashboard",
             "status": "Nueva solicitud",
             "client_email": "cliente@example.com",
             "client_name": "Cliente Ejemplo",

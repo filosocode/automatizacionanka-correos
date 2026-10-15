@@ -21,6 +21,7 @@ from difflib import SequenceMatcher
 from functools import lru_cache
 from typing import Any
 
+from anka.dominio.errores import ErrorDeValidacion
 from anka.infra.google_services import ensure_folder, list_file_names, list_folders
 from anka.dominio.reception import normalized_text
 
@@ -180,7 +181,7 @@ def clean_folder_name(name: str) -> str:
     """Nombre de carpeta sin caracteres no válidos ni espacios sobrantes; falla si queda vacío."""
     clean = re.sub(r"\s+", " ", _INVALID_CHARS.sub(" ", name)).strip(" .")
     if not clean:
-        raise ValueError("El nombre de la carpeta no puede estar vacío.")
+        raise ErrorDeValidacion("El nombre de la carpeta no puede estar vacío.")
     if len(clean) > MAX_FOLDER_NAME:
         corte = clean[:MAX_FOLDER_NAME]
         clean = (corte.rsplit(" ", 1)[0] if " " in corte else corte).strip(" .")   # sin cortar una palabra a la mitad

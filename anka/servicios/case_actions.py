@@ -12,12 +12,12 @@ from collections.abc import Sequence
 from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.errores import ErrorDeAnka, ErrorDeValidacion, codigo_de_error
 from anka.dominio.status import (
     QuoteStatus,
 )
 from anka.servicios.drive_layout import DriveLayoutError, create_project_folder, trash_project_folder, year_mismatch
-from anka.infra.google_services import services
+from anka.infra.google_services import es_fallo_externo, services
 from anka.dominio.correo import (
     forwarded_routing,
     inbound_messages,
@@ -52,7 +52,7 @@ def resolve_case_recipient(thread_id: str) -> dict:
     """Confirma en Gmail el destinatario real de un caso cuyo correo no se pudo leer y lo guarda."""
     quote = get_quote(thread_id)
     if not quote:
-        raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
     config = load_config()
     gmail, _ = services()
     account_addresses = own_addresses(config, gmail)
@@ -61,17 +61,17 @@ def resolve_case_recipient(thread_id: str) -> dict:
     ).execute()
     inbound = inbound_messages(thread, account_addresses)
     if not inbound:
-        raise ValueError("No se encontró un mensaje entrante del cliente en esta conversación.")
+        raise ErrorDeValidacion("No se encontró un mensaje entrante del cliente en esta conversación.")
     routing = forwarded_routing(inbound[-1], config)
     recipient = routing.get("selected_recipient", "")
     if not valid_email_address(recipient):
-        raise ValueError("Gmail no nos dio una dirección para responder. Ábrelo en Gmail y revisa.")
+        raise ErrorDeValidacion("Gmail no nos dio una dirección para responder. Ábrelo en Gmail y revisa.")
     db = connect()
     try:
         begin_immediate(db)
         fila = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not fila:
-            raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
+            raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
         analysis = json.loads(fila["analysis_json"])      # el de ahora, no el de antes de hablar con Gmail (U-42)
         analysis["routing"] = routing
         actualizar_caso(db, thread_id,
@@ -89,9 +89,9 @@ def case_email_context(thread_id: str) -> tuple[dict, Any, dict, set[str]]:
     """Reúne lo necesario para escribir al cliente (caso, Gmail, hilo, direcciones); falla si ya no admite correo."""
     quote = get_quote(thread_id)
     if not quote:
-        raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
     if quote.cerrado and not quote.reabierto(case_has_links(thread_id)):
-        raise ValueError("Esta solicitud no admite una respuesta desde el dashboard.")
+        raise ErrorDeValidacion("Esta solicitud no admite una respuesta desde el dashboard.")
     context = resolve_case_recipient(thread_id)
     quote = context["quote"]
     gmail = context["gmail"]
@@ -106,7 +106,7 @@ def _recipient(thread_id: str, quote: dict, to: str) -> str:
     if not to or to.casefold() == quote["recipient"].casefold():
         return str(quote["recipient"])
     if to.casefold() not in known_addresses(thread_id):
-        raise ValueError("Solo puedes escribir a personas que ya participan en este caso.")
+        raise ErrorDeValidacion("Solo puedes escribir a personas que ya participan en este caso.")
     return to
 
 
@@ -114,7 +114,7 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     """Guarda como borrador de Gmail el texto escrito en el dashboard, sin enviarlo."""
     body = body.strip()      # lo que la persona escribió sale tal cual: nunca se recorta en silencio (U-39)
     if not body:
-        raise ValueError("Escribe algo antes de guardar.")
+        raise ErrorDeValidacion("Escribe algo antes de guardar.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
     recipient = _recipient(thread_id, quote, to)
     email = reply_email(thread, recipient, body, account_addresses)
@@ -265,10 +265,10 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     """
     body = body.strip()      # lo revisado es lo enviado: no se recorta nada en silencio (U-39, R8)
     if not body:
-        raise ValueError("Escribe el correo antes de enviar.")
+        raise ErrorDeValidacion("Escribe el correo antes de enviar.")
     actual = get_quote(thread_id)
     if state_token and actual and actual.marca_de_estado != state_token:
-        raise ValueError("Este caso cambió desde que abriste la pantalla, así que el correo no se envió. Lo que "
+        raise ErrorDeValidacion("Este caso cambió desde que abriste la pantalla, así que el correo no se envió. Lo que "
                          "escribiste sigue aquí: recarga, revisa lo nuevo y vuelve a enviar.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
     recipient = _recipient(thread_id, quote, to)
@@ -281,12 +281,12 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
                 _record_sent_reply(quote, thread_id, message_id, body, recipient,
                                    _status_after_reply(quote['status'], len(hechas)), previous['created_at'], hechas)
             envios.confirmar(previous['operation_key'], message_id)
-            raise ValueError('Este correo ya se envió; no lo enviamos otra vez.')
-        raise ValueError('Gmail aún no confirma si el correo salió. No lo enviamos de nuevo; '
+            raise ErrorDeValidacion('Este correo ya se envió; no lo enviamos otra vez.')
+        raise ErrorDeValidacion('Gmail aún no confirma si el correo salió. No lo enviamos de nuevo; '
                          'mira en Gmail antes de intentar otra vez.')
     duplicate = _already_sent(quote, body, recipient)
     if duplicate:
-        raise ValueError(duplicate)
+        raise ErrorDeValidacion(duplicate)
     email = reply_email(thread, recipient, body, account_addresses)
     operation_key, stable_message_id = envios.reservar(thread_id, recipient, body)
     email['Message-ID'] = stable_message_id
@@ -321,6 +321,20 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     return message
 
 
+def _causa_del_fallo(thread_id: str, exc: Exception, si_es_externo: str) -> str:
+    """Qué decirle a la persona de un fallo inesperado, sin culpar a Gmail de un error nuestro (U-53, B1-07).
+
+    Un corte de red o un error de Google se registra como aviso y se explica con `si_es_externo` (vacío: sin causa).
+    Cualquier otra cosa es un error del programa: se registra con su traza y un código, y ese código se le da a la
+    persona para que lo avise."""
+    if es_fallo_externo(exc):
+        log.warning("%s: falló la red o Google (%s)", thread_id, type(exc).__name__, exc_info=True)
+        return si_es_externo
+    codigo = codigo_de_error()
+    log.error("%s: error del programa (código %s)", thread_id, codigo, exc_info=True)
+    return f"ocurrió un error del programa, no de Gmail; si se repite, avisa con el código {codigo}"
+
+
 AVISO = "⚠"      # marca de lo que quedó pendiente en un mensaje compuesto (la pantalla conserva entonces lo escrito)
 
 
@@ -340,7 +354,7 @@ def issue_code_and_notify(thread_id: str, number: str, body: str, suggested_numb
     envío (R8). Si algo después de emitir la T falla, la T queda emitida y se dice qué quedó pendiente.
     """
     if not body.strip():
-        raise ValueError("Escribe el correo para el cliente (o usa «Solo emitir la T»).")
+        raise ErrorDeValidacion("Escribe el correo para el cliente (o usa «Solo emitir la T»).")
     final_body = con_codigo_final(body, suggested_number, number)
     # Antes de emitir (la T no se deshace, D-08) se comprueba todo lo que puede fallar sin dejar rastro (U-34.2):
     # el número, la autorización de Google, el hilo en Gmail y el destinatario.
@@ -355,9 +369,9 @@ def issue_code_and_notify(thread_id: str, number: str, body: str, suggested_numb
         motivo = str(exc).rstrip(".")
         parts.append(f"{AVISO} El correo no se envió: {motivo}. La T quedó emitida; el correo sigue en "
                      "«Respuesta al cliente» para enviarlo.")
-    except Exception:
-        log.exception("%s: no se pudo enviar el correo con la T", thread_id)
-        parts.append(f"{AVISO} El correo NO se envió: Gmail no respondió. La T quedó emitida; reintenta desde "
+    except Exception as exc:
+        causa = _causa_del_fallo(thread_id, exc, "Gmail no respondió")
+        parts.append(f"{AVISO} El correo NO se envió: {causa}. La T quedó emitida; reintenta desde "
                      "«Respuesta al cliente», donde sigue el texto.")
     return " ".join(parts)
 
@@ -370,10 +384,10 @@ def _fill_folder(gmail: Any, drive: Any, thread_id: str, folder_id: str,
         report = populate_project_folder(
             gmail, drive, thread, folder_id, get_quote(thread_id), account_addresses)
         return report.summary()
-    except Exception:
-        log.exception("%s: no se pudo llenar la carpeta de Drive", thread_id)
-        return ("La carpeta quedó creada, pero no se pudo copiar su contenido. "
-                "Súbelo tú a mano o prueba otra vez en un momento.")
+    except Exception as exc:
+        causa = _causa_del_fallo(thread_id, exc, "")
+        return ("La carpeta quedó creada, pero no se pudo copiar su contenido"
+                + (f" ({causa})" if causa else "") + ". Súbelo tú a mano o prueba otra vez en un momento.")
 
 
 def delete_cases(thread_ids: list[str]) -> str:
@@ -443,9 +457,9 @@ def auto_create_project_folder(thread_id: str) -> str:
         return "Carpeta en Drive: " + approve_review(thread_id, auto=True)
     except ErrorDeAnka as exc:
         message = str(exc)
-    except Exception:  # Drive o red: el correo ya salió y no se debe perder
-        log.exception("%s: no se pudo crear la carpeta automáticamente", thread_id)
-        message = ("No se pudo crear la carpeta sola. "
+    except Exception as exc:  # Drive, red o un error propio: el correo ya salió y no se debe perder
+        causa = _causa_del_fallo(thread_id, exc, "")
+        message = ("No se pudo crear la carpeta sola" + (f" ({causa})" if causa else "") + ". "
                    "Créala tú desde la sección de Drive.")
     _note_drive_pending(thread_id, message)
     log.warning("%s: carpeta del proyecto pendiente tras el envío", thread_id)

@@ -23,7 +23,7 @@ from anka.infra.modes import (
 )
 from anka.infra.logging_setup import configure_logging
 from anka.infra.settings import ACTIVE_MODES, load_config, unknown_config_keys
-from anka.servicios.quotes import list_reviews
+from anka.servicios.cola_del_piloto import pending_reviews
 from anka.servicios.work_import import dashboard_upsert
 from anka.servicios.work_attachment_packet import prepare_work_attachment_packet
 from anka.servicios.case_actions import approve_review
@@ -434,6 +434,18 @@ def _cmd_set_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     if not args.active_mode:
         parser.error("set-mode requiere --active-mode.")
     print(set_mode(args.active_mode))
+
+
+def list_reviews() -> None:
+    """Imprime las revisiones pendientes del piloto local (comando `reviews`)."""
+    reviews = pending_reviews()
+    if not reviews:
+        print("No hay revisiones humanas pendientes.")
+        return
+    for review in reviews:
+        packet = review["packet"]
+        suffix = f" -> {packet}" if packet.exists() else " -> sin archivo en review_queue"
+        print(f"{review['thread_id']} [{review['status']}] {review['recipient']}{suffix}")
 
 
 def _cmd_reviews(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:

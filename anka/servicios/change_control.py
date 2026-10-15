@@ -7,6 +7,7 @@ seguimiento del caso. Los correos que resultan son siempre borradores que revisa
 """
 
 from __future__ import annotations
+from anka.dominio.errores import ErrorDeValidacion
 from anka.servicios.repositorio import actualizar_caso
 
 import json
@@ -184,14 +185,14 @@ def normalize_number(number: str) -> str:
 def _validar_numero(db: sqlite3.Connection, thread_id: str, number: str) -> None:
     """Las condiciones para asignar la T: número bien formado, caso existente, sin código y sin repetir."""
     if not NUMBER_PATTERN.match(number):
-        raise ValueError("Escribe 5 números: 2 del año y 3 del consecutivo (por ejemplo 26145).")
+        raise ErrorDeValidacion("Escribe 5 números: 2 del año y 3 del consecutivo (por ejemplo 26145).")
     row = db.execute("SELECT quote_code FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
     if not row:
-        raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
     if row["quote_code"]:
-        raise ValueError(f"Este caso ya tiene el código {row['quote_code']}.")
+        raise ErrorDeValidacion(f"Este caso ya tiene el código {row['quote_code']}.")
     if db.execute("SELECT 1 FROM quotes WHERE quote_code=?", (number,)).fetchone():
-        raise ValueError(f"El código {number} ya está asignado a otro caso.")
+        raise ErrorDeValidacion(f"El código {number} ya está asignado a otro caso.")
 
 
 def comprobar_numero(thread_id: str, number: str) -> str:
@@ -236,7 +237,7 @@ def promote_to_te(thread_id: str) -> str:
         row = db.execute("SELECT quote_code, code_stage FROM quotes WHERE thread_id=?",
                          (thread_id,)).fetchone()
         if not row or not row["quote_code"]:
-            raise ValueError("Este caso todavía no tiene código.")
+            raise ErrorDeValidacion("Este caso todavía no tiene código.")
         if row["code_stage"] == "TE":
             return "La oferta ya figuraba como aprobada."
         now = datetime.now().astimezone().isoformat(timespec="seconds")

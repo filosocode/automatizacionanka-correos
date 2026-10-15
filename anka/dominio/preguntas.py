@@ -8,6 +8,8 @@ de las preguntas que de verdad quedaron en el correo enviado.
 
 from __future__ import annotations
 
+from anka.dominio.errores import ErrorDeValidacion
+
 import hashlib
 import re
 import unicodedata
@@ -170,7 +172,7 @@ def decidir(
             continue
         decision, texto = eleccion
         if decision not in DECISIONES:
-            raise ValueError("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
+            raise ErrorDeValidacion("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
         resultado.append(Pregunta(
             id=pregunta["id"], texto=limpiar(texto) or pregunta["texto"], sugerida=pregunta["sugerida"],
             origen=pregunta["origen"], decision=decision, por=por, en=en))
@@ -182,7 +184,7 @@ def decidir(
                                       decision=PREGUNTAR, por=por, en=en))
             existentes.add(identificador(limpio))
     if len(resultado) > MAX_PREGUNTAS:
-        raise ValueError(f"Hay demasiadas preguntas (máximo {MAX_PREGUNTAS}).")
+        raise ErrorDeValidacion(f"Hay demasiadas preguntas (máximo {MAX_PREGUNTAS}).")
     return resultado
 
 

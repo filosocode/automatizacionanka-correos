@@ -20,9 +20,7 @@ from anka.web.views import (
     metric_rows,
     render_page,
 )
-from anka.dominio.status import (
-    QuoteStatus,
-)
+from anka.dominio.status import QuoteStatus, info_de_estado
 from anka.infra.logging_setup import get_logger
 from anka.infra.settings import load_config
 from anka.infra.rechazos_de_work import alerta_del_dia, pospuestos
@@ -471,17 +469,9 @@ def case_stage(quote: Mapping[str, Any]) -> tuple[str, bool]:
         if quote.get("code_stage") == "TE":
             return f"{code_label(code, 'TE')} · aprobada", False
         return f"{code_label(code, 'T')} · cotizando", False
-    labels = {
-        QuoteStatus.REVIEW_PENDING: ("Correo por revisar", True),
-        QuoteStatus.DRAFT_CREATED: ("Correo por revisar", True),
-        QuoteStatus.SENDING: ("El correo no salió", True),
-        QuoteStatus.MISSING: ("Ya no está en Gmail", True),
-        QuoteStatus.WAITING: ("Esperando al cliente", False),
-        QuoteStatus.RESPONSE_SENT: (
-            ("Respuesta enviada · sin espera" if era_un_acuse(quote.get("analysis") or {}) else "Esperando al cliente"),
-            False),
-        QuoteStatus.READY_REVIEW: ("Información validada", True),
-        QuoteStatus.READY: ("Información validada", True),
-        QuoteStatus.IGNORED: ("Descartada", False),
-    }
-    return labels.get(status, (quote["status_label"], False))
+    info = info_de_estado(status)             # la etapa de cada estado sale de la tabla única (U-52)
+    if info is None:
+        return quote["status_label"], False
+    if info.etapa_si_acuse and era_un_acuse(quote.get("analysis") or {}):
+        return info.etapa_si_acuse, info.requiere_accion
+    return info.etapa, info.requiere_accion

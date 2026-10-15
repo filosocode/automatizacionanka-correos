@@ -100,9 +100,10 @@ class AvisosDelServidor(unittest.TestCase):
         try:
             enviado = {}
             handler = manejador(Salida())
-            handler._send_json = lambda valor, status=200: enviado.update(status=status)
+            handler._send_bytes = lambda status, tipo, datos, extra=None: enviado.update(status=status, tipo=tipo)
             handler._get_eventos({})
             self.assertEqual(enviado["status"], 503)
+            self.assertTrue(enviado["tipo"].startswith("application/json"))        # U-50: un error de la API, en JSON
         finally:
             for _ in range(tomadas):
                 web._streams.release()

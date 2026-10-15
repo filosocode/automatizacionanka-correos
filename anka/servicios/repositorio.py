@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import NamedTuple, Any, cast
 from uuid import uuid4
 
+from anka.dominio.errores import ErrorDeValidacion
 from anka.dominio.analisis import Analisis
 from anka.dominio.preguntas import era_un_acuse
 from anka.dominio.caso import (
@@ -28,7 +29,7 @@ from anka.dominio.caso import (
 )
 from anka.dominio.reception import reception_assessment
 from anka.dominio.registros import Cambio, Evento, Vinculo
-from anka.dominio.status import QuoteStatus
+from anka.dominio.status import REVIEW_QUEUE_STATUSES, QuoteStatus
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import (
     BUSY_TIMEOUT_MS, begin_immediate, case_events, connect, guardar_resumenes, record_event, resumenes_pendientes,
@@ -51,6 +52,38 @@ def actualizar_caso(db: sqlite3.Connection, thread_id: str, **campos: Any) -> No
         raise ValueError('Campos de caso no permitidos.')
     assignments = ', '.join(f'{name}=?' for name in campos)
     db.execute(f'UPDATE quotes SET {assignments} WHERE thread_id=?', (*campos.values(), thread_id))
+
+
+# --- Consultas por estado: el único sitio con SQL sobre el estado de un caso (U-52). Los valores van como parámetros.
+def hilos_en_estado(db: sqlite3.Connection, *estados: QuoteStatus) -> list[str]:
+    """Los `thread_id` de los casos que están en alguno de esos estados."""
+    marcas = ", ".join("?" for _ in estados)
+    return [fila[0] for fila in db.execute(
+        f"SELECT thread_id FROM quotes WHERE status IN ({marcas})", [QuoteStatus(e).value for e in estados])]
+
+
+def hilos_descartados_por_reanalizar(db: sqlite3.Connection) -> list[str]:
+    """Los descartados que una persona rescató: el análisis dice `force_analysis` y la próxima revisión los analiza."""
+    return [fila[0] for fila in db.execute(
+        "SELECT thread_id FROM quotes WHERE status=? AND json_extract(analysis_json, '$.force_analysis') = 1",
+        (QuoteStatus.IGNORED.value,))]
+
+
+def casos_esperando_con_recordatorios(db: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Los casos que esperan al cliente, ya enviados y con los recordatorios automáticos activos y sin pausar."""
+    return db.execute(
+        """SELECT q.thread_id, q.sent_at, q.recipient, q.contact_email, f.contacted_at
+           FROM quotes q JOIN case_followup f ON f.thread_id = q.thread_id
+           WHERE q.status=? AND q.sent_at <> '' AND f.auto_enabled=1 AND f.paused=0""",
+        (QuoteStatus.WAITING.value,)).fetchall()
+
+
+def filas_de_la_cola_de_revision(db: sqlite3.Connection) -> list[sqlite3.Row]:
+    """(thread_id, status, recipient, analysis_json) de los casos en la cola de revisión, por `thread_id`."""
+    marcas = ", ".join("?" for _ in REVIEW_QUEUE_STATUSES)
+    return db.execute(
+        f"SELECT thread_id, status, recipient, analysis_json FROM quotes WHERE status IN ({marcas}) "
+        "ORDER BY thread_id", [e.value for e in REVIEW_QUEUE_STATUSES]).fetchall()
 
 
 # Las columnas de `quotes` que usa una lista: todas menos `analysis_json` (U-49).
@@ -438,9 +471,9 @@ class RepositorioDeCasos:
                 "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
             ).fetchone()
             if not row:
-                raise ValueError("La solicitud no existe.")
+                raise ErrorDeValidacion("La solicitud no existe.")
             if row["status"] != QuoteStatus.IGNORED:
-                raise ValueError("Solo se pueden rescatar los correos descartados.")
+                raise ErrorDeValidacion("Solo se pueden rescatar los correos descartados.")
             analysis = load_analysis(row["analysis_json"])
             analysis["force_analysis"] = True
             db.execute(

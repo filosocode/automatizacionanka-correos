@@ -50,6 +50,8 @@ Obligatorios: `thread_id`, `message_id`, `client_email`, `project_name`, `status
 estado conservador (T-33), dejando un aviso en el caso; cualquier otro valor se rechaza.
 Opcionales y solo internos (T-32): `model` y `skill_version`, el modelo que declara Work y la versión de su prompt; quedan
 en el caso y en el historial, nunca en un correo al cliente.
+Opcional y fuera del esquema (U-51): `schema_version`, la versión del contrato que Work dice seguir (1 si no escribe nada; el esquema
+declara `"version": 1`). Si es mayor que la que Anka entiende, el análisis se acepta y el caso lo avisa. El prompt de Work no lo pide.
 Recomendados: `client_name`, `summary`, `received_at`, `gmail_url`, `activities`, `fields`, `missing_data`,
 `attachments`, `contradictions`, `scope_dependencies`. `fields` contiene objetos `name`, `value` y `source`.
 `missing_data` acepta textos por compatibilidad y objetos `{ "name": "dato pendiente", "type": "critical"|"recommended" }`;
@@ -135,6 +137,12 @@ de cada actividad sigue R12.
   menos de 10 minutos (T-36, D-69); un JSON roto se rechaza de inmediato.
 
 ## Tolerar y avisar (T-28, D-106)
+**Una sola política (U-51, D-116).** El puente y la importación (`dashboard-upsert`) llaman a la misma función,
+`normalizar_analisis` de `anka/dominio/tolerancia_work.py` (identidad, estado, reparación con aviso y esquema): un mismo JSON se acepta o se
+rechaza igual por los dos caminos y deja el mismo análisis. Ya no hay una lista aparte de campos obligatorios en la importación.
+El validador del esquema (`work_contract.validate`) no ignora en silencio una palabra clave que no sabe comprobar ni lanza `KeyError` con
+un `type` desconocido: lo devuelve como error con su nombre, y una prueba exige que el esquema real solo use lo que se comprueba.
+
 Solo existe en modo `chatgpt_work`: en `local` y `api` no hay borrador de Work que rechazar (la salida del modelo se valida en
 el piloto), así que este aviso no aparece allí. Los tres modos comparten el mismo editor de tabla.
 
