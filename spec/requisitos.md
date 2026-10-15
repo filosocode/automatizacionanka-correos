@@ -1007,6 +1007,11 @@ Los destinatarios externos al contacto se mantienen, pero el correo a una direcc
 **Estado: implementado** (pruebas en `tests/test_estados.py`). Decisión: D-111.
 `spec/transiciones.json` incluye ahora crear carpeta, enviar y terminar envío, guardar borrador, unir/descartar, rescatar, hilo no disponible, salida de `sending` y el análisis del modo Python. `cambiar_estado` / `verificar_transicion` (`anka/servicios/estados.py`) consultan la tabla: una transición que no está **se permite igual** y deja un hecho `transicion_no_prevista` (caso, origen, destino, evento) y una línea de registro. Nunca bloquea.
 
+### U-47 · Los tres modos protegen igual un caso avanzado
+**Estado: implementado** (pruebas en `tests/test_paridad_estados.py`). Decisión: D-112. Cumple «los tres modos se comportan igual».
+Un análisis (de Work o del modo local/api) nunca hace retroceder un caso `ready` (carpeta creada) ni `sending` (envío en curso); un caso `response_sent` solo se mueve si llega un mensaje **nuevo** del cliente, no por volver a analizar el mismo (TR-07, TR-08, TR-58). El análisis sí se guarda (tabla, resumen, control de cambios). En el modo Python, además, un caso protegido no recibe un envío automático de preguntas ni otra carpeta. La regla vive en un solo lugar (`estado_tras_un_analisis`, `anka/dominio/status.py`) y la usan `work_import` y `RevisorDeHilos`.
+Fuera de alcance: guardar un borrador desde el dashboard sobre un caso `ready` o `response_sent` reabierto sigue pasándolo a `draft_created` (es igual en los tres modos, TR-43 lo registra como no previsto); las transiciones no previstas siguen solo registrándose (D-111).
+
 ### U-35 · Lenguaje claro: mensajes que dicen qué pasó y qué hacer (Ola 1 del plan de experiencia)
 **Estado: implementado** (pruebas en `tests/test_lenguaje_claro.py` y las de texto exacto de cada pantalla). Decisión: D-100. Acota U-31 puntos 24 y 25 (un solo texto por decisión y por acción), D-96/D-97 (nombres de estado y de decisión, que no cambian) y D-27 (la autorización de Google solo con acción explícita, que no cambia).
 

@@ -5,14 +5,14 @@ from anka.servicios.estados import cambiar_estado, verificar_transicion
 
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from collections.abc import Callable, Sequence
 from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka, ModoNoPermitido
 from anka.dominio.status import (
-    QuoteStatus,
+    QuoteStatus, estado_tras_un_analisis,
 )
 from anka.dominio.decision import Action, Decision, decide_analysis, decide_prefilter
 from anka.infra.logging_setup import SENSITIVE, get_logger
@@ -231,6 +231,7 @@ class RevisorDeHilos:
         db = self.db
         if not db:
             return
+        d = self._respetar_estado_avanzado(db, thread_id, last, d)
         verificar_transicion(db, thread_id, d.status, "analisis_python")
         packet_body = d.body
         draft_id = None
@@ -269,6 +270,23 @@ class RevisorDeHilos:
         if d.action is Action.SEND:
             log.info("%s: preguntas enviadas al cliente; se espera respuesta", thread_id)
         programar_actualizacion_de_hoja(thread_id)   # si el análisis cambió la tabla, la hoja de Google lo refleja
+
+    @staticmethod
+    def _respetar_estado_avanzado(db: sqlite3.Connection, thread_id: str, last: dict, d: Decision) -> Decision:
+        """Un caso `ready`, `sending` o `response_sent` no retrocede por un análisis (U-47, igual que Work).
+
+        El análisis se guarda, pero el estado queda y no se envía ni se crea carpeta: el caso ya pasó por ahí.
+        """
+        row = db.execute("SELECT status, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        if not row:
+            return d
+        mismo = row["last_inbound_id"] == last["id"]
+        final = estado_tras_un_analisis(row["status"], d.status, mismo)
+        if estado_tras_un_analisis(row["status"], "", mismo) == "":     # el caso no está protegido
+            return d
+        log.info("%s: el caso sigue en «%s»; el análisis nuevo no lo hace retroceder", thread_id, final)
+        accion = Action.NONE if d.action in (Action.SEND, Action.FOLDER) else d.action
+        return replace(d, status=QuoteStatus(final), action=accion)
 
     def _create_project_folder_or_hold(
         self, thread_id: str, last: dict, recipient: str, d: Decision, thread: dict,

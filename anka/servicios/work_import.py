@@ -19,7 +19,7 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado, unidades_en_cantidad
 from anka.dominio.correo import decode_websafe, reply_body_without_quoted_history
 from anka.dominio.reception import unresolved_scope_issues
-from anka.dominio.status import QuoteStatus, reconocer_estado_de_work
+from anka.dominio.status import QuoteStatus, estado_tras_un_analisis, reconocer_estado_de_work
 from anka.infra.logging_setup import get_logger
 from anka.infra import rechazos_de_work
 from anka.infra.store import begin_immediate, connect, record_event, save
@@ -31,11 +31,6 @@ from anka.dominio.caso import CLIENT_TYPES, SECTORS
 from anka.dominio.work_contract import attachment_coverage_warnings, question_evidence_warnings, reading_summary
 
 log = get_logger(__name__)
-
-
-_DASHBOARD_PROTECTED = frozenset({
-    QuoteStatus.READY, QuoteStatus.RESPONSE_SENT, QuoteStatus.SENDING,
-})
 
 
 # Estado que Work escribe en el borrador -> estado interno del caso.
@@ -329,12 +324,10 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
         "SELECT status, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)
     ).fetchone()
     reanalysis_of_same_message = bool(row) and row["last_inbound_id"] == message_id
-    protected = _DASHBOARD_PROTECTED if reanalysis_of_same_message else _DASHBOARD_PROTECTED - {
-        QuoteStatus.RESPONSE_SENT}
-    if row and row["status"] in protected:
+    if row:
         # un caso ya avanzado en el dashboard no retrocede por un borrador posterior; solo una
-        # respuesta nueva del cliente puede mover un caso que estaba esperando su respuesta
-        status = row["status"]
+        # respuesta nueva del cliente puede mover un caso que estaba esperando su respuesta (U-47)
+        status = estado_tras_un_analisis(row["status"], status, reanalysis_of_same_message)
     if row:
         verificar_transicion(db, thread_id, status, "work_import")
     save(db, thread_id, message_id, status,

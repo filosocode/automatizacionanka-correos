@@ -5,6 +5,7 @@ cambian una regla también cambian `reglas_operativas.md` y suben su versión.
 
 | Id | Fecha | Decisión | Por qué | Se descartó |
 |---|---|---|---|---|
+| D-112 | 2026-10-15 | La protección de `ready`, `sending` y `response_sent` ante un análisis es una sola función de dominio (`estado_tras_un_analisis`) que usan el puente de Work y el modo local/api (U-47). | La Ola B0 halló que el modo Python sobrescribía un caso con carpeta o envío en curso, y Work no: un mismo correo dejaba estados distintos según el modo. | Esperar al bloqueo general de transiciones (D-111: aún solo registra); tocar el guardado de borrador del dashboard (no depende del modo). |
 | D-111 | 2026-10-15 | Las transiciones de estado se comprueban contra `transiciones.json` solo para registrar: una no prevista se permite y deja un hecho (U-46). | Un bloqueo sorpresa en producción es peor que la deriva; primero se mide qué pasa de verdad. | Bloquear desde ya (se hará en una ola posterior, con los datos del registro). |
 | D-110 | 2026-10-15 | Los destinatarios externos se mantienen pero se muestran con su origen antes de enviar (U-45). | Un tercero que escribe en el hilo podía recibir respuestas sin que se notara; R8 ya exige revisión humana. | Prohibir externos. |
 | D-109 | 2026-10-15 | `token.json` y `csrf_token` se escriben con archivo temporal + `os.replace` y permiso solo del usuario (U-44). | Un corte dejaba el token a medias y los archivos eran legibles por otros usuarios del equipo. | Cifrarlos (dependencia nueva). |

@@ -40,6 +40,24 @@ REVIEW_QUEUE_STATUSES = (
 )
 
 
+# Estados que un análisis posterior no hace retroceder (U-47): carpeta creada o envío en curso; y la respuesta
+# enviada, salvo que llegue un mensaje nuevo del cliente.
+ESTADOS_QUE_UN_ANALISIS_NO_MUEVE = frozenset({QuoteStatus.READY, QuoteStatus.SENDING})
+
+
+def estado_tras_un_analisis(actual: str | None, propuesto: str, mismo_mensaje: bool) -> str:
+    """El estado que queda al guardar un análisis, igual en los tres modos (U-47, TR-07, TR-08).
+
+    `ready` y `sending` se conservan siempre; `response_sent` solo si el análisis es del mismo mensaje del cliente.
+    Un caso nuevo (`actual` vacío) toma el estado propuesto.
+    """
+    if actual in ESTADOS_QUE_UN_ANALISIS_NO_MUEVE:
+        return str(actual)
+    if actual == QuoteStatus.RESPONSE_SENT and mismo_mensaje:
+        return str(actual)
+    return propuesto
+
+
 def sql_in(*statuses: QuoteStatus) -> str:
     """Lista `('a', 'b')` para una cláusula IN; solo admite miembros del enum."""
     return "(" + ", ".join(f"'{QuoteStatus(s).value}'" for s in statuses) + ")"
