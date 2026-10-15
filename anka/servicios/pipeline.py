@@ -45,6 +45,7 @@ from anka.servicios.lectura_por_tramos import analizar_hilo
 from anka.infra.modes import (
     ensure_local_or_api_mode,
 )
+from anka.infra.presupuesto_ocr import presupuesto_de_caso
 from anka.infra.settings import load_config
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
 from anka.servicios.change_control import apply_guard, find_codes
@@ -187,8 +188,9 @@ class RevisorDeHilos:
         decision = decide_prefilter(thread_id, noise, email)
         if decision is None:
             attachments = []
-            for message in inbound:
-                attachments.extend(extract_message_attachments(self.gmail, message))
+            with presupuesto_de_caso(config):   # el tiempo de OCR se cuenta por caso (U-55)
+                for message in inbound:
+                    attachments.extend(extract_message_attachments(self.gmail, message))
             blocked = [item for item in attachments
                        if item.get("status") in {"bloqueado", "lectura_parcial"}]
             required = config["required_fields"]

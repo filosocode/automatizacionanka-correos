@@ -11,6 +11,7 @@ from typing import Any
 
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Adjunto
+from anka.dominio.attachments import hermanos_de_shapefile
 from anka.infra.attachments import (
     attachment_reviewed_sections, build_attachment_evidence, extract_attachment_text,
 )
@@ -22,9 +23,29 @@ from anka.infra.logging_setup import get_logger
 log = get_logger(__name__)
 
 
+def descargar_parte(gmail: Any, message_id: str, part: dict) -> bytes:
+    """Los bytes de un adjunto: vienen en el mensaje si son pequeños y, si no, se piden a Gmail (vacío si no hay)."""
+    encoded = part.get("data")
+    if not encoded and part.get("attachment_id"):
+        encoded = gmail.users().messages().attachments().get(
+            userId="me", messageId=message_id, id=part["attachment_id"]).execute().get("data")
+    return decode_websafe(encoded) if encoded else b""
+
+
+def companeros_del_shapefile(gmail: Any, message_id: str, partes: list[dict], hermanos: dict[str, str]
+                             ) -> dict[str, bytes]:
+    """Contenido de los archivos hermanos (`.shx`, `.dbf`, `.prj`, `.cpg`) de un `.shp`, por extensión."""
+    por_nombre = {parte["filename"]: parte for parte in partes}
+    return {extension: contenido for extension, nombre in hermanos.items()
+            if (contenido := descargar_parte(gmail, message_id, por_nombre[nombre]))}
+
+
 def extract_message_attachments(gmail: Any, message: dict) -> list[Adjunto]:
     """Descarga y lee los adjuntos de un mensaje; nunca falla: un adjunto ilegible queda «bloqueado» con su motivo."""
     results: list[Adjunto] = []
+    partes = [p for p in attachment_parts(message.get("payload", {})) if not is_inline_signature_image(p)]
+    grupos = hermanos_de_shapefile([p["filename"] for p in partes])
+    absorbidos = {nombre: shp for shp, hermanos in grupos.items() for nombre in hermanos.values()}
     for part in attachment_parts(message.get("payload", {})):
         record: Adjunto = {
             "filename": part["filename"],
@@ -39,19 +60,19 @@ def extract_message_attachments(gmail: Any, message: dict) -> list[Adjunto]:
             })
             results.append(record)
             continue
+        if part["filename"] in absorbidos:
+            record.update({"status": "ignorado", "text": "",
+                           "reason": f"parte del shapefile {absorbidos[part['filename']]}; se lee junto con él"})
+            results.append(record)
+            continue
         try:
-            encoded = part.get("data")
-            if not encoded and part.get("attachment_id"):
-                response = gmail.users().messages().attachments().get(
-                    userId="me", messageId=message["id"], id=part["attachment_id"]
-                ).execute()
-                encoded = response.get("data")
-            if not encoded:
+            contenido = descargar_parte(gmail, message["id"], part)
+            if not contenido:
                 text, reason = "", "Gmail no devolvió contenido para el adjunto"
             else:
                 text, reason = extract_attachment_text(
-                    part["filename"], part["mime_type"], decode_websafe(encoded)
-                )
+                    part["filename"], part["mime_type"], contenido,
+                    companeros_del_shapefile(gmail, message["id"], partes, grupos.get(part["filename"], {})))
         except Exception as exc:  # un adjunto roto no debe frenar el análisis del correo
             log.warning("Adjunto no legible en el mensaje %s: %s", message.get("id"), type(exc).__name__)
             text, reason = "", f"error al descargar o leer: {exc}"

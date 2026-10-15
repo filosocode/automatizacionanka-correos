@@ -64,3 +64,6 @@ class Configuracion(TypedDict, total=False):
     work_drive_enabled: bool          # preparación automática de expedientes; desactivada por defecto
     work_drive_parent_id: str         # carpeta de recepción, distinta de la carpeta comercial del año
     work_drive_query: str             # búsqueda explícita de correos para preparar
+    ocr_segundos_por_archivo: float   # segundos de OCR local por archivo; 0 = sin límite (por defecto)
+    ocr_segundos_por_caso: float      # segundos de OCR local por caso (todos sus adjuntos); 0 = sin límite
+    ocr_omitir_escaneados: bool       # no hacer OCR a PDF e imágenes escaneados: marcarlos «requiere visión»

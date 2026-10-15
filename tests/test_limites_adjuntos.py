@@ -7,6 +7,7 @@ import unittest
 import zipfile
 from unittest.mock import patch
 
+from anka.dominio.lectores_texto import Unreadable
 from anka.infra import attachments, lectores_office, lectores_pdf, lectores_zip
 from anka.infra.attachments import extract_attachment_text, extract_attachment_text_for_work_packet
 
@@ -106,7 +107,7 @@ class SizeAndPageCapTests(unittest.TestCase):
         self.assertEqual(text, "")
         self.assertIn("supera el límite", reason)
 
-    def test_pdf_over_the_page_limit_requires_manual_review(self):
+    def test_pdf_over_the_page_limit_is_read_partially(self):   # U-55: ya no se rechaza
         from pypdf import PdfWriter
 
         writer = PdfWriter()
@@ -114,10 +115,11 @@ class SizeAndPageCapTests(unittest.TestCase):
             writer.add_blank_page(width=72, height=72)
         buffer = io.BytesIO()
         writer.write(buffer)
-        with patch.object(lectores_pdf, "MAX_OCR_PAGES", 3):
+        with (patch.object(lectores_pdf, "MAX_PDF_PAGINAS_LEIDAS", 3),
+              patch.object(lectores_pdf, "ocr_pil_image", side_effect=Unreadable("sin texto"))):
             text, reason = extract_attachment_text("grande.pdf", "application/pdf", buffer.getvalue())
-        self.assertEqual(text, "")
-        self.assertIn("límite de 3 páginas", reason)
+        self.assertIn("PDF de 4 páginas; se leyeron las páginas 1–3", text)
+        self.assertIn("parcial", reason)
 
     def test_spreadsheet_over_the_cell_limit_is_reported_as_partial(self):
         from openpyxl import Workbook

@@ -34,6 +34,7 @@ KNOWN_CONFIG_KEYS = {
     "required_fields", "commercial_filter_terms", "drive_parent_id", "folder_prefix",
     "work_sync_account",
     "work_drive_enabled", "work_drive_parent_id", "work_drive_query",
+    "ocr_segundos_por_archivo", "ocr_segundos_por_caso", "ocr_omitir_escaneados",
 }
 FORWARDED_POLICIES = {"internal_reviewer", "original_sender"}
 PROVIDERS = {"ollama", "openai"}
@@ -65,6 +66,7 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
     elif not _is_text_list(config["required_fields"]):
         problems.append("required_fields debe ser una lista de textos.")
     problems.extend(_work_drive_problems(config))
+    problems.extend(_ocr_problems(config))
     if config.get("forwarded_reply_policy", "internal_reviewer") not in FORWARDED_POLICIES:
         problems.append("forwarded_reply_policy debe ser 'internal_reviewer' u 'original_sender'.")
 
@@ -73,6 +75,17 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
         problems.append("llm debe ser un objeto con al menos provider.")
         return problems
     problems.extend(_engine_problems(engine, mode))
+    return problems
+
+
+def _ocr_problems(config: Mapping[str, Any]) -> list[str]:
+    problems = []
+    for key in ("ocr_segundos_por_archivo", "ocr_segundos_por_caso"):
+        value = config.get(key, 0)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            problems.append(f"{key} debe ser un número de segundos (0 = sin límite).")
+    if not isinstance(config.get("ocr_omitir_escaneados", False), bool):
+        problems.append("ocr_omitir_escaneados debe ser booleano.")
     return problems
 
 

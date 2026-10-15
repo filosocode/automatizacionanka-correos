@@ -394,9 +394,8 @@ class ShapefileTests(unittest.TestCase):
 
     def test_an_incomplete_shapefile_and_a_missing_library_are_clear_limitations(self):
         incompleto, completo = self.shapefile(completo=False), self.shapefile()
-        with self.assertRaises(Unreadable) as caught:
-            lectores_zip.shapefile_zip_text(incompleto)
-        self.assertIn(".shp, .shx y .dbf", str(caught.exception))
+        texto = lectores_zip.shapefile_zip_text(incompleto)       # U-55: se lee lo que haya y se marca lo que falta
+        self.assertIn("LECTURA PARCIAL: falta el .dbf", texto)
         with patch.dict(sys.modules, {"shapefile": None}), self.assertRaises(Unreadable) as caught:
             lectores_zip.shapefile_zip_text(completo)
         self.assertIn("pyshp", str(caught.exception))

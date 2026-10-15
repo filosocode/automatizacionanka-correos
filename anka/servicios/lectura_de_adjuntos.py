@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from anka.dominio.attachments import MAX_ATTACHMENT_BYTES
+from anka.dominio.attachments import MAX_ATTACHMENT_BYTES, hermanos_de_shapefile
 from anka.dominio.correo import (
     adjuntos_recibidos, decode_websafe, imagenes_incrustadas, inbound_messages, message_text,
 )
@@ -16,9 +16,10 @@ from anka.dominio.work_contract import verificar_adjuntos
 from anka.infra import instantaneas_de_manifiesto
 from anka.infra.attachments import extract_attachment_text_for_work_packet
 from anka.infra.logging_setup import get_logger
+from anka.infra.presupuesto_ocr import presupuesto_de_caso
 
 log = get_logger(__name__)
-VERSION_DE_TEXTOS = "gmail-v2"   # sube cuando cambia cómo se extrae el texto: invalida los textos guardados
+VERSION_DE_TEXTOS = "gmail-v3"   # sube cuando cambia cómo se extrae el texto: invalida los textos guardados
 
 
 def _huella_del_hilo(mensajes: list[dict], adjuntos: list[dict]) -> str:
@@ -52,9 +53,12 @@ def _textos_del_hilo(gmail: Any, thread: dict, adjuntos: list[dict], propias: se
     leidos: list[dict] = []
     completo = True
     vistos: set[tuple[str, int]] = set()
+    grupos = hermanos_de_shapefile([a["filename"] for a in adjuntos])
+    absorbidos = {n for hermanos in grupos.values() for n in hermanos.values()}
+    por_nombre = {a["filename"]: a for a in adjuntos}
     for adjunto in adjuntos:
         clave = (adjunto["filename"], adjunto["size"])
-        if clave in vistos:
+        if clave in vistos or adjunto["filename"] in absorbidos:   # un shapefile y sus hermanos son una entrada
             continue
         vistos.add(clave)
         texto, motivo, huella_del_archivo = "", "", ""
@@ -62,8 +66,11 @@ def _textos_del_hilo(gmail: Any, thread: dict, adjuntos: list[dict], propias: se
             contenido = _contenido(gmail, adjunto)
             if contenido and len(contenido) <= MAX_ATTACHMENT_BYTES:
                 huella_del_archivo = hashlib.sha256(contenido).hexdigest()
-                texto, motivo = extract_attachment_text_for_work_packet(
-                    adjunto["filename"], adjunto["mime_type"], contenido)
+                companeros = {e: c for e, n in grupos.get(adjunto["filename"], {}).items()
+                              if (c := _contenido(gmail, por_nombre[n]))}
+                with presupuesto_de_caso():
+                    texto, motivo = extract_attachment_text_for_work_packet(
+                        adjunto["filename"], adjunto["mime_type"], contenido, companeros)
             elif not contenido:
                 completo = False
         except Exception:   # un adjunto que no baja no frena la verificación: la tabla queda «no comprobable»

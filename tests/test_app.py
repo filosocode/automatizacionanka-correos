@@ -491,7 +491,8 @@ class QuoteFlowTests(unittest.TestCase):
             "TOPOGRAFIA LLANOS 8.dwg", "application/acad", b"binary"
         )
         self.assertEqual(text, "")
-        self.assertEqual(reason, "plano CAD requiere revisión manual")
+        self.assertIn("plano DWG", reason)   # U-55: dice qué es y pide un formato abierto
+        self.assertIn("pedir al cliente un formato abierto", reason)
 
     def test_forwarded_message_keeps_internal_reviewer_as_recipient(self):
         message = encoded_message(

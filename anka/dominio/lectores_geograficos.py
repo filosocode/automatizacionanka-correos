@@ -18,6 +18,7 @@ from anka.dominio.attachments import (
     KML_GEOMETRIES,
 )
 from anka.dominio.lectores_texto import Unreadable
+from anka.dominio.xml_tolerante import parsear_xml
 
 
 def local_name(tag: str) -> str:
@@ -107,9 +108,11 @@ def kmz_text(content: bytes) -> str:
 
 def kml_text_file(name: str, content: bytes) -> str:
     """Resume geometrías y atributos conservando el elemento KML como localizador."""
-    root = ElementTree.fromstring(content)
+    root, reparados = parsear_xml(content)
     placemarks = [node for node in root.iter() if local_name(node.tag) == "Placemark"]
     lines = [f"Archivo KML: {name}", f"Elementos geográficos: {len(placemarks)}"]
+    if reparados:
+        lines.append(f"Lectura tolerante: prefijos XML sin declarar ({', '.join(reparados)}); se leyó completo")
     lines.extend(_kml_container_lines(root))
     lines.extend(_kml_overlay_lines(root))
     all_coordinates: list[tuple[float, float]] = []
@@ -227,7 +230,7 @@ def _kml_extent_lines(all_coordinates: list[tuple[float, float]]) -> list[str]:
 def wpml_text(name: str, content: bytes) -> str:
     """Lee la estructura legible de una misión DJI WPML empaquetada en KMZ."""
     try:
-        root = ElementTree.fromstring(content)
+        root, _ = parsear_xml(content)
     except ElementTree.ParseError as exc:
         raise Unreadable(f"WPML XML inválido en {name}: {exc}") from None
     lines = [f"Archivo de misión DJI WPML: {name}"]
@@ -274,7 +277,7 @@ def wpml_text(name: str, content: bytes) -> str:
 def gpx_text(content: bytes) -> str:
     """Resume GPX sin perder su distinción entre waypoints, rutas y tracks/segmentos."""
     try:
-        root = ElementTree.fromstring(content)
+        root, _ = parsear_xml(content)
     except ElementTree.ParseError as exc:
         raise Unreadable(f"GPX XML inválido: {exc}") from None
     points_all: list[tuple[float, float, float | None, str]] = []

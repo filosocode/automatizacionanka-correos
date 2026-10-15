@@ -10,6 +10,7 @@ from io import BytesIO
 from pathlib import Path
 
 from anka.dominio.attachments import MAX_ARCHIVE_EXPANDED_BYTES, MAX_ARCHIVE_FILES, MAX_EVIDENCE_ITEMS, MAX_OCR_IMAGES
+from anka.dominio.lectores_shapefile import shapefile_text
 from anka.dominio.lectores_texto import Unreadable
 from anka.infra.lectores_imagen import ocr_image
 
@@ -45,10 +46,6 @@ def append_archive_image_ocr(archive: zipfile.ZipFile, images: list[str], lines:
 
 def shapefile_zip_text(content: bytes) -> str:
     """Describe las capas de shapefiles comprimidos en un ZIP: geometría, campos, extensión, registros y proyección."""
-    try:
-        import shapefile
-    except ImportError:
-        raise Unreadable("falta instalar pyshp para leer shapefiles") from None
     with zip_acotado(content) as archive:
         groups: dict[str, dict[str, str]] = {}
         for name in archive.namelist():
@@ -57,8 +54,17 @@ def shapefile_zip_text(content: bytes) -> str:
                 groups.setdefault(str(Path(name).with_suffix("")), {})[suffix] = name
         fragments = []
         for layer, files in groups.items():
-            if not {".shp", ".shx", ".dbf"}.issubset(files):
+            if ".shp" not in files:
                 continue
+            if not {".shx", ".dbf"}.issubset(files):     # incompleto: se lee lo que haya y se marca lo que falta
+                fragments.append(shapefile_text(
+                    layer, archive.read(files[".shp"]),
+                    {suffix: archive.read(name) for suffix, name in files.items() if suffix != ".shp"}))
+                continue
+            try:
+                import shapefile
+            except ImportError:
+                raise Unreadable("falta instalar pyshp para leer shapefiles") from None
             reader = shapefile.Reader(
                 shp=BytesIO(archive.read(files[".shp"])),
                 shx=BytesIO(archive.read(files[".shx"])),
@@ -86,5 +92,5 @@ def shapefile_zip_text(content: bytes) -> str:
                 fragments.append("SISTEMA DE COORDENADAS NO DECLARADO: el shapefile no incluye archivo .prj")
             reader.close()
         if not fragments:
-            raise Unreadable("ZIP sin shapefile completo; se requieren archivos .shp, .shx y .dbf")
+            raise Unreadable("ZIP sin archivos .shp que leer")
         return "\n".join(fragments)

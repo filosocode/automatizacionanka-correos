@@ -6,21 +6,93 @@ import re
 from io import BytesIO
 from typing import Any
 
-from anka.dominio.attachments import MAX_OCR_PAGES, MAX_OCR_PIXELS
+from anka.dominio.attachments import (
+    FRACCION_DE_PDF_ESCANEADO, MAX_OCR_PAGES, MAX_OCR_PIXELS, MAX_PDF_PAGINAS_LEIDAS, MIN_CARACTERES_POR_PAGINA,
+    rangos_de_paginas,
+)
 from anka.dominio.lectores_texto import Unreadable
 from anka.infra.lectores_imagen import ocr_pil_image
+from anka.infra.presupuesto_ocr import OcrOmitidoPorTiempo, presupuesto_actual, presupuesto_de_archivo
+
+
+def _paginas_en_texto(paginas: list[int]) -> str:
+    return rangos_de_paginas(sorted(paginas))
+
+
+def _ocr_de_la_pagina(pdf_page: Any, texto: str, tiene_contenido_visual: bool) -> tuple[str, bool]:
+    """Hace OCR a una página renderizada; devuelve (texto con el OCR, si aún tiene contenido visual sin interpretar)."""
+    width, height = pdf_page.get_size()
+    if width * height * 9 > MAX_OCR_PIXELS:
+        raise Unreadable("página PDF excede el límite de píxeles para OCR")
+    bitmap = pdf_page.render(scale=3)
+    image = bitmap.to_pil()
+    try:
+        ocr = ocr_pil_image(image)
+    finally:
+        image.close()
+        bitmap.close()
+    nativo = re.sub(r"\W+", "", texto.casefold())
+    unico = [
+        linea for linea in ocr.splitlines()
+        if re.sub(r"\W+", "", linea.casefold()) and re.sub(r"\W+", "", linea.casefold()) not in nativo
+    ]
+    if unico:
+        texto = (texto.rstrip() + "\n[OCR visual adicional]\n" + "\n".join(unico)).strip()
+    if tiene_contenido_visual:
+        texto += (
+            "\nCOBERTURA VISUAL PARCIAL: OCR de la página ejecutado; "
+            "relaciones de tabla/figura requieren interpretación visual"
+        )
+    return texto, False
+
+
+def _avisos_de_cobertura(total: int, leidas: int, sin_ocr: dict[str, list[int]], escaneadas: int) -> list[str]:
+    """Líneas finales que dicen qué páginas no se leyeron o no pasaron por OCR, y por qué (U-55)."""
+    avisos = []
+    if total > leidas:
+        avisos.append(
+            f"COBERTURA PARCIAL: PDF de {total} páginas; se leyeron las páginas 1–{leidas} (tope de lectura "
+            f"{MAX_PDF_PAGINAS_LEIDAS}); faltan las páginas {leidas + 1}–{total}"
+        )
+    if sin_ocr["politica"]:
+        avisos.append(
+            f"REQUIERE VISIÓN: {escaneadas} de {leidas} páginas parecen escaneadas (poco o nada de texto); OCR local "
+            f"omitido por la política ocr_omitir_escaneados; páginas sin OCR: {_paginas_en_texto(sin_ocr['politica'])}"
+        )
+    if sin_ocr["tiempo"]:
+        presupuesto = presupuesto_actual()
+        avisos.append(
+            f"COBERTURA PARCIAL: OCR omitido por tiempo (presupuesto {presupuesto.descripcion()}); "
+            f"páginas sin OCR: {_paginas_en_texto(sin_ocr['tiempo'])}"
+        )
+    if sin_ocr["tope"]:
+        avisos.append(
+            f"COBERTURA PARCIAL: OCR limitado a {MAX_OCR_PAGES} páginas por archivo; "
+            f"páginas sin OCR: {_paginas_en_texto(sin_ocr['tope'])}"
+        )
+    return avisos
 
 
 def pdf_text(content: bytes) -> str:
-    """Texto de un PDF por página; usa OCR en las páginas escaneadas o con contenido visual."""
+    """Texto de un PDF por página (ver `_texto_del_pdf`); el tiempo de OCR cuenta contra el presupuesto del archivo."""
+    with presupuesto_de_archivo():
+        return _texto_del_pdf(content)
+
+
+def _texto_del_pdf(content: bytes) -> str:
+    """Texto de un PDF por página; usa OCR en las páginas escaneadas o con contenido visual.
+
+    Lee hasta `MAX_PDF_PAGINAS_LEIDAS` páginas (un PDF más largo se lee parcialmente, no se rechaza) y respeta el
+    presupuesto de segundos de OCR y la política `ocr_omitir_escaneados`; lo que no pasa por OCR se dice con sus
+    páginas.
+    """
     try:
         from pypdf import PdfReader
     except ImportError:
         raise Unreadable("falta instalar pypdf para leer PDF") from None
     reader = PdfReader(BytesIO(content))
-    page_texts: list[tuple[str, bool]] = []
-    if len(reader.pages) > MAX_OCR_PAGES:
-        raise Unreadable(f"PDF supera el límite de {MAX_OCR_PAGES} páginas; requiere revisión manual")
+    total = len(reader.pages)
+    leidas = min(total, MAX_PDF_PAGINAS_LEIDAS)
     try:
         import pypdfium2 as pdfium
 
@@ -28,40 +100,34 @@ def pdf_text(content: bytes) -> str:
     except ImportError:
         pdfium = None
         pdf_document = None
-    for page_number, page in enumerate(reader.pages, 1):
-        text = page.extract_text() or ""
+    nativos = [reader.pages[numero].extract_text() or "" for numero in range(leidas)]
+    escaneadas = [n for n, texto in enumerate(nativos, 1) if len(texto.strip()) < MIN_CARACTERES_POR_PAGINA]
+    omitir_todo = (presupuesto_actual().omitir_escaneados and bool(escaneadas)
+                   and len(escaneadas) / leidas >= FRACCION_DE_PDF_ESCANEADO)
+    sin_ocr: dict[str, list[int]] = {"politica": [], "tiempo": [], "tope": []}
+    con_ocr = 0
+    page_texts: list[tuple[str, bool]] = []
+    for page_number, text in enumerate(nativos, 1):
         pdf_page = pdf_document[page_number - 1] if pdf_document is not None else None
         has_visual_content = _pdf_visual_content(pdf_page, pdfium)
-        needs_ocr = not text.strip() or len(text.strip()) < 100 or has_visual_content
+        needs_ocr = not text.strip() or len(text.strip()) < MIN_CARACTERES_POR_PAGINA or has_visual_content
         if needs_ocr and pdf_page is not None:
-            try:
-                width, height = pdf_page.get_size()
-                if width * height * 9 > MAX_OCR_PIXELS:
-                    raise Unreadable("página PDF excede el límite de píxeles para OCR")
-                bitmap = pdf_page.render(scale=3)
-                image = bitmap.to_pil()
-                try:
-                    ocr = ocr_pil_image(image)
-                finally:
-                    image.close()
-                    bitmap.close()
-                native_compact = re.sub(r"\W+", "", text.casefold())
-                unique_ocr = [
-                    line
-                    for line in ocr.splitlines()
-                    if re.sub(r"\W+", "", line.casefold()) and re.sub(r"\W+", "", line.casefold()) not in native_compact
-                ]
-                if unique_ocr:
-                    text = (text.rstrip() + "\n[OCR visual adicional]\n" + "\n".join(unique_ocr)).strip()
-                if has_visual_content:
-                    text += (
-                        "\nCOBERTURA VISUAL PARCIAL: OCR de la página ejecutado; "
-                        "relaciones de tabla/figura requieren interpretación visual"
-                    )
-                has_visual_content = False
-            except Unreadable as exc:
-                text = (text.rstrip() + f"\nCONTENIDO VISUAL NO INSPECCIONADO: {exc}").strip()
+            if omitir_todo and page_number in escaneadas:
+                sin_ocr["politica"].append(page_number)
                 has_visual_content = True
+            elif con_ocr >= MAX_OCR_PAGES:
+                sin_ocr["tope"].append(page_number)
+                has_visual_content = True
+            else:
+                try:
+                    con_ocr += 1
+                    text, has_visual_content = _ocr_de_la_pagina(pdf_page, text, has_visual_content)
+                except OcrOmitidoPorTiempo:
+                    sin_ocr["tiempo"].append(page_number)
+                    has_visual_content = True
+                except Unreadable as exc:
+                    text = (text.rstrip() + f"\nCONTENIDO VISUAL NO INSPECCIONADO: {exc}").strip()
+                    has_visual_content = True
         elif needs_ocr:
             message = "\nCONTENIDO VISUAL NO INSPECCIONADO: falta pypdfium2 para renderizar la página"
             text = (text.rstrip() + message).strip()
@@ -71,13 +137,18 @@ def pdf_text(content: bytes) -> str:
         page_texts.append((text, has_visual_content))
     if pdf_document is not None:
         pdf_document.close()
+    avisos = _avisos_de_cobertura(total, leidas, sin_ocr, len(escaneadas))
     if not any(page.strip() for page, _ in page_texts):
+        if avisos:
+            motivo = avisos[0].replace("COBERTURA PARCIAL: ", "").replace("REQUIERE VISIÓN: ", "requiere visión: ")
+            raise Unreadable(motivo)
         raise Unreadable("PDF sin texto extraíble ni texto legible por OCR")
-    return "\n".join(
+    cuerpo = "\n".join(
         f"[Página {number}{'; sin texto extraíble' if not page.strip() else ''}"
         f"{'; contiene imágenes no interpretadas por OCR' if has_images else ''}]\n{page}"
         for number, (page, has_images) in enumerate(page_texts, 1)
     )
+    return "\n".join([cuerpo, *avisos])
 
 
 def _pdf_visual_content(pdf_page: Any, pdfium: Any) -> bool:

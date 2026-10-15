@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from anka.dominio.attachments import MAX_ATTACHMENT_BYTES
+from anka.dominio.attachments import MAX_ATTACHMENT_BYTES, hermanos_de_shapefile
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.correo import (
-    attachment_parts, decode_websafe, header, inbound_messages, is_inline_signature_image, message_text,
+    attachment_parts, header, inbound_messages, is_inline_signature_image, message_text,
 )
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra.attachments import extract_attachment_text_for_work_packet, attachment_reviewed_sections
@@ -19,14 +19,15 @@ from anka.infra.drive_exchange import DriveExchange
 from anka.infra.google_services import FOLDER_MIME
 from anka.infra.logging_setup import get_logger
 from anka.infra import settings
-from anka.infra.mail import candidate_thread_versions, es_error_de_cuota
+from anka.infra.mail import candidate_thread_versions, companeros_del_shapefile, descargar_parte, es_error_de_cuota
+from anka.infra.presupuesto_ocr import presupuesto_de_caso
 from anka.servicios.drive_layout import clean_folder_name
 from anka.servicios.work_attachment_packet import (
     MAX_PACKET_FILES, MAX_PACKET_TOTAL_BYTES, MAX_PACKET_TEXT_BYTES, chunk_text,
 )
 
 log = get_logger(__name__)
-EXTRACTOR_VERSION = "anka-drive-ocr-v2"
+EXTRACTOR_VERSION = "anka-drive-ocr-v3"
 MANIFEST_NAME = "MANIFIESTO_WORK.json"
 MAX_HILOS_POR_PASADA = 6   # hilos completos que se bajan de Gmail por pasada (T-40)
 VISTOS = "_vistos.json"
@@ -112,16 +113,25 @@ def _prepare_version(gmail: Any, exchange: DriveExchange, folder: str, case_fold
     reading = exchange.folder(case_folder, "reading", "Lectura")
     records: list[dict] = []
     total = 0
-    for message in messages:
-        for index, part in enumerate(attachment_parts(message.get("payload", {}))):
-            if is_inline_signature_image(part):
-                records.append({"filename": part["filename"], "message_id": message["id"],
-                                "status": "ignorado", "reason": "imagen inline; consultar original en Gmail"})
-                continue
-            record = _attachment_record(gmail, exchange, originals["id"], reading["id"],
-                                        message["id"], index, part, records, total)
-            records.append(record)
-            total += record.get("size_bytes", 0)
+    with presupuesto_de_caso():   # el tiempo de OCR se cuenta por caso (U-55)
+        for message in messages:
+            partes = attachment_parts(message.get("payload", {}))
+            grupos = hermanos_de_shapefile([p["filename"] for p in partes if not is_inline_signature_image(p)])
+            absorbidos = {n: shp for shp, hermanos in grupos.items() for n in hermanos.values()}
+            for index, part in enumerate(partes):
+                if is_inline_signature_image(part):
+                    records.append({"filename": part["filename"], "message_id": message["id"],
+                                    "status": "ignorado", "reason": "imagen inline; consultar original en Gmail"})
+                    continue
+                if part["filename"] in absorbidos:    # un shapefile con sus hermanos es una sola entrada
+                    records.append({"filename": part["filename"], "message_id": message["id"], "status": "ignorado",
+                                    "reason": f"parte del shapefile {absorbidos[part['filename']]}; se lee con él"})
+                    continue
+                companeros = companeros_del_shapefile(gmail, message["id"], partes, grupos.get(part["filename"], {}))
+                record = _attachment_record(gmail, exchange, originals["id"], reading["id"],
+                                            message["id"], index, part, records, total, companeros)
+                records.append(record)
+                total += record.get("size_bytes", 0)
     context = "\n\n".join(
         f"[Mensaje {m['id']}]\nDe: {header(m, 'From')}\nFecha: {header(m, 'Date')}\n"
         f"Asunto: {header(m, 'Subject')}\n{message_text(m.get('payload', {}))}" for m in messages)
@@ -137,7 +147,8 @@ def _prepare_version(gmail: Any, exchange: DriveExchange, folder: str, case_fold
 
 
 def _attachment_record(gmail: Any, exchange: DriveExchange, originals: str, reading: str,
-                       message_id: str, index: int, part: dict, records: list[dict], total: int) -> dict:
+                       message_id: str, index: int, part: dict, records: list[dict], total: int,
+                       companeros: dict[str, bytes] | None = None) -> dict:
     record = {"filename": part["filename"], "message_id": message_id, "attachment_index": index,
               "mime_type": part["mime_type"], "status": "bloqueado", "coverage": None,
               "text_segments": [], "reviewed_sections": []}
@@ -146,13 +157,9 @@ def _attachment_record(gmail: Any, exchange: DriveExchange, originals: str, read
         return {**record, "reason": "límite de 30 archivos o 250 MiB por expediente; revisión interna"}
     if part.get("size", 0) > MAX_ATTACHMENT_BYTES or total + part.get("size", 0) > MAX_PACKET_TOTAL_BYTES:
         return {**record, "reason": "tamaño declarado excede los límites del expediente; revisión interna"}
-    encoded = part.get("data")
-    if not encoded and part.get("attachment_id"):
-        encoded = gmail.users().messages().attachments().get(
-            userId="me", messageId=message_id, id=part["attachment_id"]).execute().get("data")
-    if not encoded:
+    content = descargar_parte(gmail, message_id, part)
+    if not content:
         raise ErrorDeAnka("Gmail no devolvió el adjunto; no se publica listo y se reintentará.")
-    content = decode_websafe(encoded)
     if len(content) > MAX_ATTACHMENT_BYTES or total + len(content) > MAX_PACKET_TOTAL_BYTES:
         return {**record, "reason": "tamaño real excede los límites del expediente; revisión interna"}
     digest = hashlib.sha256(content).hexdigest()
@@ -163,7 +170,7 @@ def _attachment_record(gmail: Any, exchange: DriveExchange, originals: str, read
         return exchange.read_json(cached)
     name = f"{source_id[:16]}-{clean_folder_name(part['filename'])}"
     original = exchange.put(originals, source_id, name, content, part["mime_type"])
-    text, reason = extract_attachment_text_for_work_packet(part["filename"], part["mime_type"], content)
+    text, reason = extract_attachment_text_for_work_packet(part["filename"], part["mime_type"], content, companeros)
     if sum(r.get("text_bytes", 0) for r in records) + len(text.encode("utf-8")) > MAX_PACKET_TEXT_BYTES:
         return {**record, "source_id": source_id, "sha256": digest, "size_bytes": len(content),
                 "original": original, "reason": "extracción supera 300 MiB de texto; dividir expediente"}

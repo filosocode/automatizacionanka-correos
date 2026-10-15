@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import mimetypes
@@ -15,7 +16,9 @@ from anka.infra.attachments import (
     build_attachment_evidence,
     extract_attachment_text_for_work_packet,
 )
+from anka.dominio.attachments import hermanos_de_shapefile
 from anka.dominio.errores import ErrorDeAnka
+from anka.infra.presupuesto_ocr import presupuesto_de_caso
 
 MAX_PACKET_FILES = 30
 MAX_PACKET_TOTAL_BYTES = 250 * 1024 * 1024
@@ -89,9 +92,19 @@ def prepare_work_attachment_packet(attachment_paths: list[str], output_dir: str)
 
 def _write_packet(sources: list[Path], stage: Path) -> dict:
     """Extrae cada fuente y escribe fragmentos, evidencia y estados de cobertura."""
-    records = []
+    records: list[dict] = []
     text_bytes_total = 0
-    for index, source in enumerate(sources, 1):
+    grupos = hermanos_de_shapefile([source.name for source in sources])
+    absorbidos = {n for hermanos in grupos.values() for n in hermanos.values()}
+    entradas = [source for source in sources if source.name not in absorbidos]   # shapefile + hermanos = una entrada
+    with presupuesto_de_caso():
+        return _escribir_entradas(entradas, sources, grupos, stage, records, text_bytes_total)
+
+
+def _escribir_entradas(entradas: list[Path], sources: list[Path], grupos: dict[str, dict[str, str]], stage: Path,
+                       records: list[dict], text_bytes_total: int) -> dict:
+    """Extrae cada entrada (con los hermanos de su shapefile, si los tiene) y escribe el manifiesto."""
+    for index, source in enumerate(entradas, 1):
         size_bytes = source.stat().st_size
         if size_bytes > MAX_WORK_PACKET_ATTACHMENT_BYTES:
             records.append(_blocked_record(source, size_bytes, "supera el límite local de 50 MiB"))
@@ -102,8 +115,12 @@ def _write_packet(sources: list[Path], stage: Path) -> dict:
             records.append(_blocked_record(source, size_bytes, f"no se pudo leer ({type(exc).__name__})"))
             continue
         digest = hashlib.sha256(content).hexdigest()
+        companeros = {}
+        for extension, nombre in grupos.get(source.name, {}).items():
+            with contextlib.suppress(OSError):
+                companeros[extension] = (source.parent / nombre).read_bytes()
         extracted, reason = extract_attachment_text_for_work_packet(
-            source.name, mimetypes.guess_type(source.name)[0] or "", content,
+            source.name, mimetypes.guess_type(source.name)[0] or "", content, companeros,
         )
         encoded_text = extracted.encode("utf-8")
         text_bytes_total += len(encoded_text)
@@ -148,7 +165,7 @@ def _write_packet(sources: list[Path], stage: Path) -> dict:
 
     manifest = {
         "format": "anka-work-attachment-packet-v1",
-        "source_files": len(sources),
+        "source_files": len(entradas),
         "source_bytes": sum(source.stat().st_size for source in sources),
         "text_bytes": text_bytes_total,
         "attachments": records,
@@ -164,7 +181,7 @@ def _write_packet(sources: list[Path], stage: Path) -> dict:
     )
     (stage / "LEEME.md").write_text(readme, encoding="utf-8")
     return {
-        "source_files": len(sources),
+        "source_files": len(entradas),
         "extracted_files": sum(record["status"] == "extraido" for record in records),
         "partial_files": sum(record["status"] == "lectura_parcial" for record in records),
         "blocked_files": sum(record["status"] == "bloqueado" for record in records),

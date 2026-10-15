@@ -34,6 +34,9 @@ La descripción es la primera frase de su docstring.
 | `analisis` | La forma del análisis de una solicitud: lo que el modelo (o Work) devuelve y el dashboard guarda como JSON. |
 | `attachments` | Límites y evidencia de adjuntos en memoria. |
 | `lectores_texto` | Lectura en memoria de texto, HTML y RTF. |
+| `xml_tolerante` | Lectura de XML de adjuntos que tolera prefijos sin declarar y rechaza entidades (U-55). |
+| `lectores_shapefile` | Shapefile y tabla dBase leídos con la biblioteca estándar, aunque falten sus archivos hermanos (U-55). |
+| `lectores_cad` | DXF en texto: versión, capas, conteo de entidades y textos de un plano CAD sin biblioteca externa (U-55). |
 | `tramos` | Dividir un texto largo sin perder nada y condensar los hallazgos de cada tramo (T-25). |
 | `preguntas` | Preguntas candidatas de un caso, decisión de una persona por pregunta y preguntas que lleva un correo (U-22). |
 | `novedades` | Qué novedades piden acción a una persona y por tanto cuentan en el contador (U-25). |
@@ -61,6 +64,7 @@ La descripción es la primera frase de su docstring.
 | `lectores_pdf` | PDF: texto nativo y OCR por página. |
 | `cache_hallazgos` | Caché en disco, con tope, de los hallazgos extraídos por tramo. |
 | `lectores_imagen` | OCR y conversión externa de documentos antiguos. |
+| `presupuesto_ocr` | Presupuesto de segundos de OCR por archivo y por caso y política de no hacer OCR a lo escaneado (U-55). |
 
 | Módulo | Para qué sirve |
 |---|---|
