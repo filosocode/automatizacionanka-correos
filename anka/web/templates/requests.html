@@ -34,6 +34,7 @@
   <button id="delete-btn" class="danger" type="submit" disabled data-confirm="¿Borrar los casos marcados? Se borran de aquí. Si tienen carpeta de proyecto, esa carpeta va a la papelera de Drive y se puede recuperar durante unos 30 días. Gmail y las carpetas de clientes no se tocan.">Borrar las marcadas</button>
 </form>
 </details>
+<p id="n-visibles" class="solo-lectores" role="status"></p>
 <div id="requests" class="grid">{% if rows %}{% for row in rows %}{{ row }}{% endfor %}{% else %}<div class='empty'>Todavía no hay casos.</div>{% endif %}</div>
 <div id="no-results" class="empty" hidden>Ningún caso coincide con esa búsqueda.</div>
 <script>
@@ -53,6 +54,7 @@ function filterRows() {
     if (show) visible += 1;
   });
   document.querySelector('#no-results').hidden = visible !== 0;
+  document.querySelector('#n-visibles').textContent = visible + (visible === 1 ? ' caso a la vista' : ' casos a la vista');
   document.querySelectorAll('.grupo').forEach(grupo => {
     const coinciden = [...grupo.querySelectorAll('.case-row')].filter(row => !row.hidden).length;
     grupo.hidden = coinciden === 0;

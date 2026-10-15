@@ -850,7 +850,8 @@ class DoubleSendTests(Base):
         from anka.web.views import render_page
         page = render_page("t", "x", "", 0, "chatgpt_work")
         self.assertIn("Enviando", page)
-        self.assertIn("formaction') === '/send'", page)
+        self.assertIn("'/send': 'Enviando…'", page)
+        self.assertIn("sender.disabled = true", page)
 
 
 # Cubre: T-05, R13, F1-06

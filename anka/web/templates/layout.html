@@ -8,6 +8,7 @@
   <style>
 {% include "style.css" %}
   </style>
+  <noscript><style>.editor-tabla { display: block; } .fila-resumen.extra { display: table-row !important; } .ver-todas-boton, #agregar-fila, #editar-boton { display: none; }</style></noscript>
 </head>
 <body>
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
@@ -15,9 +16,10 @@
     {% macro actual(ruta) %}{% if nav_actual == ruta %} aria-current="page"{% endif %}{% endmacro %}
     <a class="brand" href="/"{{ actual('/') }} aria-label="Anka, mis casos{% if unread_count %}: {{ unread_count }} con novedades{% endif %}"><img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38"><div><strong>Anka</strong><span>Mis casos</span></div>{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a>
     <div class="toolbar">
-      <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Tema actual: el del sistema. Pulsa para usar el claro" title="Tema actual: el del sistema. Pulsa para usar el claro">Tema: sistema</button>
+      <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Tema: sistema. Pulsa para usar el claro" title="Tema: sistema. Pulsa para usar el claro">Tema: sistema</button>
       <button type="button" id="avisos-navegador" class="secondary" hidden title="Te avisaremos cuando llegue algo nuevo aunque esta pestaña esté escondida">Avisarme de novedades</button>
       <span id="bridge-chip" class="bridge-chip" hidden></span>
+      <span id="anuncio-estado" class="solo-lectores" role="status"></span>
       <a id="google-chip" class="bridge-chip" href="#ajustes" hidden></a>
       <details class="settings" id="ajustes"><summary>Ajustes</summary><div class="settings-box">{{ mode_selector }}
         <a class="enlace-ajustes" href="/requests">Administrar casos (eliminar, exportar)</a>
@@ -37,8 +39,9 @@
       </form>{% endif %}
     </div>
   </header>
+  <div id="cargando" class="solo-lectores" role="status"></div>
   <div id="fresh-banner" class="notice" role="status" hidden>Hay novedades en esta página. <a href="#" id="fresh-reload">Actualizar la página</a></div>
-  <main id="contenido" tabindex="-1">{% if message %}<div class='notice flash' role="status">{{ message }}</div>{% endif %}{{ body }}</main>
+  <main id="contenido" tabindex="-1">{% if message %}<div class='notice flash{% if message_is_error %} error{% endif %}' role="{{ 'alert' if message_is_error else 'status' }}">{% if message_is_error %}<span class="solo-lectores">Error: </span>{% endif %}{{ message }}</div>{% endif %}{{ body }}</main>
   <footer class="pie"><a href="/discarded">Correos que no eran solicitudes</a></footer>
   <dialog id="confirmar" class="confirm-dialog" aria-labelledby="confirmar-titulo" aria-describedby="confirmar-texto">
     <form method="dialog">
@@ -55,16 +58,39 @@
     // Evita el doble envío (U-31.18): un formulario que escribe se envía una sola vez y su botón queda bloqueado.
     document.addEventListener('submit', event => {
       const formulario = event.target;
+      if (event.defaultPrevented) return;      // otro script (p. ej. «no marcaste nada») ya lo detuvo: no se bloquea nada
       if (!formulario.method || formulario.method.toLowerCase() !== 'post') return;
       if (formulario.dataset.enviando === '1') { event.preventDefault(); return; }
       formulario.dataset.enviando = '1';
       const sender = event.submitter;
+      // Toda acción que escribe dice qué está haciendo (U-37): lo ve quien mira y lo oye quien usa lector de pantalla.
+      const textos = {'/send': 'Enviando…', '/draft': 'Guardando el borrador…', '/code-issue': 'Creando la carpeta y enviando…',
+                      '/code': 'Emitiendo la T…', '/approve': 'Creando la carpeta…', '/refresh': 'Buscando…', '/hoja': 'Actualizando la hoja…',
+                      '/activities': 'Guardando la tabla…', '/delete': 'Borrando…'};
+      const destino = ((sender && sender.getAttribute('formaction')) || formulario.getAttribute('action') || '').split('?')[0];
+      const texto = textos[destino] || 'Guardando…';
+      const aviso = document.getElementById('cargando');
+      formulario.setAttribute('aria-busy', 'true');
+      if (aviso) { aviso.className = 'solo-lectores'; aviso.textContent = texto; }
+      let original = null;
       if (sender) {
         setTimeout(() => {
           sender.disabled = true;
-          if (sender.getAttribute('formaction') === '/send') sender.textContent = 'Enviando…';
+          original = sender.textContent;
+          sender.textContent = texto;
         }, 0);
       }
+      // Si el servidor no contesta, el botón no se queda gris para siempre (U-37).
+      setTimeout(() => {
+        if (!document.body.contains(formulario)) return;
+        delete formulario.dataset.enviando;
+        formulario.removeAttribute('aria-busy');
+        if (sender) { sender.disabled = false; if (original !== null) sender.textContent = original; }
+        if (aviso) {
+          aviso.className = 'notice error';
+          aviso.textContent = 'No hubo respuesta. Antes de intentarlo otra vez, mira el historial del caso: puede que sí se haya hecho.';
+        }
+      }, 30000);
     });
     (function () {
       // Con el mensaje del correo editado, salir de la página (un enlace, atrás, cerrar) pide confirmar (U-31.18).
@@ -77,13 +103,34 @@
       });
     })();
     (function () {
-      // «+ Agregar» abre el editor de la tabla sin dejar el ancla en la dirección, y el mensaje del servidor no reaparece al recargar.
-      const interruptor = document.getElementById('editar-toggle'), editor = document.getElementById('editar-tabla');
-      const agregar = document.querySelector('.acts-head a[href="#editar-tabla"]');
-      if (interruptor && editor && agregar) agregar.addEventListener('click', evento => {
-        evento.preventDefault();
-        interruptor.checked = true;
+      // «Editar tabla» y «+ Agregar» son botones: el primero abre y cierra el editor (aria-expanded) y el segundo lo abre y lleva
+      // el cursor a la fila nueva (U-37). Sin JavaScript el editor se ve siempre (ver <noscript> arriba).
+      const editor = document.getElementById('editar-tabla');
+      const boton = document.getElementById('editar-boton'), agregar = document.getElementById('agregar-fila');
+      function abrirEditor(abrir) {
+        editor.classList.toggle('abierto', abrir);
+        boton.setAttribute('aria-expanded', String(abrir));
+      }
+      if (editor && boton) boton.addEventListener('click', () => abrirEditor(boton.getAttribute('aria-expanded') !== 'true'));
+      if (editor && boton && agregar) agregar.addEventListener('click', () => {
+        abrirEditor(true);
+        const nuevas = editor.querySelectorAll('.act-main.nueva textarea');
         editor.scrollIntoView({block: 'start'});
+        if (nuevas.length) nuevas[0].focus({preventScroll: true});
+      });
+      // Mostrar u ocultar las filas de más en el resumen de actividades.
+      const verTodas = document.getElementById('ver-todas'), resumen = document.getElementById('tabla-resumen');
+      if (verTodas && resumen) verTodas.addEventListener('click', () => {
+        const abrir = verTodas.getAttribute('aria-expanded') !== 'true';
+        verTodas.setAttribute('aria-expanded', String(abrir));
+        resumen.dataset.todas = abrir ? 'si' : 'no';
+      });
+      // Esc cierra el menú Ajustes y devuelve el foco a su título.
+      const ajustes = document.getElementById('ajustes');
+      if (ajustes) ajustes.addEventListener('keydown', evento => {
+        if (evento.key !== 'Escape' || !ajustes.open) return;
+        ajustes.open = false;
+        ajustes.querySelector('summary').focus();
       });
       const mensaje = document.querySelector('.notice.flash');
       if (mensaje) { mensaje.tabIndex = -1; mensaje.focus({preventScroll: true}); }     // el foco va al mensaje, no al inicio (U-31.25)
@@ -124,9 +171,10 @@
         const n = contar();
         const cajaEsperar = document.getElementById('caja-esperar');
         if (cajaEsperar) cajaEsperar.hidden = n > 0;      // solo se ofrece cuando el mensaje no lleva preguntas (U-31)
-        aviso.textContent = n ? 'Este correo lleva ' + n + ' pregunta' + (n === 1 ? '' : 's') + ': el caso quedará esperando al cliente.'
+        const texto = n ? 'Este correo lleva ' + n + ' pregunta' + (n === 1 ? '' : 's') + ': el caso quedará esperando al cliente.'
           : (casilla.checked ? 'Este correo no lleva preguntas, pero marcaste esperar su respuesta: el caso quedará esperando al cliente.'
           : 'Este correo no lleva preguntas: no se espera respuesta del cliente.');
+        if (aviso.textContent !== texto) aviso.textContent = texto;       // solo si cambió: el lector no repite lo mismo en cada tecla
       }
       cuerpo.addEventListener('input', mostrar); casilla.addEventListener('change', mostrar); mostrar();
       // Rearmar el correo con otras preguntas reemplaza el cuadro: si ya lo editaste, se pide confirmar (U-28).
@@ -211,6 +259,11 @@
         });
         const vacio = document.getElementById('sin-casos');
         if (vacio) vacio.hidden = visibles !== 0;
+        const cuenta = document.getElementById('n-visibles');
+        if (cuenta) {
+          const texto = visibles === 0 ? 'Ningún caso coincide' : visibles + (visibles === 1 ? ' caso a la vista' : ' casos a la vista');
+          if (cuenta.textContent !== texto) cuenta.textContent = texto;
+        }
       }
       botones.forEach(b => b.addEventListener('click', () => { etapaActual = b.dataset.etapa; aplicar(); }));
       if (buscador) buscador.addEventListener('input', aplicar);
@@ -240,8 +293,10 @@
           p.addEventListener('click', () => mostrar(p));
           p.addEventListener('keydown', evento => {
             const paso = evento.key === 'ArrowRight' ? 1 : evento.key === 'ArrowLeft' ? -1 : 0;
-            if (!paso) return;
-            const siguiente = pestanas[(pestanas.indexOf(p) + paso + pestanas.length) % pestanas.length];
+            if (!paso && evento.key !== 'Home' && evento.key !== 'End') return;
+            evento.preventDefault();
+            const siguiente = evento.key === 'Home' ? pestanas[0] : evento.key === 'End' ? pestanas[pestanas.length - 1]
+              : pestanas[(pestanas.indexOf(p) + paso + pestanas.length) % pestanas.length];
             siguiente.focus();
             mostrar(siguiente);
           });
@@ -330,7 +385,8 @@
         if (quitadas.size) partes.push(quitadas.size + ' por quitar');
         if (nuevas.size) partes.push(plural(nuevas.size, 'nueva', 'nuevas'));
         const hay = partes.length > 0;
-        estado.textContent = hay ? 'Cambios sin guardar: ' + partes.join(', ') + '.' : estado.dataset.sinCambios;
+        const textoEstado = hay ? 'Cambios sin guardar: ' + partes.join(', ') + '.' : estado.dataset.sinCambios;
+        if (estado.textContent !== textoEstado) estado.textContent = textoEstado;
         barra.classList.toggle('con-cambios', hay);
         guardar.disabled = !hay;
         motivo.hidden = !hay;
@@ -356,8 +412,8 @@
         boton.textContent = 'Tema: ' + nombres[actual];
         // Dice el tema actual y a cuál cambia al pulsar (U-28).
         const siguiente = orden[(orden.indexOf(actual) + 1) % orden.length];
-        const tema = t => t === 'system' ? 'el del sistema' : nombres[t];
-        const ayuda = 'Tema actual: ' + tema(actual) + '. Pulsa para usar ' + (siguiente === 'system' ? 'el del sistema' : 'el ' + nombres[siguiente]);
+        // El nombre accesible empieza por el texto visible («Tema: claro»): quien manda por voz dice lo que ve (U-37).
+        const ayuda = 'Tema: ' + nombres[actual] + '. Pulsa para usar ' + (siguiente === 'system' ? 'el del sistema' : 'el ' + nombres[siguiente]);
         boton.setAttribute('aria-label', ayuda);
         boton.title = ayuda;
       }
@@ -426,6 +482,14 @@
         return !Array.from(document.querySelectorAll('textarea, input:not([type=hidden]):not([type=checkbox]):not([type=radio])'))
           .some(campo => campo.value !== campo.defaultValue);
       }
+      // El estado de la revisión de correos y de Google cambia en silencio: se dice en voz alta solo cuando cambia (U-37).
+      const anuncio = document.getElementById('anuncio-estado');
+      let anunciado = null;
+      function anunciar(partes) {
+        const texto = partes.filter(Boolean).join(' ');
+        if (anunciado === null) { anunciado = texto; return; }       // el primer estado es el de la página, no una novedad
+        if (texto !== anunciado) { anunciado = texto; anuncio.textContent = texto; }
+      }
       async function poll() {
         try {
           const r = await fetch('/state', {cache: 'no-store'});
@@ -447,6 +511,7 @@
           googleChip.title = g.texto || '';
           if (g.texto) googleStatus.textContent = g.texto;
           googleChip.textContent = needsGoogle ? 'Google desconectado · Volver a conectar' : 'Conectando con Google…';
+          anunciar([chip.hidden ? '' : chip.textContent + (s.text ? '. ' + s.text : ''), googleChip.hidden ? '' : googleChip.textContent + (g.texto ? '. ' + g.texto : '')]);
           if (typeof s.sin_leer === 'number') {
             if (sinLeer !== null && s.sin_leer > sinLeer) avisarDelNavegador(s.sin_leer);
             sinLeer = s.sin_leer;

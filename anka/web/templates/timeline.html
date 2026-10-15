@@ -4,14 +4,14 @@
     {{ event_count }} anotaciones · <a href="/acta?thread_id={{ thread_id | urlquote }}">Registro de cambios</a></p>
   {% if people %}
   <table class="people">
-    <thead><tr><th>Quién ha escrito</th><th>Empresa</th><th>Correos</th><th>Último</th><th></th></tr></thead>
+    <thead><tr><th scope="col">Quién ha escrito</th><th scope="col">Empresa</th><th scope="col">Correos</th><th scope="col">Último</th><th scope="col"><span class="solo-lectores">Rol</span></th></tr></thead>
     <tbody>{% for person in people %}<tr><td>{{ person.name }}<div class="meta">{{ person.email }}</div></td><td>{{ person.domain }}</td><td>{{ person.count }}</td><td>{{ person.last }}</td><td><span class="chip {{ 'nueva' if person.role == 'Contacto del caso' else 'distinta' }}">{{ person.role }}</span></td></tr>
     {% endfor %}</tbody>
   </table>
   {% endif %}
   {% if events %}
   <ul class="timeline">
-    {% for event in events %}<li><span class="meta">{{ event.when }} · {{ event.origin }}{% if event.who %} · {{ event.who }}{% endif %}</span> {{ event.summary }}{% if event.gmail_url %} <a href="{{ event.gmail_url }}" target="_blank" rel="noopener">ver correo</a>{% endif %}</li>
+    {% for event in events %}<li><span class="meta">{{ event.when }} · {{ event.origin }}{% if event.who %} · {{ event.who }}{% endif %}</span> {{ event.summary }}{% if event.gmail_url %} <a href="{{ event.gmail_url }}" target="_blank" rel="noopener">ver correo<span class="solo-lectores"> (se abre en una pestaña nueva)</span></a>{% endif %}</li>
     {% endfor %}
   </ul>
   {% else %}<p class="meta">Aún no hay anotaciones de este caso.</p>{% endif %}

@@ -37,11 +37,22 @@ def mode_selector(current: str | None, api_key_set: bool = True) -> Markup:
 NAV_ACTUAL = {"Mis casos": "/"}
 
 
+# Un aviso de fallo viaja con esta marca invisible delante: la página lo dibuja como alerta (U-37).
+MARCA_DE_ERROR = chr(0x2063)      # separador invisible
+
+
+def marcar_como_error(message: str) -> str:
+    """El mismo mensaje, señalado como fallo para que la página lo anuncie como alerta."""
+    return MARCA_DE_ERROR + message if message else message
+
+
 def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
                 mode: str | None = None, api_key_set: bool = True) -> str:
     """Página completa: encabezado, avisos, selector de modo y el contenido recibido."""
+    es_error = message.startswith(MARCA_DE_ERROR)
+    message = message.lstrip(MARCA_DE_ERROR)
     return str(render(
-        "layout.html", title=title, body=body, message=message, unread_count=unread_count,
+        "layout.html", title=title, body=body, message=message, message_is_error=es_error, unread_count=unread_count,
         mode_selector=mode_selector(mode, api_key_set), is_work=(mode == "chatgpt_work"),
         nav_actual=NAV_ACTUAL.get(title, ""),
     ))

@@ -3,7 +3,8 @@
 </div>
 {{ notifications }}
 {% if total %}
-<div class="buscar-casos"><label class="solo-lectores" for="buscar-casos">Buscar un caso</label><input id="buscar-casos" type="search" placeholder="Buscar por proyecto, cliente o servicio"></div>
+<div class="buscar-casos"><label for="buscar-casos">Buscar un caso</label><input id="buscar-casos" type="search" placeholder="Buscar por proyecto, cliente o servicio"></div>
+<p id="n-visibles" class="solo-lectores" role="status"></p>
 <div class="chips" role="group" aria-label="Filtrar por etapa" data-filtro-etapas data-inicial="{{ inicial }}">
   {% for key, label, count in etapas %}<button type="button" class="chip-filter" data-etapa="{{ key }}" aria-pressed="false">{{ label }} <b>{{ count }}</b></button>
   {% endfor %}<button type="button" class="chip-filter" data-etapa="" aria-pressed="false">Todos <b>{{ total }}</b></button>

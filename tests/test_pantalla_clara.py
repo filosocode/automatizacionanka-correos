@@ -153,7 +153,7 @@ class Accesibilidad(unittest.TestCase):
     def test_el_boton_de_tema_dice_el_actual_y_el_siguiente(self) -> None:
         # Cubre: U-28
         layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
-        self.assertIn('aria-label="Tema actual: el del sistema. Pulsa para usar el claro"', layout)
+        self.assertIn('aria-label="Tema: sistema. Pulsa para usar el claro"', layout)
         self.assertIn("boton.setAttribute('aria-label', ayuda)", layout)
 
     def test_glosario_y_sin_estilos_en_linea_en_el_caso(self) -> None:

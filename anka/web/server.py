@@ -35,6 +35,7 @@ from anka.web import formularios_pendientes as pendientes
 from anka.web.acciones import POST_ROUTES, field, int_field
 from anka.web.api import a_json, resumen_de_caso
 from anka.web import pantalla_caso
+from anka.web.views import marcar_como_error
 from anka.web.seguridad import (
     CSRF_TOKEN, CuerpoNoValido, add_csrf_tokens, cabeceras_de_seguridad, csp_docs, es_mensaje_para_la_persona,
     id_de_error, is_local_host_header, is_same_origin, longitud_del_cuerpo, nombre_seguro,
@@ -78,6 +79,20 @@ STREAM_KEEPALIVE = 15       # latido para que nada corte una conexión inactiva
 _streams = threading.BoundedSemaphore(MAX_STREAMS)
 
 MAX_CAMPOS = 10_000         # campos de un formulario: la tabla más grande (200 filas × 11) cabe de sobra
+
+
+def _mensaje(query: dict[str, list[str]]) -> str:
+    """El aviso de la dirección; con `aviso=error` se marca como fallo para anunciarlo como alerta (U-37)."""
+    texto = field(query, "message")
+    return marcar_como_error(texto) if field(query, "aviso") == "error" else texto
+
+
+def _senalar_fallo(location: str) -> str:
+    """Añade `aviso=error` a la dirección a la que se redirige tras una acción que terminó con un aviso de fallo."""
+    ruta, almohadilla, ancla = location.partition("#")
+    if "message=" not in ruta:
+        return location
+    return ruta + ("&" if "?" in ruta else "?") + "aviso=error" + almohadilla + ancla
 
 
 class ReviewHandler(BaseHTTPRequestHandler):
@@ -174,14 +189,14 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
     # --- páginas (GET)
     def _get_index(self, query: dict[str, list[str]]) -> None:
-        self._send_html(paginas.render_index(field(query, "message")))
+        self._send_html(paginas.render_index(_mensaje(query)))
 
     def _get_requests(self, query: dict[str, list[str]]) -> None:
         agrupar = field(query, "agrupar", "1") != "0"
-        self._send_html(paginas.render_requests(field(query, "message"), agrupar_hilos=agrupar))
+        self._send_html(paginas.render_requests(_mensaje(query), agrupar_hilos=agrupar))
 
     def _get_discarded(self, query: dict[str, list[str]]) -> None:
-        self._send_html(paginas.render_discarded(field(query, "message")))
+        self._send_html(paginas.render_discarded(_mensaje(query)))
 
     def _get_case(self, query: dict[str, list[str]]) -> None:
         thread_id = field(query, "thread_id")
@@ -189,7 +204,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return self._aviso("Caso no encontrado", "La solicitud no existe.", 404)
         try:
             pagina = pantalla_caso.render_case(
-                thread_id, field(query, "message"), field(query, "template"),
+                thread_id, _mensaje(query), field(query, "template"),
                 int_field(query, "change_id"), field(query, "to"), field(query, "preguntas"))
         except ErrorDeAnka as exc:          # p. ej. config.json incompleto: se dice qué falta, con salida (U-34.1)
             log.warning("%s: la pantalla del caso no se pudo armar (%s)", thread_id, exc, exc_info=True)
@@ -327,9 +342,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
         try:
             with request_scope():
                 location = action(form)
-            if hilo and not pendientes.hubo_fallo():
+            hubo_fallo = pendientes.hubo_fallo()
+            if hilo and not hubo_fallo:
                 pendientes.limpiar(hilo)
-            self._redirect(location)
+            self._redirect(_senalar_fallo(location) if hubo_fallo else location)
         except ValueError as exc:
             self._rechazada("POST", path, exc, field(form, "thread_id")[:200])
         except Exception as exc:

@@ -149,7 +149,8 @@ class OtrasRutas(Base):
             self.post("/activities", campos)
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn("Mi actividad nueva", pagina)
-        self.assertRegex(pagina, r'id="editar-toggle" class="toggle-oculto" checked')
+        self.assertRegex(pagina, r'id="editar-boton" aria-expanded="true"')
+        self.assertIn('class="editor-tabla abierto" id="editar-tabla"', pagina)
 
 
 if __name__ == "__main__":

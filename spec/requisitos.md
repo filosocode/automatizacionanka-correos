@@ -848,6 +848,29 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 - E3 · El CSS declara `@font-face` con `font-display: swap`, no menciona Google Fonts y la regla de «reducir movimiento» cubre `*`, `::before` y `::after`.
 - E4 · La cabecera trae `<img … alt="Anka">` hacia `/static/logo-anka.png`.
 
+### U-37 · Accesibilidad de la pantalla: lo que se elige y se avisa no depende del color ni del ratón (Ola 2 del plan de experiencia)
+**Estado: implementado** (pruebas en `tests/test_accesibilidad.py`; instantáneas regeneradas). Decisión: D-102. Es de forma, no de contenido: no cambia textos únicos (D-97), «Sí, enviar al cliente» ni el vocabulario de `test_vocabulario`; el texto añadido solo para lectores de pantalla (`solo-lectores`) usa ese mismo vocabulario. Complementa U-31 punto 25 (D-98) y U-36.
+
+**Qué debe cumplirse**
+1. **Avance del caso.** Los pasos son una lista ordenada (`<ol>`); el actual lleva `aria-current="step"`; cada uno dice «Hecho», «Paso actual» o «Pendiente» para lectores y lleva marca ✓, ▶ u ○ (no solo color).
+2. **Lo elegido se ve sin color.** Las tarjetas de decisión muestran ○ / ●, las píldoras y los chips marcados muestran ✓; en alto contraste (`forced-colors`) el borde pasa a `Highlight`. «Cómo seguir con este caso» es un `fieldset` con `legend`.
+3. **Avisos.** Un aviso que cuenta un fallo se anuncia como `role="alert"` con «Error:» para lectores (los demás, `role="status"`); lo escrito por el servidor lo marca con `aviso=error` en la dirección, no con el texto. Los cambios de estado de la revisión de correos y de Google se anuncian en una región `status`; el contador de casos visibles tras filtrar («3 casos a la vista») también; el texto de un aviso en vivo solo se reescribe si cambió. «Hay cambios nuevos» ya era `status` (U-34).
+4. **Pantalla angosta y zoom.** A 360 px no hay desplazamiento horizontal (el `overflow-x: hidden` del `body` se quitó y se arreglaron los desbordes); Ajustes se despliega en el flujo en ≤ 720 px, el selector de motor envuelve y Esc cierra Ajustes. Con `max-height: 600px` el encabezado, la barra de envío y el aviso dejan de ser pegajosos; hay `scroll-padding-bottom` para que la barra no tape el foco.
+5. **Tamaños.** El texto no baja de 14 px (rem, con `max(.875rem, 14px)`); los campos son de 16 px en ≤ 720 px; casillas de 24 px y enlaces/botones de acción de 44 px de alto; los botones secundarios y los chips tienen borde visible.
+6. **Campos.** El buscador y el mensaje del correo tienen etiqueta visible; los campos obligatorios de la T y de la carpeta dicen «(obligatorio)»; el número de la T usa `inputmode="numeric"`.
+7. **Tabla de actividades.** Tiene nombre accesible; todo `th` lleva `scope="col"` y ninguno está vacío (los de acción llevan texto para lectores); «Editar tabla» y «Ver todas» son botones con `aria-expanded` (no casillas ocultas) y sin JavaScript el editor se ve siempre; «+ Agregar» es un botón y lleva el cursor a la fila nueva; el editor se apila hasta 900 px.
+8. **Botón de tema.** Su nombre accesible empieza por el texto visible («Tema: sistema. Pulsa para usar el claro»).
+9. **Acciones largas.** Toda acción que escribe cambia el texto del botón («Enviando…», «Guardando…», «Creando la carpeta…»), lo dice en una región `status` y marca el formulario con `aria-busy`; a los 30 s libera el botón y avisa «No hubo respuesta…». Un envío detenido por otro script no bloquea el formulario.
+10. **Limpieza.** Los casos de `/requests` usan `h2`; los enlaces que abren pestaña nueva lo dicen; sin `alert()` (el aviso es en línea con `role="alert"`); las pestañas responden a Inicio y Fin; el punto de novedades dice «Nuevo:».
+
+**Casos de aceptación**
+- A1 · La pantalla de un caso trae `<ol class="process">` con un solo `aria-current="step"` y el texto «Paso actual».
+- A2 · Un `?message=…&aviso=error` se dibuja con `role="alert"`; sin `aviso=error`, con `role="status"`.
+- A3 · Una acción que termina con aviso añade `aviso=error` a la dirección a la que redirige.
+- A4 · El CSS no pone `overflow-x: hidden` en `body`, declara `forced-colors`, marcas ○/●/✓ y `scroll-padding-bottom`.
+- A5 · Ningún `th` de las plantillas queda sin `scope` ni vacío.
+- A6 · El código de la T pide «(obligatorio)» y `inputmode="numeric"`.
+
 ### U-35 · Lenguaje claro: mensajes que dicen qué pasó y qué hacer (Ola 1 del plan de experiencia)
 **Estado: implementado** (pruebas en `tests/test_lenguaje_claro.py` y las de texto exacto de cada pantalla). Decisión: D-100. Acota U-31 puntos 24 y 25 (un solo texto por decisión y por acción), D-96/D-97 (nombres de estado y de decisión, que no cambian) y D-27 (la autorización de Google solo con acción explícita, que no cambia).
 

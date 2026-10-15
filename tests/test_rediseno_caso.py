@@ -185,7 +185,7 @@ class TablaYLenguaje(unittest.TestCase):
         cabecera = editor[editor.index("<thead"):editor.index("</thead>")]
         self.assertEqual(cabecera.count("<th role="), 6)         # cinco columnas y la de «Quitar»
         for titulo in ("Actividad", "Tipo de servicio", "Cantidad y unidad", "Estado", "Notas"):
-            self.assertIn(f'<th role="columnheader">{titulo}</th>', cabecera)
+            self.assertIn(f'<th role="columnheader" scope="col">{titulo}</th>', cabecera)
         for clave, _ in ACTIVITY_COLUMNS:                       # el formulario guarda lo mismo que antes
             self.assertIn(f"name='a0_{clave}'", html)
             self.assertIn(f"name='a1_{clave}'", html)           # y la fila nueva

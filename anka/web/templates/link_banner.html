@@ -9,6 +9,7 @@
       <label><input type="checkbox" data-select-all-links> Seleccionar todas</label>
       <button type="submit" class="secondary">Descartar seleccionadas</button>
     </div>
+    <p class="meta" data-links-error role="alert" hidden>Selecciona al menos una posible actualización.</p>
     {% for item in links %}
       <input type="checkbox" name="link_id" value="{{ item.link.id }}" data-link-checkbox hidden>
     {% endfor %}
@@ -52,9 +53,13 @@
   });
   root.querySelector('.link-bulk-form').addEventListener('submit', event => {
     sync();
+    root.querySelector('[data-links-error]').hidden = true;
     if (!root.querySelector('[data-link-checkbox]:checked')) {
       event.preventDefault();
-      alert('Selecciona al menos una posible actualización.');
+      const aviso = root.querySelector('[data-links-error]');
+      aviso.hidden = false;
+      const primera = root.querySelector('[data-link-id]');
+      if (primera) primera.focus();
     }
   });
 })();

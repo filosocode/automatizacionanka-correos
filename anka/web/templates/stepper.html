@@ -10,9 +10,9 @@
     </dl>
   </details>
 </div>
-<section class="section stepper">
-  <div class="process">
-    {% for step in steps %}<div class="process-step {{ step.state }}"><strong>{{ step.title }}</strong><span>{{ step.note }}</span></div>
+<section class="section stepper" aria-label="Avance del caso">
+  <ol class="process">
+    {% for step in steps %}<li class="process-step {{ step.state }}"{% if step.state == 'current' %} aria-current="step"{% endif %}><strong>{{ step.title }}</strong><span><span class="solo-lectores">{{ 'Hecho. ' if step.state == 'done' else 'Paso actual. ' if step.state == 'current' else 'Pendiente. ' }}</span>{{ step.note }}</span></li>
     {% endfor %}
-  </div>
+  </ol>
 </section>

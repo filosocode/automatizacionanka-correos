@@ -17,9 +17,9 @@
   <form method="post" action="/code-issue">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <input type="hidden" name="suggested_number" value="{{ suggestion }}">
-    <div class="filters"><label>Número de la T (año + consecutivo)<input name="number" value="{{ (numero_escrito if numero_escrito is defined else '') or suggestion }}" pattern="[0-9]{5}" required></label></div>
+    <div class="filters"><label>Número de la T (año + consecutivo) <span class="meta">(obligatorio)</span><input name="number" value="{{ (numero_escrito if numero_escrito is defined else '') or suggestion }}" pattern="[0-9]{5}" inputmode="numeric" title="5 dígitos: el año y el consecutivo, por ejemplo 26145" required></label></div>
     <p class="meta">Es una sugerencia según los códigos que ya hay aquí. Cámbiala si el número real es otro; el correo se arregla solo.</p>
-    <label>Correo que se enviará a {{ contact }} (puedes editarlo)<textarea name="body" rows="14" required>{{ received_text }}</textarea></label>
+    <label>Correo que se enviará a {{ contact }} (puedes editarlo) <span class="meta">(obligatorio)</span><textarea name="body" rows="14" required>{{ received_text }}</textarea></label>
     <div class="toolbar">
       <button type="submit" data-resumen="emision" data-para="{{ contact }}" data-sugerido="{{ suggestion }}" data-anio="{{ anio_actual | default('') }}"
         data-confirm="Se emitirá la T, se creará la carpeta en Drive con los documentos del cliente y la tabla, y SE ENVIARÁ este correo a {{ contact }}. ¿Confirmas el número y el texto?">Emitir la T, crear la carpeta y enviar el correo</button>

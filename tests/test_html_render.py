@@ -259,7 +259,7 @@ class InjectionTests(Pages):
         # Referencia: qué etiquetas/atributos usa la misma página con datos normales.
         baseline_pages = {"index", "requests", "case_t-review"}
         safe = [canonical(self.pages[name]) for name in baseline_pages]
-        allowed_tags = set().union(*(p.tags for p in safe)) | {"pre", "ol", "ul", "li", "small", "fieldset", "legend"}
+        allowed_tags = set().union(*(p.tags for p in safe)) | {"pre", "ol", "ul", "li", "small", "fieldset", "legend", "noscript"}
         allowed_attrs = set().union(*(p.attrs for p in safe))
         # Scripts propios: el del tema (en el encabezado, antes de pintar), el de confirmación en toda página
         # y el de filtros en /requests.
@@ -283,7 +283,8 @@ class InjectionTests(Pages):
                 # (pattern valida el número de la T, que solo aparece con la información validada).
                 # `open` lo pone el código en el aviso plegable «Parece el mismo proyecto»; nunca viene de datos.
                 self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "checked", "pattern", "open",
-                                                         "data-sugerido", "data-anio"})   # resumen de la emisión de la T
+                                                         "data-sugerido", "data-anio",   # resumen de la emisión de la T
+                                                         "inputmode", "data-todas", "aria-busy"})   # accesibilidad (U-37)
                 self.assertEqual(parsed.scripts, legit_scripts[name])
 
     def test_hostile_page_does_not_add_scripts_beyond_the_legitimate_ones(self):

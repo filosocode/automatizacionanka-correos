@@ -159,7 +159,7 @@ class ArchivosEnUnaLinea(Base):
         panel = self.panel(pantalla_caso.render_case("t-1"))
         self.assertIn("3 archivos · 1 por revisar", panel)
         tabla = panel[panel.index('class="act-resumen"'):panel.index("</table>")]
-        self.assertIn("<th>Archivo</th><th>Qué pasó</th>", tabla)
+        self.assertIn('<th scope="col">Archivo</th><th scope="col">Qué pasó</th>', tabla)
         self.assertEqual(tabla.count('class="fila-resumen'), 3)
         self.assertLess(tabla.index("planos.dwg"), tabla.index("solicitud.pdf"))       # lo que hay que revisar, primero
         fila = tabla.split('<tr class="fila-resumen falta">')[1].split("</tr>")[0]
@@ -218,8 +218,8 @@ class TablaDelPrototipo(Base):
         self.crear(actividades=self.filas(3, incompletas=(2,)))
         vista = self.vista(pantalla_caso.render_case("t-1"))
         for titulo in ("Actividad", "Cantidad", "Estado"):
-            self.assertIn(f"<th>{titulo}</th>", vista)
-        self.assertEqual(vista.count("<th>"), 3)
+            self.assertIn(f'<th scope="col">{titulo}</th>', vista)
+        self.assertEqual(vista.count("<th "), 3)
         self.assertIn("10 ha", vista)
         self.assertIn(">Completa<", vista)
         self.assertIn(">Por completar<", vista)
@@ -231,16 +231,19 @@ class TablaDelPrototipo(Base):
         pagina = pantalla_caso.render_case("t-1")
         cabecera = pagina[pagina.index('class="acts-head"'):pagina.index('class="act-resumen"')]
         self.assertIn("<h2>Actividades detectadas</h2>", cabecera)
-        self.assertIn('<a class="button secondary" href="#editar-tabla">+ Agregar</a>', cabecera)
-        self.assertIn('<label for="editar-toggle" class="button secondary">Editar tabla</label>', cabecera)
-        self.assertRegex(pagina, r'<input type="checkbox" id="editar-toggle" class="toggle-oculto">')
-        self.assertNotIn('id="editar-toggle" class="toggle-oculto" checked', pagina)     # cerrada al cargar
+        # Botones reales (no casillas ocultas): «Editar tabla» dice si está abierta (U-37)
+        self.assertIn('<button type="button" class="button secondary" id="agregar-fila" aria-controls="editar-tabla">+ Agregar</button>', cabecera)
+        self.assertIn('id="editar-boton" aria-expanded="false" aria-controls="editar-tabla">Editar tabla</button>', cabecera)
+        self.assertNotIn("editar-toggle", pagina)
+        self.assertNotIn("toggle-oculto", pagina)
+        self.assertNotIn('id="editar-boton" aria-expanded="true"', pagina)     # cerrada al cargar
         editor = pagina[pagina.index('class="editor-tabla" id="editar-tabla"'):]
-        for conservado in ('<th role="columnheader">Tipo de servicio</th>', "Guardar tabla", "Ver historial de cambios", "Bajar en Excel",
+        for conservado in ('<th role="columnheader" scope="col">Tipo de servicio</th>', "Guardar tabla", "Ver historial de cambios", "Bajar en Excel",
                            "Más datos: ubicación, entregable, plazo y fuente"):
             self.assertIn(conservado, editor)
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
-        self.assertIn(".toggle-oculto:checked ~ .editor-tabla, .editor-tabla:target, .editor-tabla:has(:target)", css)
+        self.assertIn(".editor-tabla:target, .editor-tabla:has(:target)", css)
+        self.assertIn(".editor-tabla.abierto { display: block; }", css)
         # el formulario y el cuadro de exportación están dentro del panel que se abre; fuera solo queda la vista compacta
         self.assertGreater(pagina.index('action="/activities"'), pagina.index('id="editar-tabla"'))
         self.assertGreater(pagina.index('id="hoja-google"'), pagina.index('action="/activities"'))
@@ -416,7 +419,7 @@ class IgualAlPrototipo(Base):
     def test_los_botones_de_la_tabla_son_de_contorno_con_texto_de_la_marca(self) -> None:
         # Cubre: U-31
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
-        self.assertIn(".acts-head .button.secondary, .acts-head label.button { background: transparent; color: var(--accent-dark);", css)
+        self.assertIn(".acts-head .button.secondary { background: transparent; color: var(--accent-dark);", css)
 
     def test_lo_que_falta_se_dice_antes_de_las_opciones(self) -> None:
         # Cubre: U-31
@@ -882,7 +885,7 @@ class SeguridadDelUsuario(Base):
         # Cubre: U-31
         layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
         for pieza in ("dataset.enviando", "beforeunload", "cuerpo.defaultValue", "history.replaceState",
-                      "searchParams.delete('message')", "a[href=\"#editar-tabla\"]", "interruptor.checked = true"):
+                      "searchParams.delete('message')", "getElementById('agregar-fila')", "abrirEditor(true)"):
             self.assertIn(pieza, layout)
 
     def test_el_mensaje_queda_a_la_vista_tras_saltar_a_un_ancla(self) -> None:

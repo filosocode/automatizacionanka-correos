@@ -18,12 +18,12 @@
   <input type="hidden" name="change_id" value="{{ compose_change_id }}">{% endif %}
   {% if compose_purpose %}<input type="hidden" name="purpose" value="{{ compose_purpose }}">{% endif %}
   <div class="para-linea"><span class="etiqueta-mail">Para</span> <span class="para">{{ compose_to or review.recipient }}</span></div>
-  <label class="solo-lectores" for="cuerpo-correo">Mensaje (puedes editarlo)</label>
+  <label class="etiqueta-mail" for="cuerpo-correo">Mensaje (puedes editarlo)</label>
   <textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
   <label class="nota check-line" id="caja-esperar"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta"{% if esperar_marcada %} checked{% endif %}>
     Marcar «esperando al cliente» aunque el correo no tenga preguntas</label>
   <div class="barra-accion">
-  <p class="nota" id="aviso-espera" aria-live="polite"></p>
+  <p class="nota" id="aviso-espera" role="status"></p>
   <div class="acciones">
     <button type="submit" formaction="/send" class="send-action"
       data-confirm="{% if review.sent_at %}Ya se envió un correo a este caso el {{ review.sent_at }}. Este sería otro. {% endif %}Vas a enviar este correo a {{ compose_to or review.recipient }}, como respuesta a su conversación. ¿Lo enviamos?"
@@ -86,7 +86,7 @@
   </div>
   <span class="badge">{{ review.status_label }}</span>{% if code_text %} <span class="badge info">{{ code_text }}</span>{% endif %}
 </div>
-{% if restaurado %}<div class="notice" role="status">No pudimos terminar lo que pediste. <strong>Lo que escribiste sigue aquí</strong>: míralo y pulsa el botón otra vez.</div>{% endif %}
+{% if restaurado %}<div class="notice error" role="alert"><span class="solo-lectores">Error: </span>No pudimos terminar lo que pediste. <strong>Lo que escribiste sigue aquí</strong>: míralo y pulsa el botón otra vez.</div>{% endif %}
 {{ stepper }}
 {{ next_step }}
 {% if slot == 'lectura' %}
@@ -108,14 +108,14 @@
   {% if lo_que_falta %}<p class="nota">{{ lo_que_falta }}</p>{% endif %}
   <form method="post" action="/review-decision" class="decision-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
-    <div class="opciones" role="radiogroup" aria-label="Cómo seguir con este caso">
+    <fieldset class="opciones"><legend class="solo-lectores">Cómo seguir con este caso</legend>
       <label class="opcion"><input type="radio" name="decision" value="sufficient" required>
         <span><strong>Con esto alcanza</strong>
         <small>Ya tengo lo necesario para cotizar.</small></span></label>
       <label class="opcion"><input type="radio" name="decision" value="ask_client" required>
         <span><strong>Hay que preguntarle al cliente</strong>
         <small>Elijo qué preguntas y armo el correo.</small></span></label>
-    </div>
+    </fieldset>
     <div class="preguntas-bloque">
       <label>Preguntas para el cliente (una por línea)
         <textarea name="questions" class="caja-media" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">{{ cuadro_preguntas }}</textarea>
@@ -206,9 +206,9 @@
     {% if drive_pending %}<div class='notice'>{{ drive_pending }}</div>{% endif %}
     <form method="post" action="/approve">
       <input type="hidden" name="thread_id" value="{{ thread_id }}">
-      <div class="filters"><label>Carpeta del cliente<input name="client_name" value="{{ review.client_name_saved }}" required></label></div>
-      <label><input type="checkbox" name="new_client" value="1"> Es un cliente nuevo: crear su carpeta</label>
-      <label><input type="checkbox" name="allow_similar" value="1"> Es otro proyecto: crear la carpeta aunque haya una parecida</label>
+      <div class="filters"><label>Carpeta del cliente <span class="meta">(obligatorio)</span><input name="client_name" value="{{ review.client_name_saved }}" required></label></div>
+      <label class="check-line"><input type="checkbox" name="new_client" value="1"> Es un cliente nuevo: crear su carpeta</label>
+      <label class="check-line"><input type="checkbox" name="allow_similar" value="1"> Es otro proyecto: crear la carpeta aunque haya una parecida</label>
       <div class="toolbar spaced"><button type="submit">Crear carpeta del proyecto</button></div>
     </form>
   </section>

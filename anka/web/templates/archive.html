@@ -2,7 +2,7 @@
 <section class="section">
   {% if items %}
   <table class="people">
-    <thead><tr><th>Caso</th><th>Anotaciones</th><th>Primera</th><th>Última</th><th></th></tr></thead>
+    <thead><tr><th scope="col">Caso</th><th scope="col">Anotaciones</th><th scope="col">Primera</th><th scope="col">Última</th><th scope="col"><span class="solo-lectores">Acciones</span></th></tr></thead>
     <tbody>{% for item in items %}<tr><td>{{ item.thread_id }}</td><td>{{ item.n }}</td><td>{{ item.first[:16] | replace('T', ' ') }}</td><td>{{ item.last[:16] | replace('T', ' ') }}</td><td><a class="button secondary" href="/acta?thread_id={{ item.thread_id | urlquote }}">Ver registro</a></td></tr>
     {% endfor %}</tbody>
   </table>
