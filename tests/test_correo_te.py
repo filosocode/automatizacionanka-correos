@@ -81,7 +81,7 @@ class ReplyBoxOffersTheCodeEmails(unittest.TestCase):
                 patch("anka.servicios.case_actions.send_reply") as enviar:
             html = pantalla_caso.render_case("t-1", template="te_aprobada")
         self.assertIn("fue aprobada y quedó", html)
-        enviar.assert_not_called()                                 # solo se prepara: una persona pulsa «Enviar ahora»
+        enviar.assert_not_called()                                 # solo se prepara: una persona pulsa «Enviar al cliente»
 
 
 # Cubre: U-08

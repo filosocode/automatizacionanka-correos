@@ -163,7 +163,7 @@ def _post_reading_accept(form: Form) -> str:
 
 
 def _post_review_reopen(form: Form) -> str:
-    """Cambiar de idea antes de enviar las preguntas (U-27): volver a elegirlas o desistir de preguntar."""
+    """Cambiar de idea antes de enviar las preguntas (U-27): volver a decidirlas o desistir de preguntar."""
     thread_id, accion = field(form, "thread_id"), field(form, "accion")
     message = _guidance(lambda: volver_a_decidir(thread_id, accion), ValueError)
     return _to_case(thread_id, message, {"reconsiderar": "#decision", "suficiente": "#emitir-t"}.get(accion, ""))

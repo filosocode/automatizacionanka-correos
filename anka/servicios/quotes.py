@@ -559,7 +559,7 @@ def delete_quotes(thread_ids: list[str]) -> str:
 
 
 def volver_a_decidir(thread_id: str, accion: str) -> str:
-    """Cambiar de idea antes de enviar las preguntas (U-27): volver a elegirlas o desistir de preguntar.
+    """Cambiar de idea antes de enviar las preguntas (U-27): volver a decidirlas o desistir de preguntar.
 
     Solo mientras el correo no ha salido. `reconsiderar` devuelve el caso a la decisión técnica con las elecciones
     conservadas; `suficiente` da la información por suficiente, como en la decisión técnica. No envía nada ni borra el
@@ -588,7 +588,7 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
         else:
             analysis["manual_review"] = {"decision": "sufficient", "at": now, "questions": []}
             nuevo = QuoteStatus.READY_REVIEW
-            texto = "Decidiste no preguntar al cliente antes de enviar el correo: la información es suficiente."
+            texto = "Decidiste no preguntar al cliente antes de enviar el correo: con esto alcanza."
             mensaje = "Marcado como información validada. Ya puedes emitir la T y crear la carpeta en Drive."
         if row["draft_id"]:
             mensaje += " El borrador que guardaste en Gmail sigue ahí; no se borra."
@@ -684,7 +684,7 @@ def resolve_technical_review(
             new_status = QuoteStatus.READY_REVIEW if decision == "sufficient" else QuoteStatus.REVIEW_PENDING
             aparte = (f"; {por_dentro} por resolver dentro de Anka" if por_dentro else "") + (
                 f"; {descartadas} descartada(s)" if descartadas else "")
-            texto = ("Decidiste que la información es suficiente." if decision == "sufficient"
+            texto = ("Decidiste que con esto alcanza." if decision == "sufficient"
                      else f"Decidiste preguntar al cliente ({len(questions)} pregunta(s){aparte}).")
         actualizar_caso(db, thread_id,
             status=new_status,

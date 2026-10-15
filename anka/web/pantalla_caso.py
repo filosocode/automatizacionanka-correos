@@ -389,11 +389,11 @@ def _next_step_banner(review: Caso, work_mode: bool, hay_correo: bool = True, oc
             action_href="#seguimiento", action_label="Ver seguimiento")
     if hay_correo and review["status"] in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
         return aviso(tone="info", title="Revisa el correo y envíalo",
-            text="Nada sale al cliente hasta que pulses «Enviar ahora».",
+            text="Nada sale al cliente hasta que pulses «Enviar al cliente».",
             action_href="#respuesta", action_label="Ir al correo")
     if review["status"] == QuoteStatus.REVIEW:
         return aviso(tone="warn", title="Falta tu decisión de revisión técnica",
-            text="Decide si la información es suficiente o si hay que preguntar al cliente.",
+            text="Decide si con esto alcanza o si hay que preguntarle al cliente.",
             action_href="#decision", action_label="Decidir")
     if review.informacion_validada and not review.get("quote_code") and review["status"] != QuoteStatus.IGNORED:
         return aviso(tone="info", title="Información validada: puedes emitir la T",

@@ -273,7 +273,7 @@ Un caso ya avanzado ofrece la caja de respuesta en blanco, sin textos sugeridos 
 ### U-08 · Correos con el código de la oferta
 Un caso con código T ofrece siempre, en la caja de respuesta, preparar el correo de «proyecto recibido» (con el
 código) y, cuando la oferta pasa a T&E, el de «oferta aprobada». Al aprobar la oferta se prepara ese correo, pero
-nada se envía sin que una persona pulse «Enviar ahora» (R8).
+nada se envía sin que una persona pulse «Enviar al cliente» (R8).
 
 ### U-09 · El siguiente paso no se pierde al desplazarse
 El aviso de «siguiente paso» del caso queda a la vista mientras se recorre la pantalla (fijo arriba), con su botón que lleva
@@ -307,7 +307,7 @@ En revisión técnica, la pantalla ofrece una sola sección, «¿Cómo seguimos?
 cada una. Las preguntas para el cliente se editan ahí y no se repiten como tareas: «Qué falta resolver» solo cuenta cuántas
 hay. Mientras la respuesta está en pausa no aparece la sección «Respuesta al cliente». Al decidir, la persona llega directo
 al correo (si pregunta) o a la emisión de la T (si la información basta), y el aviso de arriba le dice que revise y envíe.
-Ningún correo sale sin «Enviar ahora» (R8).
+Ningún correo sale sin «Enviar al cliente» (R8).
 
 ### U-13 · Solicitudes: lista ordenada, con verbo y filtrada por etapa
 La lista de Solicitudes va, por defecto, de la más reciente a la más antigua (U-16). Cada fila lleva el botón con el verbo de su
@@ -461,17 +461,17 @@ va a leer. Lo que es de Anka no se sugiere para el cliente: las tareas internas 
 ### U-27 · Cambiar de idea antes de enviar las preguntas
 Mientras el correo con las preguntas no haya salido, la persona puede volver atrás desde la pantalla del caso, con dos salidas. **Volver a
 elegir las preguntas** devuelve el caso a la decisión técnica con todo lo que había elegido conservado (las que pasó al cliente, las que
-dejó para Anka, las que descartó y las que agregó), para cambiar cuáles y cuántas. **No preguntar: la información es suficiente** da el caso
+dejó para Anka, las que descartó y las que agregó), para cambiar cuáles y cuántas. **No preguntar: con esto alcanza** da el caso
 por suficiente, como en la decisión técnica, y habilita emitir la T. Ambas quedan en el historial y ninguna envía nada. Un borrador ya
 guardado en Gmail no se borra. Con el correo ya enviado no se puede volver atrás: la regla lo rechaza con su motivo.
 
 ### U-24 · Armar un correo con las preguntas que la persona escribe, en cualquier etapa
 En el cuadro de respuesta de cualquier etapa en que se pueda escribir al cliente hay un campo «Preguntas para el cliente» (una por
-línea) y un botón «Armar correo con estas preguntas». El correo se arma con la misma plantilla fija de siempre (saludo, las preguntas
+línea) y un botón «Preparar el correo de nuevo». El correo se arma con la misma plantilla fija de siempre (saludo, las preguntas
 numeradas tal como se escribieron, «Puede responder a este mismo correo» y la firma), en los tres modos y sin usar ningún modelo: no
 reescribe ni inventa nada. Cada línea es un punto de la lista tal como se escribió; se ignoran las líneas vacías, la numeración
 y las viñetas que la persona haya puesto y las preguntas repetidas, con un máximo de 20. El texto queda en el cuadro para editarlo;
-nada se envía hasta «Enviar ahora» (R8), y el aviso previo cuenta las preguntas y la casilla de espera sigue funcionando.
+nada se envía hasta «Enviar al cliente» (R8), y el aviso previo cuenta las preguntas y la casilla de espera sigue funcionando.
 Si el caso ya tiene código (T o T&E) y el correo va al contacto registrado, la plantilla es otra: nombra el proyecto y el código
 («Sobre su proyecto «X» (T26145), necesitamos confirmar lo siguiente») y pide citar el código al responder, porque desde la T la
 tabla solo se actualiza con mensajes que lo citen (R11). A quien no es el contacto registrado nunca se le incluye el código.
@@ -618,7 +618,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    preguntas, ni de la recepción).
 3. **«Usar las preguntas sugeridas».** En «Respuesta al cliente», mientras no hayas decidido nada y el análisis sugiera preguntas para el
    cliente, un botón carga esas preguntas en el campo «Preguntas para el cliente» y arma el correo (el mismo camino de U-24, con la plantilla
-   de siempre). No envía nada; el correo se revisa y se envía con «Enviar ahora» (R8). El botón desaparece cuando ya hay preguntas en el campo
+   de siempre). No envía nada; el correo se revisa y se envía con «Enviar al cliente» (R8). El botón desaparece cuando ya hay preguntas en el campo
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
@@ -665,7 +665,7 @@ la carpeta de Drive.
 12. **Resumen de la tabla.** Sobre la tabla, una línea «N actividades · M por completar» (o «todas completas»); `M` cuenta las que no están «confirmado» (R12). La explicación larga de los
     estados queda plegada en «Cómo leer los estados».
 13. **Aspecto de «Ahora» (idéntico al prototipo, D-83).** La decisión de revisión técnica es una tarjeta destacada con la etiqueta «Ahora», borde de color y el título «Revisa y decide cómo seguir», «Qué pide:» en un recuadro, una frase de lo que falta («Faltan: 3 actividades por completar y 2 archivos por revisar…») y, al final, «Elige una opción para continuar. Nada se envía al cliente en este paso.» Las salidas son
-    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Las opciones son tarjetas sin círculo de selección, con una línea de explicación, y **no viene ninguna marcada**: el cuadro de preguntas aparece al elegir «Hay que preguntarle al cliente» (reemplaza lo que U-30 decía de marcarla de entrada). Hay un botón por opción, que aparece al elegirla: «Marcar como suficiente» (pide confirmación, U-28.3) y «Preparar el correo». Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
+    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Las opciones son tarjetas sin círculo de selección, con una línea de explicación, y **no viene ninguna marcada**: el cuadro de preguntas aparece al elegir «Hay que preguntarle al cliente» (reemplaza lo que U-30 decía de marcarla de entrada). Hay un botón por opción, que aparece al elegirla: «Confirmar que alcanza» (pide confirmación, U-28.3) y «Preparar el correo». Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
     marca, pendientes en gris, y el actual con el texto en negrita.
 
 14. **Encabezado del prototipo.** «← Mis casos» (U-32), el nombre del proyecto, una línea «cliente · correo · recibido el …» y la insignia del estado. El párrafo largo de resumen sale del
@@ -674,10 +674,10 @@ la carpeta de Drive.
     (esperando al cliente, T emitida, carpeta lista). Lleva la etiqueta «Ahora», no se pega al desplazarse (reemplaza esa parte de U-09) y, si otra tarjeta ya dice lo mismo, el aviso de
     siguiente paso no se dibuja.
 16. **El correo, simple y amigable (D-84).** La tarjeta muestra «Para» en una línea, el «Mensaje (puedes editarlo)» en un cuadro grande, una línea que dice cuántas preguntas lleva y qué pasará con
-    el caso, y dos botones: «Enviar al cliente» (principal; sigue pidiendo confirmación con destinatario y asunto, R8) y «Guardar borrador en Gmail». Debajo, «Volver a redactar con otras preguntas»
-    abre un cuadro con las preguntas actuales (una por línea) para cambiarlas, y «Redactar de nuevo» escribe otra vez el mensaje con ellas (reemplaza el texto; si la persona ya lo editó, pide
+    el caso, y dos botones: «Enviar al cliente» (principal; sigue pidiendo confirmación con destinatario y asunto, R8) y «Guardar borrador en Gmail». Debajo, «Cambiar las preguntas»
+    abre un cuadro con las preguntas actuales (una por línea) para cambiarlas, y «Preparar el correo de nuevo» escribe otra vez el mensaje con ellas (reemplaza el texto; si la persona ya lo editó, pide
     confirmar, U-28). La casilla «Esperar su respuesta aunque el correo no tenga preguntas» solo aparece cuando el mensaje no lleva preguntas. «¿Cambiaste de idea?» es una línea discreta con
-    «Volver a elegir las preguntas» y «No preguntar: la información es suficiente». Dentro de esta tarjeta ya no salen «Respuesta sugerida lista…», «Recepción completa…» ni los párrafos largos
+    «Volver a decidir» y «No preguntar: con esto alcanza». Dentro de esta tarjeta ya no salen «Respuesta sugerida lista…», «Recepción completa…» ni los párrafos largos
     de ayuda. Reemplaza el punto 2 de U-28 y los textos del punto 1 de U-28.
 17. **Pestañas.** «Conversación», «Archivos», «Historial» y «Detalle técnico» (datos comerciales, contexto interno, evaluación de recepción, revisión de preguntas, enrutamiento y asuntos
     pendientes). Funcionan con teclado (flechas) y, sin JavaScript, todos los paneles se ven uno tras otro.
@@ -702,6 +702,9 @@ la carpeta de Drive.
 23. **La acción principal del correo siempre se alcanza (D-95).** En la tarjeta del correo, la línea que dice cuántas preguntas lleva y los botones «Enviar al cliente» y «Guardar borrador en Gmail» forman una barra
     que se queda pegada al borde inferior de la pantalla mientras se lee el mensaje, así que no hay que bajar hasta el final para enviar. El mensaje se muestra completo (sin cuadro con desplazamiento propio) para que la
     persona pueda revisarlo entero antes de enviar (R8); no se esconde parte del texto. La barra respeta el área segura de los celulares y no tapa el último renglón del mensaje.
+24. **Un solo texto por decisión y por acción (D-97).** Cada decisión y cada acción se llama igual en toda la interfaz: «Con esto alcanza» (la opción) y «Confirmar que alcanza» (su botón); «Hay que preguntarle al cliente» y
+    «Preparar el correo»; «Cambiar las preguntas» (abre el cuadro) y «Preparar el correo de nuevo»; «Volver a decidir»; «No preguntar: con esto alcanza»; y siempre «Enviar al cliente» para enviar (el diálogo dice «Sí, enviar al cliente»).
+    No quedan «Marcar como suficiente», «Redactar de nuevo», «Volver a redactar», «Volver a elegir», «Armar correo» ni «Enviar ahora». Una prueba de vocabulario lee las plantillas y los textos de la pantalla y falla si aparece alguno.
 
 **Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
 - E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
@@ -714,7 +717,7 @@ la carpeta de Drive.
 - E2 · Con más de 8 actividades se ven 8 y «Ver todas (N)»; las incompletas siempre se ven y las filas escondidas se guardan igual. «Detalle técnico» ya es la sección plegada «Detalles y trazabilidad del caso»: conserva su nombre y su contenido.
 - E3a · La decisión es una tarjeta «Ahora» con dos tarjetas de opción de una sola elección (`name="decision"`: `sufficient`, `ask_client`), sin círculo visible, y un botón por opción que aparece al elegirla; no hay botones de envío sueltos ni tercera opción.
 - E3a · No viene ninguna opción marcada; el cuadro único trae las preguntas sugeridas una por línea y se muestra al elegir «Hay que preguntarle al cliente». Sin las reglas CSS modernas todo sigue visible y enviable.
-- E3a · «Marcar como suficiente» pide confirmación; «Preparar el correo» no.
+- E3a · «Confirmar que alcanza» pide confirmación; «Preparar el correo» no.
 - E3a · Enviar el formulario con «Con esto alcanza» o con «Hay que preguntarle al cliente» deja el mismo estado e historial que antes; con preguntas, el caso pasa a «Revisa el correo» con ellas.
 - E3b · No hay una tarjeta ni un selector por pregunta: hay un cuadro `questions` con las sugeridas una por línea, que solo incluye las que el análisis sugiere para el cliente; las internas se cuentan en una línea.
 - E3b · Con el cuadro vacío, «Continuar» pide escribir al menos una pregunta. Lo escrito se conserva al volver a decidir antes de enviar (U-27).
@@ -724,7 +727,7 @@ la carpeta de Drive.
 - E4 · Cada paso tiene su tarjeta «Ahora»: revisar (decisión con «Qué pide»), correo (formulario), información validada (emisión de la T), y aviso para esperando, T emitida y carpeta; nunca dos.
 - E4 · El aviso de siguiente paso no se pega al desplazarse y no se dibuja junto a una tarjeta que ya dice lo mismo.
 - E4 · La tarjeta de correo trae «Para», «Mensaje (puedes editarlo)», la línea de cuántas preguntas lleva, «Enviar al cliente» (principal, con confirmación y resumen) y «Guardar borrador en Gmail»; enviar y guardar hacen lo mismo que antes.
-- E4 · «Volver a redactar con otras preguntas» trae las preguntas actuales y «Redactar de nuevo» rearma el mensaje con ellas; la casilla de esperar solo aparece si el mensaje no lleva preguntas; no hay avisos «Respuesta sugerida lista» ni «Recepción completa» en la tarjeta.
+- E4 · «Cambiar las preguntas» trae las preguntas actuales y «Preparar el correo de nuevo» rearma el mensaje con ellas; la casilla de esperar solo aparece si el mensaje no lleva preguntas; no hay avisos «Respuesta sugerida lista» ni «Recepción completa» en la tarjeta.
 - E4 · Hay cuatro pestañas con sus paneles, y la activa al cargar es «Archivos» si hay algo por revisar y «Conversación» si no.
 - E5 · Los pasos se ven con «Paso N de 4» y el «?» encima de la tarjeta de pasos, sin numerarlos dentro; el contenido del caso tiene un ancho máximo de lectura de 880 px.
 - E5 · «Editar tabla» y «+ Agregar» se dibujan como botones de contorno con texto del color de la marca.
@@ -737,6 +740,7 @@ la carpeta de Drive.
 - E11 · `--control-line` pasa 3:1 contra el panel y el fondo de los campos en claro y oscuro; los selectores `.next-step`, `.paso-cabecera`, `.paso-n`, `.pregunta`, `.armar-correo`, `.process-step strong` y `.toolbar` se definen una vez; hay reglas de 640 px para las pestañas y la tabla apilada con `data-etiqueta`, y de `prefers-reduced-motion`.
 - E12 · «Enviar al cliente», «Guardar borrador en Gmail» y la línea de preguntas están dentro de una barra `.barra-accion` pegada abajo (`position: sticky; bottom: 0`); el mensaje crece con su contenido (`field-sizing: content`) y no tiene tope de altura.
 - E12 · En el navegador, con el caso largo (CLL 170) y la pantalla en el arranque, la barra queda dentro de la pantalla visible.
+- E13 · Ninguna plantilla ni texto de la pantalla del caso contiene los sinónimos retirados; cada decisión y cada acción usa el texto único de U-31.24.
 - E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; con el correo redactado sin enviar, «Correo por revisar»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).

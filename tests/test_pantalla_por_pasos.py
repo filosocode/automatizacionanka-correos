@@ -296,7 +296,7 @@ class TarjetaAhora(Base):
         self.assertEqual(decision.count('type="submit"'), 2)                  # uno por opción, que aparece al elegirla
         self.assertIn('id="btn-suficiente"', decision)
         self.assertIn('id="btn-preguntar"', decision)
-        self.assertIn(">Marcar como suficiente<", decision)
+        self.assertIn(">Confirmar que alcanza<", decision)
         self.assertIn(">Preparar el correo<", decision)
         self.assertIn("Elige una opción para continuar. Nada se envía al cliente en este paso.", decision)
         self.assertIn("<h2>Revisa y decide cómo seguir</h2>", decision)
@@ -540,9 +540,9 @@ class CorreoAmigable(Base):
         pagina = pantalla_caso.render_case("t-1")
         panel = pagina[pagina.index('id="armar"'):]
         panel = panel[:panel.index("</details>")]
-        self.assertIn("Volver a redactar con otras preguntas", panel)
+        self.assertIn("Cambiar las preguntas", panel)
         self.assertIn(DATUM, panel.split('name="preguntas"')[1].split("</textarea>")[0])
-        self.assertIn(">Redactar de nuevo con estas preguntas<", panel)
+        self.assertIn(">Preparar el correo de nuevo<", panel)
         self.assertIn('<input type="hidden" name="template" value="preguntas">', panel)
         redactado = pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto=f"{DATUM}\nOtro plazo")
         self.assertIn("1. " + DATUM, redactado.split('id="cuerpo-correo"')[1].split("</textarea>")[0])
@@ -563,8 +563,8 @@ class CorreoAmigable(Base):
         linea = pagina[pagina.index('class="cambiaste-idea"'):]
         linea = linea[:linea.index("</form>")]
         self.assertIn("¿Cambiaste de idea?", linea)
-        self.assertIn(">Volver a elegir las preguntas<", linea)
-        self.assertIn(">No preguntar: la información es suficiente<", linea)
+        self.assertIn(">Volver a decidir<", linea)
+        self.assertIn(">No preguntar: con esto alcanza<", linea)
         self.assertIn("data-confirm=", linea)
 
 

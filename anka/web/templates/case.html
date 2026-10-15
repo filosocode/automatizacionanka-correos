@@ -27,13 +27,13 @@
     <button type="submit" formaction="/send" class="send-action"
       data-confirm="Se enviará este correo a {{ compose_to or review.recipient }} en el mismo hilo. ¿Confirmas el envío?"
       data-resumen="envio" data-para="{{ compose_to or review.recipient }}" data-asunto="{{ asunto_respuesta }}"
-      data-confirm-boton="Sí, enviar ahora">Enviar al cliente</button>
+      data-confirm-boton="Sí, enviar al cliente">Enviar al cliente</button>
     <button type="submit" class="secondary" formaction="/draft">Guardar borrador en Gmail</button>
   </div>
   </div>
 </form>
 <details class="more armar-correo" id="armar"{% if not email_body %} open{% endif %}>
-  <summary>Volver a redactar con otras preguntas</summary>
+  <summary>Cambiar las preguntas</summary>
   {% if preguntas_sugeridas and not armar_preguntas %}
   <p class="nota">El análisis sugiere {{ preguntas_sugeridas | length }} pregunta{{ '' if preguntas_sugeridas | length == 1 else 's' }} para el cliente.</p>
   <p><a class="button secondary" id="usar-sugeridas" href="/case?thread_id={{ thread_id | urlquote }}&amp;template=preguntas&amp;preguntas={{ preguntas_sugeridas | join('\n') | urlquote }}#respuesta">Usar las preguntas sugeridas</a></p>
@@ -45,16 +45,16 @@
       <textarea name="preguntas" class="caja-media" placeholder="¿Cuál es el datum del levantamiento?&#10;Plazo de entrega esperado">{{ armar_preguntas }}</textarea>
     </label>
     <p class="nota">{% if puede_volver and armar_preguntas %}Son las que elegiste para el cliente. {% endif %}Cambia las preguntas y el dashboard escribe otra vez el mensaje con ellas; reemplaza el texto de arriba. No se envía nada.</p>
-    <button type="submit" class="secondary" id="armar-correo">Redactar de nuevo con estas preguntas</button>
+    <button type="submit" class="secondary" id="armar-correo">Preparar el correo de nuevo</button>
   </form>
 </details>
 {% if puede_volver %}
 <form method="post" action="/review-reopen" class="cambiaste-idea">
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   <span class="nota">¿Cambiaste de idea?</span>
-  <button type="submit" name="accion" value="reconsiderar" class="enlace">Volver a elegir las preguntas</button>
+  <button type="submit" name="accion" value="reconsiderar" class="enlace">Volver a decidir</button>
   <button type="submit" name="accion" value="suficiente" class="enlace"
-    data-confirm="El caso pasará a «Información validada» sin preguntar nada al cliente y podrás emitir la T. ¿Confirmas?">No preguntar: la información es suficiente</button>
+    data-confirm="El caso pasará a «Información validada» sin preguntar nada al cliente y podrás emitir la T. ¿Confirmas?">No preguntar: con esto alcanza</button>
 </form>
 {% endif %}
     {% elif email == 'waiting' %}
@@ -124,7 +124,7 @@
     </div>
     <div class="acciones">
       <button type="submit" id="btn-suficiente" class="solo-suficiente"
-        data-confirm="El caso pasará a «Información validada» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Marcar como suficiente</button>
+        data-confirm="El caso pasará a «Información validada» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">Confirmar que alcanza</button>
       <button type="submit" id="btn-preguntar" class="solo-preguntar">Preparar el correo</button>
     </div>
     <p class="nota elige-opcion">Elige una opción para continuar. Nada se envía al cliente en este paso.</p>

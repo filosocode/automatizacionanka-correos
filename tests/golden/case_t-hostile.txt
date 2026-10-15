@@ -202,7 +202,7 @@ Pendiente
 Revisa el correo y envíalo
 </strong>
 <span>
-Nada sale al cliente hasta que pulses «Enviar ahora».
+Nada sale al cliente hasta que pulses «Enviar al cliente».
 </span>
 </div>
 <a class="button" href="#respuesta">
@@ -240,7 +240,7 @@ Esperar su respuesta aunque el correo no tenga preguntas
 <p class="nota" id="aviso-espera" aria-live="polite">
 </p>
 <div class="acciones">
-<button type="submit" formaction="/send" class="send-action" data-confirm="Se enviará este correo a x'+ZZINJ+'@a.co en el mismo hilo. ¿Confirmas el envío?" data-resumen="envio" data-para="x'+ZZINJ+'@a.co" data-asunto="" data-confirm-boton="Sí, enviar ahora">
+<button type="submit" formaction="/send" class="send-action" data-confirm="Se enviará este correo a x'+ZZINJ+'@a.co en el mismo hilo. ¿Confirmas el envío?" data-resumen="envio" data-para="x'+ZZINJ+'@a.co" data-asunto="" data-confirm-boton="Sí, enviar al cliente">
 Enviar al cliente
 </button>
 <button type="submit" class="secondary" formaction="/draft">
@@ -251,7 +251,7 @@ Guardar borrador en Gmail
 </form>
 <details class="more armar-correo" id="armar">
 <summary>
-Volver a redactar con otras preguntas
+Cambiar las preguntas
 </summary>
 <form method="get" action="/case#respuesta" class="redactar-form">
 <input type="hidden" name="thread_id" value="t-hostile">
@@ -265,7 +265,7 @@ Preguntas para el cliente (una por línea)
 Cambia las preguntas y el dashboard escribe otra vez el mensaje con ellas; reemplaza el texto de arriba. No se envía nada.
 </p>
 <button type="submit" class="secondary" id="armar-correo">
-Redactar de nuevo con estas preguntas
+Preparar el correo de nuevo
 </button>
 </form>
 </details>

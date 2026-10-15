@@ -202,7 +202,7 @@ Pendiente
 Falta tu decisión de revisión técnica
 </strong>
 <span>
-Decide si la información es suficiente o si hay que preguntar al cliente.
+Decide si con esto alcanza o si hay que preguntarle al cliente.
 </span>
 </div>
 <a class="button" href="#decision">
@@ -264,7 +264,7 @@ Son las inquietudes que dejó el análisis. Borra las que no hagan falta, corrig
 </div>
 <div class="acciones">
 <button type="submit" id="btn-suficiente" class="solo-suficiente" data-confirm="El caso pasará a «Información validada» y se habilitará la creación de la carpeta en Drive. ¿Confirmas que ya lo revisaste?">
-Marcar como suficiente
+Confirmar que alcanza
 </button>
 <button type="submit" id="btn-preguntar" class="solo-preguntar">
 Preparar el correo
