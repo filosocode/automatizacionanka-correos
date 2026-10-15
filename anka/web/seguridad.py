@@ -8,6 +8,7 @@ import urllib.parse
 
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
+from anka.infra.archivos_privados import escribir_privado
 
 
 def persistent_csrf_token() -> str:
@@ -25,8 +26,7 @@ def persistent_csrf_token() -> str:
         pass
     value = secrets.token_urlsafe(32)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(value, encoding="utf-8")
+        escribir_privado(path, value)
     except OSError:
         pass  # sin disco: el token vale solo para este arranque, como antes
     return value

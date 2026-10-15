@@ -6,7 +6,7 @@ empresa en OTRO hilo: no los une al caso por su cuenta, los propone para que una
 """
 
 from __future__ import annotations
-from anka.servicios.repositorio import actualizar_caso
+from anka.servicios.estados import cambiar_estado
 
 import base64
 import email
@@ -164,8 +164,7 @@ def _note_sent_message(db: Any, thread_id: str, message_id: str, headers: dict[s
                               f"Correo enviado desde Gmail a {to}: «{snippet}»", _iso(when)))
     new_status = AFTER_SENT.get(case["status"]) if when > analyzed else None
     if new_status:
-        actualizar_caso(db, thread_id,
-            status=new_status,
+        cambiar_estado(db, thread_id, new_status, "correo_enviado_desde_gmail",
             sent_message_id=message_id,
             draft_id=None,
             sent_at=_iso(when),

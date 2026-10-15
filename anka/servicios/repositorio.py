@@ -28,7 +28,7 @@ from anka.dominio.reception import reception_assessment
 from anka.dominio.registros import Cambio, Evento, Vinculo
 from anka.dominio.status import QuoteStatus
 from anka.infra.logging_setup import get_logger
-from anka.infra.store import case_events, connect, record_event, verify_chain
+from anka.infra.store import begin_immediate, case_events, connect, record_event, verify_chain
 
 log = get_logger(__name__)
 
@@ -355,6 +355,7 @@ class RepositorioDeCasos:
     def marcar_para_reanalisis(self, thread_id: str) -> None:
         """Marca un hilo descartado para que la próxima revisión de Gmail lo analice (no cambia su estado)."""
         with self._conexion() as db:
+            begin_immediate(db)
             row = db.execute(
                 "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
             ).fetchone()

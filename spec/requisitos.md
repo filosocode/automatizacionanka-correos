@@ -971,6 +971,42 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 
 **Pendiente (no se hizo; necesita prueba manual del dueño en Work):** la versión V6.2 del prompt (núcleo y extras, valores permitidos junto a cada campo, una lista de comprobación y menos contexto); el diff propuesto está en `docs/PROPUESTA_PROMPT_V6_2.md`.
 
+### U-42 · La base aguanta tres procesos a la vez (Ola B0 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_base_concurrente.py`). Decisión: D-107. No toca R8, D-27 ni la reserva de envío.
+
+**Qué debe cumplirse**
+1. Toda conexión a la base usa `journal_mode=WAL`, `busy_timeout=15000` (15 s) y `foreign_keys=ON`. `synchronous` se queda en FULL.
+2. Las migraciones toman `BEGIN IMMEDIATE`, releen `user_version` dentro de la transacción y las tablas se crean con `IF NOT EXISTS`: dashboard, puente y preparador pueden arrancar a la vez sin error.
+3. La migración 16 retira de `quote_metadata` las filas sin caso (huérfanas); antes queda la copia `.bak-v15`.
+4. Un escritor que guarda un análisis (importación de Work, `save`) toma el candado de escritura antes de leer el estado: el puente no pisa lo que se hizo en el dashboard entre la lectura y la escritura. El envío y la resolución del destinatario releen el análisis dentro del candado en vez de guardar una copia vieja.
+5. Las copias de seguridad tratan `-wal`/`-shm`: la copia es un solo archivo, la restauración se instala con archivo temporal y `os.replace`, borra los `-wal`/`-shm` viejos, guarda lo anterior con la API de copia de SQLite y rechaza un respaldo de un esquema más nuevo. `verificar_ultima_copia` abre la última copia en una carpeta temporal y comprueba integridad y versión.
+
+**Casos de aceptación**
+- B0-1 · Una base nueva queda en WAL, con `foreign_keys=1` y `busy_timeout=15000`.
+- B0-2 · Seis hilos abren la misma base vacía a la vez: ninguno falla y `user_version` es la última.
+- B0-3 · Con otro proceso escribiendo, `record_event` espera en vez de fallar a los 5 s.
+- B0-4 · Un guardado de Work con el estado leído tarde no sobrescribe un cambio hecho dentro del candado.
+- B0-5 · Restaurar no deja `-wal`/`-shm` viejos y la base queda íntegra.
+
+### U-43 · Red con tiempo límite y reintentos solo donde es seguro
+**Estado: implementado** (pruebas en `tests/test_red_segura.py`). Decisión: D-108.
+1. Todas las llamadas a Gmail y Drive esperan como máximo 30 s por operación (también la renovación del token).
+2. Las lecturas (GET) y las escrituras idempotentes (PUT/PATCH) se reintentan hasta 3 veces con espera creciente ante 429, 5xx o corte de red. **Nunca** se reintenta un POST: enviar, crear borrador o carpeta.
+3. Un 404 al enviar un borrador solo cae a «mensaje nuevo» si vino de actualizar el borrador, no de enviarlo (B3-08): si el envío del borrador da 404 no se manda un segundo correo.
+4. El servidor del dashboard corta una conexión que no habla en 30 s. Ollama y la API ya tenían tiempo límite propio, calculado según el documento.
+
+### U-44 · El token de Google y el de CSRF se escriben completos y privados
+**Estado: implementado** (pruebas en `tests/test_archivos_privados.py`). Decisión: D-109.
+Se escriben en un archivo temporal de la misma carpeta y se mueven con `os.replace` (nunca queda a medias); el permiso queda solo para el usuario (`0600` en POSIX; en Windows `icacls` quitando la herencia). Si no se puede restringir, se avisa en el registro sin contenido y se guarda igual.
+
+### U-45 · Quien revisa ve de dónde sale cada destinatario
+**Estado: implementado** (pruebas en `tests/test_destinatarios.py`). Decisión: D-110. R8 intacto: sigue decidiendo una persona.
+Los destinatarios externos al contacto se mantienen, pero el correo a una dirección distinta del destinatario del caso muestra su origen (contacto registrado, destinatario del caso, participante del hilo, remitente de un cambio, vinculado de otro hilo) antes de enviar, y el hecho «Correo enviado…» lo repite en el historial.
+
+### U-46 · Las transiciones de estado se comprueban contra la tabla (solo registrar)
+**Estado: implementado** (pruebas en `tests/test_estados.py`). Decisión: D-111.
+`spec/transiciones.json` incluye ahora crear carpeta, enviar y terminar envío, guardar borrador, unir/descartar, rescatar, hilo no disponible, salida de `sending` y el análisis del modo Python. `cambiar_estado` / `verificar_transicion` (`anka/servicios/estados.py`) consultan la tabla: una transición que no está **se permite igual** y deja un hecho `transicion_no_prevista` (caso, origen, destino, evento) y una línea de registro. Nunca bloquea.
+
 ### U-35 · Lenguaje claro: mensajes que dicen qué pasó y qué hacer (Ola 1 del plan de experiencia)
 **Estado: implementado** (pruebas en `tests/test_lenguaje_claro.py` y las de texto exacto de cada pantalla). Decisión: D-100. Acota U-31 puntos 24 y 25 (un solo texto por decisión y por acción), D-96/D-97 (nombres de estado y de decisión, que no cambian) y D-27 (la autorización de Google solo con acción explícita, que no cambia).
 

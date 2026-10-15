@@ -37,7 +37,7 @@
   {% if compose_to %}<input type="hidden" name="to" value="{{ compose_to }}">
   <input type="hidden" name="change_id" value="{{ compose_change_id }}">{% endif %}
   {% if compose_purpose %}<input type="hidden" name="purpose" value="{{ compose_purpose }}">{% endif %}
-  <div class="para-linea"><span class="etiqueta-mail">Para</span> <span class="para">{{ compose_to or review.recipient }}</span></div>
+  <div class="para-linea"><span class="etiqueta-mail">Para</span> <span class="para">{{ compose_to or review.recipient }}</span>{% if compose_origen %} <span class="nota" id="origen-para">({{ compose_origen }}: revisa que sea a quien quieres escribir)</span>{% endif %}</div>
   <label class="etiqueta-mail" for="cuerpo-correo">Mensaje (puedes editarlo)</label>
   <textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
   <div id="caja-esperar"{% if correo_con_preguntas %} hidden{% endif %}>

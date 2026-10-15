@@ -22,8 +22,9 @@ from anka.dominio.reception import unresolved_scope_issues
 from anka.dominio.status import QuoteStatus, reconocer_estado_de_work
 from anka.infra.logging_setup import get_logger
 from anka.infra import rechazos_de_work
-from anka.infra.store import connect, record_event, save
+from anka.infra.store import begin_immediate, connect, record_event, save
 from anka.servicios.change_control import apply_guard
+from anka.servicios.estados import verificar_transicion
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.quotes import save_quote_metadata
 from anka.dominio.caso import CLIENT_TYPES, SECTORS
@@ -317,12 +318,13 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
     thread_id = payload["thread_id"]
     message_id = payload.get("message_id") or thread_id
     status = _internal_status(payload, analysis)
+    begin_immediate(db)   # el estado se lee y se escribe bajo el mismo candado: no se pisa al dashboard (U-42)
     apply_guard(
         db, thread_id, analysis, str(payload.get("requested_by_email") or ""),
         str(payload.get("requested_by_name") or ""),
         [str(code) for code in _como_lista(payload.get("cited_codes"))], message_id,
         str(payload.get("subject") or payload.get("project_name") or ""),
-        str(payload.get("summary") or "")[:160], "work")
+        str(payload.get("summary") or "")[:160], "work", confirmar=False)
     row = db.execute(
         "SELECT status, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)
     ).fetchone()
@@ -333,6 +335,8 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
         # un caso ya avanzado en el dashboard no retrocede por un borrador posterior; solo una
         # respuesta nueva del cliente puede mover un caso que estaba esperando su respuesta
         status = row["status"]
+    if row:
+        verificar_transicion(db, thread_id, status, "work_import")
     save(db, thread_id, message_id, status,
          payload.get("internal_sender") or payload["client_email"], analysis)
     version = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]

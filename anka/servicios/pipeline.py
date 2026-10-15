@@ -1,7 +1,7 @@
 """Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica."""
 
 from __future__ import annotations
-from anka.servicios.repositorio import actualizar_caso
+from anka.servicios.estados import cambiar_estado, verificar_transicion
 
 import json
 import sqlite3
@@ -117,8 +117,7 @@ class RevisorDeHilos:
             except Exception as exc:
                 log.warning("%s: no se pudo leer el hilo en Gmail: %s", thread_id, exc)
                 if self.db:
-                    actualizar_caso(self.db, thread_id,
-                        status=QuoteStatus.MISSING)
+                    cambiar_estado(self.db, thread_id, QuoteStatus.MISSING, "hilo_no_disponible")
                     self.db.commit()
                 continue
             try:
@@ -232,6 +231,7 @@ class RevisorDeHilos:
         db = self.db
         if not db:
             return
+        verificar_transicion(db, thread_id, d.status, "analisis_python")
         packet_body = d.body
         draft_id = None
         if d.action is Action.GMAIL_DRAFT:

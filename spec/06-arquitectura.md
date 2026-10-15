@@ -65,6 +65,7 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `backup` | Copias de seguridad de la base del dashboard: local y en Drive (sin credenciales ni token). |
+| `archivos_privados` | Escritura completa y privada de archivos sensibles (token de Google, token CSRF): temporal + `os.replace` y permiso solo del usuario. |
 | `reinicio` | Reinicio de los datos locales para volver a probar desde cero: vista previa, copia de seguridad y vaciado. |
 | `google_services` | Cliente de Gmail y Drive: credenciales, servicios y carpetas. |
 | `drive_exchange` | Intercambio de archivos propios en Drive con claves estables, paginación y bloqueo local. |
@@ -104,6 +105,7 @@ La descripción es la primera frase de su docstring.
 | `pipeline` | Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica. |
 | `proyectos_repetidos` | Agrupar las solicitudes que parecen el mismo proyecto, solo para mostrarlas juntas (U-19). |
 | `quotes` | Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard. |
+| `estados` | Cambios de estado de un caso comprobados contra `spec/transiciones.json`: una no prevista se permite y se registra (U-46). |
 | `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
 | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
 | `work_import` | Importación del borrador de ChatGPT Work al dashboard (`dashboard_upsert`). |

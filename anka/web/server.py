@@ -97,6 +97,8 @@ def _senalar_fallo(location: str) -> str:
 
 class ReviewHandler(BaseHTTPRequestHandler):
     """Servidor HTTP local del dashboard: páginas por GET y acciones por POST con token."""
+    timeout = 30      # una conexión que no habla en 30 s se corta y libera su hilo (U-43)
+
     def _send_bytes(self, status: int, content_type: str, data: bytes,
                     extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(status)

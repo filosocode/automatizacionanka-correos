@@ -18,7 +18,7 @@ from anka.dominio.analisis import Actividad
 from anka.infra.logging_setup import get_logger
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.repositorio import RepositorioDeCasos
-from anka.infra.store import add_table_version, connect, latest_table_version, record_event
+from anka.infra.store import add_table_version, begin_immediate, connect, latest_table_version, record_event
 from anka.dominio.caso import load_analysis
 
 log = get_logger(__name__)
@@ -130,6 +130,7 @@ def save_activities(thread_id: str, activities: list[Actividad], reason: str = "
     """
     db = connect()
     try:
+        begin_immediate(db)       # leer y escribir bajo el mismo candado (U-42)
         row = db.execute(
             "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
         ).fetchone()

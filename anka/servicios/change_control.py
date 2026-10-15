@@ -114,7 +114,7 @@ def required_messages(has_code: bool, is_contact: bool) -> list[tuple[str, str]]
 
 def apply_guard(db: sqlite3.Connection, thread_id: str, analysis: Analisis, requested_by_email: str,
                 requested_by_name: str, cited_codes: list[str], message_id: str, subject: str,
-                snippet: str, source: str) -> bool:
+                snippet: str, source: str, confirmar: bool = True) -> bool:
     """Aplica R11 a un análisis nuevo (de Work o de Python) antes de guardarlo.
 
     Si el caso ya tiene T y el mensaje no cumple, la tabla actual se conserva, lo que propone el
@@ -151,7 +151,8 @@ def apply_guard(db: sqlite3.Connection, thread_id: str, analysis: Analisis, requ
                      f"lock-{message_id or when}",
                      f"El análisis propuso cambios en la tabla, pero no se aplicaron (R11): {reason}. "
                      "Quedan como propuesta pendiente.", when)
-    db.commit()
+    if confirmar:
+        db.commit()
     return proposed != previous
 
 
@@ -292,6 +293,45 @@ def known_addresses(thread_id: str) -> set[str]:
     finally:
         db.close()
     return found
+
+
+ORIGEN_CONTACTO = "contacto registrado"
+ORIGEN_DESTINATARIO = "destinatario del caso"
+ORIGEN_PARTICIPANTE = "participante del hilo"
+ORIGEN_CAMBIO = "remitente de un cambio"
+ORIGEN_VINCULADO = "vinculado desde otro hilo"
+ORIGEN_NUEVO = "nuevo (no figura en el caso)"
+
+
+def origen_de_destinatario(thread_id: str, address: str, db: sqlite3.Connection | None = None) -> str:
+    """De dónde sale una dirección dentro del caso, para que quien revisa lo vea antes de enviar (U-45, R8).
+
+    Orden: contacto registrado, destinatario del caso, remitente de un cambio, vinculado desde otro hilo, participante
+    del hilo (los dos primeros ya son de confianza; los demás se advierten); si no figura en ninguno, «nuevo».
+    """
+    wanted = (address or "").strip().casefold()
+    propia = db is None
+    conexion = db if db is not None else connect()
+    try:
+        consultas = (
+            (ORIGEN_CONTACTO, "SELECT 1 FROM quotes WHERE thread_id=? AND lower(contact_email)=?"),
+            (ORIGEN_DESTINATARIO, "SELECT 1 FROM quotes WHERE thread_id=? AND lower(recipient)=?"),
+            (ORIGEN_CAMBIO, "SELECT 1 FROM case_changes WHERE thread_id=? AND lower(sender_email)=?"),
+            (ORIGEN_VINCULADO, "SELECT 1 FROM case_links WHERE thread_id=? AND lower(sender_email)=?"),
+            (ORIGEN_PARTICIPANTE, "SELECT 1 FROM case_events WHERE thread_id=? AND lower(actor_email)=?"),
+        )
+        for origen, sql in consultas:
+            if conexion.execute(sql, (thread_id, wanted)).fetchone():
+                return origen
+    finally:
+        if propia:
+            conexion.close()
+    return ORIGEN_NUEVO
+
+
+def origen_en_texto(origen: str) -> str:
+    """« (origen)» para el historial, o vacío si es el contacto o el destinatario del caso."""
+    return "" if origen in (ORIGEN_CONTACTO, ORIGEN_DESTINATARIO) else f" ({origen})"
 
 
 def mark_change_sent(thread_id: str, change_id: int, purpose: str, to: str) -> None:

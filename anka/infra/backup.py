@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import shutil
 import stat
@@ -27,6 +28,7 @@ log = get_logger(__name__)
 PREFIX = "anka-respaldo-"
 KEEP = 14                      # copias que se conservan (local y Drive)
 EVERY = timedelta(hours=24)
+ESPERA_DE_LA_BASE = 15       # segundos que se espera si otro proceso escribe (igual que la base viva)
 DRIVE_FOLDER = "Anka respaldos"
 LAST_FILE = "last_backup.json"
 # Solo estos archivos entran en la copia: nunca token.json ni credentials.json.
@@ -47,9 +49,12 @@ def create_backup() -> Path:
     target = backups_dir() / f"{PREFIX}{datetime.now():%Y%m%d-%H%M%S}.zip"
     with tempfile.TemporaryDirectory() as temp:
         snapshot = Path(temp) / "quotes.sqlite3"
-        origin, copy = sqlite3.connect(source), sqlite3.connect(snapshot)
+        origin, copy = sqlite3.connect(source, timeout=ESPERA_DE_LA_BASE), sqlite3.connect(snapshot)
         try:
             origin.backup(copy)
+            copy.execute("PRAGMA journal_mode=DELETE")     # la copia es un solo archivo, sin -wal ni -shm (U-42)
+            if copy.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                raise ValueError("La copia recién hecha no supera la comprobación de integridad.")
         finally:
             copy.close()
             origin.close()
@@ -150,16 +155,47 @@ def backup_due(now: datetime | None = None) -> bool:
 
 def restore(archive_path: Path) -> Path:
     """Valida y restaura base, ajustes y evidencia; conserva originales y revierte un fallo. Cierra Anka antes."""
+    from anka.infra.work_heartbeat import other_bridge_running
+    if other_bridge_running():
+        raise ValueError('El puente está corriendo: cierra el lanzador («Iniciar Anka») antes de restaurar.')
     with tempfile.TemporaryDirectory() as temporary, zipfile.ZipFile(archive_path) as archive:
         stage = Path(temporary)
         names = _validate_archive(archive)
         for name in names:
             archive.extract(name, stage)
-        with closing(sqlite3.connect(stage / 'quotes.sqlite3')) as db:
-            if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
-                raise ValueError('La base del respaldo no supera la comprobación de integridad.')
+        _comprobar_base(stage / 'quotes.sqlite3')
         _install_restore(stage, names)
     return settings.DATA_DIR / 'quotes.sqlite3'
+
+
+def _comprobar_base(path: Path) -> None:
+    """Integridad y versión de esquema de una base de respaldo; no la modifica."""
+    from anka.infra.store import SCHEMA_VERSION
+    with closing(sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)) as db:
+        if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+            raise ValueError('La base del respaldo no supera la comprobación de integridad.')
+        version = db.execute('PRAGMA user_version').fetchone()[0]
+    if version > SCHEMA_VERSION:
+        raise ValueError(f'El respaldo es de un esquema más nuevo ({version}) que este programa ({SCHEMA_VERSION}).')
+
+
+def verificar_ultima_copia() -> dict:
+    """Abre la última copia local en una carpeta temporal (nunca sobre la base viva) y comprueba que sirve (B3-10)."""
+    copias = sorted(backups_dir().glob(f"{PREFIX}*.zip"))
+    if not copias:
+        return {"ok": False, "file": "", "error": "No hay copias locales."}
+    try:
+        with tempfile.TemporaryDirectory() as temporary, zipfile.ZipFile(copias[-1]) as archive:
+            _validate_archive(archive)
+            archive.extract('quotes.sqlite3', temporary)
+            destino = Path(temporary) / 'restaurada.sqlite3'
+            os.replace(Path(temporary) / 'quotes.sqlite3', destino)
+            _comprobar_base(destino)
+            with closing(sqlite3.connect(f"file:{destino.as_posix()}?mode=ro", uri=True)) as db:
+                casos = db.execute("SELECT COUNT(*) FROM quotes").fetchone()[0]
+        return {"ok": True, "file": copias[-1].name, "casos": casos, "error": ""}
+    except (OSError, ValueError, sqlite3.Error, zipfile.BadZipFile) as exc:
+        return {"ok": False, "file": copias[-1].name, "error": f"{type(exc).__name__}: {exc}"[:200]}
 
 
 def _validate_archive(archive: zipfile.ZipFile) -> list[str]:
@@ -181,6 +217,28 @@ def _validate_archive(archive: zipfile.ZipFile) -> list[str]:
     return names
 
 
+def _instalar_base(origen: Path, destino: Path) -> None:
+    """Instala la base con archivo temporal y `os.replace`, sin dejar -wal/-shm viejos que se aplicarían encima."""
+    temporal = destino.with_name(destino.name + '.restaurando')
+    shutil.copy2(origen, temporal)
+    for sufijo in ('-wal', '-shm'):
+        destino.with_name(destino.name + sufijo).unlink(missing_ok=True)
+    os.replace(temporal, destino)      # en Windows falla si otro proceso la tiene abierta: se avisa y no se pierde nada
+
+
+def _copia_previa(target: Path, previous: Path) -> None:
+    """Guarda lo que había antes; una base viva se copia con la API de SQLite para incluir lo del -wal."""
+    if target.name == 'quotes.sqlite3':
+        origen, copia = sqlite3.connect(target, timeout=ESPERA_DE_LA_BASE), sqlite3.connect(previous)
+        try:
+            origen.backup(copia)
+        finally:
+            copia.close()
+            origen.close()
+    else:
+        shutil.copy2(target, previous)
+
+
 def _install_restore(stage: Path, names: list[str]) -> None:
     stamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     installed: list[tuple[Path, Path | None]] = []
@@ -191,12 +249,17 @@ def _install_restore(stage: Path, names: list[str]) -> None:
             target.parent.mkdir(parents=True, exist_ok=True)
             previous = target.with_name(target.name + '.before-restore-' + stamp) if target.exists() else None
             if previous:
-                shutil.copy2(target, previous)
+                _copia_previa(target, previous)
             installed.append((target, previous))
-            shutil.copy2(stage / name, target)
+            if name == 'quotes.sqlite3':
+                _instalar_base(stage / name, target)
+            else:
+                shutil.copy2(stage / name, target)
     except Exception:
         for target, previous in reversed(installed):
-            if previous:
+            if previous and target.name == 'quotes.sqlite3':
+                _instalar_base(previous, target)
+            elif previous:
                 shutil.copy2(previous, target)
             elif target.exists():
                 target.unlink()

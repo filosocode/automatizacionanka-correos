@@ -31,15 +31,19 @@ from anka.dominio.reception import (
 )
 from anka.infra.settings import load_config
 from anka.infra.logging_setup import SENSITIVE, get_logger
-from anka.infra.store import add_dashboard_notification, add_message, connect, record_event, save
+from anka.infra.store import (
+    add_dashboard_notification, add_message, begin_immediate, connect, record_event, save,
+)
 
 from anka.servicios.drive_contents import populate_project_folder
 from anka.servicios.pipeline import confirmed_client
 from anka.servicios.change_control import (
     assign_code, code_label, comprobar_numero, known_addresses, mark_change_sent, normalize_number,
+    origen_de_destinatario, origen_en_texto,
 )
 from anka.servicios.quotes import case_has_links, delete_quotes, get_quote, set_client_name
 from anka.servicios import envios
+from anka.servicios.estados import cambiar_estado, verificar_transicion
 
 log = get_logger(__name__)
 
@@ -62,10 +66,14 @@ def resolve_case_recipient(thread_id: str) -> dict:
     recipient = routing.get("selected_recipient", "")
     if not valid_email_address(recipient):
         raise ValueError("Gmail no nos dio una dirección para responder. Ábrelo en Gmail y revisa.")
-    analysis = quote["analysis"]
-    analysis["routing"] = routing
     db = connect()
     try:
+        begin_immediate(db)
+        fila = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        if not fila:
+            raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
+        analysis = json.loads(fila["analysis_json"])      # el de ahora, no el de antes de hablar con Gmail (U-42)
+        analysis["routing"] = routing
         actualizar_caso(db, thread_id,
             recipient=recipient,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
@@ -124,8 +132,7 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     db = connect()
     try:
-        actualizar_caso(db, thread_id,
-            status=QuoteStatus.DRAFT_CREATED,
+        cambiar_estado(db, thread_id, QuoteStatus.DRAFT_CREATED, "guardar_borrador",
             draft_id=draft_id,
             draft_body=body,
             updated_at=now)
@@ -171,11 +178,20 @@ def _send_through_gmail(gmail: Any, thread_id: str, raw: str, draft_id: str) -> 
             gmail.users().drafts().update(
                 userId="me", id=draft_id, body={"message": {"raw": raw, "threadId": thread_id}},
             ).execute()
-            return gmail.users().drafts().send(userId="me", body={"id": draft_id}).execute()
         except Exception as exc:
+            # solo un 404 de actualizar prueba que el borrador no existe: no se mandó nada (B3-08)
             if getattr(getattr(exc, "resp", None), "status", None) != 404:
                 raise
             log.warning("%s: el borrador ya no existe en Gmail; se envía como mensaje nuevo", thread_id)
+        else:
+            # un 404 al enviar el borrador NO autoriza otro envío: el correo pudo salir; sube y queda la reserva
+            try:
+                return gmail.users().drafts().send(userId="me", body={"id": draft_id}).execute()
+            except Exception as exc:
+                if getattr(getattr(exc, "resp", None), "status", None) == 404:
+                    raise ErrorDeAnka("Gmail no encontró el borrador al enviarlo y puede que el correo ya haya salido. "
+                                      "Míralo en Gmail antes de intentar otra vez.") from exc
+                raise
     return gmail.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()
 
 
@@ -201,7 +217,10 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
     """Guarda el estado nuevo, el hecho del envío (con cuántas preguntas llevaba) y la novedad para el dashboard."""
     db = connect()
     try:
-        analysis = dict(quote["analysis"])
+        begin_immediate(db)
+        fila = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        # el análisis de ahora: durante el envío el puente pudo guardar uno nuevo (U-42)
+        analysis = json.loads(fila["analysis_json"]) if fila else dict(quote["analysis"])
         analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
         analysis["preguntas_enviadas"] = {"en": now, "preguntas": list(preguntas), "esperada": bool(esperar)}
         if preguntas:
@@ -212,8 +231,7 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
             con_preguntas = "sin preguntas: no se espera respuesta del cliente"
             if new_status == QuoteStatus.REVIEW:
                 con_preguntas += "; el caso vuelve a revisión técnica porque quedan tareas internas por resolver"
-        actualizar_caso(db, thread_id,
-            status=new_status,
+        cambiar_estado(db, thread_id, new_status, "enviar_desde_dashboard",
             sent_message_id=message_id,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
             draft_id=None,
@@ -221,8 +239,9 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
             sent_at=now,
             updated_at=now)
         add_message(db, thread_id, message_id, "sent", "", "", body, now)
+        origen = origen_de_destinatario(thread_id, recipient, db)
         record_event(db, thread_id, "sent", "dashboard", message_id,
-                     f"Correo enviado desde el dashboard a {recipient}, {con_preguntas}.", now)
+                     f"Correo enviado desde el dashboard a {recipient}{origen_en_texto(origen)}, {con_preguntas}.", now)
         add_dashboard_notification(
             db, thread_id, QuoteStatus.RESPONSE_SENT, message_id,
             "Respuesta enviada",
@@ -402,6 +421,7 @@ def _note_drive_pending(thread_id: str, message: str) -> None:
     """Deja en el caso el motivo por el que la carpeta no se creó, para mostrarlo en pantalla."""
     db = connect()
     try:
+        begin_immediate(db)
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if row:
             analysis = json.loads(row["analysis_json"])
@@ -453,8 +473,10 @@ def _send_questions(db: sqlite3.Connection, gmail: Any, config: Configuracion, t
             reception_questions(analysis, config["required_fields"]),
             analysis.get("routing", {}).get("is_forwarded", False),
         )
+    verificar_transicion(db, thread_id, QuoteStatus.SENDING, "iniciar_envio")
     save(db, thread_id, last_id, QuoteStatus.SENDING, recipient, analysis)
     sent_id = send_reply(gmail, thread, recipient, body, account_addresses)
+    verificar_transicion(db, thread_id, QuoteStatus.WAITING, "terminar_envio")
     save(db, thread_id, last_id, QuoteStatus.WAITING, recipient, analysis, sent_message_id=sent_id)
     record_event(db, thread_id, "sent", "dashboard", sent_id,
                  f"Preguntas enviadas desde el dashboard a {recipient}.")
@@ -506,6 +528,7 @@ def _create_case_folder(db: sqlite3.Connection, gmail: Any, drive: Any, config: 
     except DriveLayoutError as exc:
         raise ErrorDeAnka(str(exc)) from exc
     analysis.pop("drive", None)
+    verificar_transicion(db, thread_id, QuoteStatus.READY, "crear_carpeta")
     save(db, thread_id, last_id, QuoteStatus.READY, recipient, analysis, folder_id=result.folder["id"])
     set_client_name(thread_id, client)  # los próximos correos del remitente se resuelven solos
     contents = _fill_folder(gmail, drive, thread_id, result.folder["id"], account_addresses)

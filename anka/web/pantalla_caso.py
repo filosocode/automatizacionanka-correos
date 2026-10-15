@@ -43,7 +43,7 @@ from anka.web.templating import render
 from anka.servicios.case_actions import con_codigo_final, resolve_case_recipient
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
-    STAGE_LABELS, code_label, required_messages, suggest_number,
+    STAGE_LABELS, code_label, origen_de_destinatario, origen_en_texto, required_messages, suggest_number,
 )
 from anka.servicios.gmail_followup import case_contacts
 from anka.dominio.registros import Cambio, Evento
@@ -754,6 +754,13 @@ def _compose_to(review: Mapping[str, Any], change: Cambio | None, to_kind: str) 
     return ""
 
 
+def _compose_origen(thread_id: str, para: str) -> str:
+    """De dónde sale el destinatario cuando no es el del caso (U-45); vacío si es el contacto o el destinatario."""
+    if not para:
+        return ""
+    return origen_en_texto(origen_de_destinatario(thread_id, para)).strip(" ()")
+
+
 def _code_text(review: Mapping[str, Any]) -> str:
     """«T26145 · En cotización» (o «T&E…· Aprobada»); vacío mientras no haya código."""
     if not review.get("quote_code"):
@@ -967,6 +974,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         n_internas=sum(1 for p in preguntas if p["elegida"] == "internal"),
         preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
+        compose_origen=_compose_origen(thread_id, _compose_to(review, change, to_kind)),
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")
                          else "scope_update" if template == "scope_update" else ""),
         **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count,

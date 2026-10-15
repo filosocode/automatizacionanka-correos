@@ -345,7 +345,7 @@ class CopiasTests(_DatosTemporales):
         real = backup.shutil.copy2
 
         def copiar(origen, destino):
-            if Path(destino).name == "quotes.sqlite3" and "before-restore" not in Path(destino).name \
+            if Path(destino).name.startswith("quotes.sqlite3") and "before-restore" not in Path(destino).name \
                     and Path(origen).parent != self.data:
                 raise OSError("bloqueado")
             return real(origen, destino)

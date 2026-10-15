@@ -8,6 +8,7 @@ La edición de la tabla de actividades vive en `ediciones.py` y la importación 
 
 from __future__ import annotations
 from anka.servicios.repositorio import actualizar_caso
+from anka.servicios.estados import cambiar_estado
 
 import sqlite3
 from collections.abc import Mapping
@@ -32,7 +33,7 @@ from anka.infra import settings
 from anka.infra.logging_setup import get_logger
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.repositorio import RepositorioDeCasos
-from anka.infra.store import add_table_version, connect, record_event, register_change
+from anka.infra.store import add_table_version, begin_immediate, connect, record_event, register_change
 
 log = get_logger(__name__)
 
@@ -262,8 +263,7 @@ def _merge_own_case(db: sqlite3.Connection, thread_id: str, link: Mapping[str, A
     _propose_activities(db, thread_id, target_analysis, analysis.get("activities") or [], name, now)
     analysis["ignored_reason"] = f"Unido al caso «{target}» (confirmaste que el correo es de ese caso)."
     analysis["merged_into"] = thread_id
-    actualizar_caso(db, other,
-        status=QuoteStatus.IGNORED,
+    cambiar_estado(db, other, QuoteStatus.IGNORED, "unir_casos",
         analysis_json=json.dumps(analysis, ensure_ascii=False),
         updated_at=now)
     db.execute("UPDATE dashboard_notifications SET read_at=? WHERE thread_id=? AND read_at IS NULL", (now, other))
@@ -491,6 +491,7 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
     """La persona adopta la tabla que propone el modelo o conserva la suya."""
     db = connect()
     try:
+        begin_immediate(db)
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
             raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
@@ -571,6 +572,7 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
         raise ValueError("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
     db = connect()
     try:
+        begin_immediate(db)
         row = db.execute(
             "SELECT status, analysis_json, sent_at, draft_id FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
@@ -594,8 +596,8 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
             mensaje = "Listo: con esto alcanza. Ya puedes emitir la T y crear la carpeta en Drive."
         if row["draft_id"]:
             mensaje += " El borrador que guardaste en Gmail sigue ahí; no se borra."
-        actualizar_caso(db, thread_id, status=nuevo, updated_at=now,
-                        analysis_json=json.dumps(analysis, ensure_ascii=False))
+        cambiar_estado(db, thread_id, nuevo, "volver_a_decidir", updated_at=now,
+                       analysis_json=json.dumps(analysis, ensure_ascii=False))
         record_event(db, thread_id, "review_decision", "dashboard", f"{now}-{uuid4().hex[:6]}", texto, now)
         db.commit()
     finally:
@@ -612,6 +614,7 @@ def aceptar_lectura_revisada(thread_id: str) -> str:
     """
     db = connect()
     try:
+        begin_immediate(db)
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if not row:
             raise ValueError("Este caso ya no existe. Vuelve a Mis casos.")
@@ -651,6 +654,7 @@ def resolve_technical_review(
         raise ValueError("Falta elegir qué hacer con alguna pregunta.")
     db = connect()
     try:
+        begin_immediate(db)
         row = db.execute(
             "SELECT status, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
         ).fetchone()
@@ -691,8 +695,7 @@ def resolve_technical_review(
                 f"; {descartadas} descartada(s)" if descartadas else "")
             texto = ("Decidiste que con esto alcanza." if decision == "sufficient"
                      else f"Decidiste preguntar al cliente ({len(questions)} pregunta(s){aparte}).")
-        actualizar_caso(db, thread_id,
-            status=new_status,
+        cambiar_estado(db, thread_id, new_status, "decidir_revision_tecnica",
             analysis_json=json.dumps(analysis, ensure_ascii=False),
             updated_at=now)
         record_event(db, thread_id, "review_decision", "dashboard", f"{now}-{uuid4().hex[:6]}", texto, now)

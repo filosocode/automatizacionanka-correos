@@ -326,7 +326,8 @@ class CredentialsTests(unittest.TestCase):
         self.assertEqual(gmail[0], ("gmail", "v1"))
         self.assertEqual(drive[0], ("drive", "v3"))
         self.assertEqual(build.call_count, 2)
-        self.assertEqual(gmail[1]["credentials"], "CREDS")
+        self.assertEqual(gmail[1]["http"].credentials, "CREDS")      # el cliente HTTP lleva las credenciales y 30 s
+        self.assertEqual(drive[1]["http"].credentials, "CREDS")
 
 
 def make_docx(path: Path, text: str) -> None:

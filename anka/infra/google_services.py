@@ -11,6 +11,7 @@ from pathlib import Path
 
 from anka.dominio.errores import AutorizacionDeGoogle, ErrorDeAnka
 from anka.infra import settings
+from anka.infra.archivos_privados import escribir_privado
 from anka.infra.logging_setup import get_logger
 
 log = get_logger(__name__)
@@ -31,6 +32,10 @@ SCOPES = [
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 
+TIEMPO_LIMITE = 30        # segundos de espera por operación de red (U-43, D-108)
+REINTENTOS = 3            # con espera creciente, solo en lecturas y escrituras idempotentes
+METODOS_REINTENTABLES = frozenset({"GET", "PUT", "PATCH"})   # nunca POST: enviar, crear borrador o carpeta
+
 
 def _oauth_browser() -> str | None:
     """Usa Chrome en Windows si el navegador predeterminado no abre desde el supervisor oculto."""
@@ -50,6 +55,19 @@ def _token_path() -> Path:
     return settings.DATA_DIR / "token.json"
 
 
+def _solicitud_con_reintentos() -> type:
+    """Clase de solicitud de googleapiclient que reintenta solo GET/PUT/PATCH (nunca POST, ni el envío de correos)."""
+    from googleapiclient.http import HttpRequest
+
+    class SolicitudSegura(HttpRequest):
+        def execute(self, http: Any = None, num_retries: int = 0) -> Any:
+            if not num_retries and str(self.method).upper() in METODOS_REINTENTABLES:
+                num_retries = REINTENTOS
+            return super().execute(http=http, num_retries=num_retries)
+
+    return SolicitudSegura
+
+
 def credentials() -> Credentials:
     """Credenciales de Google ya autorizadas: reutiliza el token guardado y lo renueva si hace falta.
 
@@ -58,8 +76,14 @@ def credentials() -> Credentials:
     `AutorizacionDeGoogle`; reautorizar es `authorize_interactive()` (botón del dashboard o `python app.py auth`).
     """
     from google.auth.exceptions import RefreshError
-    from google.auth.transport.requests import Request
+    from google.auth.transport.requests import Request as _Request
     from google.oauth2.credentials import Credentials
+
+    class Request(_Request):          # la renovación del token también espera como máximo 30 s
+        def __call__(self, url: str, method: str = "GET", body: Any = None, headers: Any = None,
+                     timeout: Any = TIEMPO_LIMITE, **kwargs: Any) -> Any:
+            return super().__call__(url, method, body, headers, timeout=min(timeout or TIEMPO_LIMITE, TIEMPO_LIMITE),
+                                    **kwargs)
 
     token_path = _token_path()
     if not token_path.exists():
@@ -78,7 +102,7 @@ def credentials() -> Credentials:
     if not creds.valid:
         raise AutorizacionDeGoogle("El token guardado no es válido.")
     if renovado:   # solo se reescribe lo que cambió: esta función se llama a menudo y desde varios procesos
-        token_path.write_text(creds.to_json(), encoding="utf-8")
+        escribir_privado(token_path, creds.to_json())
     return creds
 
 
@@ -97,20 +121,26 @@ def authorize_interactive(timeout_seconds: int | None = None) -> Credentials:
         port=0, open_browser=os.getenv("ANKA_NO_BROWSER") != "1", timeout_seconds=timeout_seconds,
         browser=_oauth_browser())
     settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    _token_path().write_text(creds.to_json(), encoding="utf-8")
+    escribir_privado(_token_path(), creds.to_json())
     log.info("Autorización de Google renovada")
     return creds
 
 
 def services() -> tuple[Any, Any]:
     """Clientes de Gmail y de Drive ya autenticados: `(gmail, drive)`."""
+    import google_auth_httplib2
+    import httplib2
     from googleapiclient.discovery import build
 
     creds = credentials()
-    return (
-        build("gmail", "v1", credentials=creds, cache_discovery=False),
-        build("drive", "v3", credentials=creds, cache_discovery=False),
-    )
+    solicitud = _solicitud_con_reintentos()
+
+    def cliente(nombre: str, version: str) -> Any:
+        http = google_auth_httplib2.AuthorizedHttp(creds, http=httplib2.Http(timeout=TIEMPO_LIMITE))
+        return build(nombre, version, http=http, cache_discovery=False,
+                     requestBuilder=lambda http, *args, **kwargs: solicitud(http, *args, **kwargs))
+
+    return cliente("gmail", "v1"), cliente("drive", "v3")
 
 
 def list_folders(drive: Any, parent_id: str = "root") -> list[dict]:

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -260,7 +262,7 @@ def _migration_11_one_case_per_message(db: sqlite3.Connection) -> None:
 
 
 def _migration_12_mail_operations(db: sqlite3.Connection) -> None:
-    db.execute('''CREATE TABLE mail_operations (
+    db.execute('''CREATE TABLE IF NOT EXISTS mail_operations (
         operation_key TEXT PRIMARY KEY, thread_id TEXT NOT NULL, recipient TEXT NOT NULL,
         message_id TEXT NOT NULL UNIQUE, state TEXT NOT NULL CHECK(state IN ('pending', 'sent')),
         gmail_id TEXT NOT NULL, created_at TEXT NOT NULL, error TEXT NOT NULL)''')
@@ -268,24 +270,29 @@ def _migration_12_mail_operations(db: sqlite3.Connection) -> None:
 
 def _migration_13_project_dismissals(db: sqlite3.Connection) -> None:
     """Pares de hilos que una persona dijo que NO son el mismo proyecto (siempre con el id menor primero)."""
-    db.execute('''CREATE TABLE project_dismissals (
+    db.execute('''CREATE TABLE IF NOT EXISTS project_dismissals (
         thread_id TEXT NOT NULL, other_thread_id TEXT NOT NULL, decided_at TEXT NOT NULL,
         PRIMARY KEY (thread_id, other_thread_id), CHECK (thread_id < other_thread_id))''')
 
 
 def _migration_14_analysis_failures(db: sqlite3.Connection) -> None:
-    db.execute('''CREATE TABLE analysis_failures (
+    db.execute('''CREATE TABLE IF NOT EXISTS analysis_failures (
         thread_id TEXT PRIMARY KEY, failures INTEGER NOT NULL, last_error TEXT NOT NULL,
         first_at TEXT NOT NULL, last_at TEXT NOT NULL, next_retry_at TEXT NOT NULL)''')
 
 
 def _migration_15_work_rejections(db: sqlite3.Connection) -> None:
     """Los análisis de Work que no se pudieron leer: solo motivo, campos y fecha, nunca contenido del cliente (T-28)."""
-    db.execute('''CREATE TABLE work_rejections (
+    db.execute('''CREATE TABLE IF NOT EXISTS work_rejections (
         draft_id TEXT NOT NULL, message_id TEXT NOT NULL, thread_id TEXT NOT NULL, day TEXT NOT NULL,
         at TEXT NOT NULL, cause TEXT NOT NULL, fields TEXT NOT NULL, reason TEXT NOT NULL, dismissed_at TEXT,
         PRIMARY KEY (draft_id, message_id))''')
-    db.execute("CREATE INDEX idx_work_rejections_day ON work_rejections(day)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_work_rejections_day ON work_rejections(day)")
+
+
+def _migration_16_orphan_metadata(db: sqlite3.Connection) -> None:
+    """Quita de `quote_metadata` las filas sin caso, para activar las claves foráneas (U-42); queda la copia previa."""
+    db.execute("DELETE FROM quote_metadata WHERE thread_id NOT IN (SELECT thread_id FROM quotes)")
 
 
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
@@ -306,6 +313,7 @@ MIGRATIONS = (
     _migration_13_project_dismissals,
     _migration_14_analysis_failures,
     _migration_15_work_rejections,
+    _migration_16_orphan_metadata,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -330,14 +338,25 @@ def migrate(db: sqlite3.Connection, db_path: Path | None = None) -> None:
     if has_data and db_path is not None:
         backup = db_path.with_name(f"{db_path.name}.bak-v{current}")
         if not backup.exists():
-            target = sqlite3.connect(backup)
+            temporal = backup.with_name(f"{backup.name}.{os.getpid()}.tmp")
+            target = sqlite3.connect(temporal)
             try:
                 db.backup(target)
             finally:
                 target.close()
+            try:
+                if backup.exists():          # otro proceso llegó antes
+                    temporal.unlink(missing_ok=True)
+                else:
+                    os.replace(temporal, backup)
+            except OSError:
+                temporal.unlink(missing_ok=True)
     for version in range(current + 1, SCHEMA_VERSION + 1):
-        db.execute("BEGIN")
+        db.execute("BEGIN IMMEDIATE")      # un solo proceso migra a la vez (U-42)
         try:
+            if db.execute("PRAGMA user_version").fetchone()[0] >= version:
+                db.rollback()              # otro proceso ya hizo este paso mientras esperábamos
+                continue
             MIGRATIONS[version - 1](db)
             db.execute(f"PRAGMA user_version = {version}")
         except BaseException:
@@ -429,13 +448,37 @@ def connect() -> sqlite3.Connection:
     return open_db(settings.DATA_DIR)
 
 
+BUSY_TIMEOUT_MS = 15000
+
+
+def begin_immediate(db: sqlite3.Connection) -> None:
+    """Candado de escritura antes de leer lo que se va a modificar (U-42); si ya hay transacción, ya lo tiene."""
+    if not db.in_transaction:
+        db.execute("BEGIN IMMEDIATE")
+
+
+def _activar_wal(db: sqlite3.Connection) -> None:
+    """Pasa la base a WAL. Si otro proceso la abre a la vez el cambio de modo no espera solo: se reintenta."""
+    limite = time.monotonic() + BUSY_TIMEOUT_MS / 1000
+    while db.execute("PRAGMA journal_mode").fetchone()[0].lower() != "wal":
+        try:
+            db.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:
+            if time.monotonic() > limite:
+                raise
+            time.sleep(0.05)
+
+
 def open_db(data_dir: Path) -> sqlite3.Connection:
-    """Abre (y migra si hace falta) la base SQLite de una carpeta de datos."""
+    """Abre (y migra si hace falta) la base SQLite de una carpeta de datos, en WAL y con espera de 15 s (U-42)."""
     data_dir.mkdir(parents=True, exist_ok=True)
     db_path = data_dir / "quotes.sqlite3"
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=BUSY_TIMEOUT_MS / 1000)
     db.row_factory = sqlite3.Row
     try:
+        db.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+        db.execute("PRAGMA foreign_keys=ON")
+        _activar_wal(db)
         migrate(db, db_path)
         _derive_notifications(db)
         db.commit()
@@ -531,6 +574,7 @@ def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, reci
     """Crea o actualiza el caso (estado, destinatario, análisis) conservando lo que ya tenía, como la primera vista."""
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     received_at = analysis.get("received_at") or now
+    begin_immediate(db)      # leer y escribir bajo el mismo candado: el puente no pisa al dashboard (U-42)
     previous = db.execute(
         "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
     ).fetchone()
