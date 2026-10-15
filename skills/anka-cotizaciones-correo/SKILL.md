@@ -61,7 +61,7 @@ Si la cobertura es parcial, hay contenido visual no interpretado o una contradic
 2. Extrae datos del correo y revisa cada adjunto por separado: remitente, fecha/hora, asunto, texto, proyecto, ubicacion, magnitud, servicio probable, entregables, plazos, restricciones y dudas. Para cada archivo conserva evidencia y localizador.
 3. Construye una tabla de actividades. Cada fila debe tener actividad, servicio/tecnica candidata, ubicacion, magnitud, unidad, entregable, plazo/restriccion, fuente y estado.
 4. Determina si el alcance esta incompleto para la siguiente etapa de cotizacion.
-5. Si faltan datos, redacta un borrador breve en espanol claro, con preguntas agrupadas y sin tecnicismos innecesarios.
+5. Si faltan datos, redacta un borrador breve en espanol claro, con preguntas agrupadas y sin tecnicismos innecesarios. Redacta cada punto para el cliente como un dato o una pregunta cortes (por ejemplo, «La contradiccion entre miercoles y 30-10-2026», o «¿Podria confirmar el datum?»): sin verbos de trabajo interno como «Resolver», «Definir» o «Reconciliar» y sin etiquetas como «(bloqueante)». Lo que es tarea de Anka (verificar un hilo vigente, inspeccionar un plano) se marca como interno y no se redacta para el cliente.
 6. Si el alcance parece completo, recomienda pasar a revision comercial/tecnica antes de cotizar. La carpeta de Drive se crea solo segun las reglas operativas de abajo (R4 a R7); si el cliente no esta confirmado, deja el caso esperando aprobacion.
 7. Cuando llegue una respuesta del cliente, reconcilia la nueva informacion con la tabla anterior. Una respuesta parcial no convierte el alcance en completo.
 

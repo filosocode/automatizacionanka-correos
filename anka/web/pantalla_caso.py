@@ -31,7 +31,7 @@ from anka.dominio.status import (
 from anka.dominio.correo import (
     normalized_address, reply_body_without_quoted_history, split_quoted_reply, valid_email_address,
 )
-from anka.dominio.preguntas import candidatas, con_decisiones, elegida, separar
+from anka.dominio.preguntas import candidatas, como_peticion, con_decisiones, elegida, separar
 from anka.dominio.reception import (
     correo_con_preguntas, reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
 )
@@ -525,7 +525,7 @@ def _cuadro_de_preguntas(analysis: Analisis, preguntas: list[dict[str, Any]]) ->
     escritas = analysis.get("ultimas_preguntas")
     if escritas:
         return "\n".join(str(p) for p in escritas)
-    return "\n".join(p["texto"] for p in preguntas if p["elegida"] == "ask_client")
+    return "\n".join(como_peticion(p["texto"]) for p in preguntas if p["elegida"] == "ask_client")
 
 
 def _puede_volver_atras(review: Caso, analysis: Analisis) -> bool:

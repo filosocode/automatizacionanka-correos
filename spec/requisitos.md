@@ -766,6 +766,28 @@ desde «Ajustes»: ya no hay un botón «Buscar o exportar» ni dos listas en el
 - E2 · El cuadro «Buscar» filtra las filas por proyecto, cliente o servicio, junto con el chip elegido; si nada coincide dice «No hay casos con esos filtros». No hay botón «Buscar o exportar».
 - E2 · «Ajustes» trae «Administrar casos (eliminar, exportar)» que lleva a `/requests`, que se titula «Administrar casos» y trae «← Mis casos»; las novedades y el aviso de borradores de Work siguen en la página principal.
 
+### U-33 · Lo que se le pide al cliente se lee como una petición, sin etiquetas internas
+**Estado: dashboard implementado; ajuste de la skill de Work pendiente de prueba manual en Work** (pruebas en `tests/test_preguntas_al_cliente.py`). Decisión: D-94. Acota U-26 y U-31.5.
+
+**Motivo.** La evaluación de calidad (2026-10-14) y la revisión de los datos reales de CLL 170 y LLANOS 8 mostraron que los puntos que el análisis de Work deja para el cliente llegan al correo escritos como
+órdenes de trabajo interno («Resolver la correspondencia del polígono…», «Resolver la contradicción entre miércoles y 30-10-2026») y, en un caso, con la etiqueta «(bloqueante)». Los puntos sí son del cliente
+(U-26 los clasifica bien); el defecto es la redacción y la etiqueta, que no deben llegarle.
+
+**Qué debe cumplirse**
+1. **Sin etiquetas internas.** Al limpiar un punto del análisis se quitan también «(bloqueante)», «(bloqueantes)» y «(blocking)» al final, además de «(crítico)», «(recomendable)» y sus equivalentes en inglés.
+2. **Sin verbos de trabajo interno.** Al escribir el cuadro «Preguntas para el cliente» (U-31.5) con lo que sugiere el análisis, un punto que empieza por «Resolver» se escribe como lo que se le pide:
+   «Resolver la contradicción entre miércoles y 30-10-2026» → «La contradicción entre miércoles y 30-10-2026». Un punto que ya es una pregunta (lleva «?») o que no empieza por ese verbo no se toca, y lo que la
+   persona escribe o edita en el cuadro nunca se reescribe.
+3. **Work escribe bien desde el origen.** La skill pide que cada punto para el cliente se redacte como dato o pregunta cortés, sin verbos de trabajo interno («Resolver», «Definir», «Reconciliar») ni etiquetas
+   como «(bloqueante)»; lo que es tarea de Anka se marca como interno. **Prueba manual en Work pendiente** antes de darlo por aceptado.
+
+**Casos de aceptación**
+- E1 · «Confirmar relación de Andrés Muñoz con OTACC (bloqueante)» se limpia a «Confirmar relación de Andrés Muñoz con OTACC»; «Crítico: confirmar el datum.» sigue limpiándose como antes.
+- E1 · Con los cinco puntos de CLL 170, el cuadro de la decisión trae «La correspondencia del polígono LevantamientoRedes con el proyecto Calle 170» y «La contradicción entre miércoles y 30-10-2026», sin «Resolver».
+- E1 · El correo que se arma con ese cuadro no contiene «Resolver» ni «bloqueante».
+- E1 · Un punto con «?» y un punto que no empieza por «Resolver» quedan igual; lo que la persona ya escribió (`ultimas_preguntas`) no se reescribe.
+- E1 · La skill de Work trae la regla de redacción para el cliente.
+
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
 **Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la
 primera con el prompt V6.1 (2026-10-11, D-69) leyó el hilo y dejó el borrador completo; faltan el KMZ, el ZIP y el adjunto grande (ver «Prueba
