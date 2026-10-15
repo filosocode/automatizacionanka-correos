@@ -6,11 +6,11 @@ Aquí se fija el **ciclo de vida de un caso**, que es lo que el código debe res
 ## Estados (`QuoteStatus`)
 | Estado | Etiqueta en el dashboard | Significa |
 |---|---|---|
-| `review_pending` | Requiere aclaraciones | Faltan datos; hay preguntas por enviar |
+| `review_pending` | Correo por revisar | Faltan datos; el correo con las preguntas está redactado y falta enviarlo |
 | `review` | Revisión técnica interna | Una persona debe decidir (dependencias, contradicciones, adjuntos ilegibles) |
 | `ready_review` | Información suficiente | Alcance completo; listo para emitir la T |
 | `waiting` | Esperando al cliente | Se le enviaron preguntas |
-| `draft_created` | Borrador preparado | Hay un borrador de respuesta |
+| `draft_created` | Correo por revisar | Hay un borrador de respuesta guardado en Gmail |
 | `response_sent` | Respuesta enviada | Se envió una respuesta |
 | `ready` | Proyecto creado | Carpeta de Drive creada |
 | `sending` | Enviando | Envío en curso o interrumpido |

@@ -293,7 +293,7 @@ Estos hilos se parecen a este caso. Si son el mismo proyecto, únelos y dejas un
 "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </strong>
 <div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Recibido: 2026-09-01 09:00 · Por aclarar con el cliente
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Recibido: 2026-09-01 09:00 · Correo por revisar
 </div>
 <div class="meta">
 Se parece por: mismo cliente y nombre parecido

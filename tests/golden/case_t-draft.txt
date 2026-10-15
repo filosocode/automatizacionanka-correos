@@ -121,7 +121,7 @@ Cliente Sur · otro@example.com · recibido el 2026-09-01
 </div>
 </div>
 <span class="badge">
-Borrador preparado
+Correo por revisar
 </span>
 </div>
 <div class="paso-cabecera">
@@ -167,7 +167,7 @@ Si lo leído aplica a esta solicitud (un plano de otro proyecto, por ejemplo, no
 Revisar y aclarar
 </strong>
 <span>
-Borrador preparado
+Correo por revisar
 </span>
 </div>
 <div class="process-step">

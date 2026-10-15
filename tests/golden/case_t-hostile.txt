@@ -121,7 +121,7 @@ Recargar
 </div>
 </div>
 <span class="badge">
-Por aclarar con el cliente
+Correo por revisar
 </span>
 </div>
 <div class="paso-cabecera">
@@ -167,7 +167,7 @@ Si lo leído aplica a esta solicitud (un plano de otro proyecto, por ejemplo, no
 Revisar y aclarar
 </strong>
 <span>
-Por aclarar con el cliente
+Correo por revisar
 </span>
 </div>
 <div class="process-step">

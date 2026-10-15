@@ -578,7 +578,7 @@ class UnSoloNombreDeEstado(Base):
     def test_cada_estado_tiene_el_mismo_nombre_en_insignia_nota_y_lista(self) -> None:
         # Cubre: U-31
         from anka.web import paginas
-        casos = {QuoteStatus.REVIEW: "Por decidir", QuoteStatus.REVIEW_PENDING: "Por aclarar con el cliente",
+        casos = {QuoteStatus.REVIEW: "Por decidir", QuoteStatus.REVIEW_PENDING: "Correo por revisar",
                  QuoteStatus.READY_REVIEW: "Información validada"}
         for estado, nombre in casos.items():
             with self.subTest(estado=estado):
@@ -891,6 +891,48 @@ class SeguridadDelUsuario(Base):
         pagina = pantalla_caso.render_case("t-1", message="Listo: guardado.")
         self.assertIn("<div class='notice flash' role=\"status\">Listo: guardado.</div>", pagina)
         self.assertIn(".flash { position: sticky;", (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
+
+
+class CorreoPorRevisar(Base):
+    def test_con_el_correo_sin_enviar_lista_insignia_y_nota_dicen_correo_por_revisar(self) -> None:
+        # Cubre: U-31
+        from anka.web import paginas
+        for estado in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
+            with self.subTest(estado=estado):
+                self.crear(f"t-{estado}", estado=estado)
+                caso = quotes.get_quote(f"t-{estado}")
+                self.assertEqual(paginas.case_stage(caso), ("Correo por revisar", True))
+                self.assertEqual(paginas.accion_de_caso(caso)[1:], ("Revisar correo", "#respuesta"))
+                pagina = pantalla_caso.render_case(f"t-{estado}")
+                cabecera = pagina[pagina.index('class="caso-cabecera"'):pagina.index('class="next-step')]
+                self.assertEqual(cabecera.count("Correo por revisar"), 2)                    # insignia y nota del primer paso
+                for viejo in ("Por aclarar con el cliente", "Borrador por revisar", "Borrador preparado"):
+                    self.assertNotIn(viejo, cabecera)
+
+    def test_la_lista_lo_muestra_con_el_verbo_revisar_correo(self) -> None:
+        # Cubre: U-31
+        from anka.web import paginas
+        self.crear("t-a", estado=QuoteStatus.REVIEW_PENDING)
+        pagina = paginas.render_index()
+        fila = pagina[pagina.index('<li class="queue-row"'):pagina.index("</li>", pagina.index('<li class="queue-row"'))]
+        self.assertIn("Correo por revisar", fila)
+        self.assertIn(">Revisar correo<", fila)
+        self.assertIn("#respuesta", fila)
+        self.assertNotIn("Por aclarar con el cliente", pagina[:pagina.index("</main>")])
+
+    def test_el_correo_por_revisar_va_antes_que_decidir_y_despues_de_nada_mas_urgente(self) -> None:
+        # Cubre: U-31
+        from anka.web import paginas
+        self.crear("t-decidir", estado=QuoteStatus.REVIEW, proyecto="Proyecto A")
+        self.crear("t-correo", estado=QuoteStatus.REVIEW_PENDING, proyecto="Proyecto B")
+        with patch("anka.web.paginas.separated_project_pairs", return_value={frozenset(("t-decidir", "t-correo"))}):
+            pagina = paginas.render_index()
+        self.assertLess(pagina.index("t-correo"), pagina.index("t-decidir"))
+
+    def test_work_sigue_pudiendo_decir_borrador_preparado(self) -> None:
+        # Cubre: U-31
+        from anka.dominio.status import canonical_work_status
+        self.assertEqual(canonical_work_status("borrador preparado"), "Borrador preparado")
 
 
 class AccionSiempreAlAlcance(Base):

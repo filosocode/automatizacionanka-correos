@@ -311,7 +311,7 @@ Ningún correo sale sin «Enviar ahora» (R8).
 
 ### U-13 · Solicitudes: lista ordenada, con verbo y filtrada por etapa
 La lista de Solicitudes va, por defecto, de la más reciente a la más antigua (U-16). Cada fila lleva el botón con el verbo de su
-paso («Decidir», «Emitir la T», «Revisar borrador»…) y, si no espera nada de una persona, «Abrir». Se filtra por etapa (Por
+paso («Decidir», «Emitir la T», «Revisar correo»…) y, si no espera nada de una persona, «Abrir». Se filtra por etapa (Por
 atender, Esperando al cliente, Listas para la T, En cotización) con la cantidad de cada una, y por tipo de cliente. «Eliminar
 seleccionadas» queda dentro de un menú «Acciones» y conserva su confirmación: no está a la vista junto a las acciones normales.
 
@@ -651,9 +651,9 @@ la carpeta de Drive.
 **Valores por omisión propuestos (se dan por buenos si nadie los objeta antes de programar)**
 6. **Glosario.** El glosario de U-28.7 deja de ser el primer bloque del caso: un «?» junto a «Paso N de 4» lo abre (mismos términos: T, T&E, lectura realizada, aplicabilidad).
 7. **Un solo nombre por estado (D-86).** La insignia del caso, la nota del primer paso, la lista de Solicitudes, el Resumen y los botones usan los mismos nombres, según el estado del flujo y no
-   según la evaluación de recepción: «Por decidir» (revisión técnica: falta tu decisión), «Por aclarar con el cliente» (hay que escribirle o enviarle el correo), «Borrador por revisar»,
-   «Esperando al cliente» (ya se le escribió), «Información validada» (lista para emitir la T) y, con T, «T… · cotizando» o «T&E… · aprobada». Se distingue «Por aclarar» de «Esperando» porque en el
-   primero la persona todavía debe actuar. Desaparecen «Información suficiente para revisión interna», «Requiere revisión técnica interna», «Falta tu decisión técnica», «Listo para emitir la T» y
+   según la evaluación de recepción: «Por decidir» (revisión técnica: falta tu decisión), «Correo por revisar» (el correo para el cliente está redactado y falta que lo revises y lo envíes; D-96),
+   «Esperando al cliente» (ya se le escribió), «Información validada» (lista para emitir la T) y, con T, «T… · cotizando» o «T&E… · aprobada». Se distingue «Correo por revisar» de «Esperando» porque en el
+   primero la persona todavía debe actuar y el correo aún no salió. Desaparecen «Información suficiente para revisión interna», «Requiere revisión técnica interna», «Falta tu decisión técnica», «Listo para emitir la T» y
    «Recepción completa» como nombre del estado de un caso. Los textos que Work envía (su etiqueta de estado) no cambian y se siguen aceptando tal cual; el panel «Evaluación de recepción» del
    detalle técnico conserva su propia etiqueta.
 8. **Lectura sin verificar (U-29).** Si hay archivos que Anka no pudo verificar, la tarjeta «Ahora» lo dice primero y ofrece «Ya revisé estos archivos yo» (con su confirmación)
@@ -737,7 +737,7 @@ la carpeta de Drive.
 - E11 · `--control-line` pasa 3:1 contra el panel y el fondo de los campos en claro y oscuro; los selectores `.next-step`, `.paso-cabecera`, `.paso-n`, `.pregunta`, `.armar-correo`, `.process-step strong` y `.toolbar` se definen una vez; hay reglas de 640 px para las pestañas y la tabla apilada con `data-etiqueta`, y de `prefers-reduced-motion`.
 - E12 · «Enviar al cliente», «Guardar borrador en Gmail» y la línea de preguntas están dentro de una barra `.barra-accion` pegada abajo (`position: sticky; bottom: 0`); el mensaje crece con su contenido (`field-sizing: content`) y no tiene tope de altura.
 - E12 · En el navegador, con el caso largo (CLL 170) y la pantalla en el arranque, la barra queda dentro de la pantalla visible.
-- E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; en revisión pendiente, «Por aclarar con el cliente»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
+- E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; con el correo redactado sin enviar, «Correo por revisar»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).
 

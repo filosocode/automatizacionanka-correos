@@ -319,9 +319,47 @@ Todos
 </button>
 </div>
 <ol class="queue" id="casos">
-<li class="queue-row" data-etapa="atender" data-search="proyecto sur cliente sur topografía convencional batimetría">
+<li class="queue-row" data-etapa="atender" data-search="proyecto norte energía norte topografía convencional batimetría">
 <span class="rank" aria-hidden="true">
 1
+</span>
+<div>
+<strong>
+Proyecto Norte
+</strong>
+<span class="badge">
+Nuevo
+</span>
+<div class="meta">
+Energía Norte · Correo por revisar
+</div>
+</div>
+<a class="button" href="/case?thread_id=t-review#respuesta">
+Revisar correo
+</a>
+</li>
+<li class="queue-row" data-etapa="atender" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>">
+<span class="rank" aria-hidden="true">
+2
+</span>
+<div>
+<strong>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</strong>
+<span class="badge">
+Nuevo
+</span>
+<div class="meta">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Correo por revisar · +1 hilo(s) más del mismo proyecto
+</div>
+</div>
+<a class="button secondary" href="/case?thread_id=t-hostile#respuesta">
+Revisar correo
+</a>
+</li>
+<li class="queue-row" data-etapa="atender" data-search="proyecto sur cliente sur topografía convencional batimetría">
+<span class="rank" aria-hidden="true">
+3
 </span>
 <div>
 <strong>
@@ -331,16 +369,16 @@ Proyecto Sur
 Nuevo
 </span>
 <div class="meta">
-Cliente Sur · Borrador por revisar
+Cliente Sur · Correo por revisar
 </div>
 </div>
-<a class="button" href="/case?thread_id=t-draft#respuesta">
-Revisar borrador
+<a class="button secondary" href="/case?thread_id=t-draft#respuesta">
+Revisar correo
 </a>
 </li>
 <li class="queue-row" data-etapa="listo" data-search="proyecto listo cliente@example.com topografía convencional">
 <span class="rank" aria-hidden="true">
-2
+4
 </span>
 <div>
 <strong>
@@ -359,7 +397,7 @@ Emitir la T
 </li>
 <li class="queue-row" data-etapa="listo" data-search="proyecto hostil "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> topografía convencional batimetría">
 <span class="rank" aria-hidden="true">
-3
+5
 </span>
 <div>
 <strong>
@@ -378,7 +416,7 @@ Emitir la T
 </li>
 <li class="queue-row" data-etapa="listo" data-search="proyecto retenido minera sur topografía convencional batimetría">
 <span class="rank" aria-hidden="true">
-4
+6
 </span>
 <div>
 <strong>
@@ -397,7 +435,7 @@ Emitir la T
 </li>
 <li class="queue-row" data-etapa="listo" data-search="proyecto con carpeta minera sur topografía convencional batimetría">
 <span class="rank" aria-hidden="true">
-5
+7
 </span>
 <div>
 <strong>
@@ -413,7 +451,7 @@ Emitir la T
 </li>
 <li class="queue-row" data-etapa="atender" data-search="proyecto técnico cliente@example.com">
 <span class="rank" aria-hidden="true">
-6
+8
 </span>
 <div>
 <strong>
@@ -427,44 +465,6 @@ cliente@example.com · Por decidir
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-review-tech#decision">
-Decidir
-</a>
-</li>
-<li class="queue-row" data-etapa="atender" data-search="proyecto norte energía norte topografía convencional batimetría">
-<span class="rank" aria-hidden="true">
-7
-</span>
-<div>
-<strong>
-Proyecto Norte
-</strong>
-<span class="badge">
-Nuevo
-</span>
-<div class="meta">
-Energía Norte · Por aclarar con el cliente
-</div>
-</div>
-<a class="button secondary" href="/case?thread_id=t-review">
-Aclarar
-</a>
-</li>
-<li class="queue-row" data-etapa="atender" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>">
-<span class="rank" aria-hidden="true">
-8
-</span>
-<div>
-<strong>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</strong>
-<span class="badge">
-Nuevo
-</span>
-<div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Por decidir · +1 hilo(s) más del mismo proyecto
-</div>
-</div>
-<a class="button secondary" href="/case?thread_id=t-hostile-scope#decision">
 Decidir
 </a>
 </li>
@@ -598,6 +598,18 @@ Información validada
 </div>
 </div>
 <div class="metric-row">
+<div class="metric-label" title="Correo por revisar">
+Correo por revisar
+</div>
+<div class="metric-track">
+<div class="metric-fill blue" style="width:75%">
+</div>
+</div>
+<div class="metric-count">
+3
+</div>
+</div>
+<div class="metric-row">
 <div class="metric-label" title="Por decidir">
 Por decidir
 </div>
@@ -610,32 +622,8 @@ Por decidir
 </div>
 </div>
 <div class="metric-row">
-<div class="metric-label" title="Por aclarar con el cliente">
-Por aclarar con el cliente
-</div>
-<div class="metric-track">
-<div class="metric-fill blue" style="width:50%">
-</div>
-</div>
-<div class="metric-count">
-2
-</div>
-</div>
-<div class="metric-row">
 <div class="metric-label" title="Llamar al cliente">
 Llamar al cliente
-</div>
-<div class="metric-track">
-<div class="metric-fill blue" style="width:25%">
-</div>
-</div>
-<div class="metric-count">
-1
-</div>
-</div>
-<div class="metric-row">
-<div class="metric-label" title="Borrador por revisar">
-Borrador por revisar
 </div>
 <div class="metric-track">
 <div class="metric-fill blue" style="width:25%">

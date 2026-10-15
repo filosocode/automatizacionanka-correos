@@ -279,7 +279,7 @@ Recibido: 2026-09-01 09:00
 Decidir
 </a>
 </article>
-<article class="case case-row" data-search="proyecto norte energía norte topografía convencional, batimetría" data-status="review_pending" data-etapa="atender" data-fecha="1788271200" data-urgencia="4" data-type="Empresa privada" data-selectable="">
+<article class="case case-row" data-search="proyecto norte energía norte topografía convencional, batimetría" data-status="review_pending" data-etapa="atender" data-fecha="1788271200" data-urgencia="2" data-type="Empresa privada" data-selectable="">
 <input class="row-check" type="checkbox" name="thread_id" value="t-review" form="bulk-delete" aria-label="Seleccionar Proyecto Norte">
 <div>
 <h3>
@@ -301,13 +301,13 @@ Energía
 </div>
 </div>
 <span class="badge warn">
-Por aclarar con el cliente
+Correo por revisar
 </span>
 <div class="meta">
 Recibido: 2026-09-01 09:00
 </div>
-<a class="button secondary" href="/case?thread_id=t-review">
-Aclarar
+<a class="button secondary" href="/case?thread_id=t-review#respuesta">
+Revisar correo
 </a>
 </article>
 <article class="case case-row" data-search="proyecto listo cliente@example.com topografía convencional" data-status="ready_review" data-etapa="listo" data-fecha="1788271200" data-urgencia="3" data-type="No clasificado" data-selectable="">
@@ -341,7 +341,7 @@ Recibido: 2026-09-01 09:00
 Emitir la T
 </a>
 </article>
-<section class="grupo" data-fecha="1788271200" data-urgencia="4">
+<section class="grupo" data-fecha="1788271200" data-urgencia="2">
 <div class="grupo-head">
 <div>
 <strong>
@@ -387,7 +387,7 @@ Decidir
 </a>
 </article>
 <div class="grupo-resto" hidden="">
-<article class="case case-row" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>" data-status="review_pending" data-etapa="atender" data-fecha="1788271200" data-urgencia="4" data-type=""><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>" data-selectable="">
+<article class="case case-row" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>" data-status="review_pending" data-etapa="atender" data-fecha="1788271200" data-urgencia="2" data-type=""><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>" data-selectable="">
 <input class="row-check" type="checkbox" name="thread_id" value="t-hostile" form="bulk-delete" aria-label="Seleccionar "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
 <div>
 <h3>
@@ -409,13 +409,13 @@ Nuevo
 </div>
 </div>
 <span class="badge warn">
-Por aclarar con el cliente
+Correo por revisar
 </span>
 <div class="meta">
 Recibido: 2026-09-01 09:00
 </div>
-<a class="button secondary" href="/case?thread_id=t-hostile">
-Aclarar
+<a class="button secondary" href="/case?thread_id=t-hostile#respuesta">
+Revisar correo
 </a>
 </article>
 </div>
@@ -535,13 +535,13 @@ Infraestructura
 </div>
 </div>
 <span class="badge warn">
-Borrador por revisar
+Correo por revisar
 </span>
 <div class="meta">
 Recibido: 2026-09-01 09:00
 </div>
 <a class="button secondary" href="/case?thread_id=t-draft#respuesta">
-Revisar borrador
+Revisar correo
 </a>
 </article>
 </div>

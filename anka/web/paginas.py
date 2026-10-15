@@ -90,11 +90,10 @@ _ACCION_POR_ETAPA: dict[str, tuple[int, str, str]] = {
     "Faltan correos por enviar": (1, "Enviar correos", ""),
     "Posible actualización": (1, "Revisar", ""),
     "Propuesta del modelo por revisar": (1, "Revisar", "#proposal"),
-    "Borrador por revisar": (2, "Revisar borrador", "#respuesta"),
+    "Correo por revisar": (2, "Revisar correo", "#respuesta"),
     "Envío interrumpido": (2, "Revisar envío", "#respuesta"),
     "Información validada": (3, "Emitir la T", "#emitir-t"),
     "Por decidir": (4, "Decidir", "#decision"),
-    "Por aclarar con el cliente": (4, "Aclarar", ""),
     "Hilo no disponible": (4, "Abrir", ""),
     "Llamar al cliente": (5, "Ver seguimiento", "#seguimiento"),
     "Sin respuesta · recordar": (5, "Ver seguimiento", "#seguimiento"),
@@ -358,8 +357,8 @@ def case_stage(quote: Mapping[str, Any]) -> tuple[str, bool]:
             return f"{code_label(code, 'TE')} · aprobada", False
         return f"{code_label(code, 'T')} · cotizando", False
     labels = {
-        QuoteStatus.REVIEW_PENDING: ("Por aclarar con el cliente", True),
-        QuoteStatus.DRAFT_CREATED: ("Borrador por revisar", True),
+        QuoteStatus.REVIEW_PENDING: ("Correo por revisar", True),
+        QuoteStatus.DRAFT_CREATED: ("Correo por revisar", True),
         QuoteStatus.SENDING: ("Envío interrumpido", True),
         QuoteStatus.MISSING: ("Hilo no disponible", True),
         QuoteStatus.WAITING: ("Esperando al cliente", False),

@@ -98,12 +98,12 @@ class Caso(MapaDeSoloLectura):
 # --- Datos que se derivan de lo guardado de un caso (funciones puras: no tocan la base)
 
 STATUS_LABELS = {
-    QuoteStatus.REVIEW_PENDING: "Por aclarar con el cliente",
+    QuoteStatus.REVIEW_PENDING: "Correo por revisar",
     QuoteStatus.READY_REVIEW: "Información validada",
     QuoteStatus.SENDING: "Enviando",
     QuoteStatus.REVIEW: "Por decidir",
     QuoteStatus.WAITING: "Esperando al cliente",
-    QuoteStatus.DRAFT_CREATED: "Borrador preparado",
+    QuoteStatus.DRAFT_CREATED: "Correo por revisar",
     QuoteStatus.RESPONSE_SENT: "Respuesta enviada",
     QuoteStatus.READY: "Proyecto creado",
     QuoteStatus.MISSING: "Hilo no disponible",

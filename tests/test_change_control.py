@@ -652,7 +652,7 @@ class UxFixesTests(Base):
     # 1. etapa y siguiente acción
     def test_every_case_says_its_stage_and_whether_it_needs_you(self):
         cases = [
-            (QuoteStatus.REVIEW_PENDING, ("Por aclarar con el cliente", True)),
+            (QuoteStatus.REVIEW_PENDING, ("Correo por revisar", True)),
             (QuoteStatus.WAITING, ("Esperando al cliente", False)),
             (QuoteStatus.RESPONSE_SENT, ("Esperando al cliente", False)),
             (QuoteStatus.REVIEW, ("Por decidir", True)),
@@ -682,9 +682,9 @@ class UxFixesTests(Base):
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = paginas.render_requests()
         self.assertIn("Esperando al cliente", page)
-        self.assertIn("Por aclarar con el cliente", page)
+        self.assertIn("Correo por revisar", page)
         lista = page[page.index('id="requests"'):]                  # sin contar los botones del filtro de etapa
-        self.assertLess(lista.index("Por aclarar con el cliente"), lista.index("Esperando al cliente"))
+        self.assertLess(lista.index("Correo por revisar"), lista.index("Esperando al cliente"))
 
     # 2. textos al día
     def test_no_stale_prompts_once_the_t_exists(self):
@@ -778,9 +778,9 @@ class UxFixesTests(Base):
             page = paginas.render_index()
         self.assertIn("Mis casos", page)
         self.assertIn("por atender, del más urgente al menos", page)
-        self.assertIn("Por aclarar con el cliente", page)
+        self.assertIn("Correo por revisar", page)
         self.assertIn("Ver estadísticas", page)                           # las gráficas quedan plegadas
-        self.assertLess(page.index("Por aclarar con el cliente"), page.index("Ver estadísticas"))
+        self.assertLess(page.index("Correo por revisar"), page.index("Ver estadísticas"))
         self.set_status(QuoteStatus.WAITING)
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             self.assertIn("nada pendiente de tu parte", paginas.render_index())
