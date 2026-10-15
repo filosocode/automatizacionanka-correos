@@ -411,12 +411,20 @@ window.addEventListener('pageshow', event => {
     document.querySelector('#selected-count').textContent = picked + (picked === 1 ? ' marcada' : ' marcadas');
     deleteBtn.disabled = picked === 0;
     deleteBtn.textContent = picked ? 'Borrar ' + picked + (picked === 1 ? ' caso marcado' : ' casos marcados') : 'Borrar las marcadas';
+    // Un caso con código T o correo enviado pide escribir ELIMINAR (el servidor también lo exige; U-57).
+    const fuerte = document.querySelector('#eliminar-fuerte');
+    if (fuerte) {
+      const protegidos = checks.some(c => c.checked && c.hasAttribute('data-protegido'));
+      fuerte.hidden = !protegidos;
+      if (!protegidos) fuerte.querySelector('input').value = '';
+    }
   }
   selectAll.addEventListener('change', () => {
     checks.forEach(c => { if (!c.closest('.case-row').hidden) c.checked = selectAll.checked; });
     updateSelection();
   });
   checks.forEach(c => c.addEventListener('change', updateSelection));
+  updateSelection();
   const linkChecks = [...document.querySelectorAll('.link-row-check')];
   const selectAllLinks = document.querySelector('#select-all-links');
   const dismissLinks = document.querySelector('#dismiss-links-btn');
@@ -439,6 +447,18 @@ window.addEventListener('pageshow', event => {
   }
   search.addEventListener('input', clearHiddenSelection);
 })();
+document.querySelectorAll('form[data-datos-comerciales]').forEach(formulario => {
+  // Dejar vacío un dato que ya tenía algo pide confirmar (U-57). El botón lleva `data-confirm` solo en ese caso.
+  const boton = formulario.querySelector('button[type="submit"]');
+  if (!boton) return;
+  boton.addEventListener('click', () => {
+    const vaciados = [...formulario.querySelectorAll('[data-nombre]')]
+      .filter(campo => campo.defaultValue.trim() && !campo.value.trim())
+      .map(campo => '«' + campo.dataset.nombre + '» (ahora dice «' + campo.defaultValue.trim().slice(0, 60) + '»)');
+    if (vaciados.length) boton.dataset.confirm = 'Vas a dejar vacío ' + vaciados.join(' y ') + '. ¿Seguimos?';
+    else delete boton.dataset.confirm;
+  });
+});
 document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
   // «Posibles actualizaciones» del caso: seleccionar todas, y no enviar sin marcar ninguna.
   const toggle = root.querySelector('[data-select-all-links]');

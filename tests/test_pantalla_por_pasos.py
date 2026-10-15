@@ -489,8 +489,11 @@ class UnaSolaTarjetaAhora(Base):
     def test_el_aviso_es_una_tarjeta_ahora_que_no_se_pega(self) -> None:
         # Cubre: U-31
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
-        self.assertIn('.next-step.aviso-ahora::before { content: "Ahora"; }', css)
-        self.assertIn('.next-step::before { content: "Antes de seguir";', css)
+        # La marca es texto real (U-58), no contenido generado por CSS: un lector de pantalla la lee.
+        self.assertNotIn('content: "Ahora"', css)
+        self.assertNotIn('content: "Antes de seguir"', css)
+        self.assertIn(".next-step > .marca-paso {", css)
+        self.assertIn('<span class="marca-paso">Ahora</span>', (PLANTILLAS / "next_step.html").read_text(encoding="utf-8"))
         self.assertFalse([linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea])
 
 

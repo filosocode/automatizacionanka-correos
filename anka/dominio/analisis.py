@@ -144,6 +144,7 @@ class Analisis(TypedDict, total=False):
     ultimas_preguntas: list[str]   # lo último que la persona dejó en el cuadro de preguntas para el cliente (U-31)
     manual_edit: EdicionManual
     pending_model_activities: list[Actividad]
+    propuesta_descartada: list[Actividad]   # U-57: la propuesta de Work que se dejó de lado
     drive: dict[str, str]
     email: dict[str, str]
     received_at: str

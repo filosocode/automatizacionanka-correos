@@ -390,13 +390,39 @@ def _fill_folder(gmail: Any, drive: Any, thread_id: str, folder_id: str,
                 + (f" ({causa})" if causa else "") + ". Súbelo tú a mano o prueba otra vez en un momento.")
 
 
-def delete_cases(thread_ids: list[str]) -> str:
+PALABRA_PARA_BORRAR = "ELIMINAR"
+
+
+def casos_con_codigo_o_correo(thread_ids: list[str]) -> list[str]:
+    """Los casos de la lista que ya tienen código T o un correo enviado al cliente (borrarlos pide más cuidado)."""
+    if not thread_ids:
+        return []
+    db = connect()
+    try:
+        marks = ",".join("?" * len(thread_ids))
+        return [row["thread_id"] for row in db.execute(
+            f"SELECT thread_id FROM quotes WHERE thread_id IN ({marks}) "
+            "AND (COALESCE(quote_code, '') <> '' OR COALESCE(sent_at, '') <> '')", thread_ids)]
+    finally:
+        db.close()
+
+
+def delete_cases(thread_ids: list[str], confirmacion: str = "") -> str:
     """Elimina hilos del dashboard y mueve a la papelera de Drive la carpeta que se les creó.
 
     Si una carpeta no se puede mover a la papelera, ese hilo NO se borra (así no se pierde el
     vínculo con su carpeta) y se informa. Las carpetas de cliente nunca se tocan.
+    Un caso que ya tiene código T o un correo enviado al cliente solo se borra si la persona escribió
+    «ELIMINAR» (`confirmacion`): no se borra nada si falta (U-57).
     """
     ids = list(dict.fromkeys(thread_ids))
+    protegidos = casos_con_codigo_o_correo(ids)
+    if protegidos and confirmacion.strip().upper() != PALABRA_PARA_BORRAR:
+        uno = len(protegidos) == 1
+        quienes = "este caso ya tiene" if uno else f"{len(protegidos)} de los casos marcados ya tienen"
+        return (f"No se borró nada: {quienes} código T o un correo enviado al cliente. Si de verdad quieres borrar"
+                f"{'lo' if uno else 'los'}, escribe {PALABRA_PARA_BORRAR} en el cuadro de confirmación "
+                "y vuelve a pulsar «Borrar».")
     db = connect()
     try:
         marks = ",".join("?" * len(ids))

@@ -12,6 +12,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +42,11 @@ class Archivo:
     cache: str
 
 
+# Un archivo cambiado hace menos de esto no se da por igual solo porque coincidan la fecha y el tamaño: el reloj del
+# archivo avanza a saltos (hasta ~16 ms en Windows) y dos escrituras seguidas del mismo largo pueden dejar la misma
+# fecha (U-56). Pasado ese margen se confía en la fecha.
+MARGEN_DE_FECHA_NS = 2_000_000_000
+
 _lock = threading.Lock()
 _leidos: dict[Path, tuple[tuple[int, int], bytes, str]] = {}
 
@@ -51,7 +57,8 @@ def _leer(ruta: Path) -> tuple[bytes, str]:
     clave = (estado.st_mtime_ns, estado.st_size)
     with _lock:
         guardado = _leidos.get(ruta)
-        if guardado is not None and guardado[0] == clave:
+        reciente = time.time_ns() - estado.st_mtime_ns < MARGEN_DE_FECHA_NS
+        if guardado is not None and guardado[0] == clave and not reciente:
             return guardado[1], guardado[2]
     datos = ruta.read_bytes()
     huella = hashlib.sha256(datos).hexdigest()[:12]

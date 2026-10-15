@@ -1147,6 +1147,52 @@ Fuera de alcance: guardar un borrador desde el dashboard sobre un caso `ready` o
 - J5 · Un libro con una hoja `veryHidden` la entrega marcada y con una fórmula sin recalcular.
 - J6 · `.rar`, `.7z` y `.dwg` dan `no_legible` con la marca; un `.dxf` sencillo da capas y textos.
 
+### U-58 · Encabezado compacto, verbo primero y avisos accesibles (cierre de las Olas 2 y 3)
+**Estado: implementado** (pruebas en `tests/test_cabecera_y_filas.py`). Decisión: D-123. Respeta los textos únicos de D-97, el estilo ANKA y la accesibilidad de U-37; no cambia R8, D-27 ni los tres modos.
+
+**Qué debe cumplirse**
+1. **Encabezado en una barra (≤ 600 px).** El logo, «Buscar correos nuevos» y «Ajustes» van en una sola fila (el botón puede partir su texto en dos líneas); «Mis casos» se queda solo para lectores (el enlace del logo ya dice «Anka, mis casos»); el menú de Ajustes se despliega a todo el ancho encima del contenido y sigue plegado hasta abrirlo. Cada control mide al menos 44 px de alto y ningún texto baja de 14 px. Si un chip de estado está visible, baja a una segunda fila.
+2. **Verbo primero.** En las filas de «Mis casos» y de «Administrar casos», la primera línea empieza por lo que hay que hacer: «Revisar el correo · Cliente · Proyecto». El botón de la derecha conserva exactamente el mismo texto (D-97); el verbo repetido en la primera línea es solo visual (`aria-hidden`) para que un lector de pantalla no lo lea dos veces. La segunda línea lleva el código de oferta cuando existe.
+3. **La marca «Ahora» / «Antes de seguir» es texto.** Es un elemento (`.marca-paso`) en los cuatro avisos de arriba del caso, no contenido generado por CSS, así que un lector de pantalla la lee.
+4. **Todo fallo es alerta.** Las acciones que terminan en fallo sin pasar por la guía (buscar correos nuevos que falla, actualizar la hoja de Google que falla, borrar casos que pide ELIMINAR) se anuncian con `role="alert"` y «Error:» como las demás.
+
+**Casos de aceptación**
+- E1 · A 360 px de ancho el encabezado cabe en una fila sin desbordar y Ajustes abre una caja que ocupa el ancho de la pantalla.
+- E2 · La lista muestra «Revisar el correo · Acme · Llanos 8» y el botón dice «Revisar el correo».
+- E3 · Un «Buscar correos nuevos» sin conexión muestra una alerta con el motivo y qué hacer.
+
+### U-57 · Lo que se decide por error se puede deshacer y borrar lo importante pide más (cierre de la Ola 1)
+**Estado: implementado** (pruebas en `tests/test_deshacer.py`). Decisión: D-122. Completa U-35 (ítems 1.11 y 1.12 del plan de experiencia). No cambia R8, D-27 ni los tres modos; ninguna acción envía nada.
+
+**Motivo.** «No es un cambio» y «Dejar mi tabla» eran de un solo clic y sin vuelta atrás; «Borrar» un caso con código T o con un correo ya enviado pedía el mismo «¿Borrar?» que uno recién llegado; y se podía vaciar un dato comercial por accidente.
+
+**Qué debe cumplirse**
+1. **Reabrir «No es un cambio».** La pestaña «Historial» del caso muestra «Decisiones que puedes deshacer» con los mensajes marcados «No es un cambio» (los 5 más recientes) y un botón «Reabrir este mensaje». `POST /change` con `decision=reopen` vuelve el mensaje a «por revisar», deja el hecho `change_reopened` (quién y cuándo) en el historial y no hace nada si el mensaje ya estaba por revisar o ya se confirmó como cambio. El mensaje de éxito de «No es un cambio» dice dónde se deshace.
+2. **Recuperar la propuesta de Work.** «Dejar mi tabla» guarda la propuesta descartada (`propuesta_descartada` en el análisis); el mismo panel ofrece «Recuperar la propuesta» (`POST /proposal` con `decision=restore`): la propuesta vuelve a estar pendiente, la tabla de la persona no se toca y queda anotado. No se ofrece si ya hay otra propuesta pendiente; aceptar una propuesta borra la guardada.
+3. **Borrar con código T o correo enviado.** Un caso con `quote_code` o `sent_at` solo se borra si `POST /delete` trae `confirmacion` igual a `ELIMINAR` (sin distinguir mayúsculas ni espacios en los bordes); si falta, no se borra **nada** (ni los demás casos marcados ni las carpetas de Drive) y el mensaje explica qué escribir. La lista muestra el cuadro «escribe ELIMINAR» solo cuando alguno de los casos marcados está protegido; la pantalla del caso (borrar un caso que ya no está en Gmail) lo pide con su propio cuadro y, si falla, vuelve al caso.
+4. **Vaciar datos comerciales.** El formulario de cliente y notas pide confirmar («Vas a dejar vacío «Notas comerciales» (ahora dice «…»). ¿Seguimos?») cuando la persona deja vacío un campo que ya tenía texto. Es solo del formulario: `POST /metadata` directo (API) no lo exige.
+5. **Pendiente, con su razón.** El mensaje de éxito por cookie de un solo uso en lugar de `?message=` no se hizo: 46 referencias en 23 archivos de pruebas leen el `Location` de las redirecciones y el beneficio (no repetir el mensaje al recargar) no compensa el riesgo. Se retoma si se reescriben esas pruebas por otra razón.
+
+**Casos de aceptación**
+- D1 · Se marca «No es un cambio», se abre el Historial, se pulsa «Reabrir este mensaje» y el aviso de cambio vuelve a aparecer arriba; la cadena del historial sigue íntegra.
+- D2 · Se deja la tabla propia, se recupera la propuesta y vuelve el aviso «Work propone…» con la tabla de la persona intacta.
+- D3 · Con un caso con T y otro sin ella marcados, borrar sin escribir nada no borra ninguno; con «eliminar» borra los dos.
+
+### U-56 · Las pruebas no dependen de la máquina ni del azar (pendientes pequeños 2026-10)
+**Estado: implementado** (pruebas en `tests/test_entorno_aislado.py`, `tests/test_base_concurrente.py` y `tests/test_busqueda_en_servidor.py`). Decisión: D-121. No cambia lo que ve la persona ni R8, D-27 ni los tres modos.
+
+**Motivo.** Con `OPENAI_API_KEY` definida en la máquina de quien corre las pruebas, 21 instantáneas fallaban («OpenAI» en vez de «OpenAI (sin clave)») y dos pruebas fallaban de vez en cuando por defectos reales del código, no por mala suerte.
+
+**Qué debe cumplirse**
+1. `tests/_isolate.py` (lo primero que importa cada módulo de pruebas) quita del entorno `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `ANKA_HOJA_AUTOMATICA`, `ANKA_LOG_LEVEL`, `ANKA_NO_BROWSER` y `CODEX_HOME`. Una prueba que necesita una de ellas la fija con `mock.patch.dict(os.environ, ...)`. Toda la suite pasa igual con o sin esas variables definidas.
+2. **Copia previa a migrar.** El archivo temporal de `quotes.sqlite3.bak-vN` lleva el identificador del hilo además del del proceso: dos hilos que abrían la base a la vez compartían nombre y en Windows uno recibía `PermissionError` (el servidor del dashboard es multihilo).
+3. **Huella de los archivos fijos.** La caché de `anka/web/estaticos.py` no da por igual un archivo cuya fecha de modificación es de hace menos de 2 s solo porque coincidan fecha y tamaño: dos escrituras seguidas del mismo largo dejaban la huella vieja y el navegador seguiría con el JavaScript o CSS anterior.
+
+**Casos de aceptación**
+- N1 · Con `OPENAI_API_KEY=x` definida al lanzar las pruebas, ninguna instantánea ni prueba cambia de resultado.
+- N2 · Seis hilos abren a la vez ocho bases con datos de un esquema anterior sin ningún error ni archivo `.tmp` sobrante.
+- N3 · Un guion reescrito con el mismo tamaño y la misma fecha cambia de huella.
+
 ### U-35 · Lenguaje claro: mensajes que dicen qué pasó y qué hacer (Ola 1 del plan de experiencia)
 **Estado: implementado** (pruebas en `tests/test_lenguaje_claro.py` y las de texto exacto de cada pantalla). Decisión: D-100. Acota U-31 puntos 24 y 25 (un solo texto por decisión y por acción), D-96/D-97 (nombres de estado y de decisión, que no cambian) y D-27 (la autorización de Google solo con acción explícita, que no cambia).
 

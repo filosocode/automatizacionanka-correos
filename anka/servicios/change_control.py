@@ -271,13 +271,49 @@ def resolve_change(thread_id: str, change_id: int, is_change: bool) -> str:
             message = "Anotado como cambio. Abajo están los correos por enviar."
         else:
             summary = f"Marcaste el mensaje de {who} «{change['subject'][:80]}» como no relacionado con un cambio."
-            message = "Anotado: no es un cambio."
+            message = ("Anotado: no es un cambio. Si fue un error, puedes reabrirlo en la pestaña «Historial» "
+                       "(«Decisiones que puedes deshacer»).")
         record_event(db, thread_id, "change_confirmed" if is_change else "change_dismissed", "dashboard",
                      f"change-{change_id}", summary, now, change["sender_email"], change["sender_name"])
         db.commit()
     finally:
         db.close()
     return message
+
+
+def reabrir_cambio(thread_id: str, change_id: int) -> str:
+    """Deshace «No es un cambio»: el mensaje vuelve a quedar por revisar y se anota quién lo reabrió (U-57)."""
+    db = connect()
+    try:
+        change = db.execute("SELECT * FROM case_changes WHERE id=? AND thread_id=?", (change_id, thread_id)).fetchone()
+        if not change:
+            return "Ese mensaje ya no está en este caso."
+        if change["state"] != "not_change":
+            return "Ese mensaje ya estaba por revisar." if change["state"] == "pending" else (
+                "Ese mensaje ya se había confirmado como un cambio.")
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        who = change["sender_name"] or change["sender_email"]
+        db.execute("UPDATE case_changes SET state='pending', decided_at=NULL WHERE id=?", (change_id,))
+        record_event(db, thread_id, "change_reopened", "dashboard", f"change-{change_id}-reopened-{uuid4().hex[:6]}",
+                     f"Reabriste el mensaje de {who} «{change['subject'][:80]}» que habías marcado como no relacionado "
+                     "con un cambio.", now, change["sender_email"], change["sender_name"])
+        db.commit()
+    finally:
+        db.close()
+    return "Reabierto: el mensaje vuelve a estar por revisar arriba, en el caso."
+
+
+def cambios_descartados(thread_id: str) -> list[dict[str, str]]:
+    """Los mensajes que una persona marcó como «No es un cambio» y se pueden reabrir (los 5 más recientes)."""
+    db = connect()
+    try:
+        rows = db.execute("SELECT id, sender_name, sender_email, subject, decided_at FROM case_changes "
+                          "WHERE thread_id=? AND state='not_change' ORDER BY decided_at DESC, id DESC LIMIT 5",
+                          (thread_id,)).fetchall()
+    finally:
+        db.close()
+    return [{"id": str(r["id"]), "quien": r["sender_name"] or r["sender_email"], "asunto": r["subject"],
+             "cuando": (r["decided_at"] or "")[:16].replace("T", " ")} for r in rows]
 
 
 def known_addresses(thread_id: str) -> set[str]:

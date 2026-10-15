@@ -45,8 +45,10 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
                               "Adoptaste la tabla propuesta por el modelo", "otro")
             analysis["activities"] = proposed
             analysis.pop("manual_edit", None)   # vuelve a seguir al modelo
+            analysis.pop("propuesta_descartada", None)
             summary = f"Adoptaste la tabla propuesta por el modelo ({len(proposed)} actividades)."
         else:
+            analysis["propuesta_descartada"] = proposed      # para poder recuperarla (U-57)
             summary = "Mantuviste tu tabla y descartaste la propuesta del modelo."
         actualizar_caso(db, thread_id,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
@@ -56,7 +58,36 @@ def resolve_model_proposal(thread_id: str, use_proposal: bool) -> str:
     finally:
         db.close()
     programar_actualizacion_de_hoja(thread_id)   # la tabla pudo cambiar: la hoja de Google se actualiza sola
+    if not use_proposal:
+        summary += " Si fue un error, puedes recuperar la propuesta en la pestaña «Historial»."
     return summary
+
+
+def recuperar_propuesta(thread_id: str) -> str:
+    """Deshace «Dejar mi tabla»: la propuesta que Work había hecho vuelve a quedar por revisar (U-57).
+
+    No toca la tabla de la persona ni envía nada; solo vuelve a poner la propuesta como pendiente y lo anota."""
+    db = connect()
+    try:
+        begin_immediate(db)
+        row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        if not row:
+            raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
+        analysis = load_analysis(row["analysis_json"])
+        if isinstance(analysis.get("pending_model_activities"), list):
+            return "Ya hay una propuesta de Work por revisar: está arriba, en el caso."
+        guardada = analysis.pop("propuesta_descartada", None)
+        if not isinstance(guardada, list) or not guardada:
+            return "No hay ninguna propuesta que recuperar."
+        analysis["pending_model_activities"] = guardada
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        summary = f"Recuperaste la propuesta de Work que habías dejado de lado ({len(guardada)} actividades)."
+        actualizar_caso(db, thread_id, analysis_json=json.dumps(analysis, ensure_ascii=False), updated_at=now)
+        record_event(db, thread_id, "proposal", "dashboard", f"{now}-{uuid4().hex[:6]}", summary, now)
+        db.commit()
+    finally:
+        db.close()
+    return summary + " Arriba puedes aceptarla o dejar tu tabla."
 
 
 def volver_a_decidir(thread_id: str, accion: str) -> str:

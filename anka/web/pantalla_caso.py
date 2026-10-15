@@ -38,6 +38,7 @@ from anka.dominio.reception import (
 from anka.servicios.internal_context import internal_commercial_context
 from anka.infra.logging_setup import get_logger
 from anka.infra.settings import load_config
+from anka.web.deshacer import panel_deshacer
 from anka.web.templating import render
 
 from anka.servicios.case_actions import con_codigo_final, resolve_case_recipient
@@ -487,7 +488,8 @@ def _aviso_de_estado_final(review: Caso, aviso: Callable[..., Markup]) -> Markup
             formulario={"accion": "/delete", "thread_id": str(review["thread_id"]), "campos": {},
                         "etiqueta": "Borrar este caso", "clase": "secondary",
                         "confirmar": ("El caso se borrará de «Mis casos». Su historial se conserva "
-                                      "en «Casos borrados». ¿Lo borramos?")})
+                                      "en «Casos borrados». ¿Lo borramos?"),
+                        "escribir_para_confirmar": bool(review.get("quote_code") or review.get("sent_at"))})
     if review["status"] == QuoteStatus.SENDING:
         return aviso(tone="warn", title="El correo no salió, o no estamos seguros",
             text=("Gmail no nos confirmó el envío. Mira en Gmail si ya salió antes de enviarlo otra vez, "
@@ -720,7 +722,8 @@ def _timeline_panel(thread_id: str, review: Mapping[str, Any], analysis: Analisi
          "gmail_url": ("https://mail.google.com/mail/u/0/#all/" + event["ref"]
                        if event["kind"] in ("sent", "received", "related") else "")}
         for event in events],
-        people=case_people(thread_id, case_contacts(review["recipient"], analysis)))
+        people=case_people(thread_id, case_contacts(review["recipient"], analysis)),
+        deshacer=panel_deshacer(thread_id, analysis))
 
 
 def _load_review(thread_id: str) -> tuple[Caso | None, str]:

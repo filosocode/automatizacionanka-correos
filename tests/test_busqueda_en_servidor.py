@@ -265,6 +265,21 @@ class JavaScriptConHuellaYCsp(Base):
                 self.assertNotEqual(estaticos.nombre_del_guion("app"), antes)
                 self.assertIsNone(estaticos.buscar(antes))
 
+    def test_la_huella_cambia_aunque_la_fecha_y_el_tamano_no_cambien(self) -> None:
+        # Cubre: U-56
+        # La causa de la intermitencia: dos escrituras seguidas del mismo largo dejan la misma fecha (el reloj del
+        # archivo avanza a saltos) y la caché devolvía la huella vieja. Aquí se fuerza esa coincidencia.
+        import os
+        with tempfile.TemporaryDirectory() as carpeta:
+            js = Path(carpeta) / "app.js"
+            js.write_text("let a = 1;", encoding="utf-8")
+            fecha = js.stat().st_mtime_ns
+            with patch.dict(estaticos.GUIONES, {"app": js}):
+                antes = estaticos.nombre_del_guion("app")
+                js.write_text("let a = 2;", encoding="utf-8")
+                os.utime(js, ns=(fecha, fecha))
+                self.assertNotEqual(estaticos.nombre_del_guion("app"), antes)
+
     def test_el_codigo_conserva_lo_que_hacian_los_scripts_de_las_paginas(self) -> None:
         # Cubre: U-49
         js = estaticos.GUIONES["app"].read_text(encoding="utf-8")

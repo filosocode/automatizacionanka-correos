@@ -31,12 +31,12 @@ from anka.servicios.repositorio import RepositorioDeCasos
 from anka.servicios.estado_de_revision import checked_run, describe_check, sync_status_text
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
-    assign_code, promote_to_te, resolve_change,
+    assign_code, promote_to_te, reabrir_cambio, resolve_change,
 )
 from anka.servicios.quotes import (
     dismiss_pending_links, dismiss_pending_links_many, mark_notifications_read, rescue_discarded, volver_a_decidir,
-    aceptar_lectura_revisada, merge_project_thread, resolve_link, resolve_model_proposal, resolve_technical_review,
-    save_quote_metadata, separate_project_thread,
+    aceptar_lectura_revisada, merge_project_thread, recuperar_propuesta, resolve_link, resolve_model_proposal,
+    resolve_technical_review, save_quote_metadata, separate_project_thread,
 )
 from anka.servicios.ediciones import save_activities
 from anka.servicios.work_import import dejar_para_despues_el_rechazo
@@ -100,7 +100,10 @@ def _post_refresh(form: Form) -> str:
         request_check_now()
         return _to("/", "Estamos buscando correos nuevos. La página se actualiza sola en unos segundos. "
                    + sync_status_text())
-    return _to("/", describe_check(checked_run(True, True, False, "dashboard")))
+    resultado = checked_run(True, True, False, "dashboard")
+    if resultado.get("error"):
+        pendientes.marcar_fallo()          # se anuncia como alerta, igual que las demás acciones que no salieron (U-58)
+    return _to("/", describe_check(resultado))
 
 
 def _post_approve(form: Form) -> str:
@@ -224,6 +227,8 @@ def _post_code_approve(form: Form) -> str:
 
 def _post_change(form: Form) -> str:
     thread_id = field(form, "thread_id")
+    if field(form, "decision") == "reopen":      # deshacer «No es un cambio» (U-57)
+        return _to_case(thread_id, _guidance(lambda: reabrir_cambio(thread_id, int_field(form, "change_id"))))
     message = _guidance(lambda: resolve_change(
         thread_id, int_field(form, "change_id"), field(form, "decision") == "yes"))
     return _to_case(thread_id, message)
@@ -260,13 +265,21 @@ def _post_links_dismiss_all(form: Form) -> str:
 
 def _post_proposal(form: Form) -> str:
     thread_id = field(form, "thread_id")
+    if field(form, "decision") == "restore":     # deshacer «Dejar mi tabla» (U-57)
+        return _to_case(thread_id, _guidance(lambda: recuperar_propuesta(thread_id)))
     message = _guidance(lambda: resolve_model_proposal(
         thread_id, field(form, "decision") == "use"))
     return _to_case(thread_id, message)
 
 
 def _post_delete(form: Form) -> str:
-    return _to("/requests", delete_cases(form.get("thread_id", [])))
+    ids = form.get("thread_id", [])
+    message = delete_cases(ids, field(form, "confirmacion"))
+    if message.startswith("No se borró"):
+        pendientes.marcar_fallo()          # se anuncia como alerta (U-58)
+    if len(ids) == 1 and message.startswith("No se borró nada"):      # el borrado vino de la pantalla del caso
+        return _to_case(ids[0], message)
+    return _to("/requests", message)
 
 
 def _post_sheet(form: Form) -> str:
@@ -276,6 +289,7 @@ def _post_sheet(form: Form) -> str:
     except Exception as exc:     # Google o la red: se explica en el caso y se puede reintentar
         log.warning("%s: no se pudo actualizar la hoja de Google (%s)", thread_id, type(exc).__name__, exc_info=True)
         message = texto_del_error(exc)
+        pendientes.marcar_fallo()          # se anuncia como alerta (U-58)
         RepositorioDeCasos().registrar_error_de_hoja(thread_id, message)
     return _to_case(thread_id, message, "#hoja-google")
 

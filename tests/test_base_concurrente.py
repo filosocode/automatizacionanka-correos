@@ -99,6 +99,38 @@ class MigracionSimultanea(BaseDeTodos):
         self.assertEqual(errores, [])
         self.assertEqual(versiones, [store.SCHEMA_VERSION] * 6)
 
+    def test_la_copia_previa_a_migrar_no_choca_entre_hilos_del_mismo_proceso(self):
+        # Cubre: U-56
+        # Antes el archivo temporal de la copia se llamaba igual en todos los hilos del proceso (solo llevaba el pid):
+        # en Windows dos hilos que migraban a la vez daban PermissionError. Se repite con bases que ya tienen datos.
+        for vuelta in range(8):
+            carpeta = self.root / f"vuelta{vuelta}"
+            store.open_db(carpeta).close()
+            crudo = sqlite3.connect(carpeta / "quotes.sqlite3")
+            crudo.execute("PRAGMA user_version=15")
+            crudo.commit()
+            crudo.close()
+            errores = self.abrir_seis_hilos(carpeta)
+            self.assertEqual(errores, [], f"vuelta {vuelta}")
+            self.assertEqual(list(carpeta.glob("*.tmp")), [])
+
+    @staticmethod
+    def abrir_seis_hilos(carpeta):
+        errores = []
+
+        def abrir():
+            try:
+                store.open_db(carpeta).close()
+            except Exception as exc:     # noqa: BLE001 - la prueba recoge cualquier fallo
+                errores.append(repr(exc))
+
+        hilos = [threading.Thread(target=abrir) for _ in range(6)]
+        for hilo in hilos:
+            hilo.start()
+        for hilo in hilos:
+            hilo.join()
+        return errores
+
     def test_b0_2_cuatro_procesos_arrancan_a_la_vez(self):
         codigo = ("from anka.infra import store; import pathlib, sys; "
                   "db = store.open_db(pathlib.Path(sys.argv[1])); "

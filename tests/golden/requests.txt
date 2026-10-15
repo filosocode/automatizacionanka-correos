@@ -241,6 +241,13 @@ Marcar todas las que se ven
 <span id="selected-count" class="meta">
 0 marcadas
 </span>
+<label id="eliminar-fuerte" class="eliminar-fuerte">
+Alguno de los casos marcados ya tiene código T o un correo enviado. Para borrarlo escribe
+<strong>
+ELIMINAR
+</strong>
+<input name="confirmacion" id="confirmacion-eliminar" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ELIMINAR">
+</label>
 <button id="delete-btn" class="danger" type="submit" disabled="" data-confirm="¿Borrar los casos marcados? Se borran de aquí. Si tienen carpeta de proyecto, esa carpeta va a la papelera de Drive y se puede recuperar durante unos 30 días. Gmail y las carpetas de clientes no se tocan.">
 Borrar las marcadas
 </button>
@@ -251,16 +258,18 @@ Borrar las marcadas
 </p>
 <div id="requests" class="grid">
 <article class="case case-row" data-search="proyecto enviado cliente enviado topografía convencional, batimetría" data-status="response_sent" data-etapa="esperando" data-fecha="1788271200" data-urgencia="5" data-type="Empresa privada" data-selectable="">
-<input class="row-check" type="checkbox" name="thread_id" value="t-sent" form="bulk-delete" aria-label="Marcar Proyecto Enviado">
+<input class="row-check" type="checkbox" name="thread_id" value="t-sent" form="bulk-delete" data-protegido="" aria-label="Marcar Proyecto Enviado">
 <div>
 <h2>
-Proyecto Enviado
+<span class="verbo" aria-hidden="true">
+Ver seguimiento ·
+</span>
+Cliente Enviado · Proyecto Enviado
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-Cliente Enviado
 </div>
 </div>
 <div>
@@ -285,13 +294,15 @@ Ver seguimiento
 <input class="row-check" type="checkbox" name="thread_id" value="t-review-tech" form="bulk-delete" aria-label="Marcar Proyecto Técnico">
 <div>
 <h2>
-Proyecto Técnico
+<span class="verbo" aria-hidden="true">
+Decidir cómo seguir ·
+</span>
+cliente@example.com · Proyecto Técnico
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-cliente@example.com
 </div>
 </div>
 <div>
@@ -316,13 +327,15 @@ Decidir cómo seguir
 <input class="row-check" type="checkbox" name="thread_id" value="t-review" form="bulk-delete" aria-label="Marcar Proyecto Norte">
 <div>
 <h2>
-Proyecto Norte
+<span class="verbo" aria-hidden="true">
+Revisar correo ·
+</span>
+Energía Norte · Proyecto Norte
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-Energía Norte
 </div>
 </div>
 <div>
@@ -347,13 +360,15 @@ Revisar correo
 <input class="row-check" type="checkbox" name="thread_id" value="t-ready" form="bulk-delete" aria-label="Marcar Proyecto Listo">
 <div>
 <h2>
-Proyecto Listo
+<span class="verbo" aria-hidden="true">
+Emitir la T ·
+</span>
+cliente@example.com · Proyecto Listo
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-cliente@example.com
 </div>
 </div>
 <div>
@@ -392,13 +407,15 @@ Ver los 2
 <input class="row-check" type="checkbox" name="thread_id" value="t-hostile-scope" form="bulk-delete" aria-label="Marcar "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
 <div>
 <h2>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+<span class="verbo" aria-hidden="true">
+Decidir cómo seguir ·
+</span>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </div>
 </div>
 <div>
@@ -424,13 +441,15 @@ Decidir cómo seguir
 <input class="row-check" type="checkbox" name="thread_id" value="t-hostile" form="bulk-delete" aria-label="Marcar "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
 <div>
 <h2>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+<span class="verbo" aria-hidden="true">
+Revisar correo ·
+</span>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </div>
 </div>
 <div>
@@ -457,13 +476,15 @@ Revisar correo
 <input class="row-check" type="checkbox" name="thread_id" value="t-folder-hostile" form="bulk-delete" aria-label="Marcar Proyecto Hostil">
 <div>
 <h2>
-Proyecto Hostil
+<span class="verbo" aria-hidden="true">
+Emitir la T ·
+</span>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Proyecto Hostil
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </div>
 </div>
 <div>
@@ -488,13 +509,15 @@ Emitir la T
 <input class="row-check" type="checkbox" name="thread_id" value="t-folder-held" form="bulk-delete" aria-label="Marcar Proyecto Retenido">
 <div>
 <h2>
-Proyecto Retenido
+<span class="verbo" aria-hidden="true">
+Emitir la T ·
+</span>
+Minera Sur · Proyecto Retenido
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-Minera Sur
 </div>
 </div>
 <div>
@@ -519,13 +542,15 @@ Emitir la T
 <input class="row-check" type="checkbox" name="thread_id" value="t-folder-done" form="bulk-delete" aria-label="Marcar Proyecto con Carpeta">
 <div>
 <h2>
-Proyecto con Carpeta
+<span class="verbo" aria-hidden="true">
+Emitir la T ·
+</span>
+Minera Sur · Proyecto con Carpeta
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-Minera Sur
 </div>
 </div>
 <div>
@@ -550,13 +575,15 @@ Emitir la T
 <input class="row-check" type="checkbox" name="thread_id" value="t-draft" form="bulk-delete" aria-label="Marcar Proyecto Sur">
 <div>
 <h2>
-Proyecto Sur
+<span class="verbo" aria-hidden="true">
+Revisar correo ·
+</span>
+Cliente Sur · Proyecto Sur
 <span class="badge">
 Nuevo
 </span>
 </h2>
 <div class="meta">
-Cliente Sur
 </div>
 </div>
 <div>

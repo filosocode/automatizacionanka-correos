@@ -225,6 +225,11 @@ button.danger:disabled { opacity: .45; cursor: not-allowed; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 12px; }
 .chip-filter { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-weight: 500; cursor: pointer; }
 .chip-filter[aria-pressed="true"] { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-accent); }
+.eliminar-fuerte { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: .9375rem; }
+.eliminar-fuerte[hidden] { display: none; }
+.eliminar-fuerte input { width: 10rem; min-height: 44px; }
+ul.deshacer { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+ul.deshacer li { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .bulk-bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
 .check-all { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
 .case-row .button { min-height: 44px; padding: 8px 11px; justify-content: center; }
@@ -583,9 +588,8 @@ button.send-action:disabled { opacity: .6; cursor: progress; }
 .caso-cabecera h1 { margin: 2px 0; font-size: 1.5rem; line-height: 1.2; text-wrap: balance; }
 .caso-cabecera .atras { display: inline-block; color: var(--muted); font-size: .875rem; text-decoration: none; min-height: 44px; line-height: 44px; }
 .caso-cabecera .sub { color: var(--muted); font-size: .875rem; overflow-wrap: anywhere; }
-.next-step.aviso-ahora::before { content: "Ahora"; }
 .next-step[hidden] { display: none; }
-.next-step::before { content: "Antes de seguir"; align-self: flex-start; font-size: .875rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--accent-dark); }
+.next-step > .marca-paso { align-self: flex-start; font-size: .875rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--accent-dark); }
 .next-step { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; margin-bottom: 16px; border-radius: var(--radius-card); border: 2px solid var(--accent); background: var(--info-bg); box-shadow: none; position: static; flex-wrap: wrap; }
 .next-step > div { flex: 1 1 280px; }
 .next-step strong { font-size: 1.125rem; }
@@ -701,7 +705,7 @@ input[type="checkbox"], input[type="radio"] { width: 24px; height: 24px; flex: n
 /* Los textos de apoyo no bajan de 14 px y escalan con la preferencia del navegador */
 .meta, .nota, label, .badge, .seg, .chip, .bridge-chip, .kpi-note, .motivo, .act-resumen th, .process-step span, .opcion small,
 .paso-n, .pie a, button.enlace, .eyebrow, .pregunta .meta, .act-table .del, .act-table .q-on, .act-resumen .chip,
-.nav-count, .brand span, .next-step::before, .act-table tr.act-more summary, .act-table .act-main > td[data-etiqueta]::before { font-size: max(.875rem, 14px); }
+.nav-count, .brand span, .next-step > .marca-paso, .act-table tr.act-more summary, .act-table .act-main > td[data-etiqueta]::before { font-size: max(.875rem, 14px); }
 .act-table textarea, .act-table select { font-size: max(.875rem, 14px); }
 .preguntas-bloque textarea { font-size: max(.875rem, 14px); }
 
@@ -776,4 +780,23 @@ ol.preguntas-enviadas { margin: 0; padding-left: 1.25rem; font-size: .875rem; }
 @media (max-width: 720px) {
   .filters.con-boton { grid-template-columns: 1fr; }
   .buscar-fila button, .filters.con-boton > button { width: auto; justify-self: start; }
+}
+
+/* Encabezado compacto en pantallas angostas (U-58): una sola barra con el logo, «Buscar correos nuevos» y el menú
+   «Ajustes»; el menú se despliega encima del contenido a todo el ancho. Siguen los 44 px de alto en cada control. */
+.verbo { color: var(--accent-dark); font-weight: 650; }
+@media (max-width: 600px) {
+  header { position: relative; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 4px; padding: 6px 8px; }
+  .brand { min-width: 0; min-height: 44px; flex: 0 0 auto; gap: 6px; }
+  .brand-logo { height: 28px; }
+  .brand .nav-count { margin-left: 0; }
+  .brand > div > span:not(.nav-count) { position: absolute; width: 1px; height: 1px; overflow: clip; clip-path: inset(50%); white-space: nowrap; }
+  header > .toolbar { width: auto; flex: 1 1 auto; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
+  header .settings { flex: 0 0 auto; position: static; }
+  header .settings-box { position: absolute; left: 8px; right: 8px; top: 100%; width: auto; margin-top: 4px; box-shadow: var(--shadow-popover); }
+  header .toolbar button, header .toolbar .button { width: auto; max-width: 8rem; padding: 6px 8px; line-height: 1.15; }
+  header .settings > summary { padding-inline: 6px; }
+  header .toolbar > form { flex: 0 1 auto; }
+  /* Lo que está bien no ocupa sitio en la barra (sigue en el texto para lectores); lo que pide atención baja a una segunda fila. */
+  header .bridge-chip[data-state="ok"] { position: absolute; width: 1px; height: 1px; overflow: clip; clip-path: inset(50%); white-space: nowrap; padding: 0; }
 }

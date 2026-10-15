@@ -384,13 +384,16 @@ Todos
 </span>
 <div>
 <strong>
-Proyecto Norte
+<span class="verbo" aria-hidden="true">
+Revisar correo ·
+</span>
+Energía Norte · Proyecto Norte
 </strong>
 <span class="badge">
 Nuevo
 </span>
 <div class="meta">
-Energía Norte · Correo por revisar
+Correo por revisar
 </div>
 </div>
 <a class="button" href="/case?thread_id=t-review#respuesta">
@@ -403,13 +406,16 @@ Revisar correo
 </span>
 <div>
 <strong>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+<span class="verbo" aria-hidden="true">
+Revisar correo ·
+</span>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </strong>
 <span class="badge">
 Nuevo
 </span>
 <div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Correo por revisar · +1 correo(s) más del mismo proyecto
+Correo por revisar · +1 correo(s) más del mismo proyecto
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-hostile#respuesta">
@@ -422,13 +428,16 @@ Revisar correo
 </span>
 <div>
 <strong>
-Proyecto Sur
+<span class="verbo" aria-hidden="true">
+Revisar correo ·
+</span>
+Cliente Sur · Proyecto Sur
 </strong>
 <span class="badge">
 Nuevo
 </span>
 <div class="meta">
-Cliente Sur · Correo por revisar
+Correo por revisar
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-draft#respuesta">
@@ -441,13 +450,16 @@ Revisar correo
 </span>
 <div>
 <strong>
-Proyecto Técnico
+<span class="verbo" aria-hidden="true">
+Decidir cómo seguir ·
+</span>
+cliente@example.com · Proyecto Técnico
 </strong>
 <span class="badge">
 Nuevo
 </span>
 <div class="meta">
-cliente@example.com · Por decidir
+Por decidir
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-review-tech#decision">

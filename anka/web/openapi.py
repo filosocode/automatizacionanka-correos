@@ -284,7 +284,8 @@ OPERACIONES: tuple[Operacion, ...] = (
     Operacion("post", "/change", "Acciones del caso", "Decidir si un mensaje pide un cambio",
               "Una persona decide si un mensaje posterior a la T solicita un cambio de alcance.", "guarda",
               (_ID, Campo("change_id", "Id del cambio pendiente.", "integer", True, 1),
-               Campo("decision", "`yes`: es un cambio; `no`: no lo es.", requerido=True, opciones=("yes", "no"))),
+               Campo("decision", "`yes`: es un cambio; `no`: no lo es; `reopen`: deshace un «no» y el mensaje vuelve "
+                     "a quedar por revisar.", requerido=True, opciones=("yes", "no", "reopen"))),
               "redirect"),
     Operacion("post", "/link", "Acciones del caso", "Confirmar un correo de otro hilo",
               "Una persona confirma o descarta que un correo de otro hilo pertenece al caso.", "guarda",
@@ -312,9 +313,11 @@ OPERACIONES: tuple[Operacion, ...] = (
               (Campo("link_ref", "Referencias seleccionadas como thread_id:id (repite el campo para varias).",
                      "array", True, ["hilo:1", "otro-hilo:2"]),), "redirect"),
     Operacion("post", "/proposal", "Acciones del caso", "Resolver la propuesta del modelo",
-              "Adoptar la tabla que propone el modelo o conservar la editada por una persona.", "guarda",
-              (_ID, Campo("decision", "`use`: adoptar la propuesta; `keep`: mantener la mía.", requerido=True,
-                          opciones=("use", "keep"))), "redirect"),
+              "Adoptar la tabla que propone el modelo o conservar la editada por una persona; `restore` deshace "
+              "«dejar mi tabla» y vuelve a poner la propuesta por revisar (U-57).", "guarda",
+              (_ID, Campo("decision", "`use`: adoptar la propuesta; `keep`: mantener la mía; `restore`: recuperar la "
+                          "propuesta que se dejó de lado.", requerido=True,
+                          opciones=("use", "keep", "restore"))), "redirect"),
     # ------------------------------------------------------------------ acciones generales
     Operacion("post", "/refresh", "Acciones generales", "⚠ Actualizar correo",
               "Revisa Gmail ahora. En modo ChatGPT Work el dashboard no lee Gmail: despierta al puente para que "
@@ -332,9 +335,12 @@ OPERACIONES: tuple[Operacion, ...] = (
     Operacion("post", "/rescue", "Acciones generales", "Rescatar un correo descartado",
               "Marca el hilo para que la próxima revisión de Gmail lo analice.", "guarda", (_ID,), "redirect"),
     Operacion("post", "/delete", "Acciones generales", "⚠ Eliminar casos",
-              "Elimina del dashboard los casos indicados. El historial se conserva como evidencia.", "elimina",
+              "Elimina del dashboard los casos indicados. El historial se conserva como evidencia. Si alguno ya tiene "
+              "código T o un correo enviado, no borra nada salvo que `confirmacion` sea `ELIMINAR` (U-57).", "elimina",
               (Campo("thread_id", "Ids de los casos a eliminar (repite el campo para varios).", "array", True,
-                     ["18f3a9c2d4e5b601"]),), "redirect"),
+                     ["18f3a9c2d4e5b601"]),
+               Campo("confirmacion", "`ELIMINAR`: confirma borrar casos con código T o correo enviado.",
+                     ejemplo="ELIMINAR")), "redirect"),
     Operacion("post", "/notifications/read", "Acciones generales", "Marcar las novedades como revisadas",
               "Marca todas las novedades sin leer.", "guarda", (), "redirect"),
     Operacion("post", "/rejection-dismiss", "Acciones del caso", "Dejar para después el aviso de un análisis de Work",

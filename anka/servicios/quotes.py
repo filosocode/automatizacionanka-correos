@@ -22,7 +22,7 @@ from anka.servicios.cola_del_piloto import (  # noqa: F401  (se reexportan: quie
 )
 from anka.servicios.repositorio import RepositorioDeCasos
 from anka.servicios.revision_tecnica import (  # noqa: F401  (se reexportan: quien ya los importaba de aquí no cambia)
-    aceptar_lectura_revisada, resolve_model_proposal, resolve_technical_review, volver_a_decidir,
+    aceptar_lectura_revisada, recuperar_propuesta, resolve_model_proposal, resolve_technical_review, volver_a_decidir,
 )
 from anka.servicios.vinculos import (  # noqa: F401  (se reexportan: quien ya los importaba de aquí no cambia)
     dismiss_pending_links, dismiss_pending_links_many, merge_blocker, merge_project_thread, reason_label,

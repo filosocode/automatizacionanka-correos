@@ -234,6 +234,9 @@ Pendiente
 </ol>
 </section>
 <div class="next-step aviso-ahora info" hidden="">
+<span class="marca-paso">
+Ahora
+</span>
 <div>
 <strong>
 Revisa el correo y envíalo
@@ -975,12 +978,12 @@ Todavía no hay precio ni alcance final.
 <h2>
 Información comercial
 </h2>
-<form method="post" action="/metadata">
+<form method="post" action="/metadata" data-datos-comerciales="">
 <input type="hidden" name="thread_id" value="t-review">
 <div class="filters">
 <label>
 Cliente o empresa
-<input name="client_name" value="Energía Norte" placeholder="Energía Norte">
+<input name="client_name" data-nombre="Cliente o empresa" value="Energía Norte" placeholder="Energía Norte">
 </label>
 <label>
 Tipo de cliente
@@ -1031,7 +1034,7 @@ Otro
 </div>
 <label>
 Notas comerciales
-<textarea name="notes" class="caja-media">
+<textarea name="notes" class="caja-media" data-nombre="Notas comerciales">
 Nota interna
 </textarea>
 </label>

@@ -133,6 +133,7 @@ El JavaScript de las páginas vive en `templates/app.js` (el de cada página, co
 | `marcador` | El marcador de cambios que comparten todas las pestañas con avisos en vivo: una consulta por segundo (U-48). |
 | `openapi` | La documentación OpenAPI 3 del dashboard y la página de Swagger UI (spec/07-api.md, requisito T-13). |
 | `paginas` | Las páginas comunes del dashboard: la página completa, el resumen, las solicitudes y las descartadas. |
+| `deshacer` | El panel «Decisiones que puedes deshacer» del historial del caso: reabrir «No es un cambio» y recuperar la propuesta de Work que se dejó de lado (U-57). |
 | `pantalla_caso` | La pantalla de un caso y su acta: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento. |
 | `seguridad` | Seguridad del dashboard local: token CSRF persistente y comprobación de Host y Origen. |
 | `server` | Servidor HTTP local del dashboard: enruta las páginas (GET) y las acciones de los formularios (POST). |

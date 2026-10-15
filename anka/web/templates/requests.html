@@ -35,6 +35,8 @@
 <form id="bulk-delete" method="post" action="/delete" class="bulk-bar">
   <label class="check-all"><input id="select-all" type="checkbox"> Marcar todas las que se ven</label>
   <span id="selected-count" class="meta">0 marcadas</span>
+  <label id="eliminar-fuerte" class="eliminar-fuerte">Alguno de los casos marcados ya tiene código T o un correo enviado. Para borrarlo escribe <strong>ELIMINAR</strong>
+    <input name="confirmacion" id="confirmacion-eliminar" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ELIMINAR"></label>
   <button id="delete-btn" class="danger" type="submit" disabled data-confirm="¿Borrar los casos marcados? Se borran de aquí. Si tienen carpeta de proyecto, esa carpeta va a la papelera de Drive y se puede recuperar durante unos 30 días. Gmail y las carpetas de clientes no se tocan.">Borrar las marcadas</button>
 </form>
 </details>

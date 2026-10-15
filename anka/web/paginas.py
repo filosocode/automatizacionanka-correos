@@ -281,6 +281,7 @@ def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool =
         status_label=case_stage(quote)[0],
         date=date, fecha=int(fecha_de_recepcion(quote)), urgencia=urgencia_de_caso(quote),
         thread_id=quote["thread_id"], reply_pending=bool(quote.get("reply_pending", "")),
+        protegido=bool(quote.get("quote_code") or quote.get("sent_at")),
         code=code_label(quote["quote_code"], quote.get("code_stage") or "T") if quote.get("quote_code") else "",
     )
 

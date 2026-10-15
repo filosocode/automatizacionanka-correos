@@ -234,6 +234,9 @@ Pendiente
 </ol>
 </section>
 <div class="next-step aviso-ahora info" hidden="">
+<span class="marca-paso">
+Ahora
+</span>
 <div>
 <strong>
 Información validada: puedes emitir la T
@@ -320,12 +323,12 @@ Corregir el cliente
 <p class="meta">
 La carpeta se crea con el nombre del cliente. Si está mal, corrígelo aquí antes de emitir la T.
 </p>
-<form method="post" action="/metadata">
+<form method="post" action="/metadata" data-datos-comerciales="">
 <input type="hidden" name="thread_id" value="t-folder-done">
 <div class="filters">
 <label>
 Cliente o empresa
-<input name="client_name" value="Minera Sur" placeholder="Minera Sur">
+<input name="client_name" data-nombre="Cliente o empresa" value="Minera Sur" placeholder="Minera Sur">
 </label>
 <label>
 Tipo de cliente
@@ -376,7 +379,7 @@ Otro
 </div>
 <label>
 Notas comerciales
-<textarea name="notes" class="caja-media">
+<textarea name="notes" class="caja-media" data-nombre="Notas comerciales">
 </textarea>
 </label>
 <div class="toolbar spaced">

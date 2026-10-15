@@ -174,7 +174,8 @@ class TablasYBotones(Base):
 
     def test_limpieza_menor(self) -> None:
         # Cubre: U-37
-        self.assertIn("<h2>{{ project }}", plantilla("quote_row.html"))
+        self.assertIn("<h2>", plantilla("quote_row.html"))
+        self.assertNotIn("<h3", plantilla("quote_row.html"))
         self.assertIn("(se abre en una pestaña nueva)", plantilla("timeline.html"))
         self.assertIn("(se abre en una pestaña nueva)", plantilla("acta.html"))
         self.assertIn("(se abre en una pestaña nueva)", plantilla("activities_editor.html"))

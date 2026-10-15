@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -407,7 +408,7 @@ def migrate(db: sqlite3.Connection, db_path: Path | None = None) -> None:
     if has_data and db_path is not None:
         backup = db_path.with_name(f"{db_path.name}.bak-v{current}")
         if not backup.exists():
-            temporal = backup.with_name(f"{backup.name}.{os.getpid()}.tmp")
+            temporal = backup.with_name(f"{backup.name}.{os.getpid()}-{threading.get_ident()}.tmp")
             target = sqlite3.connect(temporal)
             try:
                 db.backup(target)
