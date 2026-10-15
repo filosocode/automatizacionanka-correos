@@ -934,6 +934,9 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         summary=("No se muestra el análisis hasta que Work confirme la lectura del mensaje y sus adjuntos."
                  if reading_blocked else analysis.get("summary") or "Sin resumen disponible"),
         analysis_blocked=reading_blocked,
+        sin_analisis=analysis.get("sin_analisis_de_work"),
+        correcciones_de_work=[] if reading_blocked else analysis.get("correcciones_de_work", []),
+        sin_actividades=not reading_blocked and not analysis.get("activities"),
         service_family=assessment.get("service_family", "Por clasificar"),
         suggestion_complete=review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING},
         draft_complete=bool(review["draft_id"] or sent_complete),

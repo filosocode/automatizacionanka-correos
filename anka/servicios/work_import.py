@@ -21,6 +21,7 @@ from anka.dominio.correo import decode_websafe, reply_body_without_quoted_histor
 from anka.dominio.reception import unresolved_scope_issues
 from anka.dominio.status import QuoteStatus, reconocer_estado_de_work
 from anka.infra.logging_setup import get_logger
+from anka.infra import rechazos_de_work
 from anka.infra.store import connect, record_event, save
 from anka.servicios.change_control import apply_guard
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
@@ -86,7 +87,7 @@ def _decode_work_payload(payload_base64: str) -> tuple[str, dict]:
 _TIPOS_DE_CAMPOS: dict[str, type | tuple[type, ...]] = {
     "activities": (list, str), "cited_codes": (list, str), "missing_data": (list, str, dict),
     "scope_dependencies": (list, str), "contradictions": (list, str), "attachments": (list, str, dict),
-    "_avisos_del_puente": (list, str),
+    "_avisos_del_puente": (list, str), "_correcciones_de_work": (list, str),
 }
 
 
@@ -218,6 +219,10 @@ def _work_analysis(payload: dict) -> Analisis:
         "question_audit": payload.get("question_audit", []),
         "evidence_register": payload.get("evidence_register", []),
         "question_quality_warnings": warnings,
+        **({"correcciones_de_work": [str(a) for a in _como_lista(payload.get("_correcciones_de_work"))]}
+           if _como_lista(payload.get("_correcciones_de_work")) else {}),
+        **({"sin_analisis_de_work": _rechazo_guardado(payload.get("_rechazo_de_work"))}
+           if payload.get("_caso_minimo") is True else {}),
         "other_questions": _work_missing_data(payload.get("missing_data", [])),
         "scope_dependencies": dependencies,
         "contradictions": _list_or_wrapped(payload.get("contradictions", []), lambda text: {
@@ -249,6 +254,15 @@ def _work_analysis(payload: dict) -> Analisis:
     }
 
 
+def _rechazo_guardado(valor: Any) -> dict[str, Any]:
+    """De un rechazo solo se guarda el motivo, los nombres de campo y la fecha (T-36): nunca contenido del cliente."""
+    valor = valor if isinstance(valor, dict) else {}
+    campos = valor.get("campos")
+    return {"motivo": _declarado(valor.get("motivo"), 300),
+            "campos": [_declarado(c, 80) for c in campos][:10] if isinstance(campos, list) else [],
+            "fecha": _declarado(valor.get("fecha"), 10)}
+
+
 def _internal_status(payload: dict, analysis: Analisis) -> str:
     """Estado interno que corresponde al borrador de Work."""
     # el estado ya se validó al decodificar; si aun así no se reconoce, decide una persona (nunca se guarda tal cual)
@@ -263,6 +277,8 @@ def _internal_status(payload: dict, analysis: Analisis) -> str:
     return status
 
 
+SIN_ANALISIS = ("El análisis de Work no se pudo leer; el caso se creó solo con los datos del correo "
+                "(quién, asunto y fecha).")
 MAX_MODELO = 80
 MAX_VERSION = 40
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
@@ -320,9 +336,9 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
     save(db, thread_id, message_id, status,
          payload.get("internal_sender") or payload["client_email"], analysis)
     version = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
-    record_event(db, thread_id, "analysis", "work", version,
-                 f"Work analizó el caso: {payload['status']}.{_modelo_declarado(payload)}{_demora_del_puente(payload)}",
-                 payload.get("received_at", ""))
+    hecho = (SIN_ANALISIS if payload.get("_caso_minimo") is True else
+             f"Work analizó el caso: {payload['status']}.{_modelo_declarado(payload)}{_demora_del_puente(payload)}")
+    record_event(db, thread_id, "analysis", "work", version, hecho, payload.get("received_at", ""))
     db.commit()
 
 
@@ -363,3 +379,27 @@ def dashboard_upsert(payload_base64: str) -> None:
     client_name, client_type, sector, notes = _commercial_metadata(payload, saved)
     save_quote_metadata(thread_id, client_name, client_type, sector, notes)
     programar_actualizacion_de_hoja(thread_id)   # si el análisis cambió la tabla, la hoja de Google lo refleja
+
+
+def dejar_para_despues_el_rechazo(draft_id: str, message_id: str, thread_id: str = "") -> str:
+    """La persona deja para después el aviso de un análisis de Work que no se pudo leer (U-41).
+
+    No cambia el caso ni envía nada: oculta el aviso del Resumen y, si el caso existe, deja constancia en su historial.
+    """
+    if not draft_id.strip():
+        raise ValueError("No encontramos ese aviso. Recarga la página.")
+    if not rechazos_de_work.dejar_para_despues(draft_id, message_id):
+        raise ValueError("Ese aviso ya no está a la vista. Recarga la página.")
+    if thread_id.strip():
+        ahora = datetime.now().astimezone().isoformat(timespec="seconds")
+        db = connect()
+        try:
+            if db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (thread_id,)).fetchone():
+                ref = f"{ahora}-{hashlib.sha1(draft_id.encode()).hexdigest()[:6]}"
+                record_event(db, thread_id, "analysis_notice", "dashboard", ref,
+                             "Una persona dejó para después el aviso de que el análisis de Work no se pudo leer.",
+                             ahora)
+                db.commit()
+        finally:
+            db.close()
+    return "Listo: el aviso queda para después. Si Work vuelve a mandar el análisis, se revisa solo."

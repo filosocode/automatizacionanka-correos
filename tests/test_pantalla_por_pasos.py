@@ -618,21 +618,21 @@ class ResumenSinJerga(Base):
         # Cubre: U-31
         from anka.web import paginas
         self.crear()
-        rechazado = [{"draft": "r-9", "thread": "t-1", "reason": "Hay bloques JSON repetidos o incompletos."}]
+        rechazado = [{"draft": "r-9", "thread": "t-1", "reason": "Hay bloques de datos repetidos o incompletos en el borrador."}]
         with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
             pagina = paginas.render_index()
-        self.assertIn("Work no pudo entender un análisis", pagina)
+        self.assertIn("Falta el análisis de un caso", pagina)
         self.assertLess(pagina.index('class="queue"'), pagina.index('id="borradores-rechazados"'))
         aviso = pagina[pagina.index('id="borradores-rechazados"'):]
         aviso = aviso[:aviso.index("</section>")]
-        self.assertIn(">Ver el caso<", aviso)
-        visible = aviso[:aviso.index("<details")]
+        self.assertIn(">Completar la tabla yo<", aviso)
+        visible = re.sub(r"<[^>]+>", "", aviso[:aviso.index("<details")])      # lo que se lee, sin los campos ocultos
         self.assertNotIn("JSON", visible)
         self.assertNotIn("r-9", visible)
         detalle = aviso[aviso.index("<details"):]
         self.assertIn("Ver más detalles", detalle)
         self.assertIn("Análisis r-9", detalle)
-        self.assertIn("Hay bloques JSON repetidos o incompletos.", detalle)
+        self.assertIn("Hay bloques de datos repetidos o incompletos en el borrador.", detalle)
 
 
 class TodoEstadoTieneAviso(Base):
@@ -747,7 +747,7 @@ class PaginaPrincipalEsLaLista(Base):
         with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
             pagina = self.lista()
         self.assertNotIn("Buscar o exportar", pagina)
-        self.assertIn("Work no pudo entender un análisis", pagina)
+        self.assertIn("Falta el análisis de un caso", pagina)
 
 
 class UnaSolaListaEnElCamino(Base):

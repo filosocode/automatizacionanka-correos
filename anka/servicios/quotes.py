@@ -660,6 +660,9 @@ def resolve_technical_review(
             raise ValueError("Este caso ya no espera una decisión tuya.")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         analysis = load_analysis(row["analysis_json"])
+        if decision == "sufficient" and not analysis.get("activities"):
+            raise ValueError("Todavía no hay actividades en la tabla. Agrega al menos una antes de confirmar que "
+                             "alcanza.")
         por_dentro = descartadas = 0
         if elecciones is not None:
             actuales = con_decisiones(candidatas(analysis, reception_assessment(analysis)), analysis.get("preguntas"))

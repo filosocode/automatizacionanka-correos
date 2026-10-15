@@ -535,7 +535,7 @@ class HeartbeatTests(unittest.TestCase):
         self.beat(20, rejected=[{"draft": "d1", "thread": "t1", "reason": "x debe ser de tipo string."}])
         state, text = work_heartbeat.bridge_state()
         self.assertEqual(state, "attention")
-        self.assertIn("1 análisis de Work no cumplen el contrato", text)
+        self.assertIn("1 análisis de Work no se pudieron leer", text)
         self.assertEqual(work_heartbeat.rejected_drafts()[0]["draft"], "d1")
         self.beat(20, failures=1, rejected=[{"draft": "d1", "thread": "t1", "reason": "x"}])
         self.assertEqual(work_heartbeat.bridge_state()[0], "error")      # un fallo real manda sobre el rechazo
@@ -552,11 +552,12 @@ class HeartbeatTests(unittest.TestCase):
         self.beat(20, rejected=[{"draft": "r-123", "thread": "hilo-sin-caso",
                                  "reason": "question_audit[0].unresolved debe ser de tipo string."}])
         panel = str(paginas._work_rejected_panel())
-        self.assertIn("Work no pudo entender un análisis", panel)
+        self.assertIn("Falta el análisis de un caso", panel)
         self.assertIn("Análisis r-123", panel)
         self.assertIn("conversación hilo-sin-caso (aún sin caso)", panel)
         self.assertIn("question_audit[0].unresolved debe ser de tipo string.", panel)
-        self.assertIn("se revisará solo cuando cambie", panel)
+        self.assertIn("Si Work vuelve a mandar el análisis, se revisa solo", panel)
+        self.assertNotIn("Pide a Work", panel)
 
     def test_the_chip_and_health_check_treat_the_attention_state_as_a_live_bridge(self):
         # Cubre: T-28

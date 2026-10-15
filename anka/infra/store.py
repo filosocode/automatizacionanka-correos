@@ -279,6 +279,15 @@ def _migration_14_analysis_failures(db: sqlite3.Connection) -> None:
         first_at TEXT NOT NULL, last_at TEXT NOT NULL, next_retry_at TEXT NOT NULL)''')
 
 
+def _migration_15_work_rejections(db: sqlite3.Connection) -> None:
+    """Los análisis de Work que no se pudieron leer: solo motivo, campos y fecha, nunca contenido del cliente (T-28)."""
+    db.execute('''CREATE TABLE work_rejections (
+        draft_id TEXT NOT NULL, message_id TEXT NOT NULL, thread_id TEXT NOT NULL, day TEXT NOT NULL,
+        at TEXT NOT NULL, cause TEXT NOT NULL, fields TEXT NOT NULL, reason TEXT NOT NULL, dismissed_at TEXT,
+        PRIMARY KEY (draft_id, message_id))''')
+    db.execute("CREATE INDEX idx_work_rejections_day ON work_rejections(day)")
+
+
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
 # reordenes las anteriores; las bases ya migradas no las volverán a ejecutar.
 MIGRATIONS = (
@@ -296,6 +305,7 @@ MIGRATIONS = (
     _migration_12_mail_operations,
     _migration_13_project_dismissals,
     _migration_14_analysis_failures,
+    _migration_15_work_rejections,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

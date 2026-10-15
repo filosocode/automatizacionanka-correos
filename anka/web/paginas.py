@@ -25,6 +25,7 @@ from anka.dominio.status import (
 )
 from anka.infra.logging_setup import get_logger
 from anka.infra.settings import load_config
+from anka.infra.rechazos_de_work import alerta_del_dia, pospuestos
 from anka.infra.work_heartbeat import rejected_drafts
 from anka.web.templating import render
 
@@ -150,13 +151,21 @@ def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False, mis
 
 
 def _work_rejected_panel() -> Markup:
-    """Los borradores de Work que el puente no pudo importar, con su motivo y el caso si ya existe."""
+    """Los análisis de Work que Anka no pudo leer (con el caso para completarlo a mano) y la alerta del día (U-41)."""
+    alerta = alerta_del_dia()
+    omitidos = pospuestos()
     items = []
     for item in rejected_drafts():
         thread = str(item.get("thread") or "")
-        items.append({"draft": item.get("draft", ""), "thread": thread, "reason": item.get("reason", ""),
-                      "case_href": ("/case?thread_id=" + url_quote(thread)) if thread and get_quote(thread) else ""})
-    return render("work_rejected.html", items=items) if items else Markup("")
+        if (str(item.get("draft") or ""), str(item.get("message") or "")) in omitidos:
+            continue
+        caso = get_quote(thread) if thread else None
+        items.append({"draft": item.get("draft", ""), "thread": thread, "message": item.get("message", ""),
+                      "reason": item.get("reason", ""), "campos": item.get("campos") or [],
+                      "fecha": item.get("fecha", ""),
+                      "titulo": ((caso["analysis"].get("project_name") if caso else "") or "Conversación sin caso aún"),
+                      "case_href": ("/case?thread_id=" + url_quote(thread)) if caso else ""})
+    return render("work_rejected.html", items=items, alerta=alerta) if items or alerta else Markup("")
 
 
 def render_index(message: str = "") -> str:

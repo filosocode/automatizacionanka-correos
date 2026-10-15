@@ -9,7 +9,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 
-from anka.infra import settings
+from anka.infra import rechazos_de_work, settings
 from anka.infra.logging_setup import get_logger
 
 HEARTBEAT_FILE = "work_sync_heartbeat.json"
@@ -97,6 +97,12 @@ def _ago(seconds: float) -> str:
     return f"hace {seconds // 3600} h"
 
 
+def _alerta() -> str:
+    """« Work está mandando análisis con errores: N hoy…» si ya van más del umbral; vacío si no (U-41)."""
+    texto = rechazos_de_work.alerta_del_dia()
+    return " " + texto if texto else ""
+
+
 def bridge_state() -> tuple[str, str]:
     """(estado, texto): estado es 'ok', 'attention', 'error', 'stopped' o 'never'."""
     beat = read_heartbeat()
@@ -120,12 +126,11 @@ def bridge_state() -> tuple[str, str]:
     if rejected:
         return "attention", (
             f"La revisión de correos está activa (Gmail revisado a las {when}), "
-            f"pero {len(rejected)} análisis de Work no "
-            "cumplen el contrato y no se importaron; el caso queda solo con los datos del correo, en revisión técnica. "
-            "El detalle y qué hacer están en el Resumen.")
+            f"pero {len(rejected)} análisis de Work no se pudieron leer; el caso queda solo con los datos del correo. "
+            "Qué hacer está en «Mis casos». Si Work vuelve a mandar el análisis, se revisa solo." + _alerta())
     return "ok", (
         f"La revisión de correos está activa: Gmail revisado a las {when} ({_ago(age)}), "
-        f"{beat.get('drafts', 0)} análisis, {beat.get('updated', 0)} actualizados."
+        f"{beat.get('drafts', 0)} análisis, {beat.get('updated', 0)} actualizados." + _alerta()
     )
 
 

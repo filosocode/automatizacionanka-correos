@@ -130,6 +130,8 @@ class Analisis(TypedDict, total=False):
     question_audit: list[dict[str, object]]
     evidence_register: list[dict[str, object]]
     question_quality_warnings: list[str]
+    correcciones_de_work: list[str]      # T-28: lo que Work escribió distinto de lo esperado y se corrigió solo
+    sin_analisis_de_work: dict[str, Any]   # T-36: {motivo, campos, fecha} del caso mínimo (sin análisis legible)
     scope_dependencies: list[Dependencia]
     contradictions: list[Contradiccion]
     attachments: list[Adjunto]

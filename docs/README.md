@@ -11,6 +11,7 @@
 | [`MODO_OPERACION.md`](MODO_OPERACION.md) | Quien opera | Los tres modos (Ollama, API, Work) y cómo cambiar |
 | [`PILOTO_ACEPTACION.md`](PILOTO_ACEPTACION.md) | Quien prueba | Checklist de la prueba de aceptación en Work |
 | [`PROMPT_WORK_ANKA_V6.txt`](PROMPT_WORK_ANKA_V6.txt) | Quien configura la tarea de Work | Candidato V6.1 (T-41): Work lee los adjuntos directamente desde Gmail, sin Drive; cada adjunto se reporta con nombre y `size_bytes` y el puente lo verifica. Se prueba primero en una conversación aparte |
+| [`PROPUESTA_PROMPT_V6_2.md`](PROPUESTA_PROMPT_V6_2.md) | Quien configura la tarea de Work | Propuesta (no aplicada) de V6.2: núcleo y extras, valores permitidos junto a cada campo y lista de comprobación; exige prueba manual en Work |
 | [`PROMPT_WORK_ANKA_PRECISO_V4_6.txt`](PROMPT_WORK_ANKA_PRECISO_V4_6.txt) | Quien revisa antecedentes | Versión anterior a la V5, conservada como antecedente |
 | [`PROMPT_WORK_ANKA_PRECISO_V4_7.txt`](PROMPT_WORK_ANKA_PRECISO_V4_7.txt) | Quien revisa antecedentes | Versión anterior a la V5 (unos 19 500 caracteres), conservada como antecedente |
 | [`PROMPT_WORK_ANKA_V5.txt`](PROMPT_WORK_ANKA_V5.txt) | Quien configura la tarea de Work | Candidato corto (T-39): unos 11 000 caracteres con un JSON de ejemplo que una prueba valida contra el esquema; Work solo declara qué segmentos leyó. Aún no es el de la tarea: se prueba primero en una conversación aparte |

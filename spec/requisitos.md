@@ -374,15 +374,30 @@ oferta, con carpeta, con respuesta enviada o ya descartado no se puede unir, y e
 «No es el mismo proyecto» se guarda y esos dos hilos no vuelven a agruparse ni a sugerirse, en la lista ni en el caso.
 Nada se une solo (D-09).
 
-### T-28 · Un borrador de Work inválido no deja el puente «con avisos» para siempre
+### T-28 · Un borrador de Work con descuidos se importa con aviso; solo se rechaza lo que compromete la identidad
 El puente distingue dos cosas. Un **fallo** es transitorio (red, Gmail, importación) y se reintenta en el siguiente ciclo; deja el
-puente «con avisos» mientras dure. Un **borrador rechazado** es un problema del contenido (el JSON no cumple el contrato de
-Work): no se arregla reintentando, así que se descarga y se rechaza **una sola vez** mientras su contenido no cambie (se vuelve
-a revisar solo cuando Gmail da un mensaje nuevo para ese borrador), se anota una vez en el registro y no cuenta como fallo.
-Con borradores rechazados y sin fallos el puente está «activo» con un estado propio («con un borrador por revisar»), no en
-error: sigue importando el resto. El Resumen lista cada borrador rechazado con su hilo (si existe), el motivo (campos del
-contrato, nunca contenido del cliente) y qué hacer. En `question_audit`, un `unresolved` booleano (Work lo escribe como sí/no)
-se trata como vacío y se importa: la advertencia de la pregunta («debe precisar qué subdato sigue sin resolver») lo hace visible.
+puente «con avisos» mientras dure. Un **borrador rechazado** es un problema del contenido que no se arregla reintentando: se
+descarga y se rechaza **una sola vez** mientras su contenido no cambie (se vuelve a revisar solo cuando Gmail da un mensaje nuevo
+para ese borrador), se anota una vez en el registro y no cuenta como fallo. Con borradores rechazados y sin fallos el puente está
+«activo» con un estado propio («con un borrador por revisar»), no en error: sigue importando el resto.
+
+**Política «tolerar y avisar» (D-106, reemplaza el criterio estricto anterior y el texto de D-87).** Solo se rechaza (a) si falta la
+identidad (`thread_id`, `message_id` o `client_email`, o el `thread_id` no es el de la conversación), (b) si el estado es desconocido
+después de normalizar tildes, mayúsculas, espacios y puntuación de los extremos, o (c) si el JSON es irrecuperable (solo se reparan
+cercas de código, texto suelto, comas sobrantes y saltos de línea dentro de un texto). Todo lo demás se acepta y el caso lo dice:
+«Work escribió algo distinto de lo esperado; se corrigió solo: …» con la ruta de cada campo (p. ej. `activities[2].unit`).
+Se tolera: `no indicado` o un texto donde va un número, un booleano o un enumerado (se trata como desconocido: el campo se omite o
+queda vacío; nunca se inventa), los enumerados en español o con mayúsculas o punto final (mapa explícito en
+`spec/03-contrato-work.md`), una lista escrita como texto, `evidence` sin `excerpt` o `location`, `fields` sin `source`,
+`size_bytes` como texto o decimal entero y `quantity`/`unit` numéricos. Si el valor tolerado cambia el significado de una fila de
+la tabla, esa fila queda `pendiente` (sin confirmar), nunca `confirmado` (R12). El aviso es **propio del modo `chatgpt_work`**: en
+`local` y `api` no hay borrador de Work, y la salida del modelo se valida en el piloto; el editor de tabla es el mismo en los tres.
+
+**Qué se muestra y qué se guarda de un rechazo.** Solo el motivo en lenguaje claro y en español (sin errores de Python como
+«Expecting property name…»), la causa, los nombres de campo y la ruta, y la fecha; nunca el contenido del cliente ni el JSON (T-36).
+El aviso se limpia solo cuando llega un análisis válido del mismo hilo igual de nuevo o más. Se cuenta por día (motivo y campo, sin
+contenido): con más de 3 en un día, la «Revisión de correos» dice «Work está mandando análisis con errores: N hoy. Pide revisar
+el prompt.» (U-41). En `question_audit`, un `unresolved` booleano se trata como vacío y se importa.
 
 ### T-29 · Medir cuánto tarda un borrador de Work en llegar al dashboard
 Para saber si una demora es de Work (que tarda en dejar el borrador en Gmail) o del puente (que tarda en importarlo), el puente
@@ -524,11 +539,13 @@ Ajustes de usabilidad que no cambian qué se guarda ni qué se envía:
 El puente conserva el preflight y la auditoría de lectura, distingue aplicabilidad, verifica el origen en Gmail para V4.5 y evita regresiones por borradores antiguos.
 
 ### T-36 · Un borrador de Work sin análisis válido no deja el caso fuera del dashboard
-Cuando Work deja en Gmail un borrador que no cumple el contrato (sin el bloque `ANKA_DASHBOARD_JSON_V1`, con un JSON roto o con campos
-inválidos) y el hilo no tiene todavía un análisis importado, el puente crea el caso con lo mínimo que es verificable en Gmail:
+Cuando Work deja en Gmail un borrador que no se puede usar (sin el bloque `ANKA_DASHBOARD_JSON_V1`, con un JSON irrecuperable, sin
+identidad o con un estado desconocido; ver T-28) y el hilo no tiene todavía un análisis importado, el puente crea el caso con lo mínimo que es verificable en Gmail:
 remitente, asunto y fecha de recepción del último mensaje recibido. El caso queda en «Requiere revisión técnica interna», sin
-actividades, sin preguntas y sin texto para el cliente; sus pendientes dicen que Work no entregó un análisis válido, el motivo
-(campos del contrato, nunca contenido del cliente) y qué hacer (pedir a Work que reanalice el hilo). No inventa ningún dato.
+actividades, sin preguntas y sin texto para el cliente; sus pendientes dicen que Work dejó un análisis que Anka no pudo leer, el
+motivo (en lenguaje claro: nombres de campo, nunca contenido del cliente ni el JSON ni errores de Python) y qué pasará: la persona
+puede completar la tabla y, si Work vuelve a mandar el análisis, se revisa solo (D-106, U-41). El historial dice que el análisis
+no se pudo leer y que el caso se creó con los datos del correo, no «Work analizó el caso». No inventa ningún dato.
 Nunca reemplaza un análisis ya importado de ese hilo, ni vuelve a crear un caso que una persona eliminó mientras el borrador no
 cambie. En cuanto Work deja un borrador válido, este reemplaza al caso mínimo. El Resumen sigue listando el borrador rechazado.
 
@@ -687,7 +704,7 @@ la carpeta de Drive.
     b) Ningún formulario de escritura se envía dos veces: tras el primer envío se ignoran los siguientes y el botón queda bloqueado (antes solo «Enviar»). c) Si el mensaje del correo está
     editado y la persona intenta salir de la página, el navegador avisa. d) «+ Agregar» abre el editor de la tabla aunque ya se hubiera abierto y cerrado. e) El mensaje de éxito o de error
     se queda a la vista tras saltar a un ancla y no reaparece al recargar. f) Ningún texto apunta a un título que ya no existe.
-19. **El Resumen no empieza con jerga (D-87).** El aviso de borradores de Work que el puente no pudo leer va debajo de la cola «Qué hacer hoy», no encima, con un título en lenguaje llano («Un borrador de Work
+19. **El Resumen no empieza con jerga (D-87; el texto y las acciones del aviso los reemplaza U-41).** El aviso de borradores de Work que el puente no pudo leer va debajo de la cola «Qué hacer hoy», no encima, con un título en lenguaje llano («Un borrador de Work
     no se pudo leer»), una frase de qué pasó y qué hacer, el botón «Ver el caso» cuando el caso existe, y el identificador del borrador, el hilo y el motivo técnico plegados en «Ver el detalle técnico».
 20. **Ningún estado se queda sin tarjeta «Ahora» (D-88).** Todo caso muestra una tarjeta o un aviso de siguiente paso. Los que antes no tenían: «Descartada» (cómo rescatarla), «Hilo no
     disponible», «Respuesta enviada» sin espera (cómo escribir otro correo), «Envío interrumpido» (revisar antes de reenviar) y, para cualquier otro, el nombre del estado, «Este caso no necesita nada
@@ -927,6 +944,32 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 - F6 · Un plano `.dwg` no leído trae su salida en la decisión y en la lista de archivos.
 
 **Pendiente (Ola 4 o necesita decisión del dueño, no se hizo):** un solo disparador de la carpeta (R9 frente a D-29), deshacer tras «Con esto alcanza», anular la T, un evento «Confirmar alcance», pre-redactar la petición con las celdas por completar, pasar de 4 a 5 pasos, renombrar estados, «Guardar borrador» y «Administrar casos», la decisión con dos tarjetas-botón, «Abrir en Gmail» para el caso que ya no está en Gmail (no tiene sentido), agrupar el encabezado en una sola barra en pantallas angostas y poner el verbo primero en cada fila de la lista.
+
+### U-41 · Cuando Work manda un análisis que no se puede leer, la persona sabe qué pasó y qué hacer
+**Estado: implementado** (pruebas en `tests/test_tolerancia_work.py`, `tests/test_rechazo_de_work.py` y `tests/test_scripts_validos.py`). Decisión: D-106. Reemplaza el texto y las acciones de D-87 y acota T-28 y T-36. No toca R8 (nada sale al cliente), R11, R12 ni D-27. El aviso es propio de `chatgpt_work`; el editor de tabla es el de los tres modos.
+
+**Motivo.** El diagnóstico (2026-10-15) mostró que el aviso «Work no pudo entender un análisis» salía por descuidos secundarios de Work (un `no indicado` en un número, un enumerado en español, una cita sin extracto), decía el error de Python en inglés, no se limpiaba cuando llegaba un análisis válido, ofrecía «Confirmar que alcanza» sobre cero actividades, mentía en el historial («Work analizó el caso») y pedía algo que nadie puede hacer («arréglalo en Gmail»).
+
+**Qué debe cumplirse**
+1. **Tolerar y avisar** (T-28): un análisis con descuidos secundarios se importa y el caso muestra «Work escribió algo distinto de lo esperado; se corrigió solo: …». Solo se rechaza la identidad, un estado desconocido o un JSON irrecuperable.
+2. **Panel del Resumen.** Título «Falta el análisis de un caso» (o «de N casos»), qué pasó en lenguaje claro y en español, qué pasará («Si Work vuelve a mandar el análisis, se revisa solo») y dos acciones: «Completar la tabla yo» (principal: abre la tabla editable del caso, «Corregir la tabla» y «+ Agregar») y «Dejarlo para después» (secundaria: oculta el aviso y deja constancia en el historial). No dice «Pide a Work que lo haga de nuevo» ni «arréglalo en Gmail». El aviso se limpia solo cuando llega un análisis válido del mismo hilo.
+3. **Pantalla del caso mínimo.** Una franja «Este caso aún no tiene análisis de Work» con el motivo, «Completar la tabla yo» y «Ver el correo del cliente». «Confirmar que alcanza» (y la opción «Con esto alcanza») quedan desactivados, con la razón visible, mientras no haya ninguna actividad; el servidor también lo rechaza.
+4. **Historial.** Un caso mínimo no dice «Work analizó el caso»: dice que el análisis no se pudo leer y que el caso se creó con los datos del correo.
+5. **Qué se guarda.** Del rechazo solo el motivo, los nombres de campo, la ruta y la fecha (T-36).
+6. **Métrica y alerta.** Los rechazos se cuentan por día (causa y campos, sin contenido). Con más de 3 en un día la «Revisión de correos» dice «Work está mandando análisis con errores: N hoy. Pide revisar el prompt.».
+7. **Borrador HTML.** Las etiquetas que no son de formato (un `<Polygon>` citado de un KML) no se borran del bloque; las entidades se convierten.
+8. **Los scripts de las páginas se comprueban.** Una prueba pasa `node --check` a todos los `<script>` de las páginas renderizadas (se salta si no hay Node), para que un error de sintaxis como el de `layout.html` no pase desapercibido.
+
+**Casos de aceptación**
+- N1 · `size_bytes: "no indicado"`, `owner: "cliente"`, `status` con punto final, `sources` como texto y `evidence` sin `excerpt` se importan con aviso; un `thread_id` ajeno, un estado inventado y un JSON roto siguen rechazándose.
+- N2 · Un rechazo guarda motivo, causa y campos, sin ningún texto del cliente.
+- N3 · Un análisis válido posterior del mismo hilo limpia el aviso; uno anterior al rechazo no.
+- N4 · El caso mínimo no dice «Work analizó el caso»; «Confirmar que alcanza» sale desactivado y el servidor lo rechaza.
+- N5 · Con 4 rechazos en el día aparece la alerta; con 3 no.
+- N6 · Un KML citado en un borrador HTML llega entero al bloque JSON.
+- N7 · Todos los `<script>` de la lista y del caso pasan `node --check`.
+
+**Pendiente (no se hizo; necesita prueba manual del dueño en Work):** la versión V6.2 del prompt (núcleo y extras, valores permitidos junto a cada campo, una lista de comprobación y menos contexto); el diff propuesto está en `docs/PROPUESTA_PROMPT_V6_2.md`.
 
 ### U-35 · Lenguaje claro: mensajes que dicen qué pasó y qué hacer (Ola 1 del plan de experiencia)
 **Estado: implementado** (pruebas en `tests/test_lenguaje_claro.py` y las de texto exacto de cada pantalla). Decisión: D-100. Acota U-31 puntos 24 y 25 (un solo texto por decisión y por acción), D-96/D-97 (nombres de estado y de decisión, que no cambian) y D-27 (la autorización de Google solo con acción explícita, que no cambia).

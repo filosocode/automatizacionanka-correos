@@ -57,14 +57,15 @@ def _plain(text: object) -> str:
     """El texto para comparar estados: sin tildes, mayúsculas, espacios de más ni caracteres invisibles.
 
     NFKC lleva las formas de ancho completo («Ｆａｌｔａｎ») y las ligaduras a letras normales; los caracteres de
-    formato (ancho cero, marcas de dirección) se quitan. Un valor que no es texto no se reconoce (falla segura).
+    formato (ancho cero, marcas de dirección) y la puntuación de los extremos se quitan. Un valor que no es texto no
+    se reconoce (falla segura).
     """
     if not isinstance(text, str):
         return ""
     compatible = unicodedata.normalize("NFKC", text)
     decomposed = unicodedata.normalize("NFD", compatible)
     kept = "".join(c for c in decomposed if unicodedata.category(c) not in ("Mn", "Cf"))
-    return " ".join(kept.casefold().split())
+    return " ".join(kept.casefold().split()).strip(" .,;:!?¡¿«»\"'`")   # «Faltan datos.» es el mismo estado
 
 
 def canonical_work_status(value: object) -> str | None:

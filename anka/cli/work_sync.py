@@ -20,12 +20,13 @@ from anka.dominio.caso_minimo import caso_minimo
 from anka.dominio.correo import header, inbound_messages, normalized_address
 from anka.infra.logging_setup import configure_logging, get_logger
 from anka.dominio.status import reconocer_estado_de_work
+from anka.dominio.tolerancia_work import IDENTIDAD, Rechazo, campos_de, leer_json, reparar
 from anka.dominio.verificacion_de_evidencia import avisos_de, comprobar_tabla
 from anka.dominio.work_contract import (
     corregir_descuidos_de_tipo, empieza_con_el_encabezado_interno, reconciliar_lectura, usa_verificacion_por_adjuntos,
     validate,
 )
-from anka.infra import instantaneas_de_manifiesto
+from anka.infra import instantaneas_de_manifiesto, rechazos_de_work
 from anka.infra import settings
 from anka.infra.google_services import services
 from anka.infra.settings import load_config
@@ -43,6 +44,8 @@ class Rechazado:
     """Un borrador cuyo contenido incumple el contrato: no se arregla reintentando, así que se recuerda por mensaje."""
 
     motivo: str
+    causa: str = "otro"
+    campos: tuple[str, ...] = ()
 
 
 START = "[ANKA_DASHBOARD_JSON_V1]"
@@ -52,19 +55,80 @@ log = get_logger(__name__)
 EXIT_STOP = 2  # el .bat no reinicia con este código
 DEFAULT_ACCOUNT = "ankacomercialia@gmail.com"
 
+# Etiquetas que el HTML de un borrador usa para dar formato. Las demás (`<Polygon>`, `<coordinates>` de un KML citado)
+# son texto del extracto y se conservan. Dentro del bloque JSON solo se quitan las de formato más simples, para que
+# ninguna etiqueta del extracto se pierda por llamarse como una de HTML (T-28, D-106).
+_ETIQUETAS_DE_HTML = frozenset(
+    "a abbr b big blockquote body br caption center code col colgroup dd div dl dt em font h1 h2 h3 h4 h5 h6 head hr "
+    "html i img li link meta ol p pre s small span strike strong sub sup table tbody td tfoot th thead title tr u ul"
+    .split())
+_ETIQUETAS_DE_FORMATO = frozenset("a b br code div em font i p pre span strong u".split())
+_ETIQUETA = re.compile(r"</?([A-Za-z][A-Za-z0-9]*)\b[^>]*>")
+
+
+def _sin_etiquetas(raw: str, quitar: frozenset[str]) -> str:
+    """El HTML sin las etiquetas de `quitar`; cualquier otra (`<Polygon>`) queda como texto."""
+    raw = re.sub(r"<!--.*?-->|<!doctype[^>]*>", "", raw, flags=re.I | re.S)
+    return _ETIQUETA.sub(lambda m: "" if m.group(1).lower() in quitar else m.group(0), raw)
+
+
+def _html_a_texto(raw: str) -> str:
+    """El texto de un borrador HTML: saltos de línea, entidades convertidas y solo las etiquetas de formato fuera."""
+    raw = re.sub(r"<br\s*/?>|</(?:p|div|pre)>", "\n", raw, flags=re.I)
+    inicio, fin = raw.find(START), raw.rfind(END)
+    if 0 <= inicio < fin:
+        fin += len(END)
+        partes = (_sin_etiquetas(raw[:inicio], _ETIQUETAS_DE_HTML),
+                  _sin_etiquetas(raw[inicio:fin], _ETIQUETAS_DE_FORMATO),
+                  _sin_etiquetas(raw[fin:], _ETIQUETAS_DE_HTML))
+        return html.unescape("".join(partes))
+    return html.unescape(_sin_etiquetas(raw, _ETIQUETAS_DE_HTML))
+
+
 def body_text(part: dict) -> list[str]:
     """Textos (plano o HTML) de un mensaje de Gmail y de sus partes anidadas."""
     values: list[str] = []
     data = part.get("body", {}).get("data")
     if data and part.get("mimeType") in ("text/plain", "text/html"):
         raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8")
-        if part.get("mimeType") == "text/html":
-            raw = re.sub(r"<br\s*/?>|</(?:p|div|pre)>", "\n", raw, flags=re.I)
-            raw = html.unescape(re.sub(r"<[^>]+>", "", raw))
-        values.append(raw)
+        values.append(_html_a_texto(raw) if part.get("mimeType") == "text/html" else raw)
     for child in part.get("parts", []):
         values.extend(body_text(child))
     return values
+
+def _comprobar_identidad(payload: dict) -> None:
+    """Sin `thread_id`, `message_id` y `client_email` no se sabe de qué correo habla el análisis: se rechaza."""
+    faltan = [campo for campo in IDENTIDAD if not isinstance(payload.get(campo), str) or not payload[campo].strip()]
+    if faltan:
+        raise Rechazo("Al análisis de Work le falta " + ", ".join(f"«{campo}»" for campo in faltan)
+                      + " o no es un texto: sin eso no se sabe de qué correo habla.", "falta_identidad", faltan)
+
+
+def _normalizar(payload: dict) -> None:
+    """Deja el análisis listo para importar: estado oficial, descuidos de tipo corregidos y avisos de lo corregido.
+
+    Solo rechaza (`Rechazo`) un estado desconocido; todo lo secundario se corrige solo y queda dicho en
+    `_correcciones_de_work` (T-28, D-106).
+    """
+    avisos = corregir_descuidos_de_tipo(payload)  # p. ej. `unresolved: true`: queda vacío y el caso lo advierte
+    if avisos:
+        payload["_avisos_del_puente"] = avisos
+    status, aviso = reconocer_estado_de_work(payload.get("status"))
+    if status is None:
+        raise Rechazo("El estado que escribió Work en «status» no es uno de los permitidos.",
+                      "estado_desconocido", ["status"])
+    payload["status"] = status  # la etiqueta oficial (aunque venga sin tildes, con punto final o con un sinónimo)
+    if aviso:
+        payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso]
+    reparado = reparar(payload)
+    if reparado:
+        payload["_correcciones_de_work"] = [*payload.get("_correcciones_de_work", []), reparado]
+    errors = validate(payload)      # spec/contrato_work.schema.json es la fuente de verdad
+    if errors:   # tras reparar no debería quedar nada; si queda, se dice dónde y nunca cuál era el contenido
+        campos = campos_de(errors)
+        raise Rechazo("El análisis de Work no cumple el formato esperado en: " + (", ".join(campos) or "varios campos")
+                      + ".", "formato", campos)
+
 
 def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
     """Saca el bloque JSON de Anka de un borrador de Work (con el borrador); `None` si no hay uno válido al inicio."""
@@ -73,30 +137,24 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
             # A Work-style draft without its dashboard JSON cannot be linked to a safe analysis.
             # Report it instead of silently ignoring the customer-facing text.
             if empieza_con_el_encabezado_interno(text):
-                raise ValueError(f"{SIN_BLOQUE} ANKA_DASHBOARD_JSON_V1.")
+                raise Rechazo(f"{SIN_BLOQUE} ANKA_DASHBOARD_JSON_V1.", "sin_bloque")
             continue
         # Solo el bloque interno inicial, nunca un bloque citado en respuestas.
         if not empieza_con_el_encabezado_interno(text):
-            raise ValueError("El bloque JSON no está en una sección interna inicial válida.")
+            raise Rechazo("El bloque de datos de Work no está en una sección interna inicial válida del borrador.",
+                          "bloque_fuera_de_lugar")
         if text.count(START) != 1 or text.count(END) != 1:
-            raise ValueError("Hay bloques JSON repetidos o incompletos.")
-        raw = text.split(START, 1)[1].split(END, 1)[0].strip()
-        payload = json.loads(raw)
+            raise Rechazo("Hay bloques de datos repetidos o incompletos en el borrador.", "bloques_repetidos")
+        payload, aviso_json = leer_json(text.split(START, 1)[1].split(END, 1)[0].strip())
         if not isinstance(payload, dict):
-            raise ValueError("El JSON debe ser un objeto.")
-        avisos = corregir_descuidos_de_tipo(payload)  # p. ej. `unresolved: true`: queda vacío y el caso lo advierte
-        if avisos:
-            payload["_avisos_del_puente"] = avisos
-        status, aviso = reconocer_estado_de_work(payload.get("status"))
-        if status is not None:
-            payload["status"] = status  # la etiqueta oficial (aunque venga sin tildes o con un sinónimo evidente)
-            if aviso:
-                payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso]
-        errors = validate(payload)      # spec/contrato_work.schema.json es la fuente de verdad
-        if errors:
-            raise ValueError("Contrato de Work no cumplido: " + " ".join(errors[:5]))
+            raise Rechazo("El análisis de Work debe ser un objeto, no una lista ni un texto suelto.", "no_es_objeto")
+        _comprobar_identidad(payload)
+        if aviso_json:
+            payload["_correcciones_de_work"] = [aviso_json]
+        _normalizar(payload)
         if payload["thread_id"] != message.get("threadId"):
-            raise ValueError("thread_id no coincide con el hilo del borrador.")
+            raise Rechazo("El «thread_id» del análisis no coincide con la conversación del borrador.",
+                          "hilo_ajeno", ["thread_id"])
         # El correo limpio para el cliente (lo que sigue al bloque JSON) y el borrador de Gmail que
         # lo contiene: el dashboard los muestra en «Respuesta al cliente» y consume el borrador al enviar.
         payload["draft_reply"] = text.split(END, 1)[1].strip()
@@ -104,6 +162,7 @@ def extract(message: dict, draft_id: str = "") -> tuple[dict, str] | None:
         canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         return payload, canonical
     return None
+
 
 def _list_drafts(gmail: Any) -> list[dict]:
     drafts: list[dict] = []
@@ -131,16 +190,16 @@ def _verify_origin(gmail: Any, payload: dict) -> dict:
         return payload  # compatibilidad con borradores anteriores al contrato auditable
     source = gmail.users().messages().get(userId="me", id=payload["message_id"], format="metadata").execute()
     if source.get("id") != payload["message_id"] or source.get("threadId") != payload["thread_id"]:
-        raise ValueError("El mensaje origen no coincide con el hilo del borrador.")
+        raise Rechazo("El mensaje origen no coincide con la conversación del borrador.", "origen")
     if "DRAFT" in source.get("labelIds", []) or "SENT" in source.get("labelIds", []):
-        raise ValueError("El mensaje origen es un borrador o un mensaje enviado, no una solicitud recibida.")
+        raise Rechazo("El mensaje origen es un borrador o un mensaje enviado, no una solicitud recibida.", "origen")
     sender = normalized_address(header(source, "From"))
     declared = normalized_address(str(payload.get("internal_sender") or payload["client_email"]))
     if not sender or sender != declared:
-        raise ValueError("El remitente origen no coincide con el contacto o reenviador declarado.")
+        raise Rechazo("El remitente origen no coincide con el contacto o reenviador declarado.", "origen")
     stamp = int(source.get("internalDate") or 0)
     if stamp <= 0:
-        raise ValueError("No se pudo verificar la recepción del mensaje origen.")
+        raise Rechazo("No se pudo verificar la recepción del mensaje origen.", "origen")
     return {**payload, "received_at": datetime.fromtimestamp(stamp / 1000).astimezone().isoformat(),
             "_source_internal_date": stamp, "received_at_source": "Gmail internalDate"}
 
@@ -216,7 +275,7 @@ def _rechazos_vigentes(rejected: list[dict], candidates: dict, state: dict) -> l
     ahora = _ahora_ms()
     vigentes = []
     for item in rejected:
-        if item["reason"].startswith(SIN_BLOQUE):
+        if item.get("causa") == "sin_bloque":
             thread = item["thread"]
             if thread in candidates or (state.get(thread) and thread not in minimos):
                 continue
@@ -226,17 +285,51 @@ def _rechazos_vigentes(rejected: list[dict], candidates: dict, state: dict) -> l
     return vigentes
 
 
+def _sin_los_resueltos(rejected: list[dict], candidates: dict, state: dict) -> list[dict]:
+    """Quita los rechazos de un hilo que ya tiene un análisis válido igual de nuevo o más (el aviso se limpia solo).
+
+    Cuenta el análisis válido de esta pasada y el ya importado (no el caso mínimo, que nace del propio rechazo). Un
+    rechazo más nuevo que el último análisis válido (un mensaje que Work no supo analizar) sigue a la vista.
+    """
+    minimos = state.get("_minimos", {})
+    origenes = state.get("_origins", {})
+    vigentes = []
+    for item in rejected:
+        thread = item["thread"]
+        sellos = []
+        if thread in candidates:
+            sellos.append(int(candidates[thread][0]))
+        if thread not in minimos and origenes.get(thread):
+            sellos.append(int(origenes[thread].get("draft_stamp") or 0))
+        if not thread or not sellos or max(sellos) < int(item["stamp"] or 0):
+            vigentes.append(item)
+    return vigentes
+
+
+def _contar_y_filtrar(rejected: list[dict]) -> list[dict]:
+    """Anota cada rechazo a la vista en la cuenta del día (una vez) y quita los que la persona dejó para después."""
+    for item in rejected:
+        rechazos_de_work.registrar(item["draft"], item["message"], item["thread"], item.get("causa", "otro"),
+                                   item.get("campos") or (), item["reason"])
+    omitidos = rechazos_de_work.pospuestos()
+    return [item for item in rejected if (item["draft"], item["message"]) not in omitidos]
+
+
 def _se_puede_recordar(found: object) -> bool:
     """¿Se guarda este resultado en la caché? No si la lectura quedó sin verificar por un fallo de Gmail."""
     return not (isinstance(found, tuple) and found[0].get("_lectura_sin_verificar"))
 
 
-def _minimo_desde_gmail(gmail: Any, thread_id: str, motivo: str, propias: set[str]) -> dict | None:
-    """El caso mínimo de un hilo con un borrador de Work inválido (T-36); `None` si Gmail no da un mensaje recibido."""
+def _minimo_desde_gmail(gmail: Any, thread_id: str, rechazo: dict, propias: set[str]) -> dict | None:
+    """El caso mínimo de un hilo con un borrador de Work inválido (T-36); `None` si Gmail no da un mensaje recibido.
+
+    Del rechazo solo pasan el motivo, los nombres de campo y la fecha.
+    """
     hilo = gmail.users().threads().get(userId="me", id=thread_id, format="metadata",
                                        metadataHeaders=["From", "Sender", "Subject", "Date"]).execute()
     recibidos = [m for m in inbound_messages(hilo, propias) if "DRAFT" not in m.get("labelIds", [])]
-    return caso_minimo(thread_id, recibidos[-1], motivo) if recibidos else None
+    return (caso_minimo(thread_id, recibidos[-1], rechazo["reason"], tuple(rechazo.get("campos") or ()),
+                        rechazo.get("fecha", "")) if recibidos else None)
 
 
 def _casos_minimos(gmail: Any, rejected: list[dict], candidates: dict, state: dict,
@@ -254,7 +347,7 @@ def _casos_minimos(gmail: Any, rejected: list[dict], candidates: dict, state: di
         if not thread or thread in candidates or analizado or minimos.get(thread) == mensaje:
             continue
         try:
-            payload = _minimo_desde_gmail(gmail, thread, item["reason"], propias)
+            payload = _minimo_desde_gmail(gmail, thread, item, propias)
         except Exception as exc:
             log.warning("Hilo %s: no se pudo crear el caso mínimo (%s)", thread, type(exc).__name__, exc_info=True)
             continue
@@ -307,10 +400,14 @@ def _leer_borrador(gmail: Any, draft: dict, cache: dict, instantaneas: Path,
     found: object
     try:
         found = _extract_verified(gmail, message, draft["id"], instantaneas, propias)
-    except ValueError as exc:
-        found = Rechazado(str(exc)[:MOTIVO_MAX])
+    except Rechazo as exc:
+        found = Rechazado(exc.motivo[:MOTIVO_MAX], exc.causa, exc.campos)
+        log.warning("Borrador %s: rechazado (%s: %s)", draft["id"], exc.causa, ", ".join(exc.campos) or "-")
+        print(f"Borrador {draft['id']}: rechazado ({exc.motivo}).", flush=True)
+    except ValueError as exc:     # un texto que no se pudo decodificar, etc.: nunca se muestra el error de Python
+        found = Rechazado("El borrador de Work no se pudo leer como texto.", "ilegible")
         log.warning("Borrador %s: rechazado (%s)", draft["id"], type(exc).__name__, exc_info=True)
-        print(f"Borrador {draft['id']}: rechazado ({exc}).", flush=True)
+        print(f"Borrador {draft['id']}: rechazado ({type(exc).__name__}).", flush=True)
     if message_id and _se_puede_recordar(found):
         cache[draft["id"]] = (message_id, stamp, found)
     return message_id, stamp, found
@@ -321,7 +418,8 @@ def _clasificar(draft: dict, message_id: str | None, stamp: int, found: object,
     """Anota el borrador como rechazado o como candidato de su hilo (gana el más nuevo según `_should_replace`)."""
     if isinstance(found, Rechazado):
         rejected.append({"draft": draft["id"], "thread": draft.get("message", {}).get("threadId", ""),
-                         "reason": found.motivo, "message": message_id or "", "stamp": stamp})
+                         "reason": found.motivo, "causa": found.causa, "campos": list(found.campos),
+                         "message": message_id or "", "stamp": stamp, "fecha": _hora_del_borrador(stamp)[:10]})
     elif isinstance(found, tuple):
         thread = found[0]["thread_id"]
         previous = candidates.get(thread)
@@ -375,7 +473,7 @@ def sync_once(gmail: Any, upsert: Callable[[str], None], checkpoint: Path,
             failures += 1
             log.warning("Borrador %s: no importado (%s)", draft["id"], type(exc).__name__, exc_info=True)
             print(f"Borrador {draft['id']}: no importado ({type(exc).__name__}: {exc}).", flush=True)
-    rejected = _rechazos_vigentes(rejected, candidates, state)
+    rejected = _contar_y_filtrar(_sin_los_resueltos(_rechazos_vigentes(rejected, candidates, state), candidates, state))
     minimos = state.setdefault("_minimos", {})
     pendientes_minimos = _casos_minimos(gmail, rejected, candidates, state, propias)
     updated = 0

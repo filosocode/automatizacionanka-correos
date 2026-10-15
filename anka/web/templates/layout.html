@@ -252,6 +252,10 @@
         editor.scrollIntoView({block: 'start'});
         if (nuevas.length) nuevas[0].focus({preventScroll: true});
       });
+      // «Completar la tabla yo» (caso sin análisis de Work) y el enlace #editar-tabla del Resumen abren el editor existente.
+      const completar = document.getElementById('completar-tabla');
+      if (editor && agregar && completar) completar.addEventListener('click', evento => { evento.preventDefault(); agregar.click(); });
+      if (editor && agregar && location.hash === '#editar-tabla') agregar.click();
       // Mostrar u ocultar las filas de más en el resumen de actividades.
       const verTodas = document.getElementById('ver-todas'), resumen = document.getElementById('tabla-resumen');
       if (verTodas && resumen) verTodas.addEventListener('click', () => {

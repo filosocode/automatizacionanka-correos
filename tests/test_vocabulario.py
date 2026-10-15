@@ -17,7 +17,7 @@ RETIRADOS = {
 }
 UNICOS = ("Con esto alcanza", "Confirmar que alcanza", "Hay que preguntarle al cliente", "Preparar el correo",
           "Cambiar las preguntas", "Preparar el correo de nuevo", "Volver a decidir", "No preguntar: con esto alcanza",
-          "Enviar al cliente")
+          "Enviar al cliente", "Completar la tabla yo")
 
 
 def textos_de_la_pantalla() -> dict[str, str]:

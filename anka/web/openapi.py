@@ -319,6 +319,13 @@ OPERACIONES: tuple[Operacion, ...] = (
                      ["18f3a9c2d4e5b601"]),), "redirect"),
     Operacion("post", "/notifications/read", "Acciones generales", "Marcar las novedades como revisadas",
               "Marca todas las novedades sin leer.", "guarda", (), "redirect"),
+    Operacion("post", "/rejection-dismiss", "Acciones del caso", "Dejar para después el aviso de un análisis de Work",
+              "Solo en modo ChatGPT Work. Oculta del Resumen el aviso de un análisis que Anka no pudo leer (U-41). "
+              "No cambia el caso ni envía nada; deja constancia en el historial del caso si existe. Si Work vuelve a "
+              "mandar el análisis, se revisa solo.", "guarda",
+              (Campo("draft", "Id del borrador de Gmail que se rechazó.", requerido=True, ejemplo="r-123"),
+               Campo("message", "Id del mensaje del borrador rechazado.", requerido=True, ejemplo="18f3a9c2d4e5b601"),
+               Campo("thread_id", "Id del hilo del caso, si ya existe.", ejemplo="18f3a9c2d4e5b601")), "redirect"),
     Operacion("post", "/notifications/seen", "Acciones del caso", "Marcar como leídas las novedades de un caso",
               "La página de un caso, cuando está a la vista, marca como leídas solo las novedades de ese caso. "
               "Responde con una redirección a `/state`.", "guarda", (_ID,), "redirect"),

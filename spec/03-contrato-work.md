@@ -77,8 +77,8 @@ humana y no bloquean la importación. Payloads anteriores sin `evidence_register
 También avisa si dos preguntas al cliente son duplicadas por texto normalizado o apuntan al mismo hallazgo y
 subdato pendiente; si una pregunta mezcla hallazgos explícitos y faltantes, pide separar el dato ya confirmado.
 `unresolved` debe ser un texto con el subdato exacto que falta; si Work lo escribe como booleano el puente lo trata como
-vacío (la pregunta queda con la advertencia correspondiente). Un borrador que incumple el contrato se rechaza una sola vez
-mientras no cambie y se lista en el Resumen (T-28).
+vacío (la pregunta queda con la advertencia correspondiente). Qué se tolera y qué se rechaza está en «Tolerar y avisar»
+(T-28, D-106).
 El puente agrega `draft_reply` y `draft_id`. Los valores `null` en campos opcionales se tratan como
 ausentes; los campos desconocidos se toleran.
 
@@ -130,9 +130,46 @@ de cada actividad sigue R12.
   del preparador (T-37): revisión, mensajes, conteos y IDs esperados y
   pendientes salen del manifiesto; de Work solo se toma qué segmentos dice haber leído. Lo que no se pueda verificar deja
   `analysis_complete` en falso y el caso en revisión técnica interna.
-- Si el borrador no cumple el contrato y el hilo aún no tiene análisis, crea un caso mínimo con remitente, asunto y fecha del correo
-  (T-36); un borrador válido posterior lo reemplaza. Un borrador sin bloque JSON se ignora si el hilo ya tiene análisis válido o si tiene
+- Si el borrador no se puede usar (ver «Tolerar y avisar») y el hilo aún no tiene análisis, crea un caso mínimo con remitente, asunto
+  y fecha del correo (T-36); un borrador válido posterior lo reemplaza y limpia el aviso. Un borrador sin bloque JSON se ignora si el hilo ya tiene análisis válido o si tiene
   menos de 10 minutos (T-36, D-69); un JSON roto se rechaza de inmediato.
+
+## Tolerar y avisar (T-28, D-106)
+Solo existe en modo `chatgpt_work`: en `local` y `api` no hay borrador de Work que rechazar (la salida del modelo se valida en
+el piloto), así que este aviso no aparece allí. Los tres modos comparten el mismo editor de tabla.
+
+**Se rechaza** (el análisis no se importa; el hilo sin análisis recibe un caso mínimo, T-36) solo cuando:
+1. falta la identidad: `thread_id`, `message_id` o `client_email` ausentes, en blanco o que no son texto; o el `thread_id` no es el
+   de la conversación del borrador, o el mensaje origen no coincide con el hilo o el remitente (verificación en Gmail);
+2. `status` es desconocido después de normalizar tildes, mayúsculas, espacios y puntuación de los extremos (T-33);
+3. el JSON es irrecuperable. Solo se reparan cosas mecánicas: cercas ```` ```json ````, texto suelto antes o después de las llaves,
+   comas sobrantes y saltos de línea dentro de un texto. No se reparan comillas ni cierres que faltan;
+4. el borrador no trae el bloque, el bloque está fuera de la sección interna inicial o hay bloques repetidos o incompletos.
+
+**Todo lo demás se acepta con aviso.** El caso muestra «Work escribió algo distinto de lo esperado; se corrigió solo: …» con la ruta
+del campo (p. ej. `activities[2].unit`) y qué se hizo. Nunca se inventa un dato:
+- `no indicado` u otro texto donde va un número, un booleano o un enumerado se trata como desconocido: el campo se omite (o queda
+  vacío) y el análisis sigue. Un número, booleano, lista u objeto donde va texto se convierte si es un número o se omite si hacerlo
+  sería adivinar. Si el cambio altera una fila de `activities`, la fila queda `pendiente` (sin confirmar), nunca `confirmado`.
+- Enumerados con mayúsculas, punto final o en español se llevan al valor permitido con un mapa explícito
+  (`SINONIMOS_DE_ENUMERADOS` en `anka/dominio/tolerancia_work.py`): `explicito`→`explicit`, `parcial`→`partial`, `ausente`→`absent`,
+  `ilegible`/`no legible`→`unreadable`, `contradictorio`→`contradictory`, `sin confirmar`→`unconfirmed`; `cliente`→`client`,
+  `contratista`→`contractor`, `desconocido`→`unknown`; `preguntar`→`ask_client`, `revisión interna`→`internal_review`,
+  `no preguntar`→`do_not_ask`; `adjunto`→`attachment`, `raw`→`raw_mime`. Lo que no coincide queda desconocido.
+- Una lista escrita como texto es una lista de un elemento (`cited_codes`, `sources`, `reviewed_sections`, `reviewed_sources`…).
+- `size_bytes` como texto (`"2048"`) o decimal entero (`2048.0`) es un entero; un decimal con fracción o un texto no numérico se
+  omite y el adjunto queda sin verificar (T-41).
+- `evidence[]` sin `excerpt` o `location` se conserva con esos campos vacíos; `fields[]` sin `source` queda con `sin fuente`;
+  `evidence_register[]` sin `status`, `owner` o `blocking` queda `unconfirmed`, `unknown` y `false`. Una fila a la que le falta algo
+  que no se puede dejar vacío (p. ej. `evidence_register[].id`, `question_audit[].question`) se omite y el aviso lo dice.
+- `project_name` ausente es «Solicitud sin nombre»; `engine` distinto de `chatgpt_work` se toma como `chatgpt_work`.
+- `quantity` y `unit` numéricos se guardan como texto.
+- Un borrador HTML conserva las etiquetas que no son de formato (el `<Polygon>` de un KML citado) y convierte las entidades
+  (`&lt;`); dentro del bloque solo se quitan las de formato simple (`br`, `p`, `div`, `span`, `pre`, `b`, `i`…).
+
+**Qué se guarda de un rechazo:** el motivo en lenguaje claro, la causa, los nombres de campo y la fecha. Nunca el contenido del cliente
+ni el JSON (T-36). Se cuenta por día (`work_rejections`, solo motivo, causa y campos); con más de 3 en un día la «Revisión de correos»
+dice «Work está mandando análisis con errores: N hoy. Pide revisar el prompt.» (U-41).
 
 ## Cambiar el contrato
 1. Edita el esquema (y este documento si cambia el sentido).

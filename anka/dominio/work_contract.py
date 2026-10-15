@@ -41,6 +41,11 @@ def _type_ok(value: Any, expected: str | list) -> bool:
     return False
 
 
+def tipo_cumple(valor: Any, esperado: str | list) -> bool:
+    """¿El valor es de alguno de los tipos del esquema? (el recorrido que repara el análisis usa la misma regla)."""
+    return _type_ok(valor, esperado)
+
+
 def validate(instance: Any, schema: dict | None = None, path: str = "") -> list[str]:
     """Lista de errores (vacía si el valor cumple el esquema). No lanza."""
     schema = schema if schema is not None else load_schema()

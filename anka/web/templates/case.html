@@ -115,6 +115,14 @@
 {% if restaurado %}<div class="notice error" role="alert"><span class="solo-lectores">Error: </span>No pudimos terminar lo que pediste. <strong>Lo que escribiste sigue aquí</strong>: míralo y pulsa el botón otra vez.</div>{% endif %}
 {{ stepper }}
 {{ next_step }}
+{% if sin_analisis %}<section class="section ahora-sin-analisis" id="sin-analisis" aria-labelledby="sin-analisis-titulo">
+  <h2 id="sin-analisis-titulo">Este caso aún no tiene análisis de Work</h2>
+  <p>Work dejó el análisis, pero Anka no pudo leerlo. Por eso el caso solo tiene lo que se comprueba en el correo: quién escribió, el asunto y la fecha. No hay actividades ni preguntas. Nada se envía al cliente sin que lo revises.</p>
+  <p class="meta">Qué pasó: {{ sin_analisis.motivo }}{% if sin_analisis.campos %} Campos: {{ sin_analisis.campos | join(', ') }}.{% endif %}{% if sin_analisis.fecha %} ({{ sin_analisis.fecha }}){% endif %}</p>
+  <div class="acciones"><a class="button" id="completar-tabla" href="#editar-tabla">Completar la tabla yo</a><a class="button secondary" href="#t-conv">Ver el correo del cliente</a></div>
+  <p class="nota">Si Work vuelve a mandar el análisis, se revisa solo y reemplaza este caso.</p>
+</section>{% endif %}
+{% if correcciones_de_work %}<div class="notice" id="correcciones-de-work"><strong>Revisa lo que Work escribió distinto de lo esperado.</strong><ul>{% for aviso in correcciones_de_work %}<li>{{ aviso }}</li>{% endfor %}</ul><p class="meta">Nada se inventó: lo que no se entendió quedó como desconocido y las filas dudosas quedaron «por completar».</p></div>{% endif %}
 {% if slot in ('aviso', 'lectura') %}{{ avisos_extra }}{% endif %}
 {% if slot == 'lectura' %}
 <section class="section" id="lectura-revisada">
@@ -137,7 +145,7 @@
   <form method="post" action="/review-decision" class="decision-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <fieldset class="opciones"><legend class="solo-lectores">Cómo seguir con este caso</legend>
-      <label class="opcion"><input type="radio" name="decision" value="sufficient" required>
+      <label class="opcion"><input type="radio" name="decision" value="sufficient" required{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}>
         <span><strong>Con esto alcanza</strong>
         <small>Ya tengo lo necesario para cotizar.</small></span></label>
       <label class="opcion"><input type="radio" name="decision" value="ask_client" required>
@@ -152,10 +160,11 @@
         {% if n_internas %}{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} el equipo de Anka (están en «Qué falta resolver»).{% endif %}</p>
     </div>
     <div class="acciones">
-      <button type="submit" id="btn-suficiente" class="solo-suficiente"
+      <button type="submit" id="btn-suficiente" class="solo-suficiente"{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}
         data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">Confirmar que alcanza</button>
       <button type="submit" id="btn-preguntar" class="solo-preguntar">Preparar el correo</button>
     </div>
+    {% if sin_actividades %}<p class="nota" id="sin-actividades">«Confirmar que alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».</p>{% endif %}
     <p class="nota elige-opcion">Elige una opción para continuar. Nada se envía al cliente en este paso.</p>
   </form>
 </section>

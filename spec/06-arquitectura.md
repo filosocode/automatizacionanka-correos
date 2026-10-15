@@ -48,6 +48,7 @@ La descripción es la primera frase de su docstring.
 | `hoja` | El libro de cálculo de un caso (Excel / Google Sheets): la tabla vigente y, aparte, lo que no debe perderse. |
 | `registros` | Los hechos que se guardan de un caso, como objetos con campos nombrados: `Evento`, `Cambio` y `Vinculo`. |
 | `status` | Estados del ciclo de vida de una solicitud, definidos en un solo lugar. |
+| `tolerancia_work` | Tolerar y avisar: lo que Work escribe distinto de lo esperado se corrige solo, con aviso (T-28, D-106). |
 | `work_contract` | Contrato entre ChatGPT Work y el puente: valida el JSON del borrador contra `spec/contrato_work.schema.json`. |
 
 ### `anka/infra/`
@@ -74,6 +75,7 @@ La descripción es la primera frase de su docstring.
 | `settings` | Ajustes y carpeta de datos local (fuera del repositorio). |
 | `store` | Persistencia SQLite del estado de solicitudes y novedades del dashboard. |
 | `instantaneas_de_manifiesto` | Copia local mínima del manifiesto que publica el preparador, para verificar la lectura que declara Work (T-37). |
+| `rechazos_de_work` | Cuenta por día los análisis de Work que no se pudieron leer y recuerda cuáles se dejaron para después (U-41). |
 | `work_heartbeat` | Latido del puente Gmail → dashboard (modo chatgpt_work): permite saber si está vivo. |
 
 ### `anka/servicios/`

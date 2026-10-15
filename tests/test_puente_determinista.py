@@ -92,7 +92,9 @@ class CasoMinimoTests(unittest.TestCase):
         self.assertEqual(analisis["project_name"], "Cotización LiDAR")           # sin el «Re:»
         self.assertEqual(analisis["routing"]["original_sender_email"], "ana@cliente.com")
         self.assertEqual(analisis["work_reply"], {})                              # nada para el cliente
-        self.assertTrue(any("no pudo leer" in aviso for aviso in analisis["question_quality_warnings"]))
+        self.assertIn("no pudo leerlo", analisis["scope_dependencies"][0]["description"])
+        self.assertEqual(analisis["sin_analisis_de_work"]["campos"], [])
+        self.assertNotIn("T-36", json.dumps(analisis, ensure_ascii=False))       # sin identificadores internos
 
     def test_no_se_repite_mientras_el_borrador_no_cambie(self):
         # Cubre: T-36
@@ -215,7 +217,8 @@ class BorradorSinBloqueTests(unittest.TestCase):
         roto["internalDate"] = str(self.AHORA)
         resultado = self.pasada(GmailConHilos({"d1": roto}, {"T1": [recibido()]}), segundos_despues=5)
         self.assertEqual(len(resultado["rejected"]), 1)
-        self.assertIn("Contrato de Work no cumplido", resultado["rejected"][0]["reason"])
+        self.assertIn("le falta", resultado["rejected"][0]["reason"])      # falta la identidad: se dice cuál campo
+        self.assertEqual(resultado["rejected"][0]["causa"], "falta_identidad")
 
 
 def instantanea(revision="rev-2", mensajes=("in1",)):

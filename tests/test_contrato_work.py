@@ -97,10 +97,10 @@ class SchemaMatchesTheRestOfTheSystem(unittest.TestCase):
 class BridgeUsesTheSchema(unittest.TestCase):
     def test_a_draft_that_breaks_the_contract_is_rejected_with_the_reason(self):
         bad = payload()
-        bad.pop("project_name")
+        bad.pop("client_email")
         with self.assertRaises(ValueError) as caught:
             sync.extract(draft_message(bad), "D1")
-        self.assertIn("project_name", str(caught.exception))
+        self.assertIn("client_email", str(caught.exception))
 
     def test_a_valid_draft_is_imported_with_the_official_status(self):
         found = sync.extract(draft_message(payload(status="faltan DATOS")), "D1")

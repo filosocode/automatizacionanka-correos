@@ -39,6 +39,7 @@ from anka.servicios.quotes import (
     save_quote_metadata, separate_project_thread,
 )
 from anka.servicios.ediciones import save_activities
+from anka.servicios.work_import import dejar_para_despues_el_rechazo
 
 
 
@@ -291,6 +292,13 @@ def _post_notifications_seen(form: Form) -> str:
     return "/state"
 
 
+def _post_rejection_dismiss(form: Form) -> str:
+    """Dejar para después el aviso de un análisis de Work que Anka no pudo leer (U-41)."""
+    message = _guidance(lambda: dejar_para_despues_el_rechazo(
+        field(form, "draft"), field(form, "message"), field(form, "thread_id")))
+    return _to("/", message)
+
+
 def _post_notifications_read(form: Form) -> str:
     mark_notifications_read()
     return _to("/", "Novedades marcadas como revisadas.")
@@ -322,6 +330,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/delete": _post_delete,
     "/hoja": _post_sheet,
     "/google/reautorizar": _post_google_reauthorize,
+    "/rejection-dismiss": _post_rejection_dismiss,
     "/notifications/read": _post_notifications_read,
     "/notifications/seen": _post_notifications_seen,
 }
