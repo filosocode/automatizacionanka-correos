@@ -291,6 +291,22 @@
       const detalle = document.getElementById('confirmar-detalle');
       const aceptar = document.getElementById('confirmar-si');
       let origen = null;
+      // Un mensaje citado de verdad (cabecera con fecha o correo, o varias líneas con «>»): se avisa, nunca se recorta (U-39).
+      function citaEn(texto) {
+        return /^[ 	]*(El|On)\s[^
+]*(\d|@)[^
+]*(escribi[óo]|wrote)[ 	]*:[ 	]*$/im.test(texto) || /^[ 	]*>[^
+]*
+[ 	]*>/m.test(texto);
+      }
+      function avisoDeCita(boton, filas) {
+        const campo = boton.form && boton.form.elements['body'];
+        if (campo && citaEn(campo.value.replace(/
+
+/g, '
+'))) filas.push(['Ojo', 'Tu respuesta incluye un mensaje citado. ¿Enviar así?']);
+        return filas;
+      }
       function resumenDe(boton) {
         if (boton.dataset.resumen === 'emision') {      // La T no se deshace: se muestra lo que se va a emitir (U-34.2)
           const campo = boton.form && boton.form.elements['number'];
@@ -298,7 +314,7 @@
           const filas = [['Número de la T', numero ? 'T' + numero : '(vacío)'], ['Para', boton.dataset.para || '']];
           if (boton.dataset.sugerido && numero !== boton.dataset.sugerido) filas.push(['Ojo', 'El número no es el sugerido (T' + boton.dataset.sugerido + '). Confirma que es el consecutivo real.']);
           if (boton.dataset.anio && numero.slice(0, 2) !== boton.dataset.anio) filas.push(['Ojo', 'El año del número no es el actual (' + boton.dataset.anio + ').']);
-          return filas;
+          return avisoDeCita(boton, filas);
         }
         if (boton.dataset.resumen !== 'envio') return [];
         const filas = [['Para', boton.dataset.para || '']];
@@ -306,7 +322,7 @@
         const aviso = document.getElementById('aviso-espera');
         if (aviso && aviso.textContent) filas.push(['Preguntas', aviso.textContent]);
         filas.push(['Adjuntos', 'Ninguno: la respuesta va sin archivos']);
-        return filas;
+        return avisoDeCita(boton, filas);
       }
       document.addEventListener('click', event => {
         if (event.target.closest('[data-print]')) window.print();

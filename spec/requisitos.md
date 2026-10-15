@@ -44,8 +44,9 @@ comunes: una etiqueta como «Área» o una palabra como «varios» en el campo d
 
 ### F1-05 · Pedir los datos al cliente
 Prepara el correo de respuesta con las preguntas; una persona lo revisa y lo envía desde el dashboard o desde Gmail
-(R8). En el dashboard, el cuerpo de respuesta contiene solo el texto nuevo: se quita el historial citado que venga en
-un borrador, mientras la conversación completa sigue visible en el caso. La respuesta conserva el hilo original de
+(R8). En el dashboard, el borrador que propone Work se muestra sin el historial citado (se quita al importarlo);
+lo que la persona escribe, guarda o envía sale tal cual, sin recortes en silencio (U-39). La conversación completa
+sigue visible en el caso. La respuesta conserva el hilo original de
 Gmail. Al enviar desde el dashboard, el mensaje aparece de inmediato en «Conversación con el cliente». Un clic produce
 un correo: el mismo texto no se reenvía y el caso muestra que ya se envió.
 
@@ -847,6 +848,22 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 - E2 · `GET /static/logo-anka.png` y `/static/inter-latin-wght.woff2` responden 200 con su tipo; `/static/otro` y `/static/..%2Fstyle.css` responden 404.
 - E3 · El CSS declara `@font-face` con `font-display: swap`, no menciona Google Fonts y la regla de «reducir movimiento» cubre `*`, `::before` y `::after`.
 - E4 · La cabecera trae `<img … alt="Anka">` hacia `/static/logo-anka.png`.
+
+### U-39 · Lo que la persona escribe sale tal cual: solo el borrador de Work pierde el historial citado
+**Estado: implementado** (pruebas en `tests/test_texto_de_la_persona.py`). Decisión: D-104. Acota F1-05 y el contrato con Work (`spec/03-contrato-work.md`), y aplica R8 (lo revisado es lo enviado). Corrige que enviar, guardar el borrador y emitir la T recortaban en silencio líneas con «>» o «El … escribió:» que la persona había tecleado.
+
+**Qué debe cumplirse**
+1. **Dónde se recorta.** El historial citado se quita solo del borrador que viene de Work: al importarlo (`work_import`) y al mostrar uno ya guardado antes de este cambio. Nada más pasa por ese recorte.
+2. **Lo tecleado no se toca.** Enviar al cliente, guardar el borrador en Gmail y emitir la T envían exactamente el texto del cuadro (solo se quitan los espacios y saltos de los extremos). Una línea con «>» o una frase como «El cliente nos escribió: …» se conserva.
+3. **El detector no confunde frases.** Una cabecera de cita es «El/On … escribió/wrote:» con los dos puntos al final de la línea y una fecha o un correo; «>» solo cuenta con dos o más líneas seguidas. Una frase suelta de la persona no es una cita.
+4. **Aviso, no recorte.** Si el texto que se va a enviar todavía trae un mensaje citado de verdad, el diálogo de envío y el de emitir la T añaden una fila «Ojo»: «Tu respuesta incluye un mensaje citado. ¿Enviar así?». La persona decide; el texto no cambia.
+
+**Casos de aceptación**
+- A1 · Enviar con «> …» y con «El jue, 1 oct 2026, Ana <ana@acme.com> escribió:» tecleados: el correo sale con ese texto completo.
+- A2 · Guardar el borrador y emitir la T: lo mismo (la T pasa el texto al envío sin recortarlo).
+- A3 · «El cliente nos escribió: necesitamos 50 ha.» no se recorta ni se avisa; una sola línea con «>» tampoco.
+- A4 · Un borrador de Work con cita se importa sin ella y la pantalla no la muestra.
+- A5 · Los diálogos de envío y de emisión llevan el aviso de cita sin quitar nada.
 
 ### U-38 · Nodos animados de fondo, sin librerías y sin molestar
 **Estado: implementado** (pruebas en `tests/test_particulas.py`; instantáneas regeneradas). Decisión: D-103. Solo estilo: no cambia textos ni estructura (U-35, D-97) y respeta D-27 y la CSP de D-71.

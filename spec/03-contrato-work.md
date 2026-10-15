@@ -28,7 +28,9 @@ Hola, … (el correo limpio para el cliente)
 - El bloque debe estar **una sola vez** y dentro de la sección interna inicial; nunca se copia desde correos citados.
 - Lo que sigue al bloque es el **correo para el cliente**: el dashboard lo muestra en «Respuesta al cliente» y, al
   enviar, **usa ese mismo borrador** (así no queda uno huérfano con la sección interna).
-- Si ese texto trae el mensaje anterior citado, el dashboard muestra, guarda y envía solo la respuesta nueva. La
+- Si ese texto trae el mensaje anterior citado, el dashboard lo quita **al importar el borrador de Work** (y al
+  mostrar uno ya guardado) y propone solo la respuesta nueva. Desde que la persona lo edita, ese texto es suyo: se
+  guarda y se envía tal cual, sin recortarlo (U-39, D-104). La
   conversación completa permanece en el historial del caso, y el correo conserva las cabeceras que lo unen al hilo
   original de Gmail.
 

@@ -21,7 +21,6 @@ from anka.infra.google_services import services
 from anka.dominio.correo import (
     forwarded_routing,
     inbound_messages,
-    reply_body_without_quoted_history,
     reply_email,
     valid_email_address,
 )
@@ -105,7 +104,7 @@ def _recipient(thread_id: str, quote: dict, to: str) -> str:
 
 def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     """Guarda como borrador de Gmail el texto escrito en el dashboard, sin enviarlo."""
-    body = reply_body_without_quoted_history(body).strip()
+    body = body.strip()      # lo que la persona escribió sale tal cual: nunca se recorta en silencio (U-39)
     if not body:
         raise ValueError("Escribe algo antes de guardar.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
@@ -245,7 +244,7 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     (U-34.4); vacío, no se comprueba. Rechaza un reenvío idéntico reciente. Un caso con información suficiente
     crea además su carpeta en Drive, salvo que quien llama ya se haya ocupado de ella (`create_folder=False`).
     """
-    body = reply_body_without_quoted_history(body).strip()
+    body = body.strip()      # lo revisado es lo enviado: no se recorta nada en silencio (U-39, R8)
     if not body:
         raise ValueError("Escribe el correo antes de enviar.")
     actual = get_quote(thread_id)

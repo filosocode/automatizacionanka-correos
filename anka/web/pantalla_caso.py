@@ -615,9 +615,9 @@ def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, temp
     # Las preguntas que una persona eligió (U-22) mandan sobre el borrador de Work: si no, el correo saldría sin ellas.
     elegidas = bool(manual.get("decision") == "ask_client" and manual.get("questions"))
     body = (own_draft or (suggested_reply(analysis, config["required_fields"]) if elegidas else "")
-            or work_reply.get("text") or review["draft_body"]
+            or reply_body_without_quoted_history(work_reply.get("text") or "") or review["draft_body"]
             or suggested_reply(analysis, config["required_fields"]))
-    return "form", reply_body_without_quoted_history(body), False
+    return "form", body, False
 
 
 def _conversation_panel(thread_id: str) -> Markup:

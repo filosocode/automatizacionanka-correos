@@ -26,25 +26,46 @@ FORWARDED_BODY_PATTERN = re.compile(
 )
 
 _QUOTED_REPLY_START = re.compile(
-    r"(?:\n\s*(?:El|On)\s[^\n]{0,200}\n?[^\n]{0,160}?(?:escribi[óo]|wrote)\s*:)"
-    r"|(?:\n\s*>)"
+    # Cabecera real de cita: «El <fecha o correo> … escribió:» con los dos puntos al final de la línea (U-39).
+    r"(?:\n\s*(?:El|On)\s[^\n]{0,200}\n?[^\n]{0,160}?(?:escribi[óo]|wrote)\s*:[ \t]*(?=\n|$))"
+    r"|(?:\n\s*>[^\n]*\n\s*>)"          # al menos dos líneas seguidas con «>»; una suelta no es una cita
     r"|(?:\n\s*-{2,}\s*(?:Original Message|Mensaje original)\s*-{2,})"
     r"|(?:\n\s*De:\s[^\n]+\n\s*(?:Enviado|Fecha)\s*:)", re.IGNORECASE)
+_CABECERA_DE_CITA = re.compile(r"\n\s*(?:El|On)\s", re.IGNORECASE)
+_FECHA_O_CORREO = re.compile(r"\d|@")
+
+
+def _inicios_de_cita(text: str) -> list[re.Match[str]]:
+    """Dónde empieza una cita real. «El … escribió:» solo cuenta si trae una fecha o un correo: una frase como
+    «El cliente nos escribió:» es texto de la persona."""
+    return [c for c in _QUOTED_REPLY_START.finditer("\n" + text)
+            if not (_CABECERA_DE_CITA.match(c.group(0)) and not _FECHA_O_CORREO.search(c.group(0)))]
 
 
 def split_quoted_reply(body: str) -> tuple[str, str]:
     """Separa el texto nuevo del historial de correo citado, si lo hay."""
     text = (body or "").replace("\r\n", "\n").replace("▎", "").strip()
-    found = _QUOTED_REPLY_START.search("\n" + text)
-    if not found or found.start() <= 1:
+    found = _inicios_de_cita(text)
+    if not found or found[0].start() <= 1:
         return text, ""
-    cut = found.start() - 1
+    cut = found[0].start() - 1
     return text[:cut].strip(), text[cut:].strip()
 
 
 def reply_body_without_quoted_history(body: str) -> str:
-    """Devuelve solo el texto nuevo para evitar reenviar el historial del hilo en una respuesta."""
+    """Devuelve solo el texto nuevo de un BORRADOR DE WORK, para no reenviar el historial del hilo (U-39).
+
+    Solo se usa al importar o mostrar lo que Work propone: el texto que una persona escribe nunca pasa por aquí.
+    """
     return split_quoted_reply(body)[0]
+
+
+def incluye_mensaje_citado(body: str) -> bool:
+    """¿El texto trae un mensaje citado de verdad (cabecera «El … escribió:» o varias líneas con «>»)?
+
+    Solo sirve para avisar antes de enviar: nunca recorta nada (U-39).
+    """
+    return bool(_inicios_de_cita((body or "").replace("\r\n", "\n").replace("▎", "").strip()))
 
 
 def _dict(value: object) -> dict:

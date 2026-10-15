@@ -17,7 +17,7 @@ from typing import Any
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado, unidades_en_cantidad
-from anka.dominio.correo import decode_websafe
+from anka.dominio.correo import decode_websafe, reply_body_without_quoted_history
 from anka.dominio.reception import unresolved_scope_issues
 from anka.dominio.status import QuoteStatus, reconocer_estado_de_work
 from anka.infra.logging_setup import get_logger
@@ -174,7 +174,8 @@ def _work_missing_data(value: Any) -> list[str]:
 def _work_analysis(payload: dict) -> Analisis:
     """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
     source = payload.get("source", "")
-    reply_text = str(payload.get("draft_reply") or "").strip()
+    # El historial citado se quita aquí, del borrador de Work y de nadie más (U-39).
+    reply_text = reply_body_without_quoted_history(str(payload.get("draft_reply") or "")).strip()
     if payload.get("analysis_complete") is False:
         reply_text = ""  # un registro interno bloqueado no propone un correo para enviar al cliente
     modelo = _declarado(payload.get("model"), MAX_MODELO)
