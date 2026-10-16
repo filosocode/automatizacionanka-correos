@@ -53,8 +53,11 @@ El CI corre `pip-audit` sobre `requirements.lock` y `requirements-dev.lock` cada
 
 ```
 python -m venv %TEMP%\auditoria && %TEMP%\auditoria\Scripts\python -m pip install pip-audit==2.9.0
-%TEMP%\auditoria\Scripts\python -m pip_audit --require-hashes --disable-pip --no-deps -r requirements.lock -r requirements-dev.lock
+%TEMP%\auditoria\Scripts\python -m pip_audit --require-hashes --disable-pip -r requirements.lock
+%TEMP%\auditoria\Scripts\python -m pip_audit --require-hashes --disable-pip -r requirements-dev.lock
 ```
+
+Se ejecutan por separado porque ambos archivos fijan los mismos paquetes y `pip-audit` rechaza un paquete repetido en una sola pasada.
 
 Un hallazgo no rompe nada solo: se actualiza el rango en `requirements*.txt`, se regeneran los `.lock` (ver README) y se corre `check.bat`.
 

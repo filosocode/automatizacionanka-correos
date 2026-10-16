@@ -50,5 +50,9 @@ jobs:
           python-version: "3.12"
       - name: Instalar pip-audit
         run: python -m pip install pip-audit==2.9.0
-      - name: Auditar dependencias fijadas
-        run: python -m pip_audit --require-hashes --disable-pip --no-deps -r requirements.lock -r requirements-dev.lock
+      # Cada archivo por separado: ambos fijan los mismos paquetes (p. ej. shapely) y pip-audit rechaza un mismo
+      # paquete repetido en una sola pasada. --require-hashes ya implica no resolver dependencias.
+      - name: Auditar dependencias de ejecución
+        run: python -m pip_audit --require-hashes --disable-pip -r requirements.lock
+      - name: Auditar dependencias de desarrollo
+        run: python -m pip_audit --require-hashes --disable-pip -r requirements-dev.lock
