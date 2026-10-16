@@ -11,6 +11,8 @@ ahí y se verifica contra ahí:
   `skills/anka-cotizaciones-correo/references/reglas_operativas.md` (versión vigente en su primera línea).
 - Estados y transiciones: `spec/transiciones.json` (se ejecuta en `tests/test_transiciones.py`).
 - Contrato con ChatGPT Work: `spec/contrato_work.schema.json` (se valida en el puente).
+- Principios y gobierno de `spec/`: `spec/constitucion.md`. Antes de programar un cambio dudoso usa `/clarificar-spec`;
+  para auditar la coherencia usa `/analizar-spec`. Ambas leen y escriben **solo** en `spec/` (no hay carpeta `specs/`).
 - Decisiones y sus motivos: `spec/05-decisiones.md`. No las deshagas sin leer por qué se tomaron.
 
 ## Cómo está armado
