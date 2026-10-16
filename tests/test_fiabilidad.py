@@ -77,7 +77,7 @@ class RecoveryTests(unittest.TestCase):
         (self.root / "config.json").write_text("{}")
         backup.restore(archive)
         self.assertEqual(evidence.read_bytes(), b"Subject: original\r\n\r\ncontenido")
-        self.assertEqual((self.root / "config.json").read_text(), '{"a":1}')
+        self.assertEqual((self.root / "config.json").read_text(), "{}")     # U-78: la configuración viva no se pisa
         self.assertTrue(list(evidence.parent.glob("*.before-restore-*")))
         with zipfile.ZipFile(archive) as handle:
             self.assertNotIn("token.json", handle.namelist())

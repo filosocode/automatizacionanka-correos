@@ -86,7 +86,7 @@ class LaSalidaNoActuaSola(unittest.TestCase):
                 for borradores in (False, True):
                     hecho = decision.decide_analysis("T1", analysis, [], "cliente@example.com", False, self.config(),
                                                      review_only=True, gmail_drafts=borradores)
-                    self.assertNotEqual(hecho.action, decision.Action.SEND)
+                    self.assertIn(hecho.action, (decision.Action.QUEUE, decision.Action.GMAIL_DRAFT, decision.Action.FOLDER))
 
     def test_el_modelo_no_inventa_destinatarios_ni_estados_con_texto_inyectado(self):
         analysis = complete_analysis() | {"recipient": "atacante@example.com", "status": "ready", "send": True}

@@ -86,7 +86,7 @@ lo ejecuta en otro proceso cada 60 segundos. Configuración, límites y lectura 
 
 `python app.py run --apply --review-only --watch-seconds 300`: revisa Gmail cada cinco minutos y aplica el mismo flujo semiasistido. Usa `Ctrl+C` para detenerlo.
 
-`python app.py run --apply`: procesa el buzón y realiza los envíos y la creación de carpetas. Ejecútalo periódicamente con el programador de tareas. `gmail_query` controla el periodo y los remitentes; la configuración actual revisa 30 días para Diego y el remitente de pruebas. El estado se guarda en `quotes.sqlite3` para no repetir correos.
+`python app.py run --apply`: procesa el buzón y crea las carpetas de los casos con alcance completo, pero **nunca envía correos al cliente** (R8, U-77): las preguntas quedan en «Correo por revisar» y se envían solo desde el dashboard, después de que una persona las revise; la línea de comandos avisa de esto al arrancar. Ejecútalo periódicamente con el programador de tareas. `gmail_query` controla el periodo y los remitentes; la configuración actual revisa 30 días para Diego y el remitente de pruebas. El estado se guarda en `quotes.sqlite3` para no repetir correos.
 
 La tabla se guarda en JSON en SQLite e incluye actividad, servicio o técnica candidata, ubicación, magnitud, unidad, entregable, plazo o restricción, fuente y estado de confirmación. El analizador recibe los mensajes externos del hilo y el texto extraído de TXT, CSV, JSON, XML, KML, KMZ, PDF con texto, DOCX y XLSX. Las imágenes incrustadas de firmas se registran como ignoradas y no bloquean el caso. DWG/DXF, formatos no soportados, archivos dañados y PDF escaneados quedan en revisión; la ficha indica el archivo, el motivo y los datos que no se pudieron confirmar.
 

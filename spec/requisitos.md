@@ -1466,6 +1466,41 @@ en «Lectura pendiente: falta leer el PDF», aunque Work había leído el origin
 - W3 · `spec/07-api.md` nombra cada ruta `GET` documentada; el script de la animación se detiene en `blur` y arranca en `focus`.
 - W4 · No queda `gmail: Any` ni `drive: Any` en `anka/`; los dobles de prueba cumplen los protocolos.
 
+### U-77 · La línea de comandos nunca envía correos al cliente (R8; auditoría de seguridad)
+**Estado: implementado** (pruebas en `tests/test_sin_envio_directo.py`). Decisión: D-144. Supersede la vía de «envío directo» de `run --apply` sin `--review-only` que describían el README y `docs/DISENO_HIBRIDO.md`.
+
+**Motivo.** R8 y los principios no negociables dicen que nada sale al cliente sin que una persona lo revise (única excepción: los recordatorios opcionales de R13). `python app.py run --apply` sin `--review-only` ni `--gmail-drafts` enviaba las preguntas al cliente desde `pipeline` sin revisión, en los modos `local` y `api`.
+
+**Qué debe cumplirse**
+1. **Ningún camino de `anka/cli/`, `pipeline` ni `decision` envía.** `Action.SEND` ya no existe; ni `RevisorDeHilos` ni `run`/`watch` llaman a `send_reply` ni a `messages().send` / `drafts().send`. El único envío al cliente sigue siendo el confirmado por una persona en el dashboard (`case_actions`), y el recordatorio de R13.
+2. **Faltan datos → revisión humana.** Con datos faltantes, la decisión es siempre `REVIEW_PENDING` («Correo por revisar») con la ficha y el texto propuesto (`Action.QUEUE`), o el borrador de Gmail con `--gmail-drafts`; `review_only` ya no cambia ese resultado. No hay clave de `config.json` ni bandera que lo active: una configuración antigua no puede pedir el envío.
+3. **`--apply` sin `--review-only` ni `--gmail-drafts` se ignora con aviso.** Imprime (stderr) y registra un aviso en español que dice que Anka ya no envía desde la línea de comandos y que el envío es solo desde el dashboard tras la revisión. Lo demás no cambia: la carpeta del proyecto (alcance completo) se sigue creando como antes y sigue exigiendo `drive_parent_id`; el contrato con Work y el modo `chatgpt_work` no se tocan.
+4. **Paridad (U-47).** Un caso `ready`, `sending` o `response_sent` sigue sin retroceder; una fila `sending` heredada se sigue omitiendo con su motivo.
+
+**Casos de aceptación**
+- S1 · Con datos faltantes, `run(True)` (sin banderas) deja el caso en `review_pending` con la ficha, escribe el aviso, y el doble de Gmail registra **cero** llamadas de envío.
+- S2 · `run(True, review_only=True)` y `run(True, gmail_drafts=True)` no envían y no escriben el aviso.
+- S3 · `Action` no tiene miembro de envío; `decide_analysis` con cualquier combinación de banderas nunca devuelve un envío.
+- S4 · Un recorrido (AST) de `anka/cli/`, `pipeline.py`, `decision.py` y `estado_de_revision.py` no encuentra `send_reply` ni llamadas `.send(`.
+
+### U-78 · La copia de seguridad no sube secretos a Drive (auditoría de seguridad)
+**Estado: implementado** (pruebas en `tests/test_respaldo_sin_secretos.py`). Decisión: D-145. Precisa U-42 y U-60; no cambia cómo se verifica la base.
+
+**Motivo.** El respaldo diario incluía `config.json` tal cual y se subía a Drive. El archivo es de uso libre (las claves desconocidas solo se avisan) y alguien puede haber puesto allí una clave, un token o un endpoint con usuario y contraseña. Las claves que Anka reconoce hoy (`anka/dominio/configuracion.py`) no son secretos (modo, consultas, direcciones, ids de carpeta, prefijos, parámetros del motor) y la clave de OpenAI se lee de la variable de entorno `OPENAI_API_KEY`, nunca del archivo; aun así, un archivo editado a mano no es una garantía.
+
+**Qué debe cumplirse**
+1. **`config.json` no entra en la copia.** En su lugar entra `config.redactado.json`: la misma estructura, con el valor de toda clave sensible cambiado por `[REDACTADO]`. Se redacta, a cualquier profundidad, por **nombre** (api_key, apikey, secret, token (no `*_tokens`), password/passwd, pwd, credential, private_key, authorization, bearer, cookie, session, signature, `*_key`, `auth`) y por **aspecto del valor** (claves `sk-…`, tokens `ya29.`/`AIza`/`ghp_`/`xox*`, `Bearer …`, claves privadas PEM, tokens de refresco `1//…`), y se quita el usuario:clave de las URL (`https://u:c@host` pasa a `https://host`). Ninguna clave que Anka reconoce se redacta.
+2. **Un archivo ilegible no se copia en bruto.** Si `config.json` no es JSON válido o no es un objeto, la copia sale sin configuración y queda un aviso en el registro.
+3. **La verificación lo comprueba.** `_verificar_zip` rechaza (y borra) una copia recién hecha que contenga `config.json`.
+4. **Restaurar sigue funcionando.** La configuración redactada **nunca pisa** la viva: solo se instala como `config.json` si no existe ninguna (y avisa que hay que volver a poner los valores `[REDACTADO]`). Una copia **antigua** que traiga `config.json` se restaura como antes (es un archivo de datos que no se ejecuta). `token.json`, `credentials.json` y la variable `OPENAI_API_KEY` nunca viajaron ni viajan: tras restaurar en un equipo nuevo hay que volver a autorizar Google (`python app.py auth`) y definir la variable.
+5. **Copias ya subidas.** Las copias anteriores en Drive pueden contener `config.json` con secretos y este cambio no las toca (el código solo borra las propias, con prefijo, por antigüedad). Quien administra la cuenta debe revisarlas, borrar las que tengan secretos y rotar las credenciales que hayan estado en el archivo (`docs/MODO_OPERACION.md`).
+
+**Casos de aceptación**
+- C1 · Con un `config.json` sintético con claves falsas (nombres y valores sensibles, anidados y en listas) la copia no contiene ninguna, ni en el zip local ni en lo que recibe el doble de Drive; sí contiene `config.redactado.json` con lo no sensible intacto.
+- C2 · Todas las claves de `Configuracion`/`ConfigLlm` sobreviven a la redacción.
+- C3 · La copia se verifica y se restaura; una copia vieja con `config.json` se restaura sin error y sin ejecutar nada; la redactada no pisa la viva y sí crea `config.json` si no había.
+- C4 · Un `config.json` roto no rompe la copia ni se copia en bruto.
+
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 
 **Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.

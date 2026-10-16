@@ -6,6 +6,7 @@ from anka.servicios.estados import cambiar_estado, verificar_transicion
 
 import json
 import sqlite3
+import sys
 from dataclasses import dataclass, replace
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -34,7 +35,6 @@ from anka.infra.mail import (
     create_reply_draft,
     extract_message_attachments,
     own_addresses,
-    send_reply,
 )
 from anka.dominio.reception import (
     attachment_report, automated_noise_reason, draft_body_with_review_note,
@@ -59,6 +59,12 @@ from anka.servicios.cola_del_piloto import save_review_packet
 
 
 log = get_logger(__name__)
+
+AVISO_SIN_ENVIO_DIRECTO = (
+    "Aviso: Anka ya no envía correos al cliente desde la línea de comandos, así que --apply no envía nada. "
+    "Cada respuesta propuesta queda en «Correo por revisar» y se envía solo desde el dashboard, "
+    "después de que una persona la revise."
+)
 
 
 @dataclass
@@ -243,12 +249,7 @@ class RevisorDeHilos:
                 thread_id, recipient, d.analysis, d.questions, packet_body or None,
                 d.folder_name or None,
             )
-        if d.action is Action.SEND:
-            save(db, thread_id, last["id"], QuoteStatus.SENDING, recipient, d.analysis)
-            sent_id = send_reply(self.gmail, thread, recipient, d.body, self.account_addresses)
-            save(db, thread_id, last["id"], d.status, recipient, d.analysis,
-                 sent_message_id=sent_id)
-        elif d.action is Action.FOLDER:
+        if d.action is Action.FOLDER:
             self._create_project_folder_or_hold(thread_id, last, recipient, d, thread)
         elif d.action is Action.GMAIL_DRAFT:
             save(db, thread_id, last["id"], d.status, recipient, d.analysis,
@@ -264,8 +265,6 @@ class RevisorDeHilos:
                     else "ficha de revisión guardada"
                 )
                 log.info("%s: %s: %s", thread_id, verb, packet.name)
-        if d.action is Action.SEND:
-            log.info("%s: preguntas enviadas al cliente; se espera respuesta", thread_id)
         programar_actualizacion_de_hoja(thread_id)   # si el análisis cambió la tabla, la hoja de Google lo refleja
 
     @staticmethod
@@ -282,7 +281,7 @@ class RevisorDeHilos:
         if estado_tras_un_analisis(row["status"], "", mismo) == "":     # el caso no está protegido
             return d
         log.info("%s: el caso sigue en «%s»; el análisis nuevo no lo hace retroceder", thread_id, final)
-        accion = Action.NONE if d.action in (Action.SEND, Action.FOLDER) else d.action
+        accion = Action.NONE if d.action is Action.FOLDER else d.action
         return replace(d, status=QuoteStatus(final), action=accion)
 
     def _create_project_folder_or_hold(
@@ -377,10 +376,27 @@ def _rescued(row: Sequence[Any] | None) -> bool:
         return False
 
 
+_AVISADO = False
+
+
+def _avisar_que_no_se_envia() -> None:
+    """El aviso de U-77, una sola vez por proceso (`watch` repite `run` cada pocos minutos)."""
+    global _AVISADO
+    if _AVISADO:
+        return
+    _AVISADO = True
+    print(AVISO_SIN_ENVIO_DIRECTO, file=sys.stderr, flush=True)
+    log.warning(AVISO_SIN_ENVIO_DIRECTO)
+
+
 def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False, respetar_espera: bool = True) -> None:
-    """Revisa Gmail una vez: simula o, con `apply`, guarda para revisión (y envía o crea carpetas sin `review_only`)."""
+    """Revisa Gmail una vez: simula o, con `apply`, guarda para revisión. Nunca envía al cliente (R8, U-77)."""
     config = load_config()
     ensure_local_or_api_mode(config)
+    if apply and not review_only and not gmail_drafts:
+        # Antes esta combinación enviaba las preguntas sin que nadie las revisara: ya no existe (U-77). La decisión
+        # deja cada pregunta en «Correo por revisar» y solo el dashboard envía; las carpetas no cambian.
+        _avisar_que_no_se_envia()
     if review_only and not apply:
         raise ErrorDeAnka("--review-only se usa junto con --apply.")
     if gmail_drafts and not apply:

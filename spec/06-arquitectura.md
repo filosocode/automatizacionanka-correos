@@ -84,7 +84,7 @@ La descripción es la primera frase de su docstring.
 
 | Módulo | Para qué sirve |
 |---|---|
-| `backup` | Copias de seguridad de la base del dashboard: local y en Drive (sin credenciales ni token). |
+| `backup` | Copias de seguridad de la base del dashboard: local y en Drive, sin credenciales, token ni secretos: la configuración viaja redactada como `config.redactado.json` (U-78). |
 | `acciones_en_curso` | Marcas de lo que el dashboard está haciendo, para que el lanzador no lo corte a la mitad al reiniciar (U-59). |
 | `archivos_privados` | Escritura completa y privada de archivos sensibles (token de Google, token CSRF): temporal + `os.replace` y permiso solo del usuario. |
 | `reinicio` | Reinicio de los datos locales para volver a probar desde cero: vista previa, copia de seguridad y vaciado. |

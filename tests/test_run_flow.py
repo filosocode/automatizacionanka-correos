@@ -161,12 +161,13 @@ class RunFlowTests(unittest.TestCase):
         self.assertEqual(len(packets), 1)
         self.assertEqual(gmail.sent_messages, [])
 
-    def test_missing_data_direct_mode_sends_question_and_waits(self):
+    def test_missing_data_without_flags_never_sends_and_waits_for_review(self):
+        # Cubre: U-77  (antes enviaba la pregunta sin revisión: R8)
         gmail = FakeGmail(self.thread())
-        rows, _, _, _ = self.run_flow(gmail, complete_analysis(location=""))
-        self.assertEqual(rows[0][1], QuoteStatus.WAITING)
-        self.assertEqual(rows[0][5], "sent-1")
-        self.assertEqual(len(gmail.sent_messages), 1)
+        rows, _, packets, _ = self.run_flow(gmail, complete_analysis(location=""))
+        self.assertEqual(rows[0][1], QuoteStatus.REVIEW_PENDING)
+        self.assertEqual(len(packets), 1)
+        self.assertEqual(gmail.sent_messages, [])
 
     def test_complete_scope_review_only_never_touches_drive(self):
         rows, _, packets, drive = self.run_flow(
@@ -357,13 +358,13 @@ class LogPrivacyTests(unittest.TestCase):
         self.assertIn("Borrador para", console)
         self.assertIn(self.CLIENT_EMAIL, console)
 
-    def test_manual_review_and_direct_send_leave_an_audit_line(self):
+    def test_manual_review_and_queued_question_leave_an_audit_line(self):
         _, review_file = self.run_logged(
             FakeGmail(self.thread()), self.analysis(activities=[]), review_only=True,
         )
         self.assertIn("t-log: sin actividades identificables; requiere revisión manual", review_file)
         _, send_file = self.run_logged(FakeGmail(self.thread()), self.analysis())
-        self.assertIn("t-log: preguntas enviadas al cliente; se espera respuesta", send_file)
+        self.assertIn("t-log: guardado para revisión humana", send_file)
         self.assertNotIn(self.CLIENT_EMAIL, send_file)
 
     def test_warning_level_marks_the_cases_that_need_a_human(self):
@@ -386,7 +387,7 @@ class DecideAnalysisTests(unittest.TestCase):
     def test_mode_flags_pick_the_action_for_missing_data(self):
         analysis = complete_analysis(location="")
         cases = [
-            ({}, QuoteStatus.WAITING, decisiones.Action.SEND),
+            ({}, QuoteStatus.REVIEW_PENDING, decisiones.Action.QUEUE),   # U-77: nunca se envía
             ({"review_only": True}, QuoteStatus.REVIEW_PENDING, decisiones.Action.QUEUE),
             ({"gmail_drafts": True}, QuoteStatus.DRAFT_CREATED, decisiones.Action.GMAIL_DRAFT),
         ]

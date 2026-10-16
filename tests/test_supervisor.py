@@ -36,7 +36,7 @@ class BackupTests(unittest.TestCase):
         path = backup.create_backup()
         with zipfile.ZipFile(path) as archive:
             names = set(archive.namelist())
-        self.assertEqual(names, {"quotes.sqlite3", "config.json"})
+        self.assertEqual(names, {"quotes.sqlite3", "config.redactado.json"})   # U-78: nunca config.json en bruto
 
     def test_restore_brings_back_data_and_keeps_current_db(self):
         path = backup.create_backup()

@@ -11,6 +11,7 @@ from anka.infra.clientes_google import ClienteDrive
 import argparse
 import json
 import os
+import re
 import sqlite3
 import shutil
 import socket
@@ -34,8 +35,59 @@ ESPERA_DE_LA_BASE = 15       # segundos que se espera si otro proceso escribe (i
 PUERTO_DEL_DASHBOARD = 8765  # puerto del dashboard del lanzador: restaurar por consola lo exige libre
 DRIVE_FOLDER = "Anka respaldos"
 LAST_FILE = "last_backup.json"
-# Solo estos archivos entran en la copia: nunca token.json ni credentials.json.
-EXTRA_FILES = ("config.json", "work_dashboard_sync_state.json")
+# Solo estos archivos entran en la copia: nunca token.json, credentials.json ni config.json (U-78).
+EXTRA_FILES = ("work_dashboard_sync_state.json",)
+CONFIG = "config.json"
+CONFIG_REDACTADO = "config.redactado.json"   # config.json sin secretos: lo único de la configuración que viaja
+# Copias anteriores a U-78 traen config.json: al restaurarlas se acepta (es un archivo de datos, no se ejecuta).
+NOMBRES_QUE_SE_RESTAURAN = ("quotes.sqlite3", *EXTRA_FILES, CONFIG, CONFIG_REDACTADO)
+MARCA_REDACTADA = "[REDACTADO]"
+# Nombres de clave que se redactan (sin distinguir mayúsculas), a cualquier profundidad.
+_CLAVE_SENSIBLE = re.compile(
+    r"(api[_-]?key|apikey|secret|token(?!s)|passw|pwd|credential|private[_-]?key|authorization|bearer|cookie|session"
+    r"|signature|(^|[_-])key$|[_-]auth$|^auth)", re.IGNORECASE)
+# Valores que parecen un secreto aunque la clave tenga un nombre inocente.
+_VALOR_SENSIBLE = re.compile(
+    r"(sk-[A-Za-z0-9_-]{16,}|ya29\.[A-Za-z0-9_-]{10,}|AIza[0-9A-Za-z_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}"
+    r"|xox[abprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._~+/-]{16,}"
+    r"|\b1//[0-9A-Za-z_-]{20,})")
+_USUARIO_EN_URL = re.compile(r"(?P<esquema>\b[a-z][a-z0-9+.-]*://)[^/\s@]+@", re.IGNORECASE)
+
+
+def _redactar_valor(valor: object) -> object:
+    if isinstance(valor, dict):
+        return {clave: (MARCA_REDACTADA if _CLAVE_SENSIBLE.search(str(clave)) else _redactar_valor(contenido))
+                for clave, contenido in valor.items()}
+    if isinstance(valor, list):
+        return [_redactar_valor(item) for item in valor]
+    if isinstance(valor, str):
+        if _VALOR_SENSIBLE.search(valor):
+            return MARCA_REDACTADA
+        return _USUARIO_EN_URL.sub(r"\g<esquema>", valor)     # https://usuario:clave@host -> https://host
+    return valor
+
+
+def redactar_config(config: dict) -> dict:
+    """Copia de la configuración sin secretos: redacta por nombre de clave y por aspecto del valor (U-78)."""
+    resultado = _redactar_valor(config)
+    assert isinstance(resultado, dict)
+    return resultado
+
+
+def _config_redactado() -> str | None:
+    """El `config.json` vivo ya redactado, o None si no existe o no se puede leer (nunca se copia en bruto)."""
+    ruta = settings.DATA_DIR / CONFIG
+    try:
+        contenido = json.loads(ruta.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        log.warning("config.json no se pudo leer; la copia sale sin configuración")
+        return None
+    if not isinstance(contenido, dict):
+        log.warning("config.json no es un objeto JSON; la copia sale sin configuración")
+        return None
+    return json.dumps(redactar_config(contenido), ensure_ascii=False, indent=2)
 
 
 def backups_dir() -> Path:
@@ -67,6 +119,9 @@ def create_backup() -> Path:
                 path = settings.DATA_DIR / name
                 if path.exists():
                     archive.write(path, name)
+            redactado = _config_redactado()
+            if redactado is not None:
+                archive.writestr(CONFIG_REDACTADO, redactado)
             evidence = settings.DATA_DIR / 'evidence'
             for path in sorted(evidence.rglob('*.eml')):
                 if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(evidence.resolve()):
@@ -85,6 +140,8 @@ def _verificar_zip(path: Path) -> None:
         malo = archive.testzip()                  # lee todo el zip: detecta una entrada dañada
         if malo is not None:
             raise ValueError(f"La copia recién hecha tiene dañada la entrada {malo}.")
+        if CONFIG in archive.namelist():
+            raise ValueError("La copia recién hecha trae config.json en bruto: podría llevar secretos (U-78).")
         archive.extract("quotes.sqlite3", temporal)
         _comprobar_base(Path(temporal) / "quotes.sqlite3")
 
@@ -193,8 +250,21 @@ def restore(archive_path: Path) -> Path:
         for name in names:
             archive.extract(name, stage)
         _comprobar_base(stage / 'quotes.sqlite3')
+        names = _resolver_configuracion(stage, names)
         _install_restore(stage, names)
     return settings.DATA_DIR / 'quotes.sqlite3'
+
+
+def _resolver_configuracion(stage: Path, names: list[str]) -> list[str]:
+    """La configuración redactada nunca pisa la viva: solo se instala como `config.json` si no hay ninguna (U-78)."""
+    if CONFIG_REDACTADO not in names:
+        return names
+    resto = [name for name in names if name != CONFIG_REDACTADO]
+    if CONFIG not in names and not (settings.DATA_DIR / CONFIG).exists():
+        os.replace(stage / CONFIG_REDACTADO, stage / CONFIG)
+        resto.append(CONFIG)
+        log.warning("Se restauró config.json SIN secretos: hay que volver a poner las claves y revisar el archivo")
+    return resto
 
 
 def _base_en_uso() -> bool:
@@ -256,7 +326,7 @@ def _validate_archive(archive: zipfile.ZipFile) -> list[str]:
         raise ValueError('El respaldo supera el límite de restauración de 2 GiB.')
     for info in archive.infolist():
         path = PurePosixPath(info.filename)
-        allowed = info.filename in ('quotes.sqlite3', *EXTRA_FILES) or (
+        allowed = info.filename in NOMBRES_QUE_SE_RESTAURAN or (
             len(path.parts) == 3 and path.parts[0] == 'evidence' and path.suffix == '.eml')
         if (not allowed or path.is_absolute() or '..' in path.parts or '\\' in info.filename
                 or ':' in info.filename or stat.S_ISLNK(info.external_attr >> 16)):
@@ -327,6 +397,9 @@ def main() -> None:
         if dashboard_en_marcha():
             raise SystemExit("El dashboard está abierto: cierra el lanzador («Iniciar Anka») antes de restaurar.")
         print("Restaurada:", restore(Path(args.restore)))
+        print("La copia no lleva secretos: si config.json se restauró desde config.redactado.json, revisa los valores "
+              f"{MARCA_REDACTADA}; vuelve a autorizar Google (python app.py auth) y a poner OPENAI_API_KEY "
+              "si usas el modo api.")
         return
     result = run_backup(use_drive=not args.no_drive)
     print(json.dumps(result, ensure_ascii=False, indent=2))
