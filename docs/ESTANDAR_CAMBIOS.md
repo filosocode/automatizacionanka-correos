@@ -13,7 +13,7 @@ Solo uno de los tres puede estar activo sobre la misma cuenta de Gmail (ver `MOD
 ## Qué se comparte y qué no
 
 - **`local` y `api` son el mismo programa.** El flujo, las reglas, la estructura de Drive y el prompt son idénticos; lo único que cambia es qué función analiza el correo. Por eso un cambio en el código Python vale para los dos automáticamente, y `tests/test_paridad_modos.py` comprueba que con el mismo correo dejan el mismo estado, el mismo borrador y el mismo prompt.
-- **`chatgpt_work` es otro orquestador.** Interpreta la skill. Con el prompt V6 (T-41) Work abre los adjuntos directamente en Gmail y el puente los verifica por nombre y tamaño. El preparador optativo T-34 (prompt V5 y anteriores) ejecuta lectores Python y publica sus resultados en Drive para que Work los consulte; no analiza ni envía. Todo cambio de reglas debe escribirse también en `SKILL.md`; ninguna prueba automática garantiza cómo lo interpreta ChatGPT, por eso hay una prueba manual (abajo).
+- **`chatgpt_work` es otro orquestador.** Interpreta la skill. Con el prompt V6 (T-41) Work abre los adjuntos directamente en Gmail y el puente los verifica por nombre y tamaño. El preparador optativo T-45 (prompt V5 y anteriores) ejecuta lectores Python y publica sus resultados en Drive para que Work los consulte; no analiza ni envía. Todo cambio de reglas debe escribirse también en `SKILL.md`; ninguna prueba automática garantiza cómo lo interpreta ChatGPT, por eso hay una prueba manual (abajo).
 - **`config.json` solo lo lee Python.** Work no lo ve. Si un ajuste de configuración cambia el comportamiento (por ejemplo `required_fields`), anótalo en la skill; hoy esa sincronización es manual.
 
 ## Fuente única de las reglas

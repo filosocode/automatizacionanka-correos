@@ -201,7 +201,7 @@ class TablaYLenguaje(unittest.TestCase):
         par = editor[editor.index('<div class="cant-par">'):editor.index("</div>", editor.index('<div class="cant-par">'))]
         self.assertIn("name='a0_quantity'", par)
         self.assertIn("name='a0_unit'", par)                                     # juntas, en el mismo contenedor
-        self.assertNotIn("<style>", editor)                                      # sus estilos están en style.css (U-28)
+        self.assertNotIn("<style>", editor)                                      # sus estilos están en style.css (U-80)
         self.assertNotIn('id="ajustar-cajas"', editor)                           # sin botón: las cajas se ajustan solas (U-40)
         self.assertIn('role="row"', editor)                                      # la cuadrícula conserva la semántica de tabla
         css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")

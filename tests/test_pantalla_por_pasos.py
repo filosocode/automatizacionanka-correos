@@ -393,7 +393,7 @@ class CuadroUnico(Base):
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn('id="decision"', pagina)
-        # El aviso sigue en el HTML (U-09, U-28) pero no se dibuja ni se pega arriba mientras la tarjeta «Ahora» está.
+        # El aviso sigue en el HTML (U-09, U-80) pero no se dibuja ni se pega arriba mientras la tarjeta «Ahora» está.
         self.assertIn('class="next-step', pagina)
         aviso = pagina[pagina.index('class="next-step'):]
         self.assertIn("hidden>", aviso.split(">", 1)[0] + ">")                 # el aviso repetido se oculta desde el servidor

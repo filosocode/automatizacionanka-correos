@@ -1,4 +1,4 @@
-"""Cubre: T-34, T-24. Expedientes, reintentos, versiones, límites y aislamiento del flujo comercial."""
+"""Cubre: T-45, T-24. Expedientes, reintentos, versiones, límites y aislamiento del flujo comercial."""
 
 from tests import _isolate  # noqa: F401
 

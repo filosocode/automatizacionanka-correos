@@ -1,4 +1,4 @@
-"""Pantalla del caso más clara: un camino para las preguntas, confirmaciones propias y accesibilidad. Cubre: U-28"""
+"""Pantalla del caso más clara: un camino para las preguntas, confirmaciones propias y accesibilidad. Cubre: U-80"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
@@ -47,7 +47,7 @@ class Base(unittest.TestCase):
 
 class UnSoloCamino(Base):
     def test_la_decision_va_justo_debajo_del_aviso_de_siguiente_paso(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         pagina = pantalla_caso.render_case("t-1")
         decision = pagina.index('id="decision"')
         self.assertLess(pagina.index('class="next-step'), decision)
@@ -55,7 +55,7 @@ class UnSoloCamino(Base):
         self.assertLess(decision, pagina.index('id="attachments-review"'))
 
     def test_las_preguntas_elegidas_llegan_al_campo_del_correo_y_este_queda_plegado(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         self.preguntar()
         pagina = pantalla_caso.render_case("t-1")
         campo = pagina.split('name="preguntas"')[1].split("</textarea>")[0]
@@ -67,7 +67,7 @@ class UnSoloCamino(Base):
         self.assertIn('id="armar-correo"', pagina)                        # el script pide confirmar si se editó
 
     def test_sin_texto_en_el_correo_el_campo_queda_abierto_y_sin_decision_no_se_rellena(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         db = store.open_db(Path(self.temp.name))
         store.save(db, "t-2", "m-2", QuoteStatus.READY_REVIEW, "cliente@empresa.co", complete_analysis())
         db.commit()
@@ -77,7 +77,7 @@ class UnSoloCamino(Base):
         self.assertEqual(pagina.split('name="preguntas"')[1].split("</textarea>")[0].split(">", 1)[1], "")
 
     def test_rearmar_tras_editar_pide_confirmar(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("getElementById('armar-correo')", layout)
         self.assertIn("se reemplazará lo que escribiste en el cuadro", layout)
@@ -85,7 +85,7 @@ class UnSoloCamino(Base):
 
 class BorradorPrimeroYEnvioAparte(Base):
     def test_guardar_es_primario_y_enviar_va_aparte_con_su_confirmacion_y_su_resumen(self) -> None:
-        # Cubre: U-28, R8
+        # Cubre: U-80, R8
         self.preguntar()
         pagina = pantalla_caso.render_case("t-1")
         borrador = re.search(r'<button type="submit" class="secondary" formaction="/draft"[^>]*>', pagina).group(0)
@@ -106,7 +106,7 @@ class ConfirmacionPropia(unittest.TestCase):
         self.layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
 
     def test_un_dialogo_accesible_con_vuelta_al_confirm_nativo(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         dialogo = self.layout[self.layout.index('<dialog id="confirmar"'):self.layout.index("</dialog>")]
         self.assertIn('aria-labelledby="confirmar-titulo"', dialogo)
         self.assertIn('<form method="dialog">', dialogo)
@@ -127,7 +127,7 @@ class Accesibilidad(unittest.TestCase):
             return paginas.page(titulo, "<p>x</p>")
 
     def test_la_navegacion_marca_la_pagina_actual_y_hay_salto_al_contenido(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         html = self.pagina("Mis casos")
         marca = html[html.index('<a class="brand"'):html.index("</a>", html.index('<a class="brand"'))]
         self.assertIn('aria-current="page"', marca)                               # la marca es la entrada (U-32)
@@ -138,12 +138,12 @@ class Accesibilidad(unittest.TestCase):
         self.assertIn('<main id="contenido" tabindex="-1">', html)
 
     def test_un_solo_reautorizar_google(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         html = self.pagina("Solicitudes")
         self.assertEqual(html.count(">Volver a conectar Google</button>"), 1)
 
     def test_rojo_solo_para_lo_destructivo_y_textos_pequenos_legibles(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
         self.assertEqual(len(re.findall(r"^[^{]*\.danger\b[^{]*\{", css, re.M)), 3)   # una regla, su hover y deshabilitado
         self.assertNotIn(".danger { background: var(--warn)", css)
@@ -151,13 +151,13 @@ class Accesibilidad(unittest.TestCase):
         self.assertIn('a.brand[aria-current="page"]', css)
 
     def test_el_boton_de_tema_dice_el_actual_y_el_siguiente(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         self.assertIn('aria-label="Tema: sistema. Pulsa para usar el claro"', layout)
         self.assertIn("boton.setAttribute('aria-label', ayuda)", layout)
 
     def test_glosario_y_sin_estilos_en_linea_en_el_caso(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         caso = (PLANTILLAS / "case.html").read_text(encoding="utf-8")
         self.assertNotIn("style=", caso)
         self.assertNotIn("<style>", (PLANTILLAS / "activities_editor.html").read_text(encoding="utf-8"))
@@ -169,7 +169,7 @@ class Accesibilidad(unittest.TestCase):
 
 class AvisoDelCorreo(Base):
     def test_ir_al_correo_solo_sale_si_la_pantalla_tiene_el_cuadro_de_respuesta(self) -> None:
-        # Cubre: U-28
+        # Cubre: U-80
         db = store.open_db(Path(self.temp.name))
         store.save(db, "t-2", "m-2", QuoteStatus.REVIEW_PENDING, "cliente@empresa.co", complete_analysis(location=""))
         db.commit()

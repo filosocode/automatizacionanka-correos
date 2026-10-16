@@ -65,6 +65,9 @@ Administrar casos (eliminar, exportar)
 <a class="enlace-ajustes" href="/archive">
 Casos borrados
 </a>
+<a class="enlace-ajustes" href="/desempeno">
+Desempeño del análisis
+</a>
 <div class="google-settings">
 <strong>
 Cuenta de Google
@@ -142,7 +145,7 @@ Actualizar la página
 Solicitud sin nombre
 </h1>
 <div class="sub">
-ignorado@example.com · ignorado@example.com · recibido el 2026-10-15
+ignorado@example.com · ignorado@example.com · recibido el 2026-09-01
 </div>
 </div>
 <span class="badge">

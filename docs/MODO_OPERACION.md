@@ -78,7 +78,7 @@ el nombre y el tamaño de cada adjunto que Work reporta con los que Gmail tiene 
 `docs/PROMPT_WORK_ANKA_V6.txt` en la tarea de Work y deja `work_drive_enabled` en `false`. Lo que sigue describe el camino anterior
 (V5 y antes), que se retirará cuando V6 esté probado en Work.
 
-En `chatgpt_work` se puede activar el preparador Gmail → OCR → Drive (T-34). Es un proceso de documentos,
+En `chatgpt_work` se puede activar el preparador Gmail → OCR → Drive (T-45). Es un proceso de documentos,
 no otro analizador comercial: Work sigue decidiendo el alcance y el borrador. El preparador requiere una raíz
 de recepción y una búsqueda explícitas; publica originales, versiones, segmentos y manifiesto por hilo.
 Véase [configuración y prueba](WORK_DRIVE_OCR.md). La tarea de Work debe actualizarse para consultar ese manifiesto.

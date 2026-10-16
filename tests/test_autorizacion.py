@@ -180,7 +180,7 @@ class DashboardIntegration(unittest.TestCase):
         self.assertIn("Cuenta de Google", ajustes)
         self.assertIn("csrf_token", ajustes)
         self.assertIn("data-confirm", ajustes)
-        # Cubre: T-15, U-28
+        # Cubre: T-15, U-80
         self.assertEqual(html.count('action="/google/reautorizar"'), 1)   # un solo botón, el de Ajustes
         self.assertIn('id="google-reauth"', ajustes)
         self.assertIn('id="google-chip" class="bridge-chip" href="#ajustes" hidden', html)  # el aviso lleva a él

@@ -51,6 +51,31 @@ _MARCAS_DE_DUDA = (
     "por defin", "a defin", "sin defin", "por confirm", "sin confirm", "sin soporte",
     "supuest", "asumid", "dudos", "estimad",
 )
+
+_NUMERO = re.compile(r"\d[\d.,]*")
+
+
+def numero_de_cantidad(texto: object) -> float | None:
+    """La primera cantidad de un texto («544,5 ha», «1.200 m», «12.5»), o None si no hay ninguna."""
+    encontrado = _NUMERO.search(str(texto or ""))
+    if not encontrado:
+        return None
+    token = encontrado.group(0).rstrip(".,")
+    if "." in token and "," in token:
+        decimal = "." if token.rfind(".") > token.rfind(",") else ","
+        token = token.replace("," if decimal == "." else ".", "").replace(decimal, ".")
+    else:
+        separador = "." if "." in token else "," if "," in token else ""
+        if separador:
+            partes = token.split(separador)
+            miles = len(partes) > 2 or (len(partes[-1]) == 3 and partes[0] not in ("0", "00") and len(partes[0]) <= 3)
+            token = "".join(partes) if miles else partes[0] + "." + partes[1]
+    try:
+        return float(token)
+    except ValueError:
+        return None
+
+
 _UNIDADES = {
     "ha": "ha", "hectarea": "ha", "hectareas": "ha", "hectárea": "ha", "hectáreas": "ha",
     "km": "km", "kilometro": "km", "kilometros": "km", "kilómetro": "km", "kilómetros": "km",
@@ -79,14 +104,50 @@ def unidad_canonica(unidad: str) -> str:
     return _UNIDADES.get(unidad.strip().rstrip(".").casefold(), unidad)
 
 
+_NUMERO_EN_PALABRAS = re.compile(
+    r"\b(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|"
+    r"cincuenta|cien|ciento|mil|media|medio)\b", re.IGNORECASE)
+_DINERO = re.compile(
+    r"\$|\b(?:cop|usd|eur|mcop|pesos?|d[oó]lar(?:es)?)\b|valor guardado|[=+]\s*\w+\(", re.IGNORECASE)
+_REFERENCIA_DE_CELDA = re.compile(r"[A-Za-z]{1,3}\d+\s*=\s*(.*)")
+_SIN_DATO = frozenset(
+    {"no indicado", "no especificado", "no aplica", "n/a", "pendiente", "por confirmar", "sin definir", "-"})
+
+
+def tiene_cifra(texto: object) -> bool:
+    """¿Trae una cifra, en dígitos o en una palabra común («una», «cinco», «mil»)? «Ha» o «Área» no son una cantidad."""
+    escrito = str(texto or "")
+    return bool(re.search(r"\d", escrito) or _NUMERO_EN_PALABRAS.search(escrito))
+
+
+def _dejar_pendiente(row: dict, motivo: str, unidad: str) -> None:
+    """La cantidad no era una medida: queda «no indicado», la fila pendiente y se anota por qué (R12)."""
+    row["quantity"] = "no indicado"
+    row["unit"] = unidad
+    row["estado"] = "pendiente"
+    nota = f"{motivo} La fila queda pendiente."
+    notas = str(row.get("notes") or "")
+    if nota not in notas:
+        row["notes"] = f"{notas} {nota}".strip()
+
+
 def limpiar_cantidad_y_unidad(row: dict) -> None:
     """Evita que la unidad aparezca dos veces: el modelo suele escribir «544.5 ha» en la cantidad y «ha» en la unidad.
 
     Si la cantidad es solo «número + unidad», se queda con el número; si ya menciona todas las unidades (varias
     magnitudes en un texto), se vacía la unidad. Una cantidad sin la unidad no se toca. Al final la unidad se escribe
-    de una sola forma (`unidad_canonica`).
+    de una sola forma (`unidad_canonica`). Una cantidad que no es una cifra (una unidad suelta, una etiqueta, un valor
+    en dinero) queda «no indicado» y la fila pendiente.
     """
     quantity, unit = str(row.get("quantity") or "").strip(), str(row.get("unit") or "").strip()
+    celda = _REFERENCIA_DE_CELDA.fullmatch(quantity)
+    if celda:      # el texto leído de una hoja trae «G9=1»: el valor es lo que sigue al igual
+        quantity = celda.group(1).strip()
+        row["quantity"] = quantity or "no indicado"
+    if _DINERO.search(quantity) or _DINERO.search(unit):    # la Fase 1 no cotiza: un valor en dinero no es una cantidad
+        return _dejar_pendiente(row, "La cantidad que venía era un valor en dinero, no una medida.", "no indicado")
+    if quantity and not tiene_cifra(quantity) and quantity.casefold() not in _SIN_DATO:
+        return _dejar_pendiente(row, "En la cantidad no venía una cifra.", unit or quantity)
     if quantity and unit:
         _quitar_unidad_repetida(row, quantity, unit)
     if row.get("unit"):

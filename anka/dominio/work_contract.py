@@ -305,7 +305,7 @@ def corregir_descuidos_de_tipo(payload: dict) -> list[str]:
 
 
 def _avisos_de_segmentos(payload: dict, preflight: dict, audit: dict) -> list[str]:
-    """Los avisos de la lectura declarada con el expediente en Drive (V5 y anteriores; T-35)."""
+    """Los avisos de la lectura declarada con el expediente en Drive (V5 y anteriores; T-46)."""
     warnings = []
     if preflight.get("thread_id") != payload.get("thread_id"):
         warnings.append("El preflight no corresponde al hilo analizado.")
@@ -459,7 +459,7 @@ def _avisos_de_verificacion(audit: dict) -> list[str]:
 
 
 def reading_summary(payload: dict) -> dict[str, Any]:
-    """Resume lectura declarada y coherencia del preflight sin certificar comprensión visual (T-35)."""
+    """Resume lectura declarada y coherencia del preflight sin certificar comprensión visual (T-46)."""
     audit = _diccionario(payload.get("reading_audit"))
     preflight = _diccionario(payload.get("DRIVE_PREFLIGHT"))
     if audit.get("verification"):

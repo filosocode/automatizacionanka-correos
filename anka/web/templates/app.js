@@ -250,7 +250,7 @@ document.addEventListener('submit', event => {
     if (aviso.textContent !== texto) aviso.textContent = texto;       // solo si cambió: el lector no repite lo mismo en cada tecla
   }
   cuerpo.addEventListener('input', mostrar); casilla.addEventListener('change', mostrar); mostrar();
-  // Rearmar el correo con otras preguntas reemplaza el cuadro: si ya lo editaste, se pide confirmar (U-28).
+  // Rearmar el correo con otras preguntas reemplaza el cuadro: si ya lo editaste, se pide confirmar (U-80).
   const armar = document.getElementById('armar-correo');
   if (armar) cuerpo.addEventListener('input', () => {
     armar.dataset.confirm = 'El correo se volverá a armar con estas preguntas y se reemplazará lo que escribiste en el cuadro. ¿Continuar?';
@@ -260,7 +260,7 @@ window.addEventListener('pageshow', event => {
   if (event.persisted) location.reload();
 });
 (function () {
-  // Confirmaciones (U-28): un <dialog> propio con el texto de data-confirm y, en el envío, a quién va y qué lleva.
+  // Confirmaciones (U-80): un <dialog> propio con el texto de data-confirm y, en el envío, a quién va y qué lleva.
   // Sin <dialog> queda el confirm() del navegador; sin JavaScript el botón actúa como siempre.
   const dialogo = document.getElementById('confirmar');
   const nativo = !dialogo || typeof dialogo.showModal !== 'function';
@@ -627,7 +627,7 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
     if (actual === 'system') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = actual;
     boton.textContent = 'Tema: ' + nombres[actual];
-    // Dice el tema actual y a cuál cambia al pulsar (U-28).
+    // Dice el tema actual y a cuál cambia al pulsar (U-80).
     const siguiente = orden[(orden.indexOf(actual) + 1) % orden.length];
     // El nombre accesible empieza por el texto visible («Tema: claro»): quien manda por voz dice lo que ve (U-37).
     const ayuda = 'Tema: ' + nombres[actual] + '. Pulsa para usar ' + (siguiente === 'system' ? 'el del sistema' : 'el ' + nombres[siguiente]);
@@ -648,7 +648,7 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
   const googleForm = document.getElementById('google-reauth');
   const googleStatus = document.getElementById('google-status');
   const botonAvisos = document.getElementById('avisos-navegador');
-  // El aviso «Google desconectado» lleva al único botón «Volver a conectar Google», el de Ajustes (U-28).
+  // El aviso «Google desconectado» lleva al único botón «Volver a conectar Google», el de Ajustes (U-80).
   googleChip.addEventListener('click', event => {
     event.preventDefault();
     document.getElementById('ajustes').open = true;

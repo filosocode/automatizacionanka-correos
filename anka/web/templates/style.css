@@ -184,7 +184,7 @@ main { width: min(1240px, 100%); margin: 0 auto; padding: 28px 24px 48px; }
 button.enlace:hover { background: none; }
 .secondary { background: var(--surface-2); color: var(--ink); }
 .secondary:hover { background: var(--surface-3); }
-/* Rojo solo para lo destructivo (eliminar); el ámbar es de los avisos (.warn, .notice). U-28 */
+/* Rojo solo para lo destructivo (eliminar); el ámbar es de los avisos (.warn, .notice). U-80 */
 .button.danger, button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 .button.danger:hover, button.danger:hover { background: var(--danger); filter: brightness(.92); }
 button.danger:disabled { opacity: .45; cursor: not-allowed; }
@@ -444,7 +444,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .chip-filter[aria-pressed="true"]::before { margin-right: 0; }
 .seg:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-/* Pantalla del caso sin atributos style (U-28) */
+/* Pantalla del caso sin atributos style (U-80) */
 .subhead { margin-top: 20px; }
 .toolbar.spaced { margin-top: 14px; }
 .toolbar.spaced-sm { margin-top: 8px; }
@@ -509,7 +509,7 @@ textarea.caja-correo { min-height: 260px; }
   padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-card); font-size: .875rem; }
 .glosario dt { font-weight: 700; }
 .glosario dd { margin: 0; color: var(--muted); }
-/* Enviar va aparte del borrador: es definitivo (U-28) */
+/* Enviar va aparte del borrador: es definitivo (U-80) */
 .send-zone { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
   margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--radius-card);
   background: var(--surface-2); }
@@ -518,7 +518,7 @@ button.send-action { background: var(--panel); color: var(--accent-dark); border
 button.send-action:hover { background: var(--accent-soft); }
 button.send-action:disabled { opacity: .6; cursor: progress; }
 .google-settings form.urgente button { background: var(--bad-bg); color: var(--bad-ink); }
-/* Diálogo de confirmación propio (U-28) */
+/* Diálogo de confirmación propio (U-80) */
 .confirm-dialog { max-width: min(520px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: var(--radius-card);
   background: var(--panel); color: var(--ink); box-shadow: var(--shadow-modal); }
 .confirm-dialog::backdrop { background: rgba(0, 0, 0, .45); }

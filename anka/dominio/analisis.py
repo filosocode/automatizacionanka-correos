@@ -102,6 +102,7 @@ class RevisionManual(TypedDict, total=False):
     decision: str        # sufficient | ask_client
     at: str
     questions: list[str]
+    sin_respuesta: bool  # se siguió con la T sin esperar la respuesta del cliente (U-28)
 
 
 class RevisionDeLectura(TypedDict, total=False):
@@ -138,7 +139,7 @@ class Analisis(TypedDict, total=False):
     routing: Enrutamiento
     work_reply: RespuestaWork
     work_model: str           # T-32: el modelo que declaró Work (solo interno)
-    work_message_id: str      # el mensaje del cliente que analizó Work (puente, T-35)
+    work_message_id: str      # el mensaje del cliente que analizó Work (puente, T-46)
     work_skill_version: str   # T-32: la versión del prompt que declaró Work (solo interno)
     manual_review: RevisionManual
     ultimas_preguntas: list[str]   # lo último que la persona dejó en el cuadro de preguntas para el cliente (U-31)

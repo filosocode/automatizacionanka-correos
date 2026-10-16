@@ -65,6 +65,9 @@ Administrar casos (eliminar, exportar)
 <a class="enlace-ajustes" href="/archive">
 Casos borrados
 </a>
+<a class="enlace-ajustes" href="/desempeno">
+Desempeño del análisis
+</a>
 <div class="google-settings">
 <strong>
 Cuenta de Google
@@ -142,7 +145,7 @@ Actualizar la página
 Solicitud sin nombre
 </h1>
 <div class="sub">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · x'+ZZINJ+'@a.co · recibido el 2026-10-15
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · x'+ZZINJ+'@a.co · recibido el 2026-09-01
 </div>
 </div>
 <span class="badge">

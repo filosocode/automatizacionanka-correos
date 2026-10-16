@@ -1,4 +1,4 @@
-"""Cubre: T-35. Lectura, aplicabilidad y selección del origen sin usar Gmail real."""
+"""Cubre: T-46. Lectura, aplicabilidad y selección del origen sin usar Gmail real."""
 
 from tests import _isolate  # noqa: F401
 

@@ -8,6 +8,7 @@ import unicodedata
 from functools import lru_cache
 from email.utils import parseaddr
 
+from anka.dominio.activities import tiene_cifra
 from anka.dominio.analisis import Analisis, Adjunto
 from anka.dominio.correo import attachment_names, header, message_datetime, message_text
 from anka.dominio.preguntas import para_el_cliente
@@ -112,19 +113,13 @@ def _known_intake_value(value: object) -> bool:
     return bool(text) and not any(marker in text for marker in unknown)
 
 
-_NUMERO_EN_PALABRAS = re.compile(
-    r"\b(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|"
-    r"cincuenta|cien|ciento|mil|media|medio)\b")
-
-
 def _known_magnitude(value: object) -> bool:
     """¿Es una medida? Debe traer una cantidad (en cifras o en palabras comunes): «Área» o «varios» no lo son.
 
     El modelo a veces escribe el nombre del dato («Área») donde va el valor; sin esta exigencia el caso salía como
     «información suficiente» sin que nadie preguntara el área (F1-04).
     """
-    texto = normalized_text(str(value or ""))
-    return _known_intake_value(value) and bool(re.search(r"\d", texto) or _NUMERO_EN_PALABRAS.search(texto))
+    return _known_intake_value(value) and tiene_cifra(normalized_text(str(value or "")))
 
 
 def _detected_service_family(analysis: Analisis) -> str:

@@ -65,6 +65,9 @@ Administrar casos (eliminar, exportar)
 <a class="enlace-ajustes" href="/archive">
 Casos borrados
 </a>
+<a class="enlace-ajustes" href="/desempeno">
+Desempeño del análisis
+</a>
 <div class="google-settings">
 <strong>
 Cuenta de Google
@@ -1075,6 +1078,12 @@ Respuesta enviada el 2026-09-02T10:00:00-05:00.
 <pre>
 Respuesta enviada al cliente.
 </pre>
+<form method="post" action="/seguir-sin-respuesta" class="toolbar spaced-sm">
+<input type="hidden" name="thread_id" value="t-sent">
+<button type="submit" class="secondary" data-confirm="El caso pasará a «información suficiente» sin esperar la respuesta del cliente y podrás emitir la T. No se envía nada. ¿Confirmas?">
+Seguir con la T sin su respuesta
+</button>
+</form>
 <div class="spaced-top">
 <div class="notice">
 <strong>

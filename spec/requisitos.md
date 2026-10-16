@@ -19,7 +19,10 @@ Distingue una solicitud de cotización de lo que no lo es. Descarta sin analizar
 motivo para poder rescatarlo (R1 a R3); ante la duda, analiza.
 
 ### F1-03 · Tabla de actividades
-Resume cada solicitud en una tabla de actividades que una persona puede editar y exportar a Excel. La unidad se escribe de una sola forma (ha, km, m, km², m²) aunque el correo diga «hectáreas», «Ha» o «Km». Se conserva la
+Resume cada solicitud en una tabla de actividades que una persona puede editar y exportar a Excel. La unidad se escribe de una sola forma (ha, km, m, km², m²) aunque el correo diga «hectáreas», «Ha» o «Km».
+La cantidad de una actividad es una cifra y su unidad va aparte: si el análisis escribe en la cantidad una unidad sin cifra («Ha»), una etiqueta o
+un valor en dinero (la Fase 1 no cotiza), la cantidad queda «no indicado», la fila queda pendiente y se anota por qué; la unidad que
+venía en su lugar se conserva y un valor en dinero no se guarda en ninguna parte. Se conserva la
 versión del modelo y cada edición queda como versión nueva, con sus diferencias y un motivo opcional.
 Los hechos extraídos de adjuntos conservan el nombre del archivo y un localizador verificable (página, párrafo,
 tabla/fila, hoja/celda o elemento KML/KMZ); los archivos o secciones no leídos se identifican como parciales o
@@ -213,6 +216,30 @@ La evaluación distingue pruebas determinísticas de resultados observados con m
 del prompt, modelo, fecha, corpus anonimizado y resultados por caso. Una muestra sin etiquetar no produce una
 calificación de precisión. La trazabilidad identifica métodos de prueba ejecutables y no solo archivos etiquetados.
 
+### T-35 · Desempeño del análisis medido con el uso real
+Cada vez que una persona corrige lo que el análisis propuso, esa corrección es una medida de su acierto: sin etiquetar nada, el uso diario dice
+qué tan bien trabaja Work (o el modelo local). La pantalla «Desempeño» agrupa los casos por la versión del prompt y el modelo que declaró el
+análisis (T-32) y, para cada grupo, muestra cuántos casos hay, cuántos no necesitaron ninguna corrección, qué parte de las filas de la tabla se
+conservó, qué parte de las cantidades quedó intacta, y cuánto coincidió la persona con lo que se le sugirió para las preguntas (cuántas
+sacó del cliente, cuántas añadió o pasó al cliente). Compara la tabla que dejó el análisis con la que dejó la persona, solo hasta el primer
+reanálisis (después los cambios pueden venir de información nueva). Con menos de 10 casos en un grupo lo dice: son pocos para concluir. Un caso
+sin correcciones puede ser un acierto o un caso que nadie revisó: la pantalla lo advierte.
+
+### T-34 · Evaluar el análisis con solicitudes reales del histórico
+Para saber cuánto acierta el análisis (T-23) se arma un conjunto de casos a partir del histórico de propuestas (`I:\T&E`, solo
+lectura): la solicitud que hizo el cliente frente a lo que Anka terminó cotizando. Cada caso es una ficha con lo esperado: si es
+una solicitud, la ubicación, las actividades con su cantidad y unidad, y los datos que la solicitud no traía y debían preguntarse.
+Una ficha nace como **borrador** (la propone el modelo a partir de la propuesta aprobada) y solo cuenta cuando una persona la
+**valida**. Las fichas y los informes viven en la carpeta de datos del equipo, nunca en el repositorio, y los archivos del cliente
+no se copian: la ficha apunta a su ubicación original. `evaluar` corre la cadena real (lectura de adjuntos, análisis,
+preguntas) sobre las fichas validadas y mide: si identifica la solicitud, qué actividades encuentra y con qué cantidad y unidad,
+si encuentra la ubicación, y si pregunta lo que faltaba sin preguntar lo que ya venía. El informe guarda el modelo, la versión
+del prompt, la fecha y el resultado por caso, para comparar versiones. Sin fichas validadas no se calcula ninguna precisión.
+Cuando la solicitud trae una hoja de Excel con su tabla de cantidades (columnas de descripción, unidad y cantidad), lo esperado se
+**extrae de esa tabla de forma determinista**, sin modelo y sin que nadie tenga que recordar el caso: la ficha queda «extraída» y
+cuenta en la evaluación, marcada como tal en el informe, y una persona puede revisarla por muestreo. Una tabla de más de 25 filas
+no se usa. Un borrador propuesto por el modelo sigue sin contar mientras nadie lo valide.
+
 ### T-24 · Lectura completa de los adjuntos legibles
 La lectura exhaustiva de los adjuntos es lo que sostiene una cotización correcta, y vale igual en los tres modos. Todo adjunto
 de un formato legible (hasta 50 MiB, más que el máximo de Gmail) se lee completo: ningún recorte por longitud al texto que
@@ -223,7 +250,7 @@ La extracción textual no certifica interpretación visual. Si el análisis comp
 `llm.num_ctx_max` (32768 por defecto) y, si aun así no cabe, el hilo se informa para revisión manual con el motivo.
 La cantidad de una actividad no repite su unidad (`544.5` + `ha`, no `544.5 ha` + `ha`).
 
-### T-34 · Expedientes de recepción Gmail → OCR → Drive para Work
+### T-45 · Expedientes de recepción Gmail → OCR → Drive para Work
 *Sustituido para el prompt V6 por T-41; se retira cuando T-41 esté probado en Work.*
 Un proceso optativo y separado del puente de borradores prepara expedientes bajo una carpeta de recepción configurada,
 con una búsqueda Gmail explícita y cuenta verificada. No envía correos, no clasifica solicitudes ni crea carpetas comerciales.
@@ -481,6 +508,13 @@ dejó para Anka, las que descartó y las que agregó), para cambiar cuáles y cu
 por suficiente, como en la decisión técnica, y habilita emitir la T. Ambas quedan en el historial y ninguna envía nada. Un borrador ya
 guardado en Gmail no se borra. Con el correo ya enviado no se puede volver atrás: la regla lo rechaza con su motivo.
 
+### U-28 · Seguir con la T sin esperar la respuesta del cliente
+Un caso al que ya se le escribió y el cliente no responde (esperando su respuesta, o con una respuesta enviada) puede seguir adelante si la persona lo
+decide: «Seguir con la T sin su respuesta» da la información por suficiente bajo su criterio y habilita emitir la T y crear la carpeta,
+con una confirmación y una nota en el historial («sin esperar la respuesta del cliente»). Deja de contar días de espera y de recibir
+recordatorios, porque ya no está esperando. No envía nada. Si el cliente responde después, la respuesta se atiende como cualquier mensaje
+nuevo. No aplica a un caso que ya tiene código ni a uno que no está esperando.
+
 ### U-24 · Armar un correo con las preguntas que la persona escribe, en cualquier etapa
 En el cuadro de respuesta de cualquier etapa en que se pueda escribir al cliente hay un campo «Preguntas para el cliente» (una por
 línea) y un botón «Preparar el correo de nuevo». El correo se arma con la misma plantilla fija de siempre (saludo, las preguntas
@@ -511,7 +545,7 @@ correo y si el caso quedará esperando; una casilla «Esperar su respuesta aunqu
 (TR-26). Un acuse mientras queden preguntas decididas como internas devuelve el caso a «Falta tu decisión técnica» (TR-25),
 para que ese trabajo no salga de la cola de la persona.
 
-### U-28 · Pantalla del caso más clara: un camino para las preguntas, confirmaciones propias y accesibilidad
+### U-80 · Pantalla del caso más clara: un camino para las preguntas, confirmaciones propias y accesibilidad
 Ajustes de usabilidad que no cambian qué se guarda ni qué se envía:
 1. **Un solo camino para las preguntas del correo.** En revisión técnica las preguntas se deciden en «¿Cómo seguimos?» (U-22),
    que va justo debajo del aviso de siguiente paso. Después, en «Respuesta al cliente», el campo «Preguntas para el cliente»
@@ -535,7 +569,7 @@ Ajustes de usabilidad que no cambian qué se guarda ni qué se envía:
    estilos (todo está en la hoja de estilos de siempre).
 9. La carpeta del proyecto en Drive se pliega mientras es solo una alternativa manual (sin código y sin un aviso de Drive pendiente).
 
-### T-35 · Trazabilidad de lectura y origen de Work
+### T-46 · Trazabilidad de lectura y origen de Work
 El puente conserva el preflight y la auditoría de lectura, distingue aplicabilidad, verifica el origen en Gmail para V4.5 y evita regresiones por borradores antiguos.
 
 ### T-36 · Un borrador de Work sin análisis válido no deja el caso fuera del dashboard
@@ -560,14 +594,14 @@ Un borrador rechazado de un mensaje nuevo en un hilo ya analizado queda oculto p
 válido; el mensaje nuevo se sigue viendo como novedad del hilo (U-25). Motivo: D-69.
 
 ### T-37 · La lectura que declara Work se verifica contra el manifiesto del preparador
-Cuando el preparador (T-34) publica un expediente, guarda una instantánea local mínima de su manifiesto (hilo, revisión, `message_ids`
+Cuando el preparador (T-45) publica un expediente, guarda una instantánea local mínima de su manifiesto (hilo, revisión, `message_ids`
 e identificador y nombre de cada segmento del correo y de los adjuntos). El puente la usa para dejar de confiar en lo que Work copia a
 mano: `DRIVE_PREFLIGHT.manifest_revision`, `message_ids`, los conteos de segmentos y las listas `*_segment_ids_expected` y
 `*_segment_ids_pending` se calculan desde el manifiesto; `*_segment_ids_read` es lo que Work declaró haber leído, reducido a lo que
 existe en el manifiesto (acepta el identificador o el nombre del segmento y lo normaliza al identificador). Cada diferencia se
 anota como aviso del puente. Si Work leyó una revisión que no es la vigente, el mensaje analizado no está en el manifiesto o quedan
 segmentos sin lectura verificada, `analysis_complete` pasa a falso y el caso a revisión técnica interna. Sin instantánea para el
-hilo (preparador apagado o expediente anterior a este cambio) no se modifica nada: el comportamiento es el de T-35.
+hilo (preparador apagado o expediente anterior a este cambio) no se modifica nada: el comportamiento es el de T-46.
 
 Cuando quedan segmentos de adjuntos sin lectura verificada, el puente dice **cuáles**: la instantánea guarda también el nombre del
 archivo de cada segmento, el aviso del caso lo nombra («1 de 4 segmentos de adjuntos sin lectura verificada: plano.kml») y la
@@ -578,7 +612,7 @@ que la lectura se verifique; esto solo evita que la persona deba adivinar qué f
 trae los nombres: el aviso funciona igual, sin ellos, hasta que el preparador la vuelva a guardar.
 
 ### T-38 · Lo que Work pone en la tabla se comprueba contra los textos del expediente
-Cuando el preparador (T-34) publica un expediente guarda también, solo en este equipo, el texto extraído del correo y de cada adjunto
+Cuando el preparador (T-45) publica un expediente guarda también, solo en este equipo, el texto extraído del correo y de cada adjunto
 (con un tope de tamaño; si lo supera, la comprobación queda como «no comprobable»). El puente comprueba, sin cambiar ni bloquear nada:
 (a) que cada número de la cantidad de una actividad aparece en los textos del expediente (en el archivo citado si se puede
 identificar; si solo está en otro archivo, lo dice); (b) que los archivos citados en las fuentes existen en el expediente y que la
@@ -594,7 +628,7 @@ JSON de ejemplo completo. Una prueba extrae ese ejemplo del archivo del prompt y
 segmentos leyó; la revisión, los conteos y los pendientes los calcula el puente (T-37).
 
 ### T-40 · El preparador gasta poca cuota de Gmail y no se queda sin preparar lo más nuevo
-El preparador (T-34) no vuelve a bajar un hilo cuyo estado en Gmail (`historyId` de `threads.list`) no cambió desde la última vez que
+El preparador (T-45) no vuelve a bajar un hilo cuyo estado en Gmail (`historyId` de `threads.list`) no cambió desde la última vez que
 lo preparó con éxito, salvo que falten sus copias locales (T-37, T-38). En cada pasada baja como máximo seis hilos completos y
 empieza por los que nunca ha preparado; los demás esperan a la siguiente pasada. Si Gmail rechaza una petición por cuota, termina la
 pasada sin insistir ni contar cada hilo restante como fallo, y lo deja anotado en su estado. Pedir un hilo concreto lo prepara siempre.
@@ -640,7 +674,7 @@ al cliente» quedaba en blanco sin forma de generar las preguntas.
    o ya decidiste.
 
 ### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
-**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88, D-89, D-90, D-95, D-98. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-28.
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88, D-89, D-90, D-95, D-98. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-80.
 Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
 
 **Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
@@ -667,7 +701,7 @@ la carpeta de Drive.
    sigue aceptándose en el servidor y en la API, pero la pantalla ya no lo usa; reemplaza lo que U-22, U-26 y U-30 decían de los selectores en pantalla.
 
 **Valores por omisión propuestos (se dan por buenos si nadie los objeta antes de programar)**
-6. **Glosario.** El glosario de U-28.7 deja de ser el primer bloque del caso: un «?» junto a «Paso N de 4» lo abre (mismos términos: T, T&E, lectura realizada, aplicabilidad).
+6. **Glosario.** El glosario de U-80.7 deja de ser el primer bloque del caso: un «?» junto a «Paso N de 4» lo abre (mismos términos: T, T&E, lectura realizada, aplicabilidad).
 7. **Un solo nombre por estado (D-86).** La insignia del caso, la nota del primer paso, la lista de Solicitudes, el Resumen y los botones usan los mismos nombres, según el estado del flujo y no
    según la evaluación de recepción: «Por decidir» (revisión técnica: falta tu decisión), «Correo por revisar» (el correo para el cliente está redactado y falta que lo revises y lo envíes; D-96),
    «Esperando al cliente» (ya se le escribió), «Información validada» (lista para emitir la T) y, con T, «T… · cotizando» o «T&E… · aprobada». Se distingue «Correo por revisar» de «Esperando» porque en el
@@ -683,7 +717,7 @@ la carpeta de Drive.
 12. **Resumen de la tabla.** Sobre la tabla, una línea «N actividades · M por completar» (o «todas completas»); `M` cuenta las que no están «confirmado» (R12). La explicación larga de los
     estados queda plegada en «Cómo leer los estados».
 13. **Aspecto de «Ahora» (idéntico al prototipo, D-83).** La decisión de revisión técnica es una tarjeta destacada con la etiqueta «Ahora», borde de color y el título «Revisa y decide cómo seguir», «Qué pide:» en un recuadro, una frase de lo que falta («Faltan: 3 actividades por completar y 2 archivos por revisar…») y, al final, «Elige una opción para continuar. Nada se envía al cliente en este paso.» Las salidas son
-    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Las opciones son tarjetas sin círculo de selección, con una línea de explicación, y **no viene ninguna marcada**: el cuadro de preguntas aparece al elegir «Hay que preguntarle al cliente» (reemplaza lo que U-30 decía de marcarla de entrada). Hay un botón por opción, que aparece al elegirla: «Confirmar que alcanza» (pide confirmación, U-28.3) y «Preparar el correo». Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
+    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Las opciones son tarjetas sin círculo de selección, con una línea de explicación, y **no viene ninguna marcada**: el cuadro de preguntas aparece al elegir «Hay que preguntarle al cliente» (reemplaza lo que U-30 decía de marcarla de entrada). Hay un botón por opción, que aparece al elegirla: «Confirmar que alcanza» (pide confirmación, U-80.3) y «Preparar el correo». Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
     marca, pendientes en gris, y el actual con el texto en negrita.
 
 14. **Encabezado del prototipo.** «← Mis casos» (U-32), el nombre del proyecto, una línea «cliente · correo · recibido el …» y la insignia del estado. El párrafo largo de resumen sale del
@@ -694,9 +728,9 @@ la carpeta de Drive.
 16. **El correo, simple y amigable (D-84).** La tarjeta muestra «Para» en una línea, el «Mensaje (puedes editarlo)» en un cuadro grande, una línea que dice cuántas preguntas lleva y qué pasará con
     el caso, y dos botones: «Enviar al cliente» (principal; sigue pidiendo confirmación con destinatario y asunto, R8) y «Guardar borrador en Gmail». Debajo, «Cambiar las preguntas»
     abre un cuadro con las preguntas actuales (una por línea) para cambiarlas, y «Preparar el correo de nuevo» escribe otra vez el mensaje con ellas (reemplaza el texto; si la persona ya lo editó, pide
-    confirmar, U-28). La casilla «Esperar su respuesta aunque el correo no tenga preguntas» solo aparece cuando el mensaje no lleva preguntas. «¿Cambiaste de idea?» es una línea discreta con
+    confirmar, U-80). La casilla «Esperar su respuesta aunque el correo no tenga preguntas» solo aparece cuando el mensaje no lleva preguntas. «¿Cambiaste de idea?» es una línea discreta con
     «Volver a decidir» y «No preguntar: con esto alcanza». Dentro de esta tarjeta ya no salen «Respuesta sugerida lista…», «Recepción completa…» ni los párrafos largos
-    de ayuda. Reemplaza el punto 2 de U-28 y los textos del punto 1 de U-28.
+    de ayuda. Reemplaza el punto 2 de U-80 y los textos del punto 1 de U-80.
 17. **Pestañas.** «Conversación», «Archivos», «Historial» y «Detalle técnico» (datos comerciales, contexto interno, evaluación de recepción, revisión de preguntas, enrutamiento y asuntos
     pendientes). Funcionan con teclado (flechas) y, sin JavaScript, todos los paneles se ven uno tras otro.
 18. **Seguridad del usuario (evaluación de 4 agentes, 2026-10-14; D-85).** a) El aviso de siguiente paso solo se oculta cuando la tarjeta «Ahora» dice lo mismo, y se oculta desde el servidor
@@ -770,7 +804,7 @@ la carpeta de Drive.
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).
 
 ### U-32 · Una sola entrada, «Mis casos», sin barra de pestañas
-**Estado: en implementación, pasos 1 y 2** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-91, D-92, D-93. Reemplaza lo que U-28.6 decía de la navegación; no quita ninguna función de U-11, U-13, U-16, U-19 ni U-25.
+**Estado: en implementación, pasos 1 y 2** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-91, D-92, D-93. Reemplaza lo que U-80.6 decía de la navegación; no quita ninguna función de U-11, U-13, U-16, U-19 ni U-25.
 
 **Motivo.** La persona responsable del producto no quiere la barra «Resumen / Solicitudes / Descartadas / Archivo»: pide un flujo amigable, práctico, sin tantas variaciones ni desvíos. Tres agentes de
 evaluación (UX, técnico y gestión, 2026-10-14) encontraron que Resumen y Solicitudes responden lo mismo, que solo una o dos de las cuatro pestañas sirven al trabajo diario y que Archivo (casos eliminados,
@@ -1218,7 +1252,7 @@ Fuera de alcance: guardar un borrador desde el dashboard sobre un caso `ready` o
 ### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
 **Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la
 primera con el prompt V6.1 (2026-10-11, D-69) leyó el hilo y dejó el borrador completo; faltan el KMZ, el ZIP y el adjunto grande (ver «Prueba
-manual»). Rige para los borradores del prompt V6 en adelante (`skill_version` `PRECISO_V6…`); los de V5 y anteriores siguen con T-34, T-37 y
+manual»). Rige para los borradores del prompt V6 en adelante (`skill_version` `PRECISO_V6…`); los de V5 y anteriores siguen con T-45, T-37 y
 T-40 hasta que se retiren. Decisión: D-68.
 
 **Motivo.** El 2026-10-11 un caso real quedó oculto («Lectura pendiente») porque Work no abrió 1 de los 4 segmentos que el preparador
@@ -1261,8 +1295,8 @@ el texto que extrae Python y los otros 2 (coordenadas del KML) iguales en valor,
    con verificación `incompleta` (o, mientras existan, uno de V5 cuyo `DRIVE_PREFLIGHT` o cuyos segmentos no cuadran, como en T-37); uno
    «sin verificar» se muestra con el aviso. En un borrador V6, `DRIVE_PREFLIGHT`, `reading_audit` y los campos `*_segment_*` se aceptan si
    llegan, pero no se exigen ni deciden nada: `reading_audit` lo escribe el puente.
-   El origen del mensaje se sigue verificando contra Gmail (T-35) también para los borradores V6.
-7. **Qué se retira.** La publicación de expedientes en Drive (T-34, T-40), el manifiesto con segmentos, las instantáneas de manifiesto,
+   El origen del mensaje se sigue verificando contra Gmail (T-46) también para los borradores V6.
+7. **Qué se retira.** La publicación de expedientes en Drive (T-45, T-40), el manifiesto con segmentos, las instantáneas de manifiesto,
    `work_drive_enabled` (queda en falso por defecto) y el paquete manual de adjuntos. El código se retira cuando T-41 esté
    implementado **y probado en Work**, no antes. Los modos `local` y `api` no cambian: leen con Python.
 
@@ -1336,7 +1370,7 @@ dice «omite lo desconocido». El puente lo tomó por un borrador anterior, lo v
 en «Lectura pendiente: falta leer el PDF», aunque Work había leído el original desde Gmail.
 
 **Qué debe cumplirse**
-1. **La versión declarada manda.** `PRECISO_V6` o posterior se verifica contra Gmail (T-41); `PRECISO_V5` o anterior sigue con el manifiesto (T-34,
+1. **La versión declarada manda.** `PRECISO_V6` o posterior se verifica contra Gmail (T-41); `PRECISO_V5` o anterior sigue con el manifiesto (T-45,
    T-37). Una versión declarada de V5 no se reinterpreta aunque sus adjuntos traigan `size_bytes`.
 2. **Sin versión declarada** (ausente, vacía o «no indicado»), la huella de V6 decide: si el borrador trae adjuntos y **todos** llevan su tamaño exacto
    en bytes (`size_bytes` entero, algo que V5 y anteriores no emiten), se verifica contra Gmail. Sin adjuntos o con alguno sin `size_bytes`, sigue el camino

@@ -33,6 +33,8 @@ from anka.servicios.change_control import (
     code_label, required_messages,
 )
 from anka.dominio.registros import Cambio
+from anka.dominio.desempeno import MINIMO_DE_CASOS
+from anka.servicios.desempeno import por_grupo as desempeno_por_grupo
 from anka.servicios.quotes import (
     all_quotes, change_marker, discarded_quotes, get_quote, separated_project_pairs, unread_notifications,
     unread_thread_count,
@@ -163,6 +165,14 @@ def _work_rejected_panel() -> Markup:
                       "titulo": ((caso["analysis"].get("project_name") if caso else "") or "Conversación sin caso aún"),
                       "case_href": ("/case?thread_id=" + url_quote(thread)) if caso else ""})
     return render("work_rejected.html", items=items, alerta=alerta) if items or alerta else Markup("")
+
+
+def render_desempeno(message: str = "") -> str:
+    """Desempeño del análisis medido con las correcciones del uso real, por versión del prompt y modelo (T-35)."""
+    grupos = [{**g, "porcentajes": {clave: (None if valor is None else round(valor * 100))
+                                    for clave, valor in g["resumen"].items() if isinstance(valor, float)}}
+              for g in desempeno_por_grupo()]
+    return page("Desempeño del análisis", render("desempeno.html", grupos=grupos, minimo=MINIMO_DE_CASOS), message)
 
 
 MAX_BUSQUEDA = 200      # largo máximo de lo que se busca (U-49)

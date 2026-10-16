@@ -193,7 +193,7 @@ def _readable(filename: str, mime_type: str) -> bool:
     )
 
 
-# Extraer texto por OCR no certifica la interpretación de tablas y figuras (T-24, T-34).
+# Extraer texto por OCR no certifica la interpretación de tablas y figuras (T-24, T-45).
 _MARCAS_DE_LECTURA_PARCIAL = (
     "COBERTURA VISUAL PARCIAL",
     "LECTURA PARCIAL",

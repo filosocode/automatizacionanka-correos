@@ -82,7 +82,7 @@ Reporta en `attachments[]` un elemento por cada adjunto, con `filename` y `size_
 y sin `coverage`. El puente compara nombre y tamaño con Gmail: si falta uno o el tamaño no coincide, el análisis queda incompleto.
 Un DWG/DXF sin lector CAD es `no_legible` con su motivo, nunca se da por leído.
 
-## Expedientes automáticos en Drive (T-34, solo prompt V5 y anteriores)
+## Expedientes automáticos en Drive (T-45, solo prompt V5 y anteriores)
 
 Si la tarea tiene configurada una carpeta de recepción, busca dentro de ella la carpeta exacta `Hilo <thread_id>`.
 Abre su `MANIFIESTO_WORK.json` vigente (formato `anka-work-drive-v1`); no elijas una versión histórica por nombre o fecha.

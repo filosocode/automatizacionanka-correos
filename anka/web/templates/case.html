@@ -93,8 +93,19 @@
 <div class='notice'><strong>Correo enviado.</strong> Se envió a {{ review.recipient }} el {{ review.sent_at[:16] | replace('T', ' ') }}. {% if preguntas_enviadas %}Estamos esperando que el cliente conteste {{ preguntas_enviadas | length }} pregunta{{ 's' if preguntas_enviadas | length != 1 }}.{% else %}Ahora esperamos la respuesta del cliente.{% endif %}</div>
 <details class="more"><summary class="meta">Ver lo que enviaste</summary><pre>{{ review.draft_body }}</pre></details>
 <p><a class="button secondary" href="/case?thread_id={{ thread_id | urlquote }}&template=libre#respuesta">Escribir otro correo</a></p>
+{% if puede_seguir_sin_respuesta %}<form method="post" action="/seguir-sin-respuesta" class="toolbar spaced-sm">
+  <input type="hidden" name="thread_id" value="{{ thread_id }}">
+  <button type="submit" class="secondary"
+    data-confirm="El caso pasará a «información suficiente» sin esperar la respuesta del cliente y podrás emitir la T. No se envía nada. ¿Confirmas?">Seguir con la T sin su respuesta</button>
+</form>{% endif %}
     {% elif email == 'sent' %}
 <div class='notice'>Respuesta enviada el {{ review.sent_at or 'sin fecha registrada' }}.{% if preguntas_enviadas is not none and not preguntas_enviadas %} <strong>No se espera respuesta del cliente a este correo</strong>: no llevaba preguntas.{% endif %}</div><pre>{{ review.draft_body }}</pre>
+    
+{% if puede_seguir_sin_respuesta %}<form method="post" action="/seguir-sin-respuesta" class="toolbar spaced-sm">
+  <input type="hidden" name="thread_id" value="{{ thread_id }}">
+  <button type="submit" class="secondary"
+    data-confirm="El caso pasará a «información suficiente» sin esperar la respuesta del cliente y podrás emitir la T. No se envía nada. ¿Confirmas?">Seguir con la T sin su respuesta</button>
+</form>{% endif %}
     {% elif email == 'recipient_error' %}
 <div class='notice error' role="alert">{{ recipient_error }}</div>
     {% elif email == 'technical' %}

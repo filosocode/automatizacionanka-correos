@@ -43,7 +43,7 @@ PRUEBA
 LIMITACIONES
 Si el borrador se envía o elimina antes de importar, el proceso no lo encontrará. JSON inválido o un hilo incorrecto no se importan y sus errores no se marcan como procesados. La base SQLite sigue siendo la fuente de persistencia del dashboard.
 
-Auditoría del contrato de lectura (T-35):
+Auditoría del contrato de lectura (T-46):
 Prompt V6 (T-41): Work lee los adjuntos directamente desde Gmail, sin Drive. Cada elemento de `attachments` lleva `size_bytes` (el tamaño exacto que muestra Gmail) y, opcional, `read_via` ("attachment" o "raw_mime"). El puente compara nombre y tamaño con los adjuntos del hilo en Gmail: si falta alguno, el caso queda con lectura incompleta y se nombra el archivo. Si el lector de adjuntos del conector no admite el formato (p. ej. KML) o devuelve el contenido truncado, Work abre el mensaje en formato raw y extrae el original del MIME.
 DRIVE_PREFLIGHT (V5 y anteriores, con expediente en Drive) contiene hilo, revisión, mensajes y conteos reales de segmentos.
 reading_audit contiene email_segment_ids_expected, email_segment_ids_read, attachment_segment_ids_expected y attachment_segment_ids_read, además de revisión visual por archivo.

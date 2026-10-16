@@ -14,7 +14,7 @@ Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actua
 
 ## Reglas
 
-La carpeta comercial conserva R4–R10. El expediente técnico de recepción (T-34) es una excepción explícita:
+La carpeta comercial conserva R4–R10. El expediente técnico de recepción (T-45) es una excepción explícita:
 Python puede crearlo al recibir un hilo de la búsqueda configurada, bajo una raíz de recepción separada,
 sin confirmar cliente, emitir T ni declarar suficiente el alcance. Work solo lo consulta. Una extracción OCR con
 relaciones visuales pendientes se marca parcial en todos los modos; no se convierte en un faltante del cliente.

@@ -99,7 +99,7 @@ No uses «Ejecutar ahora» de la tarea persistente para esta prueba aislada: su 
 y podría procesar otros mensajes. El reintento dirigido de un solo hilo sigue pendiente de una vía que no dispare
 la búsqueda general de la automatización.
 
-## Auditoría del puente (T-35)
+## Auditoría del puente (T-46)
 
 El resultado del preparador incluye `ready_message_ids` y `revision`, incluso sin cambios.
 Sirve para comprobar publicación; no significa que Work haya leído el expediente ni dispara la tarea remota.

@@ -630,7 +630,7 @@ def _puede_volver_atras(review: Caso, analysis: Analisis) -> bool:
 def _preguntas_para_armar(analysis: Analisis, template: str, escritas: str, puede_volver: bool) -> str:
     """El campo «Preguntas para el cliente» (U-24): lo escrito, o las elegidas mientras el correo no salió.
 
-    Así las preguntas siguen un solo camino (U-28): se deciden en «¿Cómo seguimos?» y se ajustan en este mismo campo.
+    Así las preguntas siguen un solo camino (U-80): se deciden en «¿Cómo seguimos?» y se ajustan en este mismo campo.
     """
     if template == "preguntas":
         return escritas
@@ -978,6 +978,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         preguntas=preguntas, cuadro_preguntas=cuadro_preguntas, lo_que_falta=lo_que_falta,
         n_internas=sum(1 for p in preguntas if p["elegida"] == "internal"),
         preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
+        puede_seguir_sin_respuesta=(review["status"] in (QuoteStatus.WAITING, QuoteStatus.RESPONSE_SENT)
+                                    and not review.get("quote_code")),
         compose_to=_compose_to(review, change, to_kind), compose_change_id=change_id if change else 0,
         compose_origen=_compose_origen(thread_id, _compose_to(review, change, to_kind)),
         compose_purpose=(template if change and template in ("ack", "ask_code", "notify_contact")

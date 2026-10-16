@@ -10,9 +10,9 @@ puente.
 **Desde el prompt V6 (T-41) Work no usa Drive**: lee los adjuntos directamente en Gmail (si el lector del conector no admite el
 formato, extrae el original del correo en formato `raw`) y reporta por cada adjunto su nombre, `size_bytes` y, opcional, `read_via`.
 El puente compara esa lista con los adjuntos que Gmail tiene en el hilo (nombre y tamaño) y deja la lectura incompleta si falta alguno
-o un tamaño difiere; `DRIVE_PREFLIGHT` y los campos `*_segment_*` ya no se exigen. Lo siguiente (T-34) rige solo para V5 y anteriores.
+o un tamaño difiere; `DRIVE_PREFLIGHT` y los campos `*_segment_*` ya no se exigen. Lo siguiente (T-45) rige solo para V5 y anteriores.
 
-T-34 añade un canal explícito Gmail → extracción Python → Drive: el preparador publica `anka-work-drive-v1`
+T-45 añade un canal explícito Gmail → extracción Python → Drive: el preparador publica `anka-work-drive-v1`
 con originales, segmentos completos y manifiesto vigente por hilo. Work lo consulta usando su conexión Drive
 y verifica la vigencia contra Gmail. La preparación es optativa; no cambia los estados comerciales ni el esquema
 del borrador. Work registra revisión/segmentos leídos en reason/reviewed_sections de cada adjunto. La edición local
@@ -36,7 +36,7 @@ Hola, … (el correo limpio para el cliente)
 
 ## Campos
 
-T-35: el puente conserva `DRIVE_PREFLIGHT`, `reading_audit`, `related_threads`,
+T-46: el puente conserva `DRIVE_PREFLIGHT`, `reading_audit`, `related_threads`,
 `analysis_complete` y `applicability`. La lectura y la aplicabilidad comercial se muestran por separado.
 Un documento simulado debe leerse; la simulación no prueba lectura incompleta ni autoriza su uso comercial.
 Los conteos no certifican la interpretación visual. IDs repetidos o diferentes y segmentos pendientes

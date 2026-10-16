@@ -144,9 +144,9 @@ def seed(data_dir: Path) -> None:
         data = dict(data)
         store.save(db, thread_id, f"in-{thread_id}", status, recipient, data)
         db.execute(
-            "UPDATE quotes SET draft_body=?, draft_id=?, sent_at=?, updated_at=? WHERE thread_id=?",
+            "UPDATE quotes SET draft_body=?, draft_id=?, sent_at=?, updated_at=?, first_seen_at=? WHERE thread_id=?",
             (body, draft_id, "2026-09-02T10:00:00-05:00" if status == QuoteStatus.RESPONSE_SENT else None,
-             "2026-09-02T10:00:00-05:00", thread_id),
+             "2026-09-02T10:00:00-05:00", "2026-09-01T09:00:00-05:00", thread_id),
         )
         if status == QuoteStatus.READY:
             db.execute("UPDATE quotes SET folder_id='folder-abc123' WHERE thread_id=?", (thread_id,))

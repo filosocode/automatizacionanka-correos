@@ -28,6 +28,8 @@
     {"id": "TR-13", "evento": "volver_a_decidir", "accion": "reconsiderar", "con_decision": true, "desde": ["review_pending", "draft_created"], "hacia": "review", "nota": "Antes de enviar el correo con las preguntas, la persona vuelve a elegirlas; sus elecciones se conservan (U-27)."},
     {"id": "TR-14", "evento": "volver_a_decidir", "accion": "suficiente", "con_decision": true, "desde": ["review_pending", "draft_created"], "hacia": "ready_review", "nota": "Antes de enviar, la persona desiste de preguntar y da la información por suficiente (U-27)."},
     {"id": "TR-15", "evento": "volver_a_decidir", "desde": ["review", "ready_review", "waiting", "response_sent", "ready", "ignored", "missing"], "hacia": "error", "nota": "Solo se vuelve atrás mientras el correo con las preguntas no ha salido."},
+    {"id": "TR-16", "evento": "seguir_sin_respuesta", "desde": ["waiting", "response_sent"], "hacia": "ready_review", "nota": "La persona decide seguir con la T sin esperar la respuesta del cliente (U-28)."},
+    {"id": "TR-17", "evento": "seguir_sin_respuesta", "desde": ["review", "review_pending", "draft_created", "ready_review", "ready", "ignored", "missing"], "hacia": "error", "nota": "Solo un caso que ya escribió al cliente y espera su respuesta puede seguir sin ella."},
 
     {"id": "TR-20", "evento": "enviar_desde_dashboard", "con_preguntas": true, "desde": ["sending", "review_pending", "draft_created", "waiting"], "hacia": "waiting", "nota": "El correo hizo al menos una pregunta: se espera la respuesta del cliente (U-22)."},
     {"id": "TR-21", "evento": "enviar_desde_dashboard", "desde": ["ready_review"], "hacia": "igual", "nota": "Un caso con información suficiente sigue abierto para crear la carpeta."},
