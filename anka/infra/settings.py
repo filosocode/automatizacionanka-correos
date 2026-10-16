@@ -10,6 +10,7 @@ import os
 from collections.abc import Mapping
 from typing import Any, cast
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 
@@ -33,6 +34,8 @@ KNOWN_CONFIG_KEYS = {
     "active_mode", "gmail_query", "own_addresses", "test_sender_addresses", "forwarded_reply_policy", "llm",
     "required_fields", "commercial_filter_terms", "drive_parent_id", "folder_prefix",
     "work_sync_account",
+    "work_drive_enabled", "work_drive_parent_id", "work_drive_query",
+    "ocr_segundos_por_archivo", "ocr_segundos_por_caso", "ocr_omitir_escaneados",
 }
 FORWARDED_POLICIES = {"internal_reviewer", "original_sender"}
 PROVIDERS = {"ollama", "openai"}
@@ -63,6 +66,8 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
         problems.append("required_fields es obligatorio (puede ser una lista vacía).")
     elif not _is_text_list(config["required_fields"]):
         problems.append("required_fields debe ser una lista de textos.")
+    problems.extend(_work_drive_problems(config))
+    problems.extend(_ocr_problems(config))
     if config.get("forwarded_reply_policy", "internal_reviewer") not in FORWARDED_POLICIES:
         problems.append("forwarded_reply_policy debe ser 'internal_reviewer' u 'original_sender'.")
 
@@ -71,6 +76,38 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
         problems.append("llm debe ser un objeto con al menos provider.")
         return problems
     problems.extend(_engine_problems(engine, mode))
+    return problems
+
+
+def _ocr_problems(config: Mapping[str, Any]) -> list[str]:
+    problems = []
+    for key in ("ocr_segundos_por_archivo", "ocr_segundos_por_caso"):
+        value = config.get(key, 0)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            problems.append(f"{key} debe ser un número de segundos (0 = sin límite).")
+    if not isinstance(config.get("ocr_omitir_escaneados", False), bool):
+        problems.append("ocr_omitir_escaneados debe ser booleano.")
+    return problems
+
+
+def _work_drive_problems(config: Mapping[str, Any]) -> list[str]:
+    problems = []
+    if not isinstance(config.get("work_drive_enabled", False), bool):
+        problems.append("work_drive_enabled debe ser booleano.")
+    for key in ("work_drive_parent_id", "work_drive_query"):
+        value = config.get(key, "")
+        if not isinstance(value, str):
+            problems.append(f"{key} debe ser texto.")
+        elif config.get("work_drive_enabled") and not value.strip():
+            problems.append(f"{key} es obligatorio al activar expedientes de Work.")
+    if config.get("work_drive_enabled"):
+        if config.get("active_mode") != "chatgpt_work":
+            problems.append("work_drive_enabled requiere active_mode 'chatgpt_work'.")
+        if config.get("work_drive_parent_id") == config.get("drive_parent_id"):
+            problems.append("work_drive_parent_id debe ser una carpeta de recepción distinta de drive_parent_id.")
+        account = config.get("work_sync_account", "")
+        if not isinstance(account, str) or "@" not in account:
+            problems.append("work_sync_account es obligatorio al activar expedientes de Work.")
     return problems
 
 
@@ -108,6 +145,24 @@ def _engine_problems(engine: dict, mode: str) -> list[str]:
             if isinstance(context, bool) or not isinstance(context, int) or context < 2048:
                 problems.append(f"llm.{key} debe ser un entero de al menos 2048.")
     return problems
+
+
+HOSTS_DE_ESTE_EQUIPO = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def config_warnings(config: Mapping[str, Any]) -> list[str]:
+    """Avisos de una configuración válida pero arriesgada (no la rechazan): hoy, un motor que no está en este equipo.
+
+    El texto de los correos del cliente viaja en el prompt hacia `llm.base_url`: si esa dirección no es de este
+    equipo, esos correos salen de él (U-61, B2-13)."""
+    base_url = (config.get("llm") or {}).get("base_url") if isinstance(config.get("llm"), Mapping) else None
+    if not isinstance(base_url, str) or not base_url.startswith(("http://", "https://")):
+        return []
+    host = (urlparse(base_url).hostname or "").lower()
+    if host in HOSTS_DE_ESTE_EQUIPO:
+        return []
+    return [f"llm.base_url apunta a «{host or base_url}», que no es este equipo: los correos de los clientes se "
+            "enviarán allí dentro del prompt. Si no es lo que quieres, usa http://127.0.0.1:11434."]
 
 
 def unknown_config_keys(config: Mapping[str, Any]) -> list[str]:

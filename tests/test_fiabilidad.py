@@ -41,7 +41,10 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(sum(value is not None for value in values), 1)
         with self.assertRaises(ValueError):
             envios.reservar("T1", "A@example.com", "Hola")
-        self.assertIsNotNone(envios.reservar("T1", "b@example.com", "Hola"))
+        # otro destinatario del mismo caso tampoco entra mientras el primero siga sin confirmar (U-59)
+        with self.assertRaises(ValueError):
+            envios.reservar("T1", "b@example.com", "Hola")
+        self.assertIsNotNone(envios.reservar("T2", "b@example.com", "Hola"))      # otro caso sí
 
     def test_uncertain_send_is_reconciled_without_resending(self):
         key, message_id = envios.reservar("T1", "a@example.com", "Hola")
@@ -74,7 +77,7 @@ class RecoveryTests(unittest.TestCase):
         (self.root / "config.json").write_text("{}")
         backup.restore(archive)
         self.assertEqual(evidence.read_bytes(), b"Subject: original\r\n\r\ncontenido")
-        self.assertEqual((self.root / "config.json").read_text(), '{"a":1}')
+        self.assertEqual((self.root / "config.json").read_text(), "{}")     # U-78: la configuración viva no se pisa
         self.assertTrue(list(evidence.parent.glob("*.before-restore-*")))
         with zipfile.ZipFile(archive) as handle:
             self.assertNotIn("token.json", handle.namelist())
@@ -200,10 +203,13 @@ class RetentionTests(unittest.TestCase):
 
     setUp = RecoveryTests.setUp
 
+    AHORA = datetime(2026, 6, 1, 12, 0).astimezone()   # reloj fijo: la antigüedad no depende de la hora real
+
     def seed(self, key, state, days_old):
-        created = (datetime.now().astimezone() - timedelta(days=days_old)).isoformat()
+        created = (self.AHORA - timedelta(days=days_old)).isoformat()
         db = store.connect()
-        db.execute("INSERT INTO mail_operations VALUES (?, 't', 'a@x.com', ?, ?, 'g', ?, '')",
+        db.execute("INSERT INTO mail_operations (operation_key, thread_id, recipient, message_id, state, gmail_id,"
+                   " created_at, error) VALUES (?, 't', 'a@x.com', ?, ?, 'g', ?, '')",
                    (key, f"<{key}@anka.local>", state, created))
         db.commit()
         db.close()
@@ -219,7 +225,10 @@ class RetentionTests(unittest.TestCase):
         self.seed("viejo-enviado", "sent", envios.RETENCION_DIAS + 1)
         self.seed("reciente-enviado", "sent", 5)
         self.seed("viejo-incierto", "pending", envios.RETENCION_DIAS + 30)
-        envios.reservar("T9", "z@example.com", "Hola")
+        purgar = envios.purgar_confirmados
+        with patch.object(envios, "purgar_confirmados", side_effect=lambda db: purgar(db, ahora=self.AHORA)) as llamado:
+            envios.reservar("T9", "z@example.com", "Hola")
+        llamado.assert_called_once()                   # reservar purga en la misma transacción
         remaining = self.keys()
         self.assertNotIn("viejo-enviado", remaining)
         self.assertIn("reciente-enviado", remaining)

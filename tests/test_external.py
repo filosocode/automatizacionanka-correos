@@ -250,7 +250,7 @@ class DriveTests(unittest.TestCase):
 class CredentialsTests(unittest.TestCase):
     def test_a_missing_token_asks_to_authorize_and_never_opens_a_browser(self):
         with tempfile.TemporaryDirectory() as d, patch.object(settings, "DATA_DIR", Path(d)),                 patch("google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file") as flow:
-            with self.assertRaisesRegex(AutorizacionDeGoogle, "Reautorizar Google"):
+            with self.assertRaisesRegex(AutorizacionDeGoogle, "Volver a conectar Google"):
                 google_services.credentials()
             flow.assert_not_called()                 # sin nadie delante no se abre ningún consentimiento
 
@@ -326,7 +326,8 @@ class CredentialsTests(unittest.TestCase):
         self.assertEqual(gmail[0], ("gmail", "v1"))
         self.assertEqual(drive[0], ("drive", "v3"))
         self.assertEqual(build.call_count, 2)
-        self.assertEqual(gmail[1]["credentials"], "CREDS")
+        self.assertEqual(gmail[1]["http"].credentials, "CREDS")      # el cliente HTTP lleva las credenciales y 30 s
+        self.assertEqual(drive[1]["http"].credentials, "CREDS")
 
 
 def make_docx(path: Path, text: str) -> None:

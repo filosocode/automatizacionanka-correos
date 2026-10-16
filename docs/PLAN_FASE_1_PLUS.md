@@ -30,4 +30,4 @@ El registro debe contener, al menos: ID de hilo, remitente, fecha, servicio prob
 - **Registro en Sheets no disponible o inestable:** no usar la memoria de una conversación como único estado del proceso; definir un registro persistente alternativo.
 - **Volumen o límites de Plus insuficientes:** conservar la skill y los casos de prueba; trasladar la orquestación a Python/n8n y pagar solo las consultas de IA necesarias.
 
-`app.py` implementa hoy la vía Python (borradores en Gmail y panel de revisión). Es una alternativa a la tarea de ChatGPT Work: solo uno de los dos orquestadores puede estar activo (ver `MODO_OPERACION.md`). No ejecutar `--apply` sin `--review-only` o `--gmail-drafts` hasta completar la medición del paso 6.
+`app.py` implementa hoy la vía Python (borradores en Gmail y panel de revisión). Es una alternativa a la tarea de ChatGPT Work: solo uno de los dos orquestadores puede estar activo (ver `MODO_OPERACION.md`). `--apply` sin `--review-only` ni `--gmail-drafts` ya no envía nada al cliente (U-77): deja las preguntas en «Correo por revisar» y avisa; el envío es solo desde el dashboard.

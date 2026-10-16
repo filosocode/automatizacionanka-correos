@@ -10,11 +10,12 @@ from io import BytesIO
 from pathlib import Path
 
 from anka.dominio.attachments import MAX_ARCHIVE_EXPANDED_BYTES, MAX_ARCHIVE_FILES, MAX_EVIDENCE_ITEMS, MAX_OCR_IMAGES
+from anka.dominio.lectores_shapefile import shapefile_text
 from anka.dominio.lectores_texto import Unreadable
 from anka.infra.lectores_imagen import ocr_image
 
 
-def zip_acotado(content: bytes) -> zipfile.ZipFile:
+def zip_acotado(content: bytes, que: str = "el archivo") -> zipfile.ZipFile:
     """Abre un ZIP (o un documento Office/OpenDocument, que lo es) rechazando bombas de descompresión.
 
     Los tamaños se leen del directorio central sin descomprimir nada; `zipfile` no lee más de lo declarado,
@@ -24,7 +25,7 @@ def zip_acotado(content: bytes) -> zipfile.ZipFile:
     entries = [item for item in archive.infolist() if not item.is_dir()]
     if len(entries) > MAX_ARCHIVE_FILES or sum(item.file_size for item in entries) > MAX_ARCHIVE_EXPANDED_BYTES:
         archive.close()
-        raise Unreadable("el archivo excede el límite de entradas o de tamaño expandido; requiere revisión manual")
+        raise Unreadable(f"{que} excede el límite de entradas o de tamaño expandido; requiere revisión manual")
     return archive
 
 
@@ -45,10 +46,6 @@ def append_archive_image_ocr(archive: zipfile.ZipFile, images: list[str], lines:
 
 def shapefile_zip_text(content: bytes) -> str:
     """Describe las capas de shapefiles comprimidos en un ZIP: geometría, campos, extensión, registros y proyección."""
-    try:
-        import shapefile
-    except ImportError:
-        raise Unreadable("falta instalar pyshp para leer shapefiles") from None
     with zip_acotado(content) as archive:
         groups: dict[str, dict[str, str]] = {}
         for name in archive.namelist():
@@ -57,8 +54,17 @@ def shapefile_zip_text(content: bytes) -> str:
                 groups.setdefault(str(Path(name).with_suffix("")), {})[suffix] = name
         fragments = []
         for layer, files in groups.items():
-            if not {".shp", ".shx", ".dbf"}.issubset(files):
+            if ".shp" not in files:
                 continue
+            if not {".shx", ".dbf"}.issubset(files):     # incompleto: se lee lo que haya y se marca lo que falta
+                fragments.append(shapefile_text(
+                    layer, archive.read(files[".shp"]),
+                    {suffix: archive.read(name) for suffix, name in files.items() if suffix != ".shp"}))
+                continue
+            try:
+                import shapefile
+            except ImportError:
+                raise Unreadable("falta instalar pyshp para leer shapefiles") from None
             reader = shapefile.Reader(
                 shp=BytesIO(archive.read(files[".shp"])),
                 shx=BytesIO(archive.read(files[".shx"])),
@@ -86,5 +92,5 @@ def shapefile_zip_text(content: bytes) -> str:
                 fragments.append("SISTEMA DE COORDENADAS NO DECLARADO: el shapefile no incluye archivo .prj")
             reader.close()
         if not fragments:
-            raise Unreadable("ZIP sin shapefile completo; se requieren archivos .shp, .shx y .dbf")
+            raise Unreadable("ZIP sin archivos .shp que leer")
         return "\n".join(fragments)

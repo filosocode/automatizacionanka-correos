@@ -9,6 +9,15 @@ import os
 import shutil
 import tempfile
 
+# Variables del entorno de quien corre las pruebas que cambian lo que se ve o lo que se decide (p. ej. con
+# OPENAI_API_KEY el selector de motor dice «OpenAI» y sin ella «OpenAI (sin clave)»). Las pruebas que necesitan una
+# de ellas la fijan con `mock.patch.dict(os.environ, ...)`, así pasan igual con o sin la variable en esta máquina.
+VARIABLES_DEL_ENTORNO_QUE_AFECTAN = (
+    "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ANKA_HOJA_AUTOMATICA", "ANKA_LOG_LEVEL", "ANKA_NO_BROWSER", "CODEX_HOME",
+)
+for _variable in VARIABLES_DEL_ENTORNO_QUE_AFECTAN:
+    os.environ.pop(_variable, None)
+
 _dir = tempfile.mkdtemp(prefix="anka-tests-")
 os.environ["ANKA_DATA_DIR"] = _dir
 atexit.register(shutil.rmtree, _dir, ignore_errors=True)

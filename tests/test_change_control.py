@@ -1,10 +1,10 @@
 """Código de la oferta (T / T&E), control de cambios y evidencia del historial."""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.js_de_las_paginas import JS
 
 import base64
 import json
-import re
 import tempfile
 import unittest
 from datetime import datetime
@@ -159,8 +159,8 @@ class ChangeDetectionTests(Base):
         change = self.changes()[0]
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T1")
-        self.assertIn("escribió después de la T", page)
-        self.assertIn("No cita la T", page)
+        self.assertIn("escribió después de crear la T", page)
+        self.assertIn("No menciona el código", page)
         change_control.resolve_change("T1", change["id"], True)
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             todo = pantalla_caso.render_case("T1")
@@ -206,7 +206,7 @@ class EmailTests(Base):
         self.assign()
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T1", template="received")
-        self.assertIn("Enviar ahora", page)
+        self.assertIn("Enviar al cliente", page)
         self.assertIn("Hemos generado el código T26145", page)
 
 
@@ -235,11 +235,11 @@ class EvidenceTests(Base):
         self.assertTrue(quotes.chain_status("T1")[0])
         acta = pantalla_caso.render_acta("T1")
         self.assertIn("Cambiar plazo", acta)
-        self.assertIn("Verificada", acta)
+        self.assertIn("está intacto", acta)
         self.assertIn("deleted", {e["kind"] for e in quotes.thread_events("T1")})
 
     def test_person_actions_are_recorded(self):
-        ediciones.save_activities("T1", [{"activity": "a"}])
+        ediciones.save_activities("T1", [{"activity": "a", "notes": "revisada"}])
         kinds = {e["kind"] for e in quotes.thread_events("T1")}
         self.assertIn("table_edit", kinds)
 
@@ -247,7 +247,7 @@ class EvidenceTests(Base):
         self.assign()
         self.sync({"m1": coded_mail("T1", "Luis <luis@acme.com>", self.t0 + 7200, "Cambiar plazo a 30")})
         acta = pantalla_caso.render_acta("T1")
-        for expected in ("Acta de cambios", "luis@acme.com", "No cita la T", "T26145", "Historial completo"):
+        for expected in ("Registro de cambios", "luis@acme.com", "No menciona el código", "T26145", "Historial completo"):
             self.assertIn(expected, acta)
 
 
@@ -305,28 +305,28 @@ class VersionTests(Base):
         self.assertIn("propuesta", ediciones.table_versions("T1")[-1]["summary"])
 
     def test_optional_notice_to_client_is_offered_and_remembered(self):
-        self.edit([{"activity": "a"}])
+        self.edit([{"activity": "a", "notes": "revisada"}])
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T1")
-        self.assertIn("Solo está en tu historial", page)
-        self.assertIn("Preparar un correo de actualización", page)
+        self.assertIn("Solo quedó en tu historial", page)
+        self.assertIn("Preparar un correo para avisarle", page)
         db = connect()
         record_event(db, "T1", "scope_update_sent", "dashboard", "x", "Avisaste")
         db.commit()
         db.close()
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
-            self.assertIn("Ya avisaste al cliente", pantalla_caso.render_case("T1"))
+            self.assertIn("El cliente ya lo sabe", pantalla_caso.render_case("T1"))
 
     def test_notice_can_be_prepared_even_for_a_closed_case(self):
         db = connect()
         db.execute("UPDATE quotes SET status=? WHERE thread_id='T1'", (QuoteStatus.READY,))
         db.commit()
         db.close()
-        self.edit([{"activity": "a"}])
+        self.edit([{"activity": "a", "notes": "revisada"}])
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T1", template="scope_update")
         self.assertIn("Actualizamos la tabla de actividades", page)
-        self.assertIn("Enviar ahora", page)
+        self.assertIn("Enviar al cliente", page)
 
     def test_acta_lists_versions_and_marks_internal_edits_after_the_code(self):
         self.edit([{"activity": "antes"}])
@@ -362,7 +362,7 @@ class TechnicalReviewFlowTests(Base):
         self.upsert_with_dependency()
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T9")
-        self.assertIn("¿Cómo seguimos?", page)
+        self.assertIn("Revisa y decide cómo seguir", page)
         self.assertNotIn('formaction="/send"', page)                 # primero decide una persona
         quotes.resolve_technical_review("T9", "ask_client", "¿Qué precisión requieren?")
         self.assertEqual(quotes.get_quote("T9")["status"], QuoteStatus.REVIEW_PENDING)
@@ -375,10 +375,10 @@ class TechnicalReviewFlowTests(Base):
                                                     "required_fields": ["ubicación"]}), patch("anka.web.pantalla_caso.load_config", return_value={"active_mode": "chatgpt_work",
                                                     "required_fields": ["ubicación"]}):
             page = pantalla_caso.render_case("T9")
-        box = page.split('name="q_text_')[1].split("</textarea>")[0]
-        self.assertIn("ubicaci", box.casefold())                      # la pregunta viene escrita, con su selector
-        self.assertIn('name="q_decision_', page)
-        self.assertIn("el análisis sugiere preguntar al cliente", page)
+        box = page.split('name="questions"')[1].split("</textarea>")[0]
+        self.assertIn("ubicaci", box.casefold())                      # la pregunta viene escrita en el cuadro único (U-31)
+        self.assertNotIn('name="q_decision_', page)
+        self.assertIn("Preguntas para el cliente (una por línea)", page)
 
     def test_accepted_case_has_a_blank_reply_box_with_an_optional_acknowledgement(self):
         self.upsert_with_dependency()
@@ -386,7 +386,7 @@ class TechnicalReviewFlowTests(Base):
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T9")
             acuse = pantalla_caso.render_case("T9", template="acuse")
-        box = page.split('name="body"')[1].split("</textarea>")[0]
+        box = page.split('id="cuerpo-correo"')[1].split("</textarea>")[0]
         self.assertEqual(box.split(">", 1)[1].strip(), "")            # en blanco
         self.assertIn("usa un acuse de recibo sugerido", page)
         self.assertIn("Confirmamos que la hemos recibido", acuse)     # el acuse sigue disponible
@@ -420,13 +420,10 @@ class WorkDraftTests(Base):
         self.work_case(scope_dependencies=[{"description": "KML", "source": "a.kml", "status": "pendiente"}])
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("W1")
-        selectores = " | ".join(re.findall(r'name="q_text_[^"]+"[^>]*>([^<]*)</textarea>', page))
-        self.assertIn("Confirmar el datum.", selectores)
-        self.assertIn("Confirmar fecha de inicio.", selectores)
-        tarjetas = [b.split("</select>")[0] for b in page.split('<div class="pregunta">')[1:]]
-        tarjeta = next(b for b in tarjetas if "KML" in b)
-        self.assertIn('value="internal" selected', tarjeta)          # lo interno se ve, pero no se le pregunta al cliente
-        self.assertNotIn('value="ask_client" selected', tarjeta)
+        cuadro = page.split('name="questions"')[1].split("</textarea>")[0]
+        self.assertIn("Confirmar el datum.", cuadro)
+        self.assertIn("Confirmar fecha de inicio.", cuadro)
+        self.assertNotIn("KML", cuadro)                             # lo interno no se le pregunta al cliente
         quotes.resolve_technical_review("W1", "ask_client", "¿Datum?")
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("W1")
@@ -586,7 +583,7 @@ class GuidedFlowTests(Base):
 
     def test_the_stepper_shows_where_the_case_is(self):
         page = self.page()
-        self.assertIn("1. Revisar y aclarar", page)
+        self.assertIn("Revisar y aclarar", page)
         self.assertIn("process-step current", page)
         self.set_status(QuoteStatus.READY_REVIEW)
         self.assign()
@@ -597,8 +594,8 @@ class GuidedFlowTests(Base):
     def test_sections_follow_a_top_to_bottom_thread(self):
         self.set_status(QuoteStatus.READY_REVIEW)
         page = self.page()
-        order = ["Conversación con el cliente", "Actividades detectadas", "Respuesta al cliente",
-                 "Listo para cotizar: emitir la T", "Detalles y trazabilidad del caso", "Seguimiento"]
+        order = ["Listo para cotizar: emitir la T", "Actividades detectadas", "Conversación con el cliente",
+                 "Primera revisión del correo", "Respuesta al cliente"]       # U-31: la tarjeta «Ahora» manda; lo demás va en pestañas
         positions = [page.index(title) for title in order]
         self.assertEqual(positions, sorted(positions))
 
@@ -616,8 +613,8 @@ class GuidedFlowTests(Base):
         rec(db, "T1", "received", "gmail", "r9", "x", "2026-10-01T12:00:00-05:00", "ana@acme.com", "Ana")
         db.commit()
         db.close()
-        self.assertIn("Cliente respondió · por analizar", self.page())
-        self.assertIn("Cliente respondió · por analizar", paginas.quote_row(quotes.get_quote("T1")))
+        self.assertIn("El cliente respondió", self.page())
+        self.assertIn("El cliente respondió", paginas.quote_row(quotes.get_quote("T1")))
 
 
 # Cubre: T-02
@@ -656,12 +653,12 @@ class UxFixesTests(Base):
     # 1. etapa y siguiente acción
     def test_every_case_says_its_stage_and_whether_it_needs_you(self):
         cases = [
-            (QuoteStatus.REVIEW_PENDING, ("Por aclarar con el cliente", True)),
+            (QuoteStatus.REVIEW_PENDING, ("Correo por revisar", True)),
             (QuoteStatus.WAITING, ("Esperando al cliente", False)),
             (QuoteStatus.RESPONSE_SENT, ("Esperando al cliente", False)),
-            (QuoteStatus.REVIEW, ("Falta tu decisión técnica", True)),
-            (QuoteStatus.READY_REVIEW, ("Listo para emitir la T", True)),
-            (QuoteStatus.READY, ("Listo para emitir la T", True)),
+            (QuoteStatus.REVIEW, ("Por decidir", True)),
+            (QuoteStatus.READY_REVIEW, ("Información validada", True)),
+            (QuoteStatus.READY, ("Información validada", True)),
         ]
         for status, expected in cases:
             with self.subTest(status=status):
@@ -686,9 +683,9 @@ class UxFixesTests(Base):
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = paginas.render_requests()
         self.assertIn("Esperando al cliente", page)
-        self.assertIn("Por aclarar con el cliente", page)
+        self.assertIn("Correo por revisar", page)
         lista = page[page.index('id="requests"'):]                  # sin contar los botones del filtro de etapa
-        self.assertLess(lista.index("Por aclarar con el cliente"), lista.index("Esperando al cliente"))
+        self.assertLess(lista.index("Correo por revisar"), lista.index("Esperando al cliente"))
 
     # 2. textos al día
     def test_no_stale_prompts_once_the_t_exists(self):
@@ -716,7 +713,8 @@ class UxFixesTests(Base):
         esperando = self._aviso()
         self.assertIn("Esperando al cliente", esperando)
         self.assertIn('href="#seguimiento"', esperando)
-        self.assertIn("Ver seguimiento", esperando)
+        self.assertIn("Nada que hacer", esperando)        # U-40: esperar no es una tarea, no lleva botón
+        self.assertNotIn('class="button"', esperando)
         self.assign()
         sin_carpeta = self._aviso()
         self.assertIn("T26145 · cotizando", sin_carpeta)
@@ -731,28 +729,28 @@ class UxFixesTests(Base):
         change_control.promote_to_te("T1")
         self.assertIn("T&amp;E26145 · oferta aprobada", self._aviso())
 
-    def test_el_aviso_se_pega_bajo_el_encabezado_y_la_medida_viene_del_encabezado(self):
-        # Cubre: U-17
+    def test_el_aviso_ya_no_se_pega_y_la_medida_del_encabezado_sigue_disponible(self):
+        # Cubre: U-17, U-31
         base = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
         css = (base / "style.css").read_text(encoding="utf-8")
-        regla = next(linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea)
-        self.assertIn("top: calc(var(--header-h, 0px) + 8px)", regla)
-        layout = (base / "layout.html").read_text(encoding="utf-8")
+        self.assertFalse([linea for linea in css.splitlines() if linea.startswith(".next-step {") and "sticky" in linea])
+        self.assertNotIn(":has(~ .ahora)", css)                              # ya no se esconde por CSS (U-31.18)
+        layout = ((base / "layout.html").read_text(encoding="utf-8") + (base / "app.js").read_text(encoding="utf-8") + (base / "tema.js").read_text(encoding="utf-8"))
         self.assertIn("'--header-h'", layout)
         self.assertIn("addEventListener('resize', medirEncabezado)", layout)
 
     def test_la_respuesta_se_pliega_con_la_informacion_validada_o_con_t(self):
         # Cubre: U-18
         self.set_status(QuoteStatus.REVIEW_PENDING)
-        self.assertIn('<section class="section" id="respuesta">', self._pagina())      # sin validar: a la vista
+        self.assertIn('<section class="section ahora" id="respuesta">', self._pagina())  # sin validar: es la tarjeta «Ahora»
         self.set_status(QuoteStatus.READY)
         validada = self._pagina()
         self.assertIn('<details class="more respuesta-plegada" id="respuesta">', validada)
         self.assertIn("Respuesta al cliente (opcional)", validada)
-        self.assertIn("Ningún correo se envía sin pulsar", validada)                   # el contenido sigue ahí, plegado
+        self.assertGreater(validada.index("<h2>Respuesta al cliente</h2>"), validada.index('class="more respuesta-plegada"'))   # sigue ahí, plegado
         self.assign()
         self.assertIn('<details class="more respuesta-plegada" id="respuesta">', self._pagina())
-        self.assertIn("destino.open = true", (Path(__file__).resolve().parents[1] / "anka" / "web" / "templates" / "layout.html").read_text(encoding="utf-8"))
+        self.assertIn("destino.open = true", (Path(__file__).resolve().parents[1] / "anka" / "web" / "templates" / "app.js").read_text(encoding="utf-8"))
 
     # 3. historial citado plegado
     def test_quoted_history_is_split_from_the_new_message(self):
@@ -780,13 +778,14 @@ class UxFixesTests(Base):
         self.set_status(QuoteStatus.REVIEW_PENDING)
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = paginas.render_index()
-        self.assertIn("Qué hacer hoy", page)
-        self.assertIn("Por aclarar con el cliente", page)
-        self.assertIn("Ver estadísticas", page)                           # las gráficas quedan plegadas
-        self.assertLess(page.index("Por aclarar con el cliente"), page.index("Ver estadísticas"))
+        self.assertIn("Mis casos", page)
+        self.assertIn("esperan algo de ti. El primero es el más urgente", page)
+        self.assertIn("Correo por revisar", page)
+        self.assertIn("Ver números y resumen", page)                           # las gráficas quedan plegadas
+        self.assertLess(page.index("Correo por revisar"), page.index("Ver números y resumen"))
         self.set_status(QuoteStatus.WAITING)
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
-            self.assertIn("No hay nada pendiente de tu parte", paginas.render_index())
+            self.assertIn("nada pendiente de tu parte", paginas.render_index())
 
     # 5. encabezado
     def test_header_hides_the_mode_picker_in_settings_and_the_useless_refresh_in_work(self):
@@ -794,8 +793,8 @@ class UxFixesTests(Base):
         work = render_page("t", "x", "", 0, "chatgpt_work")
         local = render_page("t", "x", "", 0, "local")
         self.assertIn("Ajustes", work)
-        self.assertNotIn("Actualizar correo", work)                       # en Work no hace nada
-        self.assertIn("Actualizar correo", local)
+        self.assertNotIn("<button type=\"submit\">Buscar correos nuevos</button>", work)     # en Work solo despierta al puente
+        self.assertIn("<button type=\"submit\">Buscar correos nuevos</button>", local)
 
 
 # Cubre: U-05, F1-05
@@ -850,10 +849,8 @@ class DoubleSendTests(Base):
         self.assertEqual(box.split(">", 1)[1].strip(), "")
 
     def test_the_send_button_blocks_itself_after_the_first_click(self):
-        from anka.web.views import render_page
-        page = render_page("t", "x", "", 0, "chatgpt_work")
-        self.assertIn("Enviando", page)
-        self.assertIn("formaction') === '/send'", page)
+        self.assertIn("'/send': 'Enviando…'", JS)
+        self.assertIn("sender.disabled = true", JS)
 
 
 # Cubre: T-05, R13, F1-06
@@ -1019,13 +1016,13 @@ class ClientDelayFollowupTests(Base):
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T1")
         self.assertIn("Seguimiento del cliente", page)
-        self.assertIn("Activar seguimiento automático", page)
+        self.assertIn("Activar recordatorios automáticos", page)
         self.assertIn("Ya hablé con el cliente", page)
         from anka.servicios import followup_reminders as fup
         fup.set_followup("T1", "auto_on")
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T1")
-        self.assertIn("Pausar seguimiento", page)
+        self.assertIn("Pausar recordatorios", page)
         kinds = {e["kind"] for e in quotes.thread_events("T1")}
         self.assertIn("followup_auto_on", kinds)
         with self.assertRaises(ValueError):

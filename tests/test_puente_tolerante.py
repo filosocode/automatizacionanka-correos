@@ -66,7 +66,7 @@ class PuenteTests(unittest.TestCase):
         for resultado in (primero, segundo):
             self.assertEqual(resultado["failures"], 0)  # el contenido no se arregla reintentando
             self.assertEqual(len(resultado["rejected"]), 1)  # sigue visible en el Resumen
-            self.assertIn("thread_id no coincide", resultado["rejected"][0]["reason"])
+            self.assertIn("«thread_id» del análisis no coincide", resultado["rejected"][0]["reason"])
         self.assertEqual(gmail.gets, 1)  # y no se vuelve a bajar
         gmail.items["d1"] = draft_message(payload(), message_id="gm2")  # Work lo corrige: otra versión
         tercero = self.sincronizar(gmail, cache)

@@ -1,10 +1,12 @@
 """Acciones sobre un caso desde el dashboard: destinatario, borrador, envío, aprobación."""
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteDrive, ClienteGmail
 from anka.servicios.repositorio import actualizar_caso
 
 import base64
 import json
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 import sqlite3
@@ -12,16 +14,16 @@ from collections.abc import Sequence
 from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.reloj import ahora, ahora_iso
+from anka.dominio.errores import ErrorDeAnka, ErrorDeValidacion, codigo_de_error
 from anka.dominio.status import (
     QuoteStatus,
 )
 from anka.servicios.drive_layout import DriveLayoutError, create_project_folder, trash_project_folder, year_mismatch
-from anka.infra.google_services import services
+from anka.infra.google_services import es_fallo_externo, services
 from anka.dominio.correo import (
     forwarded_routing,
     inbound_messages,
-    reply_body_without_quoted_history,
     reply_email,
     valid_email_address,
 )
@@ -32,15 +34,19 @@ from anka.dominio.reception import (
 )
 from anka.infra.settings import load_config
 from anka.infra.logging_setup import SENSITIVE, get_logger
-from anka.infra.store import add_dashboard_notification, add_message, connect, record_event, save
+from anka.infra.store import (
+    add_dashboard_notification, add_message, connect, lectura, record_event, save, transaccion,
+)
 
 from anka.servicios.drive_contents import populate_project_folder
 from anka.servicios.pipeline import confirmed_client
 from anka.servicios.change_control import (
-    assign_code, code_label, known_addresses, mark_change_sent, normalize_number,
+    assign_code, code_label, comprobar_numero, known_addresses, mark_change_sent, normalize_number,
+    origen_de_destinatario, origen_en_texto,
 )
 from anka.servicios.quotes import case_has_links, delete_quotes, get_quote, set_client_name
 from anka.servicios import envios
+from anka.servicios.estados import cambiar_estado, verificar_transicion
 
 log = get_logger(__name__)
 
@@ -49,7 +55,7 @@ def resolve_case_recipient(thread_id: str) -> dict:
     """Confirma en Gmail el destinatario real de un caso cuyo correo no se pudo leer y lo guarda."""
     quote = get_quote(thread_id)
     if not quote:
-        raise ValueError("La solicitud ya no existe.")
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
     config = load_config()
     gmail, _ = services()
     account_addresses = own_addresses(config, gmail)
@@ -58,22 +64,21 @@ def resolve_case_recipient(thread_id: str) -> dict:
     ).execute()
     inbound = inbound_messages(thread, account_addresses)
     if not inbound:
-        raise ValueError("No se encontró un mensaje entrante del cliente en el hilo.")
+        raise ErrorDeValidacion("No se encontró un mensaje entrante del cliente en esta conversación.")
     routing = forwarded_routing(inbound[-1], config)
     recipient = routing.get("selected_recipient", "")
     if not valid_email_address(recipient):
-        raise ValueError("Gmail no devolvió una dirección válida para responder.")
-    analysis = quote["analysis"]
-    analysis["routing"] = routing
-    db = connect()
-    try:
+        raise ErrorDeValidacion("Gmail no nos dio una dirección para responder. Ábrelo en Gmail y revisa.")
+    with transaccion() as db:
+        fila = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        if not fila:
+            raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
+        analysis = json.loads(fila["analysis_json"])      # el de ahora, no el de antes de hablar con Gmail (U-42)
+        analysis["routing"] = routing
         actualizar_caso(db, thread_id,
             recipient=recipient,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
-            updated_at=datetime.now().astimezone().isoformat(timespec='seconds'))
-        db.commit()
-    finally:
-        db.close()
+            updated_at=ahora().isoformat(timespec='seconds'))
     return {"quote": get_quote(thread_id), "gmail": gmail, "thread": thread,
             "account_addresses": account_addresses}
 
@@ -82,9 +87,9 @@ def case_email_context(thread_id: str) -> tuple[dict, Any, dict, set[str]]:
     """Reúne lo necesario para escribir al cliente (caso, Gmail, hilo, direcciones); falla si ya no admite correo."""
     quote = get_quote(thread_id)
     if not quote:
-        raise ValueError("La solicitud ya no existe.")
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
     if quote.cerrado and not quote.reabierto(case_has_links(thread_id)):
-        raise ValueError("Esta solicitud no admite una respuesta desde el dashboard.")
+        raise ErrorDeValidacion("Esta solicitud no admite una respuesta desde el dashboard.")
     context = resolve_case_recipient(thread_id)
     quote = context["quote"]
     gmail = context["gmail"]
@@ -99,15 +104,15 @@ def _recipient(thread_id: str, quote: dict, to: str) -> str:
     if not to or to.casefold() == quote["recipient"].casefold():
         return str(quote["recipient"])
     if to.casefold() not in known_addresses(thread_id):
-        raise ValueError("Solo puedes escribir a personas que ya participan en este caso.")
+        raise ErrorDeValidacion("Solo puedes escribir a personas que ya participan en este caso.")
     return to
 
 
 def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     """Guarda como borrador de Gmail el texto escrito en el dashboard, sin enviarlo."""
-    body = reply_body_without_quoted_history(body).strip()
+    body = body.strip()      # lo que la persona escribió sale tal cual: nunca se recorta en silencio (U-39)
     if not body:
-        raise ValueError("El borrador no puede estar vacío.")
+        raise ErrorDeValidacion("Escribe algo antes de guardar.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
     recipient = _recipient(thread_id, quote, to)
     email = reply_email(thread, recipient, body, account_addresses)
@@ -122,11 +127,9 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
             userId="me", body={"message": {"raw": raw, "threadId": thread_id}}
         ).execute()
     draft_id = result["id"]
-    now = datetime.now().astimezone().isoformat(timespec="seconds")
-    db = connect()
-    try:
-        actualizar_caso(db, thread_id,
-            status=QuoteStatus.DRAFT_CREATED,
+    now = ahora_iso("seconds")
+    with transaccion(inmediata=False) as db:
+        cambiar_estado(db, thread_id, QuoteStatus.DRAFT_CREATED, "guardar_borrador",
             draft_id=draft_id,
             draft_body=body,
             updated_at=now)
@@ -136,11 +139,8 @@ def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
             f"El borrador quedó guardado para {recipient} y todavía no ha sido enviado.",
             leida=True,
         )
-        db.commit()
-    finally:
-        db.close()
     log.info("%s: borrador guardado en Gmail desde el dashboard", thread_id)
-    return f"Borrador guardado en Gmail para {recipient}."
+    return f"Guardado en Gmail sin enviar, para {recipient}."
 
 
 DUPLICATE_WINDOW = timedelta(minutes=15)
@@ -152,16 +152,16 @@ def _already_sent(quote: dict, body: str, recipient: str) -> str:
     if not sent_at or (quote.get("draft_body") or "").strip() != body:
         return ""
     try:
-        age = datetime.now().astimezone() - datetime.fromisoformat(sent_at)
+        age = ahora() - datetime.fromisoformat(sent_at)
     except ValueError:
         return ""
     if age <= DUPLICATE_WINDOW and recipient.casefold() == str(quote["recipient"]).casefold():
         return (f"Este mismo correo ya se envió a {recipient} hace {max(1, int(age.total_seconds() // 60))} min. "
-                "No se envió de nuevo; si quieres mandar otro, cambia el texto.")
+                "No lo enviamos otra vez; si quieres mandar otro, cambia el texto.")
     return ""
 
 
-def _send_through_gmail(gmail: Any, thread_id: str, raw: str, draft_id: str) -> dict:
+def _send_through_gmail(gmail: ClienteGmail, thread_id: str, raw: str, draft_id: str) -> dict:
     """Envía el correo y devuelve el mensaje enviado.
 
     Se envía el borrador existente (el del dashboard o el que dejó Work) para no dejar uno huérfano con la sección
@@ -172,11 +172,20 @@ def _send_through_gmail(gmail: Any, thread_id: str, raw: str, draft_id: str) -> 
             gmail.users().drafts().update(
                 userId="me", id=draft_id, body={"message": {"raw": raw, "threadId": thread_id}},
             ).execute()
-            return gmail.users().drafts().send(userId="me", body={"id": draft_id}).execute()
         except Exception as exc:
+            # solo un 404 de actualizar prueba que el borrador no existe: no se mandó nada (B3-08)
             if getattr(getattr(exc, "resp", None), "status", None) != 404:
                 raise
             log.warning("%s: el borrador ya no existe en Gmail; se envía como mensaje nuevo", thread_id)
+        else:
+            # un 404 al enviar el borrador NO autoriza otro envío: el correo pudo salir; sube y queda la reserva
+            try:
+                return gmail.users().drafts().send(userId="me", body={"id": draft_id}).execute()
+            except Exception as exc:
+                if getattr(getattr(exc, "resp", None), "status", None) == 404:
+                    raise ErrorDeAnka("Gmail no encontró el borrador al enviarlo y puede que el correo ya haya salido. "
+                                      "Míralo en Gmail antes de intentar otra vez.") from exc
+                raise
     return gmail.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()
 
 
@@ -197,12 +206,28 @@ def _status_after_reply(
     return QuoteStatus.REVIEW if pendientes_internos else QuoteStatus.RESPONSE_SENT
 
 
-def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, recipient: str,
-                       new_status: str, now: str, preguntas: Sequence[str] = (), esperar: bool = False) -> None:
+@dataclass(frozen=True)
+class RespuestaEnviada:
+    """Un correo que ya salió hacia el cliente y hay que anotar en el caso (U-65: antes eran 9 parámetros)."""
+
+    thread_id: str
+    message_id: str                 # el de Gmail (o, si se marcó a mano, el que Anka reservó)
+    body: str                       # el texto que la persona revisó
+    recipient: str
+    new_status: str                 # el estado en que queda el caso
+    now: str                        # cuándo salió (ISO 8601)
+    preguntas: Sequence[str] = ()   # las preguntas que llevaba el correo
+    esperar: bool = False           # la persona marcó «esperar respuesta» aunque no llevara preguntas
+
+
+def _record_sent_reply(quote: Any, envio: RespuestaEnviada) -> None:
     """Guarda el estado nuevo, el hecho del envío (con cuántas preguntas llevaba) y la novedad para el dashboard."""
-    db = connect()
-    try:
-        analysis = dict(quote["analysis"])
+    thread_id, message_id, body, recipient = envio.thread_id, envio.message_id, envio.body, envio.recipient
+    new_status, now, preguntas, esperar = envio.new_status, envio.now, envio.preguntas, envio.esperar
+    with transaccion() as db:
+        fila = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        # el análisis de ahora: durante el envío el puente pudo guardar uno nuevo (U-42)
+        analysis = json.loads(fila["analysis_json"]) if fila else dict(quote["analysis"])
         analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
         analysis["preguntas_enviadas"] = {"en": now, "preguntas": list(preguntas), "esperada": bool(esperar)}
         if preguntas:
@@ -213,8 +238,7 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
             con_preguntas = "sin preguntas: no se espera respuesta del cliente"
             if new_status == QuoteStatus.REVIEW:
                 con_preguntas += "; el caso vuelve a revisión técnica porque quedan tareas internas por resolver"
-        actualizar_caso(db, thread_id,
-            status=new_status,
+        cambiar_estado(db, thread_id, new_status, "enviar_desde_dashboard",
             sent_message_id=message_id,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
             draft_id=None,
@@ -222,46 +246,55 @@ def _record_sent_reply(quote: Any, thread_id: str, message_id: str, body: str, r
             sent_at=now,
             updated_at=now)
         add_message(db, thread_id, message_id, "sent", "", "", body, now)
+        origen = origen_de_destinatario(thread_id, recipient, db)
         record_event(db, thread_id, "sent", "dashboard", message_id,
-                     f"Correo enviado desde el dashboard a {recipient}, {con_preguntas}.", now)
+                     f"Correo enviado desde el dashboard a {recipient}{origen_en_texto(origen)}, {con_preguntas}.", now)
         add_dashboard_notification(
             db, thread_id, QuoteStatus.RESPONSE_SENT, message_id,
             "Respuesta enviada",
-            f"El correo fue enviado a {recipient} en el mismo hilo, {con_preguntas}.",
+            f"El correo fue enviado a {recipient}, {con_preguntas}.",
             leida=True,
         )
-        db.commit()
-    finally:
-        db.close()
 
 
 def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int = 0,
-                         purpose: str = "", create_folder: bool = True, esperar: bool = False) -> str:
+                         purpose: str = "", create_folder: bool = True, esperar: bool = False,
+                         state_token: str = "") -> str:
     """Envía al cliente el correo escrito en el dashboard (ya revisado por una persona) y deja constancia.
 
     `esperar` fuerza «esperando cliente» aunque el correo no lleve preguntas (la persona sabe que espera respuesta).
-    Rechaza un reenvío idéntico reciente. Un caso con información suficiente crea además su carpeta en Drive,
-    salvo que quien llama ya se haya ocupado de ella (`create_folder=False`).
+    `state_token` es la `marca_de_estado` que la pantalla tenía al abrirse: si el caso cambió desde entonces se rechaza
+    (U-34.4); vacío, no se comprueba. Rechaza un reenvío idéntico reciente. Un caso con información suficiente
+    crea además su carpeta en Drive, salvo que quien llama ya se haya ocupado de ella (`create_folder=False`).
     """
-    body = reply_body_without_quoted_history(body).strip()
+    body = body.strip()      # lo revisado es lo enviado: no se recorta nada en silencio (U-39, R8)
     if not body:
-        raise ValueError("El correo no puede estar vacío.")
+        raise ErrorDeValidacion("Escribe el correo antes de enviar.")
+    actual = get_quote(thread_id)
+    if state_token and actual and actual.marca_de_estado != state_token:
+        raise ErrorDeValidacion("Este caso cambió desde que abriste la pantalla, así que el correo no se envió. Lo que "
+                         "escribiste sigue aquí: recarga, revisa lo nuevo y vuelve a enviar.")
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
     recipient = _recipient(thread_id, quote, to)
+    resuelto = _resolver_envios_inciertos(thread_id, gmail)
+    if resuelto:
+        raise ErrorDeValidacion(resuelto)
     previous = envios.pendiente(thread_id, recipient, body)
     if previous:
         message_id = envios.reconciliar(gmail, previous)
         if message_id:
             if quote.get('sent_message_id') != message_id:
                 hechas = en_el_correo(body)
-                _record_sent_reply(quote, thread_id, message_id, body, recipient,
-                                   _status_after_reply(quote['status'], len(hechas)), previous['created_at'], hechas)
+                _record_sent_reply(quote, RespuestaEnviada(
+                    thread_id, message_id, body, recipient, _status_after_reply(quote['status'], len(hechas)),
+                    previous['created_at'], hechas))
             envios.confirmar(previous['operation_key'], message_id)
-            raise ValueError('Este mismo correo ya se envió. Se confirmó su registro; no se envió de nuevo.')
-        raise ValueError('Envío en curso o incierto: Gmail aún no confirma el mensaje. No se envió de nuevo.')
+            raise ErrorDeValidacion('Este correo ya se envió; no lo enviamos otra vez.')
+        raise ErrorDeValidacion('Gmail aún no confirma si el correo salió. No lo enviamos de nuevo; '
+                         'mira en Gmail antes de intentar otra vez.')
     duplicate = _already_sent(quote, body, recipient)
     if duplicate:
-        raise ValueError(duplicate)
+        raise ErrorDeValidacion(duplicate)
     email = reply_email(thread, recipient, body, account_addresses)
     operation_key, stable_message_id = envios.reservar(thread_id, recipient, body)
     email['Message-ID'] = stable_message_id
@@ -275,28 +308,152 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
             log.warning("%s: Gmail rechazó el envío; se libera la reserva para poder reintentar", thread_id)
         raise
     envios.confirmar(operation_key, result['id'])
-    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    now = ahora_iso("seconds")
     hechas = en_el_correo(body)
     new_status = _status_after_reply(quote["status"], len(hechas), esperar, hay_pendientes_internos(quote["analysis"]))
-    _record_sent_reply(quote, thread_id, result["id"], body, recipient, new_status, now, hechas, esperar)
+    _record_sent_reply(quote, RespuestaEnviada(thread_id, result["id"], body, recipient, new_status, now, hechas,
+                                               esperar))
     log.info("%s: correo enviado desde el dashboard", thread_id)
     if change_id and purpose:
         mark_change_sent(thread_id, change_id, purpose, recipient)
     if purpose == "scope_update":
-        db = connect()
-        try:
+        with transaccion() as db:
             record_event(db, thread_id, "scope_update_sent", "dashboard", now,
                          f"Avisaste al cliente ({recipient}) de la actualización de la tabla.", now)
-            db.commit()
-        finally:
-            db.close()
-    message = f"Correo enviado a {recipient} en el mismo hilo."
+    message = f"Correo enviado a {recipient}."
     if new_status == QuoteStatus.READY_REVIEW and create_folder:
         message += " " + auto_create_project_folder(thread_id)
     return message
 
 
-def _with_final_code(body: str, suggested: str, number: str) -> str:
+def _ya_registrado(thread_id: str, referencia: str) -> bool:
+    """¿El caso ya guarda este correo como el último enviado? (completar dos veces no debe duplicar nada)."""
+    with lectura() as db:
+        return db.execute("SELECT 1 FROM quotes WHERE thread_id=? AND sent_message_id=?",
+                          (thread_id, referencia)).fetchone() is not None
+
+
+def _dar_por_enviado(thread_id: str, operacion: dict, gmail_id: str, como: str) -> bool:
+    """Completa el caso con un envío que sí salió; `como` dice cómo se supo (queda en el historial, con su huella).
+
+    Con el texto que se reservó (el que la persona revisó) actualiza el estado igual que un envío normal; sin él (una
+    reserva anterior a U-59) solo deja constancia. Devuelve si el caso avanzó. Nunca envía nada."""
+    quote = get_quote(thread_id)
+    texto = operacion.get("body") or ""
+    referencia = gmail_id or operacion["message_id"]
+    avanzo = False
+    if quote is not None and texto and not _ya_registrado(thread_id, referencia):
+        hechas = en_el_correo(texto)
+        nuevo = _status_after_reply(quote["status"], len(hechas), False, hay_pendientes_internos(quote["analysis"]))
+        _record_sent_reply(quote, RespuestaEnviada(
+            thread_id, referencia, texto, operacion["recipient"], nuevo, operacion["created_at"], hechas))
+        avanzo = True
+    envios.confirmar(operacion["operation_key"], gmail_id or "manual")
+    with transaccion() as db:
+        record_event(db, thread_id, "send_reconciled", "dashboard", operacion["message_id"],
+                     f"El correo a {operacion['recipient']} (reservado el {operacion['created_at'][:16]}) "
+                     f"se dio por enviado: {como}.")
+    return avanzo
+
+
+def _reconciliar_operacion(gmail: ClienteGmail, operacion: dict) -> str:
+    """Pregunta a Gmail por un envío incierto de más de 2 minutos: «enviado» o «liberado». Si Gmail falla, lanza.
+
+    Encontrado en Enviados: se da por enviado. No encontrado: se libera la reserva y se avisa, para que una persona
+    decida; nunca se reenvía solo (R8)."""
+    thread_id = operacion["thread_id"]
+    gmail_id = envios.reconciliar(gmail, operacion)
+    if gmail_id:
+        _dar_por_enviado(thread_id, operacion, gmail_id, "Gmail lo confirmó en Enviados al aclarar un envío incierto")
+        return "enviado"
+    envios.liberar(operacion["operation_key"])
+    with transaccion() as db:
+        record_event(db, thread_id, "send_released", "dashboard", operacion["message_id"],
+                     f"El correo a {operacion['recipient']} (reservado el {operacion['created_at'][:16]}) no "
+                     f"apareció en Enviados de Gmail pasados {envios.MINUTOS_EN_CURSO} minutos: se liberó la "
+                     "reserva. No se reenvió nada; una persona decide si volver a enviarlo.")
+    return "liberado"
+
+
+def _resolver_envios_inciertos(thread_id: str, gmail: ClienteGmail) -> str:
+    """Antes de enviar: aclara con Gmail los envíos inciertos viejos del caso. Devuelve el aviso (vacío: no había).
+
+    Si había alguno, este envío no sale: la persona ve primero qué pasó con el anterior y decide (R8)."""
+    pendientes = envios.pendientes_sin_resolver(thread_id)
+    if not pendientes:
+        return ""
+    resultados = []
+    for operacion in pendientes:
+        try:
+            resultados.append((operacion, _reconciliar_operacion(gmail, operacion)))
+        except Exception as exc:
+            if not es_fallo_externo(exc):
+                raise
+            log.warning("%s: no se pudo consultar Gmail para aclarar un envío incierto", thread_id, exc_info=True)
+            return ("Hay un envío anterior de este caso sin confirmar y ahora no se pudo consultar Gmail. No se envió "
+                    "nada; prueba en un momento o revisa Gmail (Enviados).")
+    avisos = []
+    for operacion, resultado in resultados:
+        if resultado == "enviado":
+            avisos.append(f"El correo anterior a {operacion['recipient']} sí había salido: Gmail lo confirma y el caso "
+                          "quedó actualizado.")
+        else:
+            avisos.append(f"El correo anterior a {operacion['recipient']} no apareció en Enviados de Gmail y se "
+                          "liberó la reserva.")
+    return " ".join(avisos) + " Ahora no se envió nada: revisa el caso y, si hace falta, vuelve a enviar."
+
+
+def reconciliar_envios_pendientes() -> list[str]:
+    """Aclara con Gmail los envíos inciertos de más de 2 minutos de todos los casos (lo llama el lanzador, B3-06).
+
+    Devuelve un resumen por envío resuelto. Sin envíos pendientes no toca Gmail; si Gmail falla, lo reintenta en la
+    siguiente ronda. No envía nada."""
+    pendientes = envios.pendientes_sin_resolver()
+    if not pendientes:
+        return []
+    gmail, _ = services()
+    hechos = []
+    for operacion in pendientes:
+        try:
+            hechos.append(f"{operacion['thread_id']}: {_reconciliar_operacion(gmail, operacion)}")
+        except Exception:
+            log.warning("%s: no se pudo aclarar el envío incierto (se reintenta)", operacion["thread_id"],
+                        exc_info=True)
+    return hechos
+
+
+def marcar_enviado_a_mano(thread_id: str) -> str:
+    """La persona dice que el correo incierto sí salió (lo mandó ella o lo vio en Gmail): se cierra la reserva.
+
+    Es una declaración de la persona y queda en el historial con su huella; no consulta ni envía nada. Si el envío
+    se reservó con su texto, el caso avanza como si se hubiera enviado desde aquí."""
+    pendientes = envios.pendientes_del_hilo(thread_id)
+    if not pendientes:
+        raise ErrorDeValidacion("Este caso no tiene ningún envío por confirmar.")
+    for operacion in pendientes:
+        _dar_por_enviado(thread_id, operacion, "", "una persona lo marcó como enviado a mano desde el dashboard")
+    return ("Quedó marcado como enviado." if len(pendientes) == 1
+            else f"Quedaron marcados como enviados {len(pendientes)} correos.")
+
+
+def _causa_del_fallo(thread_id: str, exc: Exception, si_es_externo: str) -> str:
+    """Qué decirle a la persona de un fallo inesperado, sin culpar a Gmail de un error nuestro (U-53, B1-07).
+
+    Un corte de red o un error de Google se registra como aviso y se explica con `si_es_externo` (vacío: sin causa).
+    Cualquier otra cosa es un error del programa: se registra con su traza y un código, y ese código se le da a la
+    persona para que lo avise."""
+    if es_fallo_externo(exc):
+        log.warning("%s: falló la red o Google (%s)", thread_id, type(exc).__name__, exc_info=True)
+        return si_es_externo
+    codigo = codigo_de_error()
+    log.error("%s: error del programa (código %s)", thread_id, codigo, exc_info=True)
+    return f"ocurrió un error del programa, no de Gmail; si se repite, avisa con el código {codigo}"
+
+
+AVISO = "⚠"      # marca de lo que quedó pendiente en un mensaje compuesto (la pantalla conserva entonces lo escrito)
+
+
+def con_codigo_final(body: str, suggested: str, number: str) -> str:
     """El texto se preparó con el número sugerido; si la persona lo corrigió, el correo debe llevar el final."""
     suggested, number = normalize_number(suggested), normalize_number(number)
     if suggested and number and suggested != number:
@@ -312,22 +469,29 @@ def issue_code_and_notify(thread_id: str, number: str, body: str, suggested_numb
     envío (R8). Si algo después de emitir la T falla, la T queda emitida y se dice qué quedó pendiente.
     """
     if not body.strip():
-        raise ValueError("Escribe el correo para el cliente (o usa «Solo emitir la T»).")
-    final_body = _with_final_code(body, suggested_number, number)
+        raise ErrorDeValidacion("Escribe el correo para el cliente (o usa «Solo emitir la T»).")
+    final_body = con_codigo_final(body, suggested_number, number)
+    # Antes de emitir (la T no se deshace, D-08) se comprueba todo lo que puede fallar sin dejar rastro (U-34.2):
+    # el número, la autorización de Google, el hilo en Gmail y el destinatario.
+    number = comprobar_numero(thread_id, number)
+    quote = case_email_context(thread_id)[0]
+    _recipient(thread_id, quote, "")
     parts = [assign_code(thread_id, number).split(" Revisa el correo")[0]]
     parts.append(auto_create_project_folder(thread_id))      # carpeta, documentos del cliente y tabla
     try:
         parts.append(send_dashboard_reply(thread_id, final_body, "", 0, "received", create_folder=False))
-    except ValueError as exc:                                  # p. ej. el mismo texto ya salió hace poco
-        parts.append(f"⚠ El correo no se envió: {exc}")
-    except Exception:
-        log.exception("%s: no se pudo enviar el correo con la T", thread_id)
-        parts.append("⚠ El correo NO se envió (error de Gmail). La T quedó emitida: "
-                     "reintenta desde «Respuesta al cliente».")
+    except (ValueError, ErrorDeAnka) as exc:     # p. ej. el mismo texto ya salió hace poco, o venció Google
+        motivo = str(exc).rstrip(".")
+        parts.append(f"{AVISO} El correo no se envió: {motivo}. La T quedó emitida; el correo sigue en "
+                     "«Respuesta al cliente» para enviarlo.")
+    except Exception as exc:
+        causa = _causa_del_fallo(thread_id, exc, "Gmail no respondió")
+        parts.append(f"{AVISO} El correo NO se envió: {causa}. La T quedó emitida; reintenta desde "
+                     "«Respuesta al cliente», donde sigue el texto.")
     return " ".join(parts)
 
 
-def _fill_folder(gmail: Any, drive: Any, thread_id: str, folder_id: str,
+def _fill_folder(gmail: ClienteGmail, drive: ClienteDrive, thread_id: str, folder_id: str,
                  account_addresses: set[str]) -> str:
     """Copia los adjuntos del cliente y la tabla a la carpeta; un fallo solo se informa."""
     try:
@@ -336,36 +500,56 @@ def _fill_folder(gmail: Any, drive: Any, thread_id: str, folder_id: str,
             gmail, drive, thread, folder_id, get_quote(thread_id), account_addresses)
         return report.summary()
     except Exception as exc:
-        log.exception("%s: no se pudo llenar la carpeta de Drive", thread_id)
-        return (f"La carpeta quedó creada pero no pude copiar su contenido ({type(exc).__name__}). "
-                "Súbelo a mano.")
+        causa = _causa_del_fallo(thread_id, exc, "")
+        return ("La carpeta quedó creada, pero no se pudo copiar su contenido"
+                + (f" ({causa})" if causa else "") + ". Súbelo tú a mano o prueba otra vez en un momento.")
 
 
-def delete_cases(thread_ids: list[str]) -> str:
+PALABRA_PARA_BORRAR = "ELIMINAR"
+
+
+def casos_con_codigo_o_correo(thread_ids: list[str]) -> list[str]:
+    """Los casos de la lista que ya tienen código T o un correo enviado al cliente (borrarlos pide más cuidado)."""
+    if not thread_ids:
+        return []
+    with lectura() as db:
+        marks = ",".join("?" * len(thread_ids))
+        return [row["thread_id"] for row in db.execute(
+            f"SELECT thread_id FROM quotes WHERE thread_id IN ({marks}) "
+            "AND (COALESCE(quote_code, '') <> '' OR COALESCE(sent_at, '') <> '')", thread_ids)]
+
+
+def delete_cases(thread_ids: list[str], confirmacion: str = "") -> str:
     """Elimina hilos del dashboard y mueve a la papelera de Drive la carpeta que se les creó.
 
     Si una carpeta no se puede mover a la papelera, ese hilo NO se borra (así no se pierde el
     vínculo con su carpeta) y se informa. Las carpetas de cliente nunca se tocan.
+    Un caso que ya tiene código T o un correo enviado al cliente solo se borra si la persona escribió
+    «ELIMINAR» (`confirmacion`): no se borra nada si falta (U-57).
     """
     ids = list(dict.fromkeys(thread_ids))
-    db = connect()
-    try:
+    protegidos = casos_con_codigo_o_correo(ids)
+    if protegidos and confirmacion.strip().upper() != PALABRA_PARA_BORRAR:
+        uno = len(protegidos) == 1
+        quienes = "este caso ya tiene" if uno else f"{len(protegidos)} de los casos marcados ya tienen"
+        return (f"No se borró nada: {quienes} código T o un correo enviado al cliente. Si de verdad quieres borrar"
+                f"{'lo' if uno else 'los'}, escribe {PALABRA_PARA_BORRAR} en el cuadro de confirmación "
+                "y vuelve a pulsar «Borrar».")
+    with lectura() as db:
         marks = ",".join("?" * len(ids))
         folders = {
             row["thread_id"]: row["folder_id"] for row in db.execute(
                 f"SELECT thread_id, folder_id FROM quotes WHERE thread_id IN ({marks}) "
                 "AND folder_id IS NOT NULL AND folder_id <> ''", ids)
         } if ids else {}
-    finally:
-        db.close()
     trashed, failed = 0, []
     if folders:
         try:
             _, drive = services()
             parent = load_config().get("drive_parent_id", "")
-        except Exception as exc:
+        except Exception:
             log.exception("No se pudo conectar con Drive para borrar carpetas")
-            return f"No borré nada: no pude conectar con Drive ({type(exc).__name__}). Inténtalo de nuevo."
+            return "No se borró nada: no hubo conexión con Drive. Prueba otra vez en un momento."
         for thread_id, folder_id in folders.items():
             try:
                 trashed += trash_project_folder(drive, parent, folder_id)
@@ -377,24 +561,20 @@ def delete_cases(thread_ids: list[str]) -> str:
     if trashed:
         message += f" {trashed} carpeta(s) de proyecto movida(s) a la papelera de Drive."
     if failed:
-        message += (f" No borré {len(failed)} solicitud(es) porque su carpeta no se pudo mover a la "
+        message += (f" No se borró {len(failed)} caso(s) porque su carpeta no se pudo mover a la "
                     f"papelera: {failed[0][1]}")
     return message
 
 
 def _note_drive_pending(thread_id: str, message: str) -> None:
     """Deja en el caso el motivo por el que la carpeta no se creó, para mostrarlo en pantalla."""
-    db = connect()
-    try:
+    with transaccion() as db:
         row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
         if row:
             analysis = json.loads(row["analysis_json"])
             analysis["drive"] = {"pending": message}
             actualizar_caso(db, thread_id,
                 analysis_json=json.dumps(analysis, ensure_ascii=False))
-            db.commit()
-    finally:
-        db.close()
 
 
 def auto_create_project_folder(thread_id: str) -> str:
@@ -407,13 +587,13 @@ def auto_create_project_folder(thread_id: str) -> str:
         return "Carpeta en Drive: " + approve_review(thread_id, auto=True)
     except ErrorDeAnka as exc:
         message = str(exc)
-    except Exception as exc:  # Drive o red: el correo ya salió y no se debe perder
-        log.exception("%s: no se pudo crear la carpeta automáticamente", thread_id)
-        message = (f"No se pudo crear la carpeta automáticamente ({type(exc).__name__}). "
-                   "Inténtalo desde la sección de Drive.")
+    except Exception as exc:  # Drive, red o un error propio: el correo ya salió y no se debe perder
+        causa = _causa_del_fallo(thread_id, exc, "")
+        message = ("No se pudo crear la carpeta sola" + (f" ({causa})" if causa else "") + ". "
+                   "Créala tú desde la sección de Drive.")
     _note_drive_pending(thread_id, message)
     log.warning("%s: carpeta del proyecto pendiente tras el envío", thread_id)
-    return "No creé la carpeta todavía: " + message
+    return "Todavía no se creó la carpeta: " + message
 
 
 def _saved_client_name(db: Any, thread_id: str) -> str:
@@ -423,7 +603,7 @@ def _saved_client_name(db: Any, thread_id: str) -> str:
     return str(row[0]) if row else ""
 
 
-def _send_questions(db: sqlite3.Connection, gmail: Any, config: Configuracion, thread_id: str, last_id: str,
+def _send_questions(db: sqlite3.Connection, gmail: ClienteGmail, config: Configuracion, thread_id: str, last_id: str,
                     recipient: str, analysis: Analisis, body_file: str | None, body_text: str | None,
                     account_addresses: set[str]) -> str:
     """Envía al cliente las preguntas de un caso con datos pendientes y lo deja esperando su respuesta."""
@@ -437,8 +617,10 @@ def _send_questions(db: sqlite3.Connection, gmail: Any, config: Configuracion, t
             reception_questions(analysis, config["required_fields"]),
             analysis.get("routing", {}).get("is_forwarded", False),
         )
+    verificar_transicion(db, thread_id, QuoteStatus.SENDING, "iniciar_envio")
     save(db, thread_id, last_id, QuoteStatus.SENDING, recipient, analysis)
     sent_id = send_reply(gmail, thread, recipient, body, account_addresses)
+    verificar_transicion(db, thread_id, QuoteStatus.WAITING, "terminar_envio")
     save(db, thread_id, last_id, QuoteStatus.WAITING, recipient, analysis, sent_message_id=sent_id)
     record_event(db, thread_id, "sent", "dashboard", sent_id,
                  f"Preguntas enviadas desde el dashboard a {recipient}.")
@@ -446,7 +628,7 @@ def _send_questions(db: sqlite3.Connection, gmail: Any, config: Configuracion, t
     message = f"{thread_id}: correo enviado a {recipient}."
     log.info("%s: correo enviado tras aprobación", thread_id)
     log.info("%s", message, extra=SENSITIVE)
-    return message
+    return f"Correo enviado a {recipient}."
 
 
 def _resolve_client(db: sqlite3.Connection, thread_id: str, analysis: Analisis, recipient: str,
@@ -462,7 +644,8 @@ def _resolve_client(db: sqlite3.Connection, thread_id: str, analysis: Analisis, 
     return client
 
 
-def _create_case_folder(db: sqlite3.Connection, gmail: Any, drive: Any, config: Configuracion, thread_id: str,
+def _create_case_folder(db: sqlite3.Connection, gmail: ClienteGmail, drive: ClienteDrive, config: Configuracion,
+                        thread_id: str,
                         last_id: str, recipient: str, analysis: Analisis, client_name: str | None,
                         new_client: bool, auto: bool, allow_similar_project: bool,
                         account_addresses: set[str]) -> str:
@@ -490,11 +673,12 @@ def _create_case_folder(db: sqlite3.Connection, gmail: Any, drive: Any, config: 
     except DriveLayoutError as exc:
         raise ErrorDeAnka(str(exc)) from exc
     analysis.pop("drive", None)
+    verificar_transicion(db, thread_id, QuoteStatus.READY, "crear_carpeta")
     save(db, thread_id, last_id, QuoteStatus.READY, recipient, analysis, folder_id=result.folder["id"])
     set_client_name(thread_id, client)  # los próximos correos del remitente se resuelven solos
     contents = _fill_folder(gmail, drive, thread_id, result.folder["id"], account_addresses)
     log.info("%s: carpeta del proyecto creada tras aprobación: %s", thread_id, result.folder["id"])
-    message = f"{thread_id}: carpeta creada/encontrada: {result.folder['id']}"
+    message = "Carpeta lista."
     if result.client_created:
         log.info("%s: carpeta de cliente nuevo creada tras confirmación", thread_id)
         message += " Se creó también la carpeta del cliente nuevo."
@@ -524,7 +708,7 @@ def approve_review(
             (thread_id,),
         ).fetchone()
         if not row:
-            raise ErrorDeAnka(f"No existe revisión registrada para el hilo {thread_id}.")
+            raise ErrorDeAnka("Este caso no tiene una revisión pendiente. Vuelve a Mis casos.")
         last_id, status, recipient, analysis_json = row
         analysis: Analisis = json.loads(analysis_json)
         if status == QuoteStatus.REVIEW_PENDING:
@@ -533,6 +717,7 @@ def approve_review(
         if status == QuoteStatus.READY_REVIEW:
             return _create_case_folder(db, gmail, drive, config, thread_id, last_id, recipient, analysis,
                                        client_name, new_client, auto, allow_similar_project, account_addresses)
-        raise ErrorDeAnka(f"El hilo {thread_id} está en estado '{status}', no pendiente de aprobación.")
+        raise ErrorDeAnka("Este caso ya no está pendiente de aprobación. "
+                          "Ábrelo desde Mis casos para ver en qué paso va.")
     finally:
         db.close()

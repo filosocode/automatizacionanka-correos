@@ -33,6 +33,12 @@ class IssueCodeInOneStep(unittest.TestCase):
         db.commit()
         db.close()
         self.calls = []
+        # La comprobación previa a emitir (U-34.2) necesita Gmail y el destinatario: aquí se da por buena.
+        for name, valor in (("case_email_context", ({"recipient": "ana@acme.com"}, None, {}, set())),
+                            ("_recipient", "ana@acme.com")):
+            patcher = patch.object(case_actions, name, return_value=valor)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         for name, resultado in (("auto_create_project_folder", "Carpeta en Drive: creada."),
                                 ("send_dashboard_reply", "Correo enviado a ana@acme.com en el mismo hilo.")):
             patcher = patch.object(case_actions, name, side_effect=self.registrar(name, resultado))
@@ -106,11 +112,11 @@ class IssueCodeInOneStep(unittest.TestCase):
 
     def test_a_folder_that_cannot_be_created_does_not_stop_the_email(self):
         patcher = patch.object(case_actions, "auto_create_project_folder",
-                               return_value="No creé la carpeta todavía: Indica la carpeta del cliente.")
+                               return_value="Todavía no se creó la carpeta todavía: Indica la carpeta del cliente.")
         patcher.start()
         self.addCleanup(patcher.stop)
         message = case_actions.issue_code_and_notify("t-1", "26001", TEXTO, "26001")
-        self.assertIn("No creé la carpeta todavía", message)
+        self.assertIn("Todavía no se creó la carpeta todavía", message)
         self.assertIn("Correo enviado", message)
 
 
@@ -175,7 +181,7 @@ class Route(unittest.TestCase):
     def test_a_validation_error_is_shown_as_a_message_not_a_500(self):
         body = urllib.parse.urlencode({"csrf_token": seguridad.CSRF_TOKEN, "thread_id": "t-1", "number": "x",
                                        "body": TEXTO}).encode()
-        with patch("anka.web.acciones.issue_code_and_notify", side_effect=ValueError("El número debe tener 5 dígitos")):
+        with patch("anka.web.acciones.issue_code_and_notify", side_effect=ValueError("El número debe tener 5 dígitos.")):
             hecho = request("POST", "/code-issue", body, origin=self.ORIGIN)
         self.assertEqual(hecho["status"], 303)
         self.assertIn("5%20d%C3%ADgitos", hecho["location"])

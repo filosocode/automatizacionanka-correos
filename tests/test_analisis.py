@@ -50,6 +50,6 @@ class HealthReportShapeTests(unittest.TestCase):
     def test_the_report_type_matches_what_swagger_documents(self):
         from anka.servicios.salud import InformeDeSalud, ResultadoDeComprobacion
         from anka.web import openapi
-        schema = openapi.build_spec("t")["components"]["schemas"]["Salud"]["properties"]
+        schema = openapi.build_spec()["components"]["schemas"]["Salud"]["properties"]
         self.assertEqual(set(get_type_hints(InformeDeSalud)), set(schema))
         self.assertEqual(set(get_type_hints(ResultadoDeComprobacion)), set(schema["comprobaciones"]["items"]["properties"]))

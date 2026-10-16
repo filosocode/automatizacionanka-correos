@@ -9,6 +9,7 @@ historial de versiones de Google, se avisa en el dashboard y la hoja vuelve a re
 """
 
 from __future__ import annotations
+from anka.infra.clientes_google import ClienteDrive
 
 import os
 import threading
@@ -77,7 +78,7 @@ def _media(contenido: bytes) -> Any:
     return MediaIoBaseUpload(BytesIO(contenido), mimetype=XLSX_MIME, resumable=False)
 
 
-def _buscar_hoja(drive: Any, folder_id: str, nombre: str) -> dict | None:
+def _buscar_hoja(drive: ClienteDrive, folder_id: str, nombre: str) -> dict | None:
     """La hoja con ese nombre que ya esté en la carpeta (por si la creó otra versión del sistema o una persona)."""
     escapado = nombre.replace("\\", "\\\\").replace("'", "\\'")
     consulta = (f"'{folder_id}' in parents and name = '{escapado}' and mimeType = '{SHEET_MIME}' "
@@ -87,7 +88,7 @@ def _buscar_hoja(drive: Any, folder_id: str, nombre: str) -> dict | None:
     return encontrados[0] if encontrados else None
 
 
-def publicar(drive: Any, folder_id: str, nombre: str, contenido: bytes, sheet_id: str,
+def publicar(drive: ClienteDrive, folder_id: str, nombre: str, contenido: bytes, sheet_id: str,
              modificada_guardada: str) -> Publicacion:
     """Crea la hoja o reescribe la existente (el mismo archivo). Avisa si alguien la editó directamente en Drive."""
     aviso = ""
@@ -117,12 +118,14 @@ def publicar(drive: Any, folder_id: str, nombre: str, contenido: bytes, sheet_id
     return Publicacion(hecho["id"], hecho.get("modifiedTime", ""), True, aviso)
 
 
-def sincronizar_hoja(thread_id: str, drive: Any = None, repositorio: RepositorioDeCasos | None = None) -> ResultadoHoja:
+def sincronizar_hoja(
+    thread_id: str, drive: ClienteDrive | None = None, repositorio: RepositorioDeCasos | None = None,
+) -> ResultadoHoja:
     """Deja la hoja de Google del caso igual al dashboard (la crea si no existe). Lanza el error de Google si falla."""
     repo = repositorio or RepositorioDeCasos()
     caso = repo.obtener(thread_id)
     if caso is None:
-        return ResultadoHoja("sin_caso", "La solicitud ya no existe.", "")
+        return ResultadoHoja("sin_caso", "Este caso ya no existe. Vuelve a Mis casos.", "")
     if not caso.folder_id:
         return ResultadoHoja("sin_carpeta", "La hoja de Google se crea en la carpeta del proyecto, que aún no existe "
                              "(se crea al emitir la T). Mientras tanto puedes descargar el Excel.", "")

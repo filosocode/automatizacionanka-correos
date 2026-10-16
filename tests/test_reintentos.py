@@ -36,7 +36,7 @@ class EsperasTests(unittest.TestCase):
 
     def test_the_summary_tells_the_person_what_happened_and_what_to_do(self):
         resumen = dominio.resumen_del_fallo("Ollama no respondió.", 3, AHORA)
-        for esperado in ("intento 3", "Ollama no respondió.", "10:00", "Actualizar correo", "a mano"):
+        for esperado in ("intento 3", "Ollama no respondió.", "10:00", "Buscar correos nuevos", "a mano"):
             self.assertIn(esperado, resumen)
 
     def test_the_failure_case_is_a_minimal_technical_review_analysis(self):

@@ -23,7 +23,7 @@ BRIDGE_ONLY = {"draft_reply", "draft_id"}   # los agrega el puente, Work no los 
 class SchemaTests(unittest.TestCase):
     def test_a_complete_payload_is_valid(self):
         data = payload(
-            client_name="Ana", summary="x", received_at="2026-10-01T10:00:00-05:00", gmail_url="https://x",
+            client_name="Ana", summary="x", received_at="2026-10-01T10:00:00-05:00", gmail_url="https://mail.google.com/mail/u/0/#all/x",
             requested_by_email="ana@acme.com", requested_by_name="Ana", cited_codes=["T26145"],
             missing_data=["Crítico: datum"], attachments=[{"filename": "a.kml", "status": "legible", "reason": "",
                                                           "blocked_fields": []}],
@@ -81,7 +81,7 @@ class SchemaMatchesTheRestOfTheSystem(unittest.TestCase):
                     self.assertIn(field, INSTRUCTIONS)
 
     def test_the_schema_only_uses_keywords_the_validator_supports(self):
-        supported = {"type", "required", "enum", "properties", "items", "minLength", "$comment"}
+        supported = set(work_contract.PALABRAS_COMPROBADAS) | {"$comment", "version"}
 
         def walk(node):
             yield set(node)
@@ -97,10 +97,10 @@ class SchemaMatchesTheRestOfTheSystem(unittest.TestCase):
 class BridgeUsesTheSchema(unittest.TestCase):
     def test_a_draft_that_breaks_the_contract_is_rejected_with_the_reason(self):
         bad = payload()
-        bad.pop("project_name")
+        bad.pop("client_email")
         with self.assertRaises(ValueError) as caught:
             sync.extract(draft_message(bad), "D1")
-        self.assertIn("project_name", str(caught.exception))
+        self.assertIn("client_email", str(caught.exception))
 
     def test_a_valid_draft_is_imported_with_the_official_status(self):
         found = sync.extract(draft_message(payload(status="faltan DATOS")), "D1")

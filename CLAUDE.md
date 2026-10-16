@@ -11,6 +11,8 @@ ahí y se verifica contra ahí:
   `skills/anka-cotizaciones-correo/references/reglas_operativas.md` (versión vigente en su primera línea).
 - Estados y transiciones: `spec/transiciones.json` (se ejecuta en `tests/test_transiciones.py`).
 - Contrato con ChatGPT Work: `spec/contrato_work.schema.json` (se valida en el puente).
+- Principios y gobierno de `spec/`: `spec/constitucion.md`. Antes de programar un cambio dudoso usa `/clarificar-spec`;
+  para auditar la coherencia usa `/analizar-spec`. Ambas leen y escriben **solo** en `spec/` (no hay carpeta `specs/`).
 - Decisiones y sus motivos: `spec/05-decisiones.md`. No las deshagas sin leer por qué se tomaron.
 
 ## Cómo está armado
@@ -22,8 +24,11 @@ Código en el paquete `anka/` (detalle en `spec/06-arquitectura.md`), en cinco c
   `gmail_followup`, `drive_layout`, `drive_contents`).
 - `anka/web/`: servidor (`server.py`), acciones de los formularios (`acciones.py`), páginas (`paginas.py` y `pantalla_caso.py`), API JSON y Swagger (`api.py`, `openapi.py`), seguridad CSRF (`seguridad.py`), vistas (`views.py`) y `templates/`. `anka/cli/`: `app`, `supervisor`, `work_sync`.
 - **Tres modos** (`active_mode` en `config.json`, fuera del repo): `local` (Ollama) y `api` comparten el código de
-  `pipeline`; `chatgpt_work` es otro orquestador (la tarea de ChatGPT con la skill) y **Python no lee Gmail**: un
-  puente de solo lectura (`anka/cli/work_sync.py`) importa los borradores de Work al dashboard.
+  `pipeline`; `chatgpt_work` mantiene a Work como único analizador. Python puede leer Gmail en ese modo **solo para identificar,
+  registrar y controlar pendientes**, sin escribir en Gmail ni analizar y sin ser otro orquestador (D-131, que reformula
+  D-01; la recepción determinista de U-66 a U-76 está **prevista, aún sin implementar**). El puente (`anka/cli/work_sync.py`) importa
+  borradores y el preparador optativo (`anka/cli/work_drive.py`) lee adjuntos de Gmail y publica OCR en Drive (T-45).
+  El preparador no envía correos ni decide estados comerciales; se activa explícitamente y corre separado del puente.
 - `app.py`, `supervisor.py` y `work_dashboard_sync.py` en la raíz son envoltorios de una línea hacia `anka/cli/`.
 - Datos y credenciales viven en `%LOCALAPPDATA%\AnkaCorreos` (config, token, base, evidencia, copias): **nunca** se
   versionan ni se imprimen.

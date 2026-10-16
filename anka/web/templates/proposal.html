@@ -1,6 +1,6 @@
 <div class="proposal" id="proposal">
-  <strong>El modelo sugiere {{ changes | length }} cambio(s) en tu tabla</strong>
-  <p class="meta">Llegó información nueva y tu tabla editada no se tocó. Elige qué hacer.</p>
+  <strong>Work propone {{ changes | length }} cambio(s) a tu tabla</strong>
+  <p class="meta">Llegó información nueva. Tu tabla no se cambió. ¿Qué prefieres?</p>
   <ul>
     {% for change in changes %}<li><span class="chip {{ change.kind }}">{{ 'Nueva' if change.kind == 'nueva' else 'Distinta' }}</span> {{ change.activity }}{% if change.detail %} · {{ change.detail }}{% endif %}</li>
     {% endfor %}
@@ -9,8 +9,8 @@
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <div class="toolbar">
       <button type="submit" name="decision" value="use"
-        data-confirm="Tu tabla será reemplazada por la del modelo. ¿Confirmas?">Usar la propuesta</button>
-      <button type="submit" class="secondary" name="decision" value="keep">Mantener la mía</button>
+        data-confirm="Tu tabla se cambiará por la que propone Work. ¿Seguimos?">Aceptar la propuesta</button>
+      <button type="submit" class="secondary" name="decision" value="keep">Dejar mi tabla</button>
     </div>
   </form>
 </div>

@@ -31,16 +31,34 @@
     {"id": "TR-16", "evento": "seguir_sin_respuesta", "desde": ["waiting", "response_sent"], "hacia": "ready_review", "nota": "La persona decide seguir con la T sin esperar la respuesta del cliente (U-28)."},
     {"id": "TR-17", "evento": "seguir_sin_respuesta", "desde": ["review", "review_pending", "draft_created", "ready_review", "ready", "ignored", "missing"], "hacia": "error", "nota": "Solo un caso que ya escribió al cliente y espera su respuesta puede seguir sin ella."},
 
-    {"id": "TR-20", "evento": "enviar_desde_dashboard", "con_preguntas": true, "desde": ["review_pending", "draft_created", "waiting"], "hacia": "waiting", "nota": "El correo hizo al menos una pregunta: se espera la respuesta del cliente (U-22)."},
+    {"id": "TR-20", "evento": "enviar_desde_dashboard", "con_preguntas": true, "desde": ["sending", "review_pending", "draft_created", "waiting"], "hacia": "waiting", "nota": "El correo hizo al menos una pregunta: se espera la respuesta del cliente (U-22)."},
     {"id": "TR-21", "evento": "enviar_desde_dashboard", "desde": ["ready_review"], "hacia": "igual", "nota": "Un caso con información suficiente sigue abierto para crear la carpeta."},
     {"id": "TR-22", "evento": "enviar_desde_dashboard", "con_codigo": true, "desde": ["ready"], "hacia": "igual", "nota": "Un caso ya avanzado con T puede escribir al cliente sin cambiar de estado."},
-    {"id": "TR-23", "evento": "enviar_desde_dashboard", "con_preguntas": false, "esperar_respuesta": false, "con_pendientes_internos": false, "desde": ["review_pending", "draft_created", "waiting"], "hacia": "response_sent", "nota": "Un correo sin preguntas (un acuse) no deja esperando al cliente (U-22)."},
-    {"id": "TR-25", "evento": "enviar_desde_dashboard", "con_preguntas": false, "esperar_respuesta": false, "con_pendientes_internos": true, "desde": ["review_pending", "draft_created", "waiting"], "hacia": "review", "nota": "Un acuse mientras quedan preguntas decididas como internas devuelve el caso a la revisión técnica, para que ese trabajo no salga de la cola (U-22)."},
-    {"id": "TR-26", "evento": "enviar_desde_dashboard", "con_preguntas": false, "esperar_respuesta": true, "desde": ["review_pending", "draft_created", "waiting"], "hacia": "waiting", "nota": "La persona marcó esperar respuesta aunque el correo no lleve preguntas (U-22)."},
+    {"id": "TR-23", "evento": "enviar_desde_dashboard", "con_preguntas": false, "esperar_respuesta": false, "con_pendientes_internos": false, "desde": ["sending", "review_pending", "draft_created", "waiting"], "hacia": "response_sent", "nota": "Un correo sin preguntas (un acuse) no deja esperando al cliente (U-22)."},
+    {"id": "TR-25", "evento": "enviar_desde_dashboard", "con_preguntas": false, "esperar_respuesta": false, "con_pendientes_internos": true, "desde": ["sending", "review_pending", "draft_created", "waiting"], "hacia": "review", "nota": "Un acuse mientras quedan preguntas decididas como internas devuelve el caso a la revisión técnica, para que ese trabajo no salga de la cola (U-22)."},
+    {"id": "TR-26", "evento": "enviar_desde_dashboard", "con_preguntas": false, "esperar_respuesta": true, "desde": ["sending", "review_pending", "draft_created", "waiting"], "hacia": "waiting", "nota": "La persona marcó esperar respuesta aunque el correo no lleve preguntas (U-22)."},
     {"id": "TR-24", "evento": "enviar_desde_dashboard", "desde": ["response_sent", "ready", "ignored", "missing"], "hacia": "error", "nota": "Sin T ni avisos que lo reabran, un caso cerrado no admite respuesta."},
 
     {"id": "TR-30", "evento": "correo_enviado_desde_gmail", "desde": ["review_pending", "sending"], "hacia": "waiting"},
     {"id": "TR-31", "evento": "correo_enviado_desde_gmail", "desde": ["draft_created"], "hacia": "response_sent"},
-    {"id": "TR-32", "evento": "correo_enviado_desde_gmail", "desde": ["waiting", "ready_review", "review", "response_sent", "ready", "ignored"], "hacia": "igual", "nota": "Solo anota el hecho en el seguimiento."}
+    {"id": "TR-32", "evento": "correo_enviado_desde_gmail", "desde": ["waiting", "ready_review", "review", "response_sent", "ready", "ignored"], "hacia": "igual", "nota": "Solo anota el hecho en el seguimiento."},
+
+    {"id": "TR-40", "evento": "crear_carpeta", "desde": ["ready_review"], "hacia": "ready", "nota": "Crear la carpeta en Drive (botón o envío de un caso con información suficiente)."},
+    {"id": "TR-41", "evento": "iniciar_envio", "desde": ["review_pending"], "hacia": "sending", "nota": "Se aprobó el envío de las preguntas; mientras Gmail responde el caso queda «Enviando»."},
+    {"id": "TR-42", "evento": "terminar_envio", "desde": ["sending"], "hacia": "waiting", "nota": "Gmail confirmó el envío de las preguntas."},
+    {"id": "TR-43", "evento": "guardar_borrador", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "sending"], "hacia": "draft_created", "nota": "Guardar el correo como borrador en Gmail. Desde un caso cerrado y reabierto (ready, response_sent) se registra como no previsto: hoy lo cambia a draft_created."},
+    {"id": "TR-44", "evento": "unir_casos", "desde": ["waiting", "review", "review_pending", "ready_review", "draft_created", "missing"], "hacia": "ignored", "nota": "Un caso que no avanzó se une a otro (queda descartado como «unido»)."},
+    {"id": "TR-45", "evento": "rescatar", "desde": ["ignored"], "hacia": "igual", "nota": "Rescatar un descartado solo lo marca para reanalizar; el estado lo mueve el análisis siguiente."},
+    {"id": "TR-46", "evento": "hilo_no_disponible", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "ready", "sending", "ignored", "missing"], "hacia": "missing", "nota": "Gmail ya no entrega el hilo."},
+    {"id": "TR-47", "evento": "correo_enviado_desde_gmail", "desde": ["missing"], "hacia": "igual", "nota": "Solo anota el hecho."},
+    {"id": "TR-50", "evento": "analisis_python", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "review_pending", "nota": "Modo local/api: el análisis de un correo nuevo decide el estado (R: los tres modos)."},
+    {"id": "TR-51", "evento": "analisis_python", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "review"},
+    {"id": "TR-52", "evento": "analisis_python", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "ready_review"},
+    {"id": "TR-53", "evento": "analisis_python", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "draft_created"},
+    {"id": "TR-54", "evento": "analisis_python", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "ignored"},
+    {"id": "TR-55", "evento": "analisis_python", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "ready"},
+    {"id": "TR-56", "evento": "analisis_python", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "waiting"},
+    {"id": "TR-57", "evento": "analisis_python", "desde": ["review_pending", "review", "ready_review", "waiting", "draft_created", "response_sent", "missing", "ignored"], "hacia": "sending"},
+    {"id": "TR-58", "evento": "analisis_python", "desde": ["ready", "sending"], "hacia": "igual", "nota": "Igual que TR-07 en Work (U-47): un caso con carpeta creada o con un envío en curso no retrocede por el análisis de un correo nuevo; el análisis se guarda, pero no se envía ni se crea otra carpeta. response_sent solo se mueve con un mensaje nuevo del cliente (TR-50 a TR-57)."}
   ]
 }

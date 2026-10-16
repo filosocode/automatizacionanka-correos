@@ -20,6 +20,7 @@ from pathlib import Path
 from datetime import datetime
 from unittest.mock import patch
 
+from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra import store
 from anka.servicios import followup_reminders as fup
@@ -143,9 +144,9 @@ def seed(data_dir: Path) -> None:
         data = dict(data)
         store.save(db, thread_id, f"in-{thread_id}", status, recipient, data)
         db.execute(
-            "UPDATE quotes SET draft_body=?, draft_id=?, sent_at=?, updated_at=? WHERE thread_id=?",
+            "UPDATE quotes SET draft_body=?, draft_id=?, sent_at=?, updated_at=?, first_seen_at=? WHERE thread_id=?",
             (body, draft_id, "2026-09-02T10:00:00-05:00" if status == QuoteStatus.RESPONSE_SENT else None,
-             "2026-09-02T10:00:00-05:00", thread_id),
+             "2026-09-02T10:00:00-05:00", "2026-09-01T09:00:00-05:00", thread_id),
         )
         if status == QuoteStatus.READY:
             db.execute("UPDATE quotes SET folder_id='folder-abc123' WHERE thread_id=?", (thread_id,))
@@ -194,7 +195,9 @@ class Canonical(HTMLParser):
 
 def canonical(html_text: str) -> Canonical:
     parser = Canonical()
-    parser.feed(html_text)
+    # La huella del CSS cambia con cada retoque de estilo; las instantáneas no deben cambiar por eso (U-48).
+    sin_huella = re.sub(r"/static/(style|app|tema)\.[0-9a-f]{12}\.(css|js)", r"/static/\1.HUELLA.\2", html_text)
+    parser.feed(sin_huella)
     parser.close()
     return parser
 
@@ -228,7 +231,7 @@ class Pages(unittest.TestCase):
             pages["index_mensaje"] = paginas.render_index("Mensaje de prueba")
             pages["requests"] = paginas.render_requests()
             pages["discarded"] = paginas.render_discarded()
-            pages["discarded_mensaje"] = paginas.render_discarded("Se reanalizará <pronto>")
+            pages["discarded_mensaje"] = paginas.render_discarded("Se volverá a mirar <pronto>")
             for case in CASES:
                 pages[f"case_{case[0]}"] = pantalla_caso.render_case(case[0])
             pages["case_no_existe"] = pantalla_caso.render_case("no-existe")
@@ -258,11 +261,11 @@ class InjectionTests(Pages):
         # Referencia: qué etiquetas/atributos usa la misma página con datos normales.
         baseline_pages = {"index", "requests", "case_t-review"}
         safe = [canonical(self.pages[name]) for name in baseline_pages]
-        allowed_tags = set().union(*(p.tags for p in safe)) | {"pre", "ol", "ul", "li", "small"}
+        allowed_tags = set().union(*(p.tags for p in safe)) | {"pre", "ol", "ul", "li", "small", "fieldset", "legend", "noscript"}
         allowed_attrs = set().union(*(p.attrs for p in safe))
-        # Scripts propios: el del tema (en el encabezado, antes de pintar), el de confirmación en toda página
-        # y el de filtros en /requests.
-        legit_scripts = {name: 3 if name == "requests" else 2 for name in self.pages}
+        # Scripts propios, los dos con `src` y huella (U-49): el del tema (en el encabezado, antes de pintar) y el de la
+        # página (`defer`). Ninguna página lleva JavaScript en línea.
+        legit_scripts = {name: 2 for name in self.pages}
         for name, page in self.pages.items():
             parsed = canonical(page)
             with self.subTest(page=name):
@@ -270,7 +273,9 @@ class InjectionTests(Pages):
                                                                  "title", "style", "script", "a",
                                                                  "form", "table", "thead", "tbody",
                                                                  "tr", "th", "td"})
-                self.assertNotIn("img", parsed.tags)
+                # La única imagen es el logo propio de la cabecera (U-36); ningún dato crea otra.
+                self.assertEqual([e for e in parsed.events if e.startswith("<img")],
+                                 ['<img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38">'])
                 self.assertNotIn("iframe", parsed.tags)
                 self.assertFalse(
                     {a for a in parsed.attrs if a.startswith("on")},
@@ -279,7 +284,9 @@ class InjectionTests(Pages):
                 # data-confirm, required y pattern son atributos propios del código, nunca de datos
                 # (pattern valida el número de la T, que solo aparece con la información validada).
                 # `open` lo pone el código en el aviso plegable «Parece el mismo proyecto»; nunca viene de datos.
-                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "pattern", "open"})
+                self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "checked", "pattern", "open",
+                                                         "data-sugerido", "data-anio",   # resumen de la emisión de la T
+                                                         "inputmode", "data-todas", "aria-busy"})   # accesibilidad (U-37)
                 self.assertEqual(parsed.scripts, legit_scripts[name])
 
     def test_hostile_page_does_not_add_scripts_beyond_the_legitimate_ones(self):
@@ -337,7 +344,7 @@ class ErrorPageTests(unittest.TestCase):
 
     def test_error_text_from_an_exception_is_escaped(self):
         body = ("csrf_token=" + seguridad.CSRF_TOKEN).encode()
-        boom = RuntimeError(f"<img src=x onerror={MARK}(1)>")
+        boom = ErrorDeAnka(f"<img src=x onerror={MARK}(1)>")  # mensaje pensado para la persona
         with patch("anka.web.acciones.checked_run", side_effect=boom):
             with self.assertLogs("anka.web.server", "ERROR") as logs:
                 sent = self.request("POST", "/refresh", body)
@@ -348,13 +355,25 @@ class ErrorPageTests(unittest.TestCase):
         self.assertIn("Error atendiendo POST /refresh", logs.output[0])
         self.assertIsNotNone(logs.records[0].exc_info)  # el traceback ya no se pierde
 
+    def test_unexpected_error_detail_is_not_shown_to_the_browser(self):
+        body = ("csrf_token=" + seguridad.CSRF_TOKEN).encode()
+        boom = RuntimeError("detalle interno C:\\ruta\\secreta")
+        with patch("anka.web.acciones.checked_run", side_effect=boom):
+            with self.assertLogs("anka.web.server", "ERROR") as logs:
+                sent = self.request("POST", "/refresh", body)
+        self.assertEqual(sent["status"], 500)
+        self.assertNotIn("ruta", sent["page"])
+        self.assertIn("código de error", sent["page"])
+        self.assertIsNotNone(logs.records[0].exc_info)  # el detalle va solo al registro
+
     def test_get_that_raises_returns_a_500_page_and_logs_the_traceback(self):
         failure = RuntimeError("falla al armar el resumen")
         with patch("anka.web.paginas.render_index", side_effect=failure):
             with self.assertLogs("anka.web.server", "ERROR") as logs:
                 sent = self.request("GET", "/?message=hola")
         self.assertEqual(sent["status"], 500)
-        self.assertIn("falla al armar el resumen", sent["page"])
+        self.assertNotIn("falla al armar el resumen", sent["page"])  # el detalle no sale al navegador
+        self.assertIn("código de error", sent["page"])
         self.assertIn("Error atendiendo GET /", logs.output[0])
         self.assertNotIn("message=hola", logs.output[0])  # la consulta no se registra
         self.assertIsNotNone(logs.records[0].exc_info)

@@ -23,6 +23,16 @@ from anka.infra.store import case_events
 from anka.servicios.quotes import connect
 from anka.dominio.status import QuoteStatus
 
+AHORA = datetime(2026, 6, 1, 9, 30, 0).astimezone()   # reloj fijo de las pruebas que miden tiempos
+
+
+class RelojFijo(datetime):
+    """`datetime` cuyo `now()` es siempre AHORA (para inyectarlo en el módulo que mide la demora)."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return AHORA if tz is None else AHORA.astimezone(tz)
+
 
 def b64(text):
     return base64.urlsafe_b64encode(text.encode("utf-8")).decode("ascii")
@@ -100,8 +110,9 @@ class BridgeTests(unittest.TestCase):
         # Cubre: T-29
         from anka.infra import store
         mensaje = draft_message(payload())
-        mensaje["internalDate"] = str(int((datetime.now().timestamp() - 45) * 1000))     # el borrador tiene 45 s
-        self.run_sync(FakeGmail({"d1": mensaje}))
+        mensaje["internalDate"] = str(int((AHORA.timestamp() - 45) * 1000))     # el borrador tiene 45 s
+        with patch.object(work_import, "datetime", RelojFijo):                   # llega al dashboard en AHORA
+            self.run_sync(FakeGmail({"d1": mensaje}))
         db = store.connect()
         try:
             resumen = db.execute("SELECT summary FROM case_events WHERE thread_id='T1' AND kind='analysis'").fetchone()[0]
@@ -109,7 +120,7 @@ class BridgeTests(unittest.TestCase):
             db.close()
         self.assertIn("El borrador estaba en Gmail desde las", resumen)
         segundos = int(resumen.split("llegó al dashboard ")[1].split(" s")[0])
-        self.assertTrue(45 <= segundos <= 60, segundos)
+        self.assertEqual(segundos, 45)                  # reloj inyectado: no depende de cuánto tarde la prueba
 
     def test_resaving_a_draft_without_changing_it_is_not_imported_again(self):
         # Cubre: T-29
@@ -352,7 +363,7 @@ class NextStepTests(unittest.TestCase):
 
 # Cubre: F1-06, T-03, T-21
 class RelatedThreadTests(unittest.TestCase):
-    """Correos de la misma persona o empresa en otro hilo: se proponen, no se unen solos."""
+    """Correos de la misma persona o empresa en otra conversación: se proponen, no se unen solos."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -464,7 +475,7 @@ class RelatedThreadTests(unittest.TestCase):
         people = quotes.case_people("T1", {"ana@acme.com"})
         self.assertEqual([(p["email"], p["role"]) for p in people],
                          [("luis@acme.com", "Otra persona")])
-        self.assertIn("ya se había resuelto", quotes.resolve_link("T1", first["id"], True))
+        self.assertIn("ya estaba resuelto", quotes.resolve_link("T1", first["id"], True))
 
     def test_banner_offers_both_reply_templates_and_form_for_closed_case(self):
         db = connect()
@@ -476,10 +487,10 @@ class RelatedThreadTests(unittest.TestCase):
         with patch("anka.web.paginas.load_config", return_value=config), patch("anka.web.pantalla_caso.load_config", return_value=config):
             page = pantalla_caso.render_case("T1")
             verify = pantalla_caso.render_case("T1", template="verify")
-        self.assertIn("en otro hilo", page)
+        self.assertIn("en otra conversación", page)
         self.assertIn("Preparar respuesta", page)
         self.assertIn("Validar contacto", page)
-        self.assertIn("Enviar ahora", page)                  # un caso cerrado con aviso admite respuesta
+        self.assertIn("Enviar al cliente", page)                # un caso cerrado con aviso admite respuesta
         self.assertIn("autorizado(a) para solicitar cambios", verify)
 
     def test_closed_case_without_notices_stays_blocked(self):
@@ -500,9 +511,12 @@ class HeartbeatTests(unittest.TestCase):
         patcher = patch.object(settings, "DATA_DIR", Path(self.temp.name))
         patcher.start()
         self.addCleanup(patcher.stop)
+        reloj = patch.object(work_heartbeat, "_now", return_value=AHORA)   # la edad del latido se mide contra AHORA
+        reloj.start()
+        self.addCleanup(reloj.stop)
 
     def beat(self, seconds_ago, **extra):
-        data = {"at": (datetime.now().astimezone() - timedelta(seconds=seconds_ago)
+        data = {"at": (AHORA - timedelta(seconds=seconds_ago)
                        ).isoformat(timespec="seconds"), "pid": 1, "interval": 60,
                 "drafts": 3, "updated": 1, "failures": 0, "error": "", **extra}
         (Path(self.temp.name) / work_heartbeat.HEARTBEAT_FILE).write_text(json.dumps(data))
@@ -521,7 +535,7 @@ class HeartbeatTests(unittest.TestCase):
         self.beat(20, rejected=[{"draft": "d1", "thread": "t1", "reason": "x debe ser de tipo string."}])
         state, text = work_heartbeat.bridge_state()
         self.assertEqual(state, "attention")
-        self.assertIn("1 borrador(es) de Work no cumplen el contrato", text)
+        self.assertIn("1 análisis de Work no se pudieron leer", text)
         self.assertEqual(work_heartbeat.rejected_drafts()[0]["draft"], "d1")
         self.beat(20, failures=1, rejected=[{"draft": "d1", "thread": "t1", "reason": "x"}])
         self.assertEqual(work_heartbeat.bridge_state()[0], "error")      # un fallo real manda sobre el rechazo
@@ -538,18 +552,19 @@ class HeartbeatTests(unittest.TestCase):
         self.beat(20, rejected=[{"draft": "r-123", "thread": "hilo-sin-caso",
                                  "reason": "question_audit[0].unresolved debe ser de tipo string."}])
         panel = str(paginas._work_rejected_panel())
-        self.assertIn("Borradores de Work que no se importaron", panel)
-        self.assertIn("Borrador r-123", panel)
-        self.assertIn("hilo hilo-sin-caso (aún sin caso)", panel)
+        self.assertIn("Falta el análisis de un caso", panel)
+        self.assertIn("Análisis r-123", panel)
+        self.assertIn("conversación hilo-sin-caso (aún sin caso)", panel)
         self.assertIn("question_audit[0].unresolved debe ser de tipo string.", panel)
-        self.assertIn("se revisa solo cuando el borrador cambie", panel)
+        self.assertIn("Si Work vuelve a mandar el análisis, se revisa solo", panel)
+        self.assertNotIn("Pide a Work", panel)
 
     def test_the_chip_and_health_check_treat_the_attention_state_as_a_live_bridge(self):
         # Cubre: T-28
         from anka.servicios import salud
         base = Path(__file__).resolve().parents[1] / "anka" / "web" / "templates"
-        layout = (base / "layout.html").read_text(encoding="utf-8")
-        self.assertIn("attention: 'Puente activo · borrador por revisar'", layout)
+        layout = ((base / "layout.html").read_text(encoding="utf-8") + (base / "app.js").read_text(encoding="utf-8") + (base / "tema.js").read_text(encoding="utf-8"))
+        self.assertIn("attention: 'Revisión de correos: hay un análisis por revisar'", layout)
         self.assertIn('.bridge-chip[data-state="attention"]', (base / "style.css").read_text(encoding="utf-8"))
         with patch("anka.servicios.salud.bridge_state", return_value=("attention", "activo, con un borrador")):
             self.assertEqual(salud._puente_work("chatgpt_work")[0], salud.OK)

@@ -16,8 +16,23 @@ Una capa solo importa de las que tiene **debajo**. `cli` puede iniciar el servid
 | `dominio/` | Reglas del negocio y funciones puras: estados, tabla de actividades, recepción (qué falta y qué preguntar), contrato con Work, lectura de un mensaje de Gmail (`correo`), la decisión sobre un hilo (`decision`: qué hacer, sin ejecutarlo), los objetos del caso (`Caso`, `Evento`, `Cambio`, `Vinculo`: dataclasses inmutables que también se leen como mapa) y la forma del análisis y de `config.json` (`Analisis`, `Actividad`, `Configuracion`…: `TypedDict` que mypy verifica y que se guardan como JSON sin cambios), extracción de texto de adjuntos. | Hablar con Gmail, Drive, la base de datos ni el disco. |
 | `infra/` | Todo lo que toca el mundo exterior: configuración (`settings`), base SQLite (`store`), clientes de Google (`google_services`, `mail`), modelos de lenguaje (`llm`), registro (`logging_setup`), copias de seguridad, modo de operación. | Conocer casos de uso ni pantallas. |
 | `servicios/` | Los casos de uso: importar un borrador de Work (`work_import`), ver y decidir casos (`quotes`), editar la tabla (`ediciones`), enviar y borrar casos (`case_actions`), el ciclo de revisión (`pipeline`), control de cambios y código de la oferta, seguimiento de hilos y recordatorios, carpetas de Drive. | Conocer el servidor web ni los comandos. |
-| `web/` | El servidor HTTP local (`server`: valida y enruta), las acciones de los formularios (`acciones`), las páginas (`paginas`: resumen y listas; `pantalla_caso`: un caso y su acta), el token CSRF y la comprobación de Host/Origen (`seguridad`), los fragmentos (`views`), la documentación OpenAPI/Swagger y el JSON de lectura (`openapi`, `api`) y las plantillas. | Importar de `cli`. |
+| `web/` | El servidor HTTP local (`server`: valida y enruta), las acciones de los formularios (`acciones`), las páginas (`paginas`: resumen y listas; `pantalla_caso`: un caso y su acta), el token CSRF y la comprobación de Host/Origen (`seguridad`), los archivos fijos y la compresión (`estaticos`), el marcador compartido de los avisos (`marcador`), los fragmentos (`views`), la documentación OpenAPI/Swagger y el JSON de lectura (`openapi`, `api`) y las plantillas. | Importar de `cli`. |
 | `cli/` | Los puntos de entrada: comandos (`app`), lanzador (`supervisor`) y puente con Work (`work_sync`). | — |
+
+## Previsto (aún no implementado)
+
+Esta sección describe lo que la recepción determinista (U-66 a U-76, D-131 a D-143) añadiría; **nada de esto existe todavía**, por eso **no está en el «Mapa de módulos»** (que solo nombra módulos existentes y lo comprueba `tests/test_arquitectura.py`). Cuando un módulo exista, se mueve al mapa en el incremento que lo crea.
+
+| Módulo previsto | Capa | Para qué serviría | Incremento |
+|---|---|---|---|
+| `recepcion_minima` | `dominio/` | Funciones puras: clasificar un mensaje (entrante, ruido R1, propio, sin remitente), armar el expediente preliminar, `alerta(...)` (29:59 / 30:00 / 31:00) y la fecha de referencia del seguimiento. Sin I/O ni reloj propio | 2 |
+| `listar_mensajes` | `infra/mail.py` (función nueva en un módulo existente) | Listar ids de mensajes de Gmail con paginación acotada; `candidate_thread_ids` pasaría a usarla sin cambiar su comportamiento | 3 |
+| `recepcion` | `servicios/` | `sondear` (una pasada: guardas, cola, listado, clasificación, materialización) y `reconocer_analisis` (la cobertura por evidencia de U-70) | 3 y 4 |
+| (bloque en `main`) | `cli/work_sync.py` | Llamar a `sondear` después de importar borradores y antes del seguimiento, aislado en su propio `try/except` | 3 |
+
+**Datos previstos.** Tres tablas nuevas en una migración posterior a la 20, solo hacia adelante y con copia previa: `recepcion_control` (una fila por cuenta: cursor, cobertura, hueco, salud), `recepcion_mensajes` (una fila por `(thread_id, message_id)` con su fase, clase, motivo, intentos, fechas de recepción, cobertura y su origen) y `caso_identidad` (`case_uid`, `thread_id`, `reemplaza_uid`, `unido_en_uid`, `eliminado_at`; sin clave foránea a `quotes`). `recepcion_mensajes` y `caso_identidad` se clasifican en `TABLAS_QUE_SE_CONSERVAN` (U-63, T-42); `recepcion_control` no tiene `thread_id`. **No se crea la tabla de conversaciones** (D-136, DT-24).
+
+**Dependencias entre capas.** Se respetan las cinco capas: el dominio no importa Gmail ni SQLite; `servicios/recepcion` usa `infra/mail`, `infra/store` y el cliente de Gmail ya tipado; solo `infra/store.py` y el repositorio escriben en `quotes` (U-52); la recepción no es importada por `pipeline` ni por `estado_de_revision` (los modos `local` y `api` no la ejecutan). Sin dependencias externas nuevas.
 
 ## Mapa de módulos
 
@@ -29,9 +44,15 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `activities` | Edicion y exportacion de la tabla de actividades (sin acceso a Gmail ni Drive). |
+| `reloj` | El reloj de Anka: una sola hora «de ahora» con zona horaria y una forma de ordenar fechas por instante (U-62). |
+| `caso_minimo` | El caso mínimo para un borrador de Work sin análisis válido, con solo lo verificable en Gmail (T-36). |
+| `verificacion_de_evidencia` | Comprobación mecánica de que lo que Work puso en la tabla está en los textos del expediente (T-38). |
 | `analisis` | La forma del análisis de una solicitud: lo que el modelo (o Work) devuelve y el dashboard guarda como JSON. |
 | `attachments` | Límites y evidencia de adjuntos en memoria. |
 | `lectores_texto` | Lectura en memoria de texto, HTML y RTF. |
+| `xml_tolerante` | Lectura de XML de adjuntos que tolera prefijos sin declarar y rechaza entidades (U-55). |
+| `lectores_shapefile` | Shapefile y tabla dBase leídos con la biblioteca estándar, aunque falten sus archivos hermanos (U-55). |
+| `lectores_cad` | DXF en texto: versión, capas, conteo de entidades y textos de un plano CAD sin biblioteca externa (U-55). |
 | `tramos` | Dividir un texto largo sin perder nada y condensar los hallazgos de cada tramo (T-25). |
 | `preguntas` | Preguntas candidatas de un caso, decisión de una persona por pregunta y preguntas que lleva un correo (U-22). |
 | `novedades` | Qué novedades piden acción a una persona y por tanto cuentan en el contador (U-25). |
@@ -48,6 +69,7 @@ La descripción es la primera frase de su docstring.
 | `hoja` | El libro de cálculo de un caso (Excel / Google Sheets): la tabla vigente y, aparte, lo que no debe perderse. |
 | `registros` | Los hechos que se guardan de un caso, como objetos con campos nombrados: `Evento`, `Cambio` y `Vinculo`. |
 | `status` | Estados del ciclo de vida de una solicitud, definidos en un solo lugar. |
+| `tolerancia_work` | Tolerar y avisar: lo que Work escribe distinto de lo esperado se corrige solo, con aviso (T-28, D-106). |
 | `work_contract` | Contrato entre ChatGPT Work y el puente: valida el JSON del borrador contra `spec/contrato_work.schema.json`. |
 
 ### `anka/infra/`
@@ -60,17 +82,25 @@ La descripción es la primera frase de su docstring.
 | `lectores_pdf` | PDF: texto nativo y OCR por página. |
 | `cache_hallazgos` | Caché en disco, con tope, de los hallazgos extraídos por tramo. |
 | `lectores_imagen` | OCR y conversión externa de documentos antiguos. |
+| `presupuesto_ocr` | Presupuesto de segundos de OCR por archivo y por caso y política de no hacer OCR a lo escaneado (U-55). |
 
 | Módulo | Para qué sirve |
 |---|---|
-| `backup` | Copias de seguridad de la base del dashboard: local y en Drive (sin credenciales ni token). |
+| `backup` | Copias de seguridad de la base del dashboard: local y en Drive, sin credenciales, token ni secretos: la configuración viaja redactada como `config.redactado.json` (U-78). |
+| `acciones_en_curso` | Marcas de lo que el dashboard está haciendo, para que el lanzador no lo corte a la mitad al reiniciar (U-59). |
+| `archivos_privados` | Escritura completa y privada de archivos sensibles (token de Google, token CSRF): temporal + `os.replace` y permiso solo del usuario. |
+| `reinicio` | Reinicio de los datos locales para volver a probar desde cero: vista previa, copia de seguridad y vaciado. |
+| `clientes_google` | La forma mínima de los clientes de Gmail y de Drive que usa Anka (`Protocol`), para tiparlos sin `Any` (U-65). |
 | `google_services` | Cliente de Gmail y Drive: credenciales, servicios y carpetas. |
+| `drive_exchange` | Intercambio de archivos propios en Drive con claves estables, paginación y bloqueo local. |
 | `llm` | Análisis del correo con el motor elegido (Ollama u OpenAI). |
 | `logging_setup` | Registro de la aplicación: consola con todo el detalle, archivo sin datos de clientes. |
 | `mail` | Correo en Gmail: lo que habla con la API (descargar adjuntos, enviar, crear borradores, listar hilos). |
 | `modes` | Modo de operación (local, api, chatgpt_work) y su automatización asociada. |
 | `settings` | Ajustes y carpeta de datos local (fuera del repositorio). |
 | `store` | Persistencia SQLite del estado de solicitudes y novedades del dashboard. |
+| `instantaneas_de_manifiesto` | Copia local mínima del manifiesto que publica el preparador, para verificar la lectura que declara Work (T-37). |
+| `rechazos_de_work` | Cuenta por día los análisis de Work que no se pudieron leer y recuerda cuáles se dejaron para después (U-41). |
 | `work_heartbeat` | Latido del puente Gmail → dashboard (modo chatgpt_work): permite saber si está vivo. |
 
 ### `anka/servicios/`
@@ -79,6 +109,7 @@ La descripción es la primera frase de su docstring.
 |---|---|
 | `envios` | Reserva persistente y reconciliación de envíos del dashboard. |
 | `lectura_por_tramos` | Análisis de un hilo con lectura completa aunque no quepa en el modelo (T-25). |
+| `lectura_de_adjuntos` | Verifica la lectura de Work contra los adjuntos que Gmail tiene en el hilo y deja su texto local para T-38 (T-41). |
 | `reintentos` | Registro de los hilos que fallaron y de cuándo reintentarlos (T-26). |
 
 | Módulo | Para qué sirve |
@@ -99,20 +130,32 @@ La descripción es la primera frase de su docstring.
 | `internal_context` | Contexto comercial interno: solo lectura, nunca sale en correos. |
 | `pipeline` | Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica. |
 | `proyectos_repetidos` | Agrupar las solicitudes que parecen el mismo proyecto, solo para mostrarlas juntas (U-19). |
-| `quotes` | Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard. |
+| `quotes` | Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard: la fachada de los servicios. |
+| `vinculos` | Vínculos entre conversaciones: correos que parecen de otro caso y proyectos repetidos que se unen o se separan. |
+| `revision_tecnica` | Las decisiones de una persona sobre la revisión técnica de un caso y sobre lo que propone el modelo. |
+| `cola_del_piloto` | La cola de revisión del piloto local: el paquete de texto de cada caso y los casos que esperan a una persona. |
+| `estados` | Cambios de estado de un caso comprobados contra `spec/transiciones.json`: una no prevista se permite y se registra (U-46). |
 | `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
 | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
 | `work_import` | Importación del borrador de ChatGPT Work al dashboard (`dashboard_upsert`). |
 | `work_attachment_packet` | Prepara localmente manifiesto de evidencia y textos de adjuntos segmentados para que una persona los aporte a la tarea de Work. |
+| `work_drive` | Expedientes de recepción versionados de Gmail a Drive, con originales y extracción para Work. |
 
 ### `anka/web/`
+
+Los archivos fijos del diseño (fuente Inter y logo) viven en `anka/web/static/` y se sirven por `GET /static/{archivo}` (U-36, D-101).
+El JavaScript de las páginas vive en `templates/app.js` (el de cada página, con el fondo animado de nodos de U-38/D-103) y `templates/tema.js` (el primer pintado del tema), servidos con huella en `/static` (U-49, D-114); `layout.html` solo los enlaza.
 
 | Módulo | Para qué sirve |
 |---|---|
 | `acciones` | Las acciones de los formularios del dashboard (POST): una función por ruta. |
 | `api` | Representación JSON de los casos para las rutas de lectura `/api/...` (ver spec/07-api.md). |
+| `estaticos` | Archivos fijos de `/static` (fuente, logo, el CSS compartido y los dos guiones con huella), `ETag` y compresión gzip de las respuestas (U-48, U-49). |
+| `formularios_pendientes` | Lo que la persona escribió en un formulario que no se pudo procesar, para devolvérselo y que no lo pierda (U-31). |
+| `marcador` | El marcador de cambios que comparten todas las pestañas con avisos en vivo: una consulta por segundo (U-48). |
 | `openapi` | La documentación OpenAPI 3 del dashboard y la página de Swagger UI (spec/07-api.md, requisito T-13). |
 | `paginas` | Las páginas comunes del dashboard: la página completa, el resumen, las solicitudes y las descartadas. |
+| `deshacer` | El panel «Decisiones que puedes deshacer» del historial del caso: reabrir «No es un cambio» y recuperar la propuesta de Work que se dejó de lado (U-57). |
 | `pantalla_caso` | La pantalla de un caso y su acta: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento. |
 | `seguridad` | Seguridad del dashboard local: token CSRF persistente y comprobación de Host y Origen. |
 | `server` | Servidor HTTP local del dashboard: enruta las páginas (GET) y las acciones de los formularios (POST). |
@@ -126,7 +169,32 @@ La descripción es la primera frase de su docstring.
 | `app` | Línea de comandos de Anka: `python app.py <comando>`. |
 | `supervisor` | Lanzador único: arranca dashboard y puente, los reinicia si se caen o si cambia el código (y se reinicia a sí mismo), y hace la copia de seguridad diaria. |
 | `work_sync` | Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. |
+| `work_drive` | Proceso de preparación de expedientes, separado del puente de borradores. |
 | `evaluacion` | Evaluación del análisis con solicitudes reales del histórico: `python -m anka.cli.evaluacion <comando>`. |
+
+## Glosario
+
+El código mezcla inglés y español por su historia; no se renombra (cientos de cambios sin valor para quien usa el programa). Este es el vocabulario: dónde veas uno de los de la izquierda, es lo de la derecha. Lo nuevo se escribe en español y se migra al tocar un módulo.
+
+| En el código | En la pantalla y la especificación | Qué es |
+|---|---|---|
+| `quote`, `quotes` (tabla), `Caso` | **caso** / solicitud | Una solicitud de cotización de un cliente y todo lo que cuelga de ella. La tabla se llama `quotes` por su origen; el objeto de dominio, `Caso`. |
+| `thread_id` | **hilo** | La conversación de Gmail; es la clave de un caso. |
+| `review`, `REVIEW` | **revisión técnica** | Que una persona de Anka decida qué falta antes de pedirlo al cliente (el estado `review`); no confundir con «revisar el correo» antes de enviarlo (R8). |
+| `draft`, `work_reply` | **borrador** | El texto del correo al cliente, antes de enviarse; puede estar en Gmail (borrador) o solo en el dashboard. |
+| `T`, `quote_code`, `TE` | **código T** / **T&E** | El código de la solicitud aceptada y el de la oferta aprobada (T-xx). |
+| `bridge`, `work_sync` | **puente** | El proceso que lee los borradores de Work en Gmail y los importa al dashboard. |
+| `supervisor` | **lanzador** | `Iniciar Anka.bat`: arranca dashboard y puente, los reinicia y hace las copias. |
+| `mode`, `active_mode` | **modo** | `local` (Ollama), `api` o `chatgpt_work`. |
+| `status`, `QuoteStatus`, `ESTADOS` | **estado** | Dónde está el caso en su flujo (`spec/transiciones.json`); la **etapa** es lo que se ve en la lista. |
+| `event`, `case_events`, `hash` | **historial** y **huella** | Lo que pasó en el caso, encadenado con huellas; el **ancla** es la última huella guardada aparte (U-60). |
+| `mail_operations`, `reservar` | **reserva de envío** | El registro durable de «voy a enviar esto» antes de hablar con Gmail (U-59). |
+| `notification` | **novedad** | Un aviso del dashboard sobre un caso. |
+| `link`, `case_links` | **vínculo** | Un correo de otro hilo que parece del mismo proyecto. |
+| `change`, `case_changes` | **cambio** | Un mensaje posterior a la T que pide algo distinto al alcance. |
+| `marker`, `change_marker` | **marcador de cambios** | Un texto barato que cambia cuando algo cambia, para refrescar pantallas. |
+| `recepcion_*` *(previsto, U-66)* | **recepción** / **expediente preliminar** | Registrar cada correo entrante en modo Work aunque Work no lo haya analizado, y el caso mínimo que eso crea. |
+| `case_uid` *(previsto, U-74)* | **identificador del expediente** | Identidad estable de un caso, distinta de `thread_id`: no se reutiliza si el caso se elimina y se recrea. |
 
 ## Clases y funciones: cuándo cada una
 Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funciones donde no:
@@ -155,6 +223,10 @@ Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funcion
 - **Un `except Exception` nunca calla**: solo se usa en un límite (un bucle, una petición, una tarea opcional) y
   siempre registra el error, lo relanza o lo usa para explicarlo; una prueba lo comprueba. El puente de Work, que
   corre sin consola, registra sus fallos en el archivo de registro además de imprimirlos.
+- **Presupuestos de tamaño (U-52)**: ningún módulo de `anka/` pasa de 800 líneas; el que ya pasaba (`web/pantalla_caso.py`) tiene un tope congelado
+  que solo puede bajar. Solo `servicios/repositorio.py` y `infra/store.py` escriben en la tabla `quotes`, y solo el repositorio escribe
+  un estado en una consulta (`hilos_en_estado`…); los estados salen de la tabla única `ESTADOS` de `dominio/status.py`.
+- **Un error para la persona es `ErrorDeValidacion`** (U-53): un `ErrorDeAnka` que también es `ValueError`; un `ValueError` suelto es de Python.
 - **Lo privado no se importa**: un nombre con `_` es de su módulo; si otro lo necesita, se hace público o se mueve.
 - **Cada módulo empieza con un docstring** que dice para qué sirve; cada capa lo tiene en su `__init__.py`.
 - **Toda función, clase y método público del paquete tiene docstring** (una frase que dice qué hace, no cómo) y

@@ -1,5 +1,5 @@
 <section class="section conversation">
-  <div class="section-head"><h2>Conversación con el cliente</h2><span class="badge info">Lo que se han escrito</span></div>
+  <div class="section-head"><h2>Conversación con el cliente</h2><span class="badge info">Lo que se escribieron</span></div>
   {% if messages %}
   {% for m in messages %}
   <details class="msg {{ m.direction }}"{% if loop.index <= 2 %} open{% endif %}>
@@ -9,5 +9,5 @@
     {% if m.quoted %}<details class="quoted"><summary class="meta">Mostrar el mensaje citado</summary><pre>{{ m.quoted }}</pre></details>{% endif %}
   </details>
   {% endfor %}
-  {% else %}<p class="meta">Todavía no hay correos leídos de este hilo; aparecen en un par de minutos.</p>{% endif %}
+  {% else %}<p class="meta">Todavía no leemos los correos de esta conversación. Aparecen en unos minutos.</p>{% endif %}
 </section>

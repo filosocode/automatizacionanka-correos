@@ -18,7 +18,7 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra.google_services import credentials, services
 from anka.infra.llm import check_ollama
-from anka.infra.store import SCHEMA_VERSION, connect
+from anka.infra.store import SCHEMA_VERSION, lectura
 from anka.infra.work_heartbeat import bridge_state
 
 OK, ERROR, NO_APLICA = "ok", "error", "no_aplica"
@@ -64,12 +64,9 @@ def _medir(componente: str, mirar: Callable[[], tuple[str, str]]) -> Comprobacio
 
 
 def _base_de_datos() -> tuple[str, str]:
-    db = connect()
-    try:
+    with lectura() as db:
         version = db.execute("PRAGMA user_version").fetchone()[0]
         db.execute("SELECT 1 FROM quotes LIMIT 1").fetchall()
-    finally:
-        db.close()
     if version != SCHEMA_VERSION:
         return ERROR, f"Esquema {version}, se esperaba {SCHEMA_VERSION}."
     return OK, f"Base local lista (esquema {version})."

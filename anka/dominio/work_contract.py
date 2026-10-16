@@ -1,8 +1,10 @@
 """Contrato entre ChatGPT Work y el puente: valida el JSON del borrador contra `spec/contrato_work.schema.json`.
 
 El esquema es la fuente de verdad (campos, tipos y estados permitidos). Se valida un subconjunto de
-JSON Schema —type, required, enum, properties, items, minLength— sin dependencias externas. Un valor
+JSON Schema —type, required, enum, properties, items, minLength, pattern— sin dependencias externas. Un valor
 `null` en un campo opcional se trata como ausente: Work a veces lo escribe así y no debe rechazar el caso.
+Una palabra clave del esquema que el validador no sabe comprobar (`oneOf`, `additionalProperties`, `minItems`…) o
+un `type` desconocido no se ignora en silencio: `validate` lo devuelve como error (U-51).
 """
 
 from __future__ import annotations
@@ -14,6 +16,8 @@ from typing import Any
 import re
 import unicodedata
 
+from anka.dominio.analisis import Analisis
+
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "spec" / "contrato_work.schema.json"
 
 _TYPES: dict[str, type | tuple[type, ...]] = {
@@ -22,16 +26,47 @@ _TYPES: dict[str, type | tuple[type, ...]] = {
 }
 
 
+# Lo que el validador comprueba, y las anotaciones que no comprueban nada (comentarios, descripciones, versión).
+PALABRAS_COMPROBADAS = frozenset({"type", "required", "enum", "properties", "items", "minLength", "pattern"})
+PALABRAS_DE_ANOTACION = frozenset({"$comment", "$schema", "$id", "title", "description", "version", "default",
+                                   "examples"})
+
+
 @lru_cache(maxsize=1)
 def load_schema() -> dict:
     """Carga el esquema JSON del contrato con Work (`spec/contrato_work.schema.json`)."""
     return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
+def version_del_contrato(schema: dict | None = None) -> int:
+    """La versión del contrato que declara el esquema (1 si no dice)."""
+    declarada = (schema if schema is not None else load_schema()).get("version", 1)
+    return declarada if isinstance(declarada, int) and not isinstance(declarada, bool) else 1
+
+
+def palabras_no_soportadas(schema: Any, ruta: str = "") -> list[str]:
+    """Las palabras clave del esquema que `validate` no comprueba (ni son anotaciones) y los `type` desconocidos."""
+    if not isinstance(schema, dict):
+        return []
+    donde = ruta or "el esquema"
+    problemas = [f"{donde} usa «{clave}», que el validador del contrato no sabe comprobar."
+                 for clave in schema if clave not in PALABRAS_COMPROBADAS | PALABRAS_DE_ANOTACION]
+    tipos = schema.get("type", [])
+    for nombre in [tipos] if isinstance(tipos, str) else tipos if isinstance(tipos, list) else []:
+        if nombre not in _TYPES:
+            problemas.append(f"{donde} declara el tipo «{nombre}», que el validador del contrato no conoce.")
+    for clave, sub in schema.get("properties", {}).items():
+        problemas += palabras_no_soportadas(sub, f"{ruta + '.' if ruta else ''}{clave}")
+    problemas += palabras_no_soportadas(schema.get("items"), f"{donde}[]")
+    return problemas
+
+
 def _type_ok(value: Any, expected: str | list) -> bool:
     names = expected if isinstance(expected, list) else [expected]
     for name in names:
-        python_type = _TYPES[name]
+        python_type = _TYPES.get(name)
+        if python_type is None:
+            continue                      # tipo desconocido: no se cumple (y `validate` lo dice con su nombre)
         if isinstance(value, bool) and name in ("number", "integer"):
             continue
         if isinstance(value, python_type):
@@ -39,11 +74,18 @@ def _type_ok(value: Any, expected: str | list) -> bool:
     return False
 
 
+def tipo_cumple(valor: Any, esperado: str | list) -> bool:
+    """¿El valor es de alguno de los tipos del esquema? (el recorrido que repara el análisis usa la misma regla)."""
+    return _type_ok(valor, esperado)
+
+
 def validate(instance: Any, schema: dict | None = None, path: str = "") -> list[str]:
     """Lista de errores (vacía si el valor cumple el esquema). No lanza."""
     schema = schema if schema is not None else load_schema()
     where = path or "el JSON"
     errors: list[str] = []
+    if not path:      # una sola vez, desde la raíz: el esquema entero se revisa antes de usarlo
+        errors.extend(palabras_no_soportadas(schema))
     if "type" in schema and not _type_ok(instance, schema["type"]):
         expected = schema["type"] if isinstance(schema["type"], str) else " o ".join(schema["type"])
         return [f"{where} debe ser de tipo {expected}."]
@@ -51,6 +93,8 @@ def validate(instance: Any, schema: dict | None = None, path: str = "") -> list[
         errors.append(f"{where} tiene un valor no permitido: {instance!r}.")
     if isinstance(instance, str) and "minLength" in schema and len(instance.strip()) < schema["minLength"]:
         errors.append(f"{where} no puede estar vacío.")
+    if isinstance(instance, str) and "pattern" in schema and not re.search(schema["pattern"], instance):
+        errors.append(f"{where} no tiene el formato esperado.")
     if isinstance(instance, dict):
         for key in schema.get("required", []):
             if instance.get(key) is None:
@@ -205,6 +249,7 @@ def _plain(value: object) -> str:
 
 _COMPLETE = {"completa", "completo", "complete", "extraido"}
 _INCOMPLETE = {"parcial", "partial", "lectura_parcial", "no_legible", "ilegible", "unreadable", "bloqueado"}
+_VISUAL_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp", "dwg", "dxf", "doc", "docx", "ppt", "pptx"}
 
 
 def attachment_coverage_warnings(payload: dict) -> list[str]:
@@ -219,6 +264,17 @@ def attachment_coverage_warnings(payload: dict) -> list[str]:
             continue
         name = item.get("filename") or f"adjunto {index + 1}"
         declared = {_plain(item.get("coverage")), _plain(item.get("status"))}
+        extension = str(name).rsplit(".", 1)[-1].casefold() if "." in str(name) else ""
+        visual_state = _plain(item.get("visual_interpretation"))
+        visual_reason = _plain(item.get("reason"))
+        visual_relevant = extension in _VISUAL_EXTENSIONS or any(
+            word in visual_reason for word in ("visual", "imagen", "grafico", "plano", "lamina", "pagina escaneada")
+        )
+        if visual_state in {"no_certificada", "uncertified", "no_validada", "sin_validar"} and visual_relevant:
+            warnings.append(
+                f"attachments[{index}] ({name}) tiene lectura visual no certificada; requiere revisión humana "
+                "de páginas, imágenes o planos antes de considerar completo su alcance."
+            )
         if declared & _INCOMPLETE:
             if not str(item.get("reason") or "").strip():
                 warnings.append(
@@ -246,3 +302,320 @@ def corregir_descuidos_de_tipo(payload: dict) -> list[str]:
             )
             item["unresolved"] = ""
     return avisos
+
+
+def _avisos_de_segmentos(payload: dict, preflight: dict, audit: dict) -> list[str]:
+    """Los avisos de la lectura declarada con el expediente en Drive (V5 y anteriores; T-46)."""
+    warnings = []
+    if preflight.get("thread_id") != payload.get("thread_id"):
+        warnings.append("El preflight no corresponde al hilo analizado.")
+    if payload.get("message_id") not in (preflight.get("message_ids") or []):
+        warnings.append("El preflight no incluye el mensaje analizado.")
+    if not preflight.get("manifest_revision"):
+        warnings.append("No se verificó la revisión del manifiesto.")
+    for kind in ("email", "attachment"):
+        read = preflight.get(kind + "_segments_read")
+        available = preflight.get(kind + "_segments_available")
+        if type(read) is not int or type(available) is not int or read < 0 or read != available:
+            warnings.append(f"Segmentos {kind}: lectura pendiente o conteos no verificables.")
+    for kind in ("email", "attachment"):
+        expected = audit.get(kind + "_segment_ids_expected")
+        read_ids = audit.get(kind + "_segment_ids_read")
+        if expected is None and read_ids is None and preflight.get(kind + "_segments_available"):
+            warnings.append(f"Segmentos {kind}: faltan IDs para verificar la lectura declarada.")
+        if expected is not None or read_ids is not None:
+            if not _same_unique_ids(expected, read_ids):
+                warnings.append(f"Segmentos {kind}: IDs omitidos, repetidos o no verificables.")
+            elif isinstance(read_ids, list) and len(read_ids) != preflight.get(kind + "_segments_read"):
+                warnings.append(f"Segmentos {kind}: los IDs no coinciden con el conteo.")
+    return warnings
+
+
+def usa_verificacion_por_adjuntos(payload: dict) -> bool:
+    """¿El borrador es de un prompt que lee desde Gmail (V6 en adelante) y se verifica por nombre y tamaño (T-41)?
+
+    Manda la versión que declara (`PRECISO_V6…` en adelante). Sin versión declarada decide la huella de V6: adjuntos que
+    traen todos su tamaño exacto en bytes (T-44). Los borradores anteriores (V5 y antes, con expediente en Drive) siguen
+    su camino de siempre hasta que se retire.
+    """
+    if not isinstance(payload, dict):
+        return False
+    # hasta tres cifras: una versión absurda («PRECISO_V999…9») no debe romper la conversión a entero
+    version = re.match(r"PRECISO_V(\d{1,3})(?!\d)", str(payload.get("skill_version") or ""), re.ASCII)
+    if version is not None:
+        return int(version.group(1)) >= 6
+    adjuntos = payload.get("attachments")
+    return isinstance(adjuntos, list) and bool(adjuntos) and all(
+        isinstance(a, dict) and isinstance(a.get("size_bytes"), int) and not isinstance(a.get("size_bytes"), bool)
+        for a in adjuntos)
+
+
+SIN_NOMBRE = "(adjunto sin nombre)"
+
+
+def _nombre_visible(nombre: object) -> str:
+    """El nombre de un adjunto tal como se muestra en un aviso: un texto en una línea, nunca la forma de una lista."""
+    texto = " ".join(nombre.split()) if isinstance(nombre, str) else ""
+    return texto or SIN_NOMBRE
+
+
+def _nombre_de_adjunto(nombre: object) -> str:
+    """El nombre de un adjunto para compararlo: en forma Unicode NFC, sin mayúsculas ni espacios de más.
+
+    Gmail y Work pueden escribir la misma tilde compuesta («á») o descompuesta («a» + acento): es el mismo archivo.
+    """
+    if not isinstance(nombre, str):
+        return ""
+    return " ".join(unicodedata.normalize("NFC", nombre).casefold().split())
+
+
+def _tamano_en_bytes(tamano: object) -> int | None:
+    """El tamaño de un adjunto como entero: acepta `10`, `10.0` o `"10"`; `None` si no es un entero no negativo."""
+    if isinstance(tamano, bool):
+        return None
+    if isinstance(tamano, float):
+        return int(tamano) if tamano.is_integer() and tamano >= 0 else None
+    if isinstance(tamano, str) and re.fullmatch(r"\s*\d{1,15}\s*", tamano, re.ASCII):
+        return int(tamano)
+    if isinstance(tamano, int) and tamano >= 0:
+        return tamano
+    return None
+
+
+def _clave_de_adjunto(nombre: object, tamano: object) -> tuple[str, int | None]:
+    """Cómo se reconoce un adjunto: su nombre normalizado y su tamaño en bytes (`None` si no es un entero)."""
+    return _nombre_de_adjunto(nombre), _tamano_en_bytes(tamano)
+
+
+def verificar_adjuntos(payload: dict, adjuntos_gmail: list[dict] | None,
+                       incrustadas: list[dict] | None = None) -> list[str]:
+    """Comprueba que Work reportó cada adjunto que Gmail tiene en el hilo, por nombre y tamaño (T-41).
+
+    `adjuntos_gmail` son los adjuntos reales del hilo (`filename`, `size`); `None` si no se pudo consultar Gmail.
+    `incrustadas` son las imágenes del cuerpo (`imagenes_incrustadas`): no se exigen, pero tampoco son desconocidas.
+    Deja el resultado en `reading_audit` (`verification`: verificada / incompleta / sin_verificar, y los archivos que
+    faltan o que Gmail no tiene) y, si la lectura no está verificada, `analysis_complete` en falso. Devuelve un
+    aviso por diferencia.
+    """
+    audit = _diccionario(payload.get("reading_audit"))
+    avisos: list[str] = []
+    pendientes: list[str] = []
+    desconocidos: list[str] = []
+    if adjuntos_gmail is None:
+        verificacion = "sin_verificar"
+        avisos.append("Lectura sin verificar: no se pudo consultar Gmail; se reintentará en la siguiente revisión.")
+    else:
+        # dos adjuntos con el mismo nombre y tamaño son el mismo archivo reenviado: cuentan como uno
+        esperados = {_clave_de_adjunto(a.get("filename"), a.get("size")): a
+                     for a in adjuntos_gmail if isinstance(a, dict)}
+        atendidos = payload.get("attachments")
+        reportados = [item for item in (atendidos if isinstance(atendidos, list) else [])
+                      if isinstance(item, dict) and item.get("status") != "ignorado"]
+        # sin un tamaño entero el archivo no se puede verificar (T-41, punto 2), aunque Gmail tampoco lo diera
+        leidos = {clave for clave in (_clave_de_adjunto(item.get("filename"), item.get("size_bytes"))
+                                      for item in reportados if item.get("coverage")) if clave[1] is not None}
+        pendientes = [_nombre_visible(a.get("filename")) for clave, a in esperados.items() if clave not in leidos]
+        # una imagen incrustada (logo, foto pegada en el cuerpo) existe en Gmail aunque no sea un adjunto por leer
+        nombres = {clave[0] for clave in esperados} | {_nombre_de_adjunto(i.get("filename"))
+                                                      for i in incrustadas or [] if isinstance(i, dict)}
+        desconocidos = [_nombre_visible(item.get("filename")) for item in reportados
+                        if _nombre_de_adjunto(item.get("filename")) not in nombres]
+        audit["attachments_expected"] = [{"filename": _nombre_visible(a.get("filename")),
+                                          "size_bytes": _tamano_en_bytes(a.get("size"))}
+                                         for a in esperados.values()]
+        verificacion = "incompleta" if pendientes or desconocidos else "verificada"
+        if pendientes:
+            avisos.append(f"{len(pendientes)} de {len(esperados)} adjuntos sin lectura verificada: "
+                          f"{', '.join(pendientes)}.")
+        if desconocidos:
+            avisos.append(f"Work reportó {len(desconocidos)} adjunto(s) que no están en Gmail: "
+                          f"{', '.join(desconocidos)}.")
+    audit.update({"verification": verificacion, "attachment_files_pending": pendientes,
+                  "attachment_files_unknown": desconocidos})
+    payload["reading_audit"] = audit
+    if verificacion != "verificada" and payload.get("analysis_complete") is not False:
+        payload["analysis_complete"] = False
+        avisos.append("El análisis no se da por completo: la lectura de los adjuntos no está verificada contra Gmail.")
+    return avisos
+
+
+def _diccionario(valor: object) -> dict:
+    """Copia de un objeto del borrador; `{}` si Work escribió otra cosa (un texto, una lista)."""
+    return dict(valor) if isinstance(valor, dict) else {}
+
+
+def _avisos_de_verificacion(audit: dict) -> list[str]:
+    """Los avisos de la lectura verificada contra Gmail por nombre y tamaño (T-41)."""
+    avisos = []
+    if audit.get("verification") == "sin_verificar":
+        avisos.append("Lectura sin verificar: Gmail no respondió; se reintentará.")
+    if audit.get("attachment_files_pending"):
+        faltan = ", ".join(map(str, audit["attachment_files_pending"]))
+        avisos.append(f"Adjuntos sin lectura verificada: {faltan}.")
+    if audit.get("attachment_files_unknown"):
+        avisos.append("Adjuntos que Work reportó y Gmail no tiene: "
+                      + ", ".join(map(str, audit["attachment_files_unknown"])) + ".")
+    return avisos
+
+
+def reading_summary(payload: dict) -> dict[str, Any]:
+    """Resume lectura declarada y coherencia del preflight sin certificar comprensión visual (T-46)."""
+    audit = _diccionario(payload.get("reading_audit"))
+    preflight = _diccionario(payload.get("DRIVE_PREFLIGHT"))
+    if audit.get("verification"):
+        warnings = _avisos_de_verificacion(audit)
+    elif not preflight:
+        return {"status": "no indicado", "warnings": [], "visual": "no indicado"}
+    else:
+        warnings = _avisos_de_segmentos(payload, preflight, audit)
+    declarados = payload.get("attachments")
+    attachments = [item for item in (declarados if isinstance(declarados, list) else []) if isinstance(item, dict)]
+    visual_pending = any(item.get("visual_interpretation") == "no_certificada" for item in attachments)
+    if visual_pending:
+        warnings.append("Interpretación visual pendiente; la extracción no la certifica.")
+    if any(item.get("coverage") != "completa" for item in attachments):
+        warnings.append("Hay adjuntos con cobertura pendiente o parcial.")
+    warnings.extend(attachment_coverage_warnings(payload))
+    return {"status": "pendiente" if warnings else "completa declarada",
+            "warnings": list(dict.fromkeys(warnings)),
+            "visual": "pendiente" if visual_pending else "consultar revisión por archivo"}
+
+
+def _same_unique_ids(expected: object, read: object) -> bool:
+    """Compara IDs sin aceptar duplicados, conteos equivalentes ni datos que no sean listas de texto."""
+    if not isinstance(expected, list) or not isinstance(read, list):
+        return False
+    if any(not isinstance(value, str) or not value for value in [*expected, *read]):
+        return False
+    return len(set(expected)) == len(expected) and len(set(read)) == len(read) and set(expected) == set(read)
+
+
+def _normalizar_ids(declarados: object, segmentos: list[dict]) -> tuple[list[str], list[str]]:
+    """(identificadores del manifiesto que Work dice haber leído, citas que no corresponden a ningún segmento).
+
+    Acepta el identificador o el nombre del segmento y lo normaliza al identificador, sin repetidos y en el orden del
+    manifiesto.
+    """
+    alias = {valor: segmento["id"] for segmento in segmentos for valor in (segmento["id"], segmento.get("name"))
+             if valor}
+    declarados = declarados if isinstance(declarados, list) else []
+    citados = [valor for valor in declarados if isinstance(valor, str) and valor]
+    leidos = {alias[valor] for valor in citados if valor in alias}
+    return ([segmento["id"] for segmento in segmentos if segmento["id"] in leidos],
+            [valor for valor in citados if valor not in alias])
+
+
+def reconciliar_lectura(payload: dict, instantanea: dict | None) -> list[str]:
+    """Reemplaza lo comprobable de la auditoría de lectura por lo que dice el manifiesto del preparador (T-37).
+
+    Revisión, mensajes, conteos y listas de IDs esperados y pendientes salen del manifiesto; de Work solo se toma qué
+    segmentos dice haber leído, reducidos a los que existen. Devuelve un aviso por cada diferencia y, si la lectura no
+    está verificada, deja `analysis_complete` en falso. Sin instantánea del mismo hilo no toca nada.
+    """
+    if (not isinstance(payload, dict) or not isinstance(instantanea, dict) or not instantanea.get("thread_id")
+            or instantanea.get("thread_id") != payload.get("thread_id")):
+        return []
+    avisos: list[str] = []
+    preflight = _diccionario(payload.get("DRIVE_PREFLIGHT"))
+    audit = _diccionario(payload.get("reading_audit"))
+    revision = instantanea.get("revision")
+    declarada = preflight.get("manifest_revision")
+    mensajes = list(instantanea.get("message_ids") or [])
+    incompleta = False
+    if declarada and declarada != revision:
+        avisos.append("Work leyó una revisión del manifiesto que no es la vigente; la lectura puede estar "
+                      "desactualizada.")
+        incompleta = True
+    if payload.get("message_id") not in mensajes:
+        avisos.append("El manifiesto vigente no incluye el mensaje analizado.")
+        incompleta = True
+    for tipo, clave in (("email", "email_segments"), ("attachment", "attachment_segments")):
+        segmentos = [s for s in instantanea.get(clave) or [] if isinstance(s, dict) and s.get("id")]
+        esperados = [segmento["id"] for segmento in segmentos]
+        leidos, desconocidos = _normalizar_ids(audit.get(tipo + "_segment_ids_read"), segmentos)
+        pendientes = [valor for valor in esperados if valor not in leidos]
+        etiqueta = "del correo" if tipo == "email" else "de adjuntos"
+        if isinstance(preflight.get(tipo + "_segments_available"), int) and \
+                preflight[tipo + "_segments_available"] != len(esperados):
+            avisos.append(f"Work declaró {preflight[tipo + '_segments_available']} segmentos {etiqueta}; "
+                          f"el manifiesto tiene {len(esperados)}.")
+        if desconocidos:
+            avisos.append(f"Work citó {len(desconocidos)} segmento(s) {etiqueta} que no existen en el manifiesto.")
+        archivos = list(dict.fromkeys(s["archivo"] for s in segmentos
+                                      if s["id"] in pendientes and s.get("archivo")))
+        if pendientes:
+            nombres = f": {', '.join(archivos)}" if archivos else ""
+            avisos.append(
+                f"{len(pendientes)} de {len(esperados)} segmentos {etiqueta} sin lectura verificada{nombres}.")
+            incompleta = True
+        audit.update({tipo + "_segment_ids_expected": esperados, tipo + "_segment_ids_read": leidos,
+                      tipo + "_segment_ids_pending": pendientes})
+        if tipo == "attachment":
+            audit["attachment_files_pending"] = archivos
+        preflight.update({tipo + "_segments_available": len(esperados), tipo + "_segments_read": len(leidos)})
+    preflight.update({"thread_id": instantanea["thread_id"], "manifest_revision": revision, "message_ids": mensajes})
+    payload["DRIVE_PREFLIGHT"], payload["reading_audit"] = preflight, audit
+    if incompleta and payload.get("analysis_complete") is not False:
+        payload["analysis_complete"] = False
+        avisos.append("El análisis no se da por completo: la lectura no está verificada contra el manifiesto.")
+    return avisos
+
+
+def lectura_sin_verificar(analysis: Analisis) -> bool:
+    """¿La lectura que Work declaró no se pudo verificar? (T-41; en V5 y antes, el preflight del expediente en Drive).
+
+    Con la verificación contra Gmail es `incompleta`; un borrador del expediente en Drive se da por sin verificar si
+    falla su preflight o la auditoría de segmentos. Sin ninguna de las dos no hay nada que verificar. No mira si una
+    persona ya la revisó (U-29): eso lo decide quien muestra la pantalla.
+    """
+    if analysis.get("engine") != "chatgpt_work":
+        return False
+    audit = analysis.get("reading_audit") or {}
+    if audit.get("verification"):
+        return bool(audit["verification"] == "incompleta")
+    preflight = analysis.get("DRIVE_PREFLIGHT") or {}
+    if not preflight:
+        return False
+    if not preflight.get("manifest_revision"):
+        return True
+    message_id = analysis.get("work_message_id")
+    if message_id and message_id not in (preflight.get("message_ids") or []):
+        return True
+    for kind in ("email", "attachment"):
+        available = preflight.get(kind + "_segments_available")
+        read_count = preflight.get(kind + "_segments_read")
+        expected = audit.get(kind + "_segment_ids_expected")
+        read_ids = audit.get(kind + "_segment_ids_read")
+        if not isinstance(available, int) or not isinstance(read_count, int) or read_count != available:
+            return True
+        if not isinstance(expected, list) or not isinstance(read_ids, list):
+            return available > 0
+        if len(set(expected)) != len(expected) or len(set(read_ids)) != len(read_ids):
+            return True
+        if set(expected) != set(read_ids) or len(read_ids) != read_count:
+            return True
+    return False
+
+
+def archivos_sin_verificar(analysis: Analisis) -> list[str]:
+    """Los archivos que quedaron sin leer o que Work nombró y Gmail no tiene (vacío si no se sabe cuáles)."""
+    audit = analysis.get("reading_audit") or {}
+    archivos = audit.get("attachment_files_pending") or audit.get("attachment_files_unknown") or []
+    return [str(a) for a in archivos] if isinstance(archivos, list) else []
+
+
+ENCABEZADO_INTERNO = "[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]"
+
+
+def _forma_simple(texto: str) -> str:
+    """El texto sin tildes ni caracteres de formato, con espacios colapsados, guiones como «-» y en minúsculas."""
+    plano = unicodedata.normalize("NFKD", texto)
+    plano = "".join(c for c in plano if not unicodedata.combining(c) and unicodedata.category(c) != "Cf")
+    plano = re.sub(r"[‐-―−]", "-", plano)
+    return re.sub(r"\s+", " ", plano).strip().casefold()
+
+
+def empieza_con_el_encabezado_interno(texto: str) -> bool:
+    """¿El borrador empieza con la línea fija de la sección interna (T-43)? Tolera tildes, mayúsculas y espacios."""
+    primera_linea = texto.lstrip().split("\n", 1)[0]
+    return _forma_simple(primera_linea).startswith(_forma_simple(ENCABEZADO_INTERNO))

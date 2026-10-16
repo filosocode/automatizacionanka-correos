@@ -6,6 +6,7 @@ from collections.abc import Iterable
 import html
 import csv
 import json
+import logging
 import math
 import re
 import zipfile
@@ -18,6 +19,15 @@ from anka.dominio.attachments import (
     KML_GEOMETRIES,
 )
 from anka.dominio.lectores_texto import Unreadable
+from anka.dominio.xml_tolerante import parsear_xml
+
+log = logging.getLogger(__name__)
+
+
+def _descartado(motivo: str, cuantos: int = 1) -> None:
+    """Deja constancia (nivel depuración) de lo que el lector tuvo que ignorar sin avisar al texto (U-63, B1-08)."""
+    if cuantos:
+        log.debug("Lector geográfico: %d elemento(s) descartado(s): %s", cuantos, motivo)
 
 
 def local_name(tag: str) -> str:
@@ -36,6 +46,7 @@ def child_text(element: ElementTree.Element, name: str) -> str:
 def coordinate_rows(element: ElementTree.Element) -> list[tuple[float, float, float | None]]:
     """Extrae longitud, latitud y altitud de coordenadas KML válidas."""
     coordinates = []
+    descartadas = 0
     for node in element.iter():
         kind = local_name(node.tag)
         if kind == "coord" and node.text:
@@ -45,20 +56,23 @@ def coordinate_rows(element: ElementTree.Element) -> list[tuple[float, float, fl
                     altitude = float(parts[2]) if len(parts) >= 3 else None
                     coordinates.append((float(parts[0]), float(parts[1]), altitude))
                 except ValueError:
-                    pass
+                    descartadas += 1
             continue
         if kind != "coordinates" or not node.text:
             continue
         for item in node.text.split():
             parts = item.split(",")
             if len(parts) < 2:
+                descartadas += 1
                 continue
             try:
                 longitude, latitude = float(parts[0]), float(parts[1])
                 altitude = float(parts[2]) if len(parts) >= 3 and parts[2] else None
             except ValueError:
+                descartadas += 1
                 continue
             coordinates.append((longitude, latitude, altitude))
+    _descartado("coordenadas KML ilegibles", descartadas)
     return coordinates
 
 
@@ -107,9 +121,12 @@ def kmz_text(content: bytes) -> str:
 
 def kml_text_file(name: str, content: bytes) -> str:
     """Resume geometrías y atributos conservando el elemento KML como localizador."""
-    root = ElementTree.fromstring(content)
+    root, reparados = parsear_xml(content)
     placemarks = [node for node in root.iter() if local_name(node.tag) == "Placemark"]
     lines = [f"Archivo KML: {name}", f"Elementos geográficos: {len(placemarks)}"]
+    if reparados:
+        lines.append(f"Lectura tolerante: prefijos XML sin declarar ({', '.join(reparados)}); se leyó completo")
+    lines.extend(_kml_container_lines(root))
     lines.extend(_kml_overlay_lines(root))
     all_coordinates: list[tuple[float, float]] = []
     for number, placemark in enumerate(placemarks, 1):
@@ -128,6 +145,26 @@ def _extent_text(coordinates: list[tuple[float, float]]) -> str:
     xs = [x for x, _ in coordinates]
     ys = [y for _, y in coordinates]
     return f"{min(xs):.8f}, {min(ys):.8f}, {max(xs):.8f}, {max(ys):.8f}"
+
+
+def _kml_container_lines(root: ElementTree.Element) -> list[str]:
+    """Nombre y descripción del `Document` y de cada `Folder`: ahí suelen ir el proyecto y las advertencias del archivo.
+
+    Antes solo se leían los `Placemark` y una descripción general como «Archivo simulado, datos ficticios» se perdía.
+    """
+    lines = []
+    for node in root.iter():
+        if local_name(node.tag) not in {"Document", "Folder"}:
+            continue
+        label = child_text(node, "name")
+        description = child_text(node, "description")
+        if not label and not description:
+            continue
+        lines.append(f"Contenedor {local_name(node.tag)}: {label or 'sin nombre'}")
+        if description:
+            clean = html.unescape(re.sub(r"<[^>]+>", " ", description))
+            lines.append(f"Descripción: {' '.join(clean.split())[:500]}")
+    return lines
 
 
 def _kml_overlay_lines(root: ElementTree.Element) -> list[str]:
@@ -206,7 +243,7 @@ def _kml_extent_lines(all_coordinates: list[tuple[float, float]]) -> list[str]:
 def wpml_text(name: str, content: bytes) -> str:
     """Lee la estructura legible de una misión DJI WPML empaquetada en KMZ."""
     try:
-        root = ElementTree.fromstring(content)
+        root, _ = parsear_xml(content)
     except ElementTree.ParseError as exc:
         raise Unreadable(f"WPML XML inválido en {name}: {exc}") from None
     lines = [f"Archivo de misión DJI WPML: {name}"]
@@ -253,7 +290,7 @@ def wpml_text(name: str, content: bytes) -> str:
 def gpx_text(content: bytes) -> str:
     """Resume GPX sin perder su distinción entre waypoints, rutas y tracks/segmentos."""
     try:
-        root = ElementTree.fromstring(content)
+        root, _ = parsear_xml(content)
     except ElementTree.ParseError as exc:
         raise Unreadable(f"GPX XML inválido: {exc}") from None
     points_all: list[tuple[float, float, float | None, str]] = []
@@ -609,6 +646,7 @@ def _gpx_point_rows(
             elevation = float(elevation_text) if elevation_text else None
         except ValueError:
             elevation = None
+            _descartado("elevación GPX ilegible")
         name_value = child_text(point, "name") or label
         when = child_text(point, "time")
         result.append((lon, lat, elevation, when))
@@ -672,8 +710,10 @@ def _mission_coordinate(params: Any) -> tuple[float, float, float] | None:
             lat, lon, altitude = float(params[4]), float(params[5]), float(params[6])
             if -90 <= lat <= 90 and -180 <= lon <= 180:
                 coordinate = (lon, lat, altitude)
+            else:
+                _descartado("coordenada de misión fuera de rango")
         except (TypeError, ValueError):
-            pass
+            _descartado("coordenada de misión ilegible")
     return coordinate
 
 
@@ -703,7 +743,7 @@ def _csv_coordinates(
             try:
                 altitude = float(row[indices["alt"]])
             except ValueError:
-                pass
+                _descartado("altitud CSV ilegible")
         sequence = (
             row[indices["seq"]] if indices["seq"] is not None and indices["seq"] < len(row) else str(row_number - 1)
         )

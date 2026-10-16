@@ -1,4 +1,16 @@
-<div class="next-step {{ tone }}">
-  <div><strong>{{ title }}</strong><span>{{ text }}</span></div>
+{% set preguntas = preguntas | default([]) %}{% set enlace_href = enlace_href | default('') %}{% set enlace_label = enlace_label | default('') %}{% set formulario = formulario | default(none) %}
+<div class="next-step aviso-ahora {{ tone }}"{% if oculto is defined and oculto %} hidden{% endif %}>
+  <span class="marca-paso">Ahora</span>
+  <div><strong>{{ title }}</strong><span>{{ text }}</span>
+    {% if preguntas %}<details class="more preguntas-enviadas"><summary>Lo que le preguntamos ({{ preguntas | length }})</summary><ol>{% for pregunta in preguntas %}<li>{{ pregunta }}</li>{% endfor %}</ol></details>{% endif %}
+    {% if enlace_href %}<a class="enlace-accion" href="{{ enlace_href }}"{% if enlace_href.startswith('http') %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ enlace_label }}</a>{% endif %}
+  </div>
   {% if action_href %}<a class="button" href="{{ action_href }}">{{ action_label }}</a>{% endif %}
+  {% if formulario %}<form method="post" action="{{ formulario.accion }}" class="aviso-formulario">
+    <input type="hidden" name="thread_id" value="{{ formulario.thread_id }}">
+    {% for nombre, valor in formulario.campos.items() %}<input type="hidden" name="{{ nombre }}" value="{{ valor }}">{% endfor %}
+    {% if formulario.get("escribir_para_confirmar") %}<label class="eliminar-fuerte">Este caso ya tiene código T o un correo enviado. Para borrarlo escribe <strong>ELIMINAR</strong>
+      <input name="confirmacion" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ELIMINAR"></label>{% endif %}
+    <button type="submit"{% if formulario.clase %} class="{{ formulario.clase }}"{% endif %}{% if formulario.confirmar %} data-confirm="{{ formulario.confirmar }}"{% endif %}>{{ formulario.etiqueta }}</button>
+  </form>{% endif %}
 </div>

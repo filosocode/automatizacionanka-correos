@@ -132,7 +132,7 @@ class EnLaPantalla(Base):
         self.caso()
         quotes.seguir_sin_respuesta("t-1")
         etapa, _ = paginas.case_stage(self.leer())
-        self.assertEqual(etapa, "Listo para emitir la T")
+        self.assertEqual(etapa, "Información validada")   # el nombre único de «listo» (U-35.3)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ import os
 import re
 from pathlib import Path
 
-from anka.dominio.configuracion import Configuracion
+from anka.dominio.configuracion import Configuracion, Modo, es_modo_work, modo_activo
 from anka.dominio.errores import ErrorDeAnka, ModoNoPermitido
 from anka.infra.llm import check_ollama
 from anka.infra.settings import ACTIVE_MODES, load_config, write_config
@@ -48,7 +48,7 @@ def codex_automation_status() -> str | None:
 
 def ensure_local_or_api_mode(config: Configuracion) -> None:
     """Detiene el comando si el modo es ChatGPT Work: en ese modo Python no lee Gmail."""
-    if config.get("active_mode", "local") == "chatgpt_work":
+    if es_modo_work(config):
         raise ModoNoPermitido(
             "active_mode está en 'chatgpt_work'. No ejecutes el bot local sobre Gmail. "
             "Pausa/cambia esa modalidad en config.json antes de usar run/watch."
@@ -58,13 +58,13 @@ def ensure_local_or_api_mode(config: Configuracion) -> None:
 def print_mode() -> None:
     """Muestra el modo activo y qué lee el correo en él."""
     config = load_config()
-    mode = config.get("active_mode", "local")
+    mode = modo_activo(config)
     provider = config["llm"]["provider"]
     print(f"Modo activo: {mode}")
-    if mode == "local":
+    if mode == Modo.LOCAL:
         print(f"Motor: Ollama local ({config['llm'].get('model')})")
         print("Orquestador permitido: bot local Python.")
-    elif mode == "api":
+    elif mode == Modo.API:
         print(f"Motor: API ({provider}, {config['llm'].get('model')})")
         print("Orquestador permitido: bot local Python usando API.")
     else:
@@ -101,22 +101,22 @@ def set_mode(mode: str) -> str:
     if mode not in ACTIVE_MODES:
         raise ErrorDeAnka("Usa local, api o chatgpt_work.")
     config = load_config()
-    if mode == "api" and not os.getenv("OPENAI_API_KEY"):
+    if mode == Modo.API and not os.getenv("OPENAI_API_KEY"):
         raise ErrorDeAnka(
             "No se cambió a API: aún no hay clave de OpenAI. Cuando la tengas, ejecuta en "
             "PowerShell: setx OPENAI_API_KEY \"tu_clave\"; cierra y vuelve a abrir el "
             "dashboard, y elige API de nuevo."
         )
-    if mode == "local":
+    if mode == Modo.LOCAL:
         config.setdefault("llm", {})["provider"] = "ollama"
         config["llm"].setdefault("model", "qwen2.5:7b")
         config["llm"].setdefault("base_url", "http://127.0.0.1:11434")
         check_ollama(config["llm"])
     config["active_mode"] = mode
-    if mode == "local":
+    if mode == Modo.LOCAL:
         message = "Modo local activado: Ollama y bot Python. "
         automation_active = False
-    elif mode == "api":
+    elif mode == Modo.API:
         config.setdefault("llm", {})["provider"] = "openai"
         config["llm"].setdefault("model", "gpt-4.1-mini")
         message = (

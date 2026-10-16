@@ -1,5 +1,11 @@
 {
   "active_mode": "local",
+  "work_drive_enabled": false,
+  "work_drive_parent_id": "",
+  "work_drive_query": "",
+  "ocr_segundos_por_archivo": 0,
+  "ocr_segundos_por_caso": 0,
+  "ocr_omitir_escaneados": false,
   "gmail_query": "in:inbox newer_than:7d",
   "own_addresses": [
     "correo-principal@anka.com.co",

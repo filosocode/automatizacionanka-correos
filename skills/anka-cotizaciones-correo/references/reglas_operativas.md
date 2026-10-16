@@ -10,9 +10,14 @@ Estas reglas valen **igual en los tres modos** de operación:
 
 Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actualizan el código y la skill. Las pruebas `tests/test_paridad_modos.py` fallan si alguno de los tres se separa. El procedimiento completo está en `docs/ESTANDAR_CAMBIOS.md`.
 
-**Versión de las reglas: 8**
+**Versión de las reglas: 9**
 
 ## Reglas
+
+La carpeta comercial conserva R4–R10. El expediente técnico de recepción (T-45) es una excepción explícita:
+Python puede crearlo al recibir un hilo de la búsqueda configurada, bajo una raíz de recepción separada,
+sin confirmar cliente, emitir T ni declarar suficiente el alcance. Work solo lo consulta. Una extracción OCR con
+relaciones visuales pendientes se marca parcial en todos los modos; no se convierte en un faltante del cliente.
 
 | Id | Regla |
 |---|---|
@@ -36,7 +41,7 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
 
 ```json reglas
 {
-  "version": 8,
+  "version": 9,
   "descarte": {
     "senales": ["remitente_no_reply", "list_unsubscribe", "auto_submitted", "precedence_masivo", "spam_gmail"],
     "requiere_todos_los_mensajes": true,

@@ -7,7 +7,31 @@ una clave mal escrita se detecta al verificar y no cuando alguien ya usa el sist
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from enum import StrEnum
 from typing import TypedDict
+
+
+class Modo(StrEnum):
+    """Los tres modos de operación (`active_mode`); al ser `str`, cada uno se compara igual que su texto."""
+
+    LOCAL = "local"                 # Ollama en este equipo
+    API = "api"                     # API de OpenAI
+    CHATGPT_WORK = "chatgpt_work"   # Work es el único analizador; Python no lee Gmail por su cuenta
+
+
+MODOS = frozenset(modo.value for modo in Modo)
+MODO_POR_DEFECTO = Modo.LOCAL      # el que se asume si `config.json` no dice ninguno
+
+
+def modo_activo(config: Mapping[str, object]) -> str:
+    """El texto de `active_mode` tal como está en la configuración, o el modo por defecto si falta."""
+    return str(config.get("active_mode", MODO_POR_DEFECTO))
+
+
+def es_modo_work(config: Mapping[str, object]) -> bool:
+    """¿Está activo el modo ChatGPT Work? Solo entonces corre el puente de borradores."""
+    return config.get("active_mode") == Modo.CHATGPT_WORK
 
 
 class ConfigLlm(TypedDict, total=False):
@@ -37,3 +61,9 @@ class Configuracion(TypedDict, total=False):
     drive_parent_id: str              # carpeta del año vigente en Drive
     folder_prefix: str                # prefijo de la carpeta de cada solicitud
     work_sync_account: str            # cuenta de Gmail que lee el puente de Work
+    work_drive_enabled: bool          # preparación automática de expedientes; desactivada por defecto
+    work_drive_parent_id: str         # carpeta de recepción, distinta de la carpeta comercial del año
+    work_drive_query: str             # búsqueda explícita de correos para preparar
+    ocr_segundos_por_archivo: float   # segundos de OCR local por archivo; 0 = sin límite (por defecto)
+    ocr_segundos_por_caso: float      # segundos de OCR local por caso (todos sus adjuntos); 0 = sin límite
+    ocr_omitir_escaneados: bool       # no hacer OCR a PDF e imágenes escaneados: marcarlos «requiere visión»

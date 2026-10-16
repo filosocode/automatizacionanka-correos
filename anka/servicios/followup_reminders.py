@@ -14,8 +14,10 @@ import base64
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from anka.dominio.errores import ErrorDeValidacion
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import connect, record_event
+from anka.servicios.repositorio import casos_esperando_con_recordatorios
 
 log = get_logger(__name__)
 
@@ -81,11 +83,11 @@ def followup_state(db: Any, thread_id: str) -> dict:
 def set_followup(thread_id: str, action: str) -> str:
     """Activa, apaga o pausa el seguimiento automático, o anota que ya se habló con el cliente."""
     if action not in ACTIONS:
-        raise ValueError("Acción de seguimiento no válida.")
+        raise ErrorDeValidacion("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
     db = _db()
     try:
         if not db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (thread_id,)).fetchone():
-            raise ValueError("La solicitud ya no existe.")
+            raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         db.execute("INSERT OR IGNORE INTO case_followup (thread_id, updated_at) VALUES (?, ?)", (thread_id, now))
         texts = {
@@ -136,10 +138,7 @@ def due_reminders(now: datetime | None = None) -> list[tuple[str, int]]:
     due: list[tuple[str, int]] = []
     db = _db()
     try:
-        rows = db.execute(
-            """SELECT q.thread_id, q.sent_at, q.recipient, q.contact_email, f.contacted_at
-               FROM quotes q JOIN case_followup f ON f.thread_id = q.thread_id
-               WHERE q.status='waiting' AND q.sent_at <> '' AND f.auto_enabled=1 AND f.paused=0""").fetchall()
+        rows = casos_esperando_con_recordatorios(db)
         for row in rows:
             sent = _parse(row["sent_at"])
             if sent is None:
@@ -183,7 +182,7 @@ def send_reminder(thread_id: str, number: int) -> None:
     recipient = str(quote["recipient"])
     contact = (quote.get("contact_email") or "").casefold()
     if ONLY_TO_REGISTERED_CONTACT and contact and contact != recipient.casefold():
-        raise ValueError("El recordatorio solo se envía al contacto registrado.")
+        raise ErrorDeValidacion("El recordatorio solo se envía al contacto registrado.")
     email = reply_email(thread, recipient, reminder_text(number), account_addresses)
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
     result = gmail.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()

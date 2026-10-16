@@ -9,11 +9,13 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 
-from anka.infra import settings
+from anka.infra import rechazos_de_work, settings
+from anka.infra.logging_setup import get_logger
 
 HEARTBEAT_FILE = "work_sync_heartbeat.json"
 DEFAULT_INTERVAL = 30
 WAKE_FILE = "work_sync_wake"
+log = get_logger(__name__)
 
 
 def _now() -> datetime:
@@ -37,8 +39,8 @@ def write_heartbeat(interval: int, drafts: int = 0, updated: int = 0, failures: 
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(data), encoding="utf-8")
         temporary.replace(path)
-    except OSError:
-        pass
+    except OSError as exc:   # el latido es informativo: el puente sigue y lo reescribe en el siguiente ciclo
+        log.warning("No se pudo escribir el latido del puente (%s)", type(exc).__name__)
 
 
 def read_heartbeat() -> dict | None:
@@ -95,33 +97,40 @@ def _ago(seconds: float) -> str:
     return f"hace {seconds // 3600} h"
 
 
+def _alerta() -> str:
+    """« Work está mandando análisis con errores: N hoy…» si ya van más del umbral; vacío si no (U-41)."""
+    texto = rechazos_de_work.alerta_del_dia()
+    return " " + texto if texto else ""
+
+
 def bridge_state() -> tuple[str, str]:
     """(estado, texto): estado es 'ok', 'attention', 'error', 'stopped' o 'never'."""
     beat = read_heartbeat()
     if not beat:
         return "never", (
-            "Puente Work sin iniciar: abre «Puente Work - Dashboard.bat» para que los "
-            "borradores de Gmail lleguen aquí."
+            "La revisión de correos no ha empezado. Abre «Puente Work - Dashboard.bat» para que los "
+            "análisis de Work lleguen aquí."
         )
     age = (_now() - datetime.fromisoformat(beat["at"])).total_seconds()
     when = beat["at"][11:19]
     interval = int(beat.get("interval") or DEFAULT_INTERVAL)
     if age > max(3 * interval, 180):
         return "stopped", (
-            f"Puente Work DETENIDO: última revisión a las {when} ({_ago(age)}). "
-            "Abre «Puente Work - Dashboard.bat»."
+            f"La revisión de correos está detenida: la última fue a las {when} ({_ago(age)}). "
+            "Abre «Puente Work - Dashboard.bat» para activarla."
         )
     if beat.get("error") or beat.get("failures"):
         detail = beat.get("error") or f"{beat['failures']} borrador(es) no importado(s)"
-        return "error", f"Puente Work activo con avisos a las {when}: {detail}."
+        return "error", f"La revisión de correos sigue activa, pero tuvo avisos a las {when}: {detail}."
     rejected = beat.get("rejected") or []
     if rejected:
         return "attention", (
-            f"Puente Work activo (Gmail revisado a las {when}), pero {len(rejected)} borrador(es) de Work no "
-            "cumplen el contrato y no se importaron. El detalle y qué hacer están en el Resumen.")
+            f"La revisión de correos está activa (Gmail revisado a las {when}), "
+            f"pero {len(rejected)} análisis de Work no se pudieron leer; el caso queda solo con los datos del correo. "
+            "Qué hacer está en «Mis casos». Si Work vuelve a mandar el análisis, se revisa solo." + _alerta())
     return "ok", (
-        f"Puente Work activo: Gmail revisado a las {when} ({_ago(age)}), "
-        f"{beat.get('drafts', 0)} borradores, {beat.get('updated', 0)} actualizados."
+        f"La revisión de correos está activa: Gmail revisado a las {when} ({_ago(age)}), "
+        f"{beat.get('drafts', 0)} análisis, {beat.get('updated', 0)} actualizados." + _alerta()
     )
 
 
@@ -138,8 +147,8 @@ def wait_for_next_cycle(seconds: int, sleep: Callable[[float], None] = time.slee
         if path.exists():
             try:
                 path.unlink()
-            except OSError:
-                pass
+            except OSError as exc:   # otro proceso la consumió o está bloqueada: igual se revisa ahora
+                log.debug("No se pudo borrar la petición de revisar ya (%s)", type(exc).__name__)
             return True
         sleep(1)
     return False

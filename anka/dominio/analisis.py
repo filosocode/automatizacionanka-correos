@@ -105,6 +105,13 @@ class RevisionManual(TypedDict, total=False):
     sin_respuesta: bool  # se siguió con la T sin esperar la respuesta del cliente (U-28)
 
 
+class RevisionDeLectura(TypedDict, total=False):
+    """Una persona revisó por su cuenta los archivos que Anka no pudo verificar (U-29)."""
+
+    at: str
+    files: list[str]     # los archivos que seguían sin verificar cuando la persona asumió la revisión
+
+
 class EdicionManual(TypedDict, total=False):
     """Marca de que una persona editó la tabla: un reproceso del modelo no la pisa."""
 
@@ -124,21 +131,34 @@ class Analisis(TypedDict, total=False):
     question_audit: list[dict[str, object]]
     evidence_register: list[dict[str, object]]
     question_quality_warnings: list[str]
+    correcciones_de_work: list[str]      # T-28: lo que Work escribió distinto de lo esperado y se corrigió solo
+    sin_analisis_de_work: dict[str, Any]   # T-36: {motivo, campos, fecha} del caso mínimo (sin análisis legible)
     scope_dependencies: list[Dependencia]
     contradictions: list[Contradiccion]
     attachments: list[Adjunto]
     routing: Enrutamiento
     work_reply: RespuestaWork
     work_model: str           # T-32: el modelo que declaró Work (solo interno)
+    work_message_id: str      # el mensaje del cliente que analizó Work (puente, T-46)
     work_skill_version: str   # T-32: la versión del prompt que declaró Work (solo interno)
     manual_review: RevisionManual
+    ultimas_preguntas: list[str]   # lo último que la persona dejó en el cuadro de preguntas para el cliente (U-31)
     manual_edit: EdicionManual
     pending_model_activities: list[Actividad]
+    propuesta_descartada: list[Actividad]   # U-57: la propuesta de Work que se dejó de lado
     drive: dict[str, str]
     email: dict[str, str]
     received_at: str
     gmail_url: str
     engine: str
+    DRIVE_PREFLIGHT: dict[str, Any]
+    reading_audit: dict[str, Any]
+    reading_review: RevisionDeLectura   # U-29: la lectura la revisó una persona; solo lo escribe el dashboard
+    reading_summary: dict[str, Any]
+    evidence_check: dict[str, Any]   # T-38: lo que se comprobó de la tabla de Work contra los textos del expediente
+    related_threads: list[dict[str, Any]]
+    applicability: dict[str, Any]
+    analysis_complete: bool
     force_analysis: bool
     preguntas: list[Any]                 # preguntas del caso con la decisión de una persona (U-22)
     preguntas_enviadas: dict[str, Any]   # {en, preguntas}: las preguntas que llevaba el último correo enviado (U-22)

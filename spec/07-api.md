@@ -16,8 +16,8 @@ Todas las rutas que atiende el servidor, agrupadas en etiquetas:
 
 | Etiqueta | Contenido |
 |---|---|
-| **Lectura (JSON)** | `GET /api/salud`, `GET /api/casos`, `GET /api/casos/{thread_id}`, `GET /state`: devuelven JSON, no cambian nada. |
-| **Páginas** | Las pantallas HTML (`/`, `/requests`, `/case`, `/acta`, `/discarded`, `/archive`) y la descarga `/export.xlsx`. |
+| **Lectura (JSON)** | `GET /api/salud`, `GET /api/casos`, `GET /api/casos/{thread_id}`, `GET /api/autorizacion`, `GET /state`: devuelven JSON, no cambian nada. `GET /eventos` es el canal de avisos en vivo (`text/event-stream`, no JSON; sus errores sí son JSON). |
+| **Páginas** | Las pantallas HTML (`/`, `/requests`, `/case`, `/acta`, `/desempeno`, `/discarded`, `/archive`) y la descarga `/export.xlsx`. |
 | **Acciones del caso** | Los formularios `POST` que actúan sobre un caso (tabla, respuesta, código T, cambios, vínculos…). |
 | **Acciones generales** | `POST` que no son de un caso: modo de operación, revisar Gmail, rescatar, eliminar, novedades. |
 
@@ -36,6 +36,7 @@ detalle de cada una:
 | `puente_work` | En modo ChatGPT Work, que el puente haya revisado Gmail hace poco. Fuera de ese modo: `no_aplica`. |
 | `autorizacion_google` | Que haya autorización guardada (con `profundo=1`, que siga vigente). |
 | `gmail`, `drive` | Solo con `profundo=1`: una consulta real de solo lectura. |
+| `recepcion` *(previsto, U-76; aún no existe)* | En modo Work, que la recepción de correos esté al día, sin huecos, sin backlog ni mensajes vencidos. Fuera de ese modo: `no_aplica`. |
 | `motor_de_analisis` | Ollama responde y tiene el modelo (modo local), o hay clave de OpenAI (modo api). En Work: `no_aplica`. |
 
 **Work no se consulta directamente**: ChatGPT Work no expone una API a la que Anka llame. La conexión es indirecta
@@ -71,11 +72,13 @@ Cómo funciona:
   Solo `authorize_interactive()` (botón o `python app.py auth`) abre el consentimiento.
 - La verificación se guarda 5 minutos (1 si falló) y no congela la pantalla: sin internet el estado es
   `desconocido` y no se ofrece reautorizar por eso.
-- El puente de Work se reconecta solo en su siguiente ciclo (hasta 60 segundos) después de reautorizar.
+- El puente de Work se reconecta solo en su siguiente ciclo (hasta 30 segundos, T-30) después de reautorizar.
 
 ## Cómo se prueba una acción (POST)
 1. Abre `http://127.0.0.1:8765/docs`.
-2. Elige la operación y pulsa **Try it out**. El campo `csrf_token` ya viene relleno con el token vigente.
+2. Elige la operación y pulsa **Try it out**. El campo `csrf_token` ya viene relleno con el token vigente: lo pone la
+   página `/docs`, no el JSON. Fuera de Swagger (Postman, `curl`), copia el valor del campo oculto `csrf_token` de
+   cualquier formulario del dashboard; `/openapi.json` no lo incluye (D-71).
 3. Completa los campos (p. ej. `thread_id` de un caso de prueba) y pulsa **Execute**.
 4. La respuesta real es `303` con `Location` hacia la pantalla del caso con un mensaje; el navegador sigue la
    redirección, así que Swagger muestra la página resultante (estado `200`). El mensaje también queda en la URL.
@@ -83,8 +86,55 @@ Cómo funciona:
 Las acciones con «⚠» actúan de verdad (envían correo, crean carpetas, eliminan): úsalas con casos de prueba.
 
 ## Reglas que no cambian
-- Las peticiones `POST` exigen `Host` local, `Origin` igual al del servidor y el `csrf_token` (T-07). Swagger UI
-  se sirve desde el mismo origen, así que las cumple sin configuración.
+- Las peticiones `POST` exigen `Host` local y el `csrf_token` (T-07); además (U-61): si el `Host` trae puerto, debe ser el del
+  servidor; si llega `Sec-Fetch-Site`, debe ser `same-origin` o `none`; si llega `Origin`, debe ser el del servidor (`null` y los
+  ajenos, `403`). Sin `Origin` ni `Sec-Fetch-Site` (un script, `curl`, las pruebas) se acepta: el token, que solo está en las páginas
+  del propio dashboard, es lo que protege. Swagger UI se sirve desde el mismo origen, así que las cumple sin configuración.
+- El aviso `?message=` de una página se recorta a 300 caracteres salvo que lo haya firmado este servidor (U-61): toda redirección
+  propia añade `firma` (HMAC del texto con el token del dashboard), así que los avisos largos legítimos se ven completos y un enlace
+  manipulado no puede mostrar un texto largo como si fuera del dashboard.
+- `/openapi.json` **no lleva el token**: se puede copiar o importar en otra herramienta sin llevarse el secreto
+  (D-71). `/docs` lo toma de su propia página y su único script en línea va autorizado por un `nonce` de la CSP.
+- Un `POST` de más de **2 MiB** responde `413`; un `Content-Length` no numérico o negativo, un cuerpo que no es UTF-8
+  o con más de 10.000 campos, `400`.
+- Toda respuesta (páginas, JSON, `303`, `/eventos`; la excepción de `Cache-Control` son los archivos de `/static`, abajo) lleva `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: same-origin`, `Cache-Control: no-store`, `X-Frame-Options: DENY` y una CSP: en las páginas
+  `default-src 'self'` con `script-src 'self'` (sin scripts en línea: están en `/static`, U-49) y estilos en línea
+  (un `<noscript><style>` y los anchos de las barras), en `/docs` además el CDN de Swagger UI y el `nonce`.
+- `/static/{archivo}` (U-48) es la única excepción a `no-store`: lleva `ETag` y responde `304` si llega `If-None-Match`; el CSS
+  compartido se llama `style.<huella>.css` y los dos guiones `app.<huella>.js` y `tema.<huella>.js` (huella del contenido; U-49):
+  los tres son `public, max-age=31536000, immutable`; la fuente y el logo, `public, max-age=86400`. El resto de nombres es `404`.
+- `GET /` y `GET /requests` buscan y filtran en el servidor sobre todos los casos (U-49): `q` (texto, hasta 200 caracteres),
+  `etapa` (`atender`, `esperando`, `listo`, `cotizando`, `todos`), `mostrar` (filas: 200 por defecto, `Ver más` suma 200) y, solo en
+  `/requests`, `tipo` (tipo de cliente), `orden` (`reciente`, `antigua`, `urgencia`) y `agrupar`. Un valor desconocido se ignora.
+- Si el cliente manda `Accept-Encoding: gzip`, el HTML, el JSON y el CSS de 1 KB o más salen comprimidos (`Content-Encoding: gzip`,
+  `Vary: Accept-Encoding`). El JSON de la API es compacto (sin sangrías). El servidor habla HTTP/1.1.
+- **Errores de la API (U-50).** Todo error bajo `/api/...` (y en `/state`, `/eventos` y `/openapi.json`, que también responden JSON) tiene
+  una sola forma, con `Content-Type: application/json`, y nunca una página HTML:
+  `{"error": {"codigo": "no_encontrado", "mensaje": "La solicitud no existe."}}`. El `mensaje` está en español y dice qué pasó; en un
+  `500` se añade `id` (8 caracteres, el mismo del registro) y el detalle técnico no sale. El esquema `Error` está en `components.schemas`.
+
+  | HTTP | `codigo` | Cuándo |
+  |---|---|---|
+  | 400 | `solicitud_no_valida` | Un valor que la aplicación rechaza (`ValueError`) o una petición mal formada. |
+  | 403 | `solicitud_rechazada` | `Host` u `Origen` no permitidos o `csrf_token` inválido. |
+  | 404 | `no_encontrado` | La ruta o el caso no existen. |
+  | 405 | `metodo_no_permitido` | Existe la ruta con otro método; lleva `Allow` (p. ej. `GET, HEAD`). Vale también para `PUT`, `DELETE`, `PATCH` y `OPTIONS`. |
+  | 413 | `cuerpo_demasiado_grande` | Un cuerpo de más de 2 MiB. |
+  | 500 | `error_interno` | Fallo inesperado; queda en el registro con el `id`. |
+  | 501 | `metodo_no_implementado` | Un método que el servidor no conoce. |
+  | 503 | `no_disponible` | Ya hay 16 pestañas conectadas a `/eventos`. |
+
+  Excepción deliberada: `GET /api/salud` con una conexión caída responde `503` con el **informe de salud** (no un `Error`): es el
+  resultado de la consulta, no un fallo de ella. Las páginas HTML siguen mostrando su aviso con salida, también en 404, 405 y 500.
+- **`HEAD` y `405` (U-50).** `HEAD` funciona en todo `GET`: mismas cabeceras y `Content-Length`, sin cuerpo (en `/eventos` solo confirma
+  las cabeceras, no abre la conexión larga). Pedir una acción con `GET`, o una página con `POST`, es `405` con `Allow`, no `404`.
+- Un `500` muestra «Ocurrió un error inesperado» con un **código de error** de 8 caracteres; el detalle está en el
+  registro junto a ese código. Un `400` muestra el motivo solo si es un mensaje de Anka para la persona.
+- **Envíos inciertos (U-59).** `POST /send` rechaza un envío si el mismo caso tiene otro reciente (menos de 2 minutos) sin confirmar, aunque
+  el texto cambie; uno de más de 2 minutos se aclara antes con Gmail y, si había alguno, ese envío no sale (se explica qué pasó).
+  `POST /mark-sent` («Ya salió: marcar como enviado») cierra una reserva incierta por declaración de la persona, con huella en el
+  historial; no envía ni consulta nada.
 - La documentación **se genera de las rutas reales** (`GET_ROUTES` y `POST_ROUTES`): una prueba falla si hay una
   ruta sin documentar o documentada que ya no existe.
 - La única dependencia externa es Swagger UI (`swagger-ui-dist`, versión fijada y con huella de integridad SRI),

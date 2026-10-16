@@ -47,8 +47,9 @@ comunes: una etiqueta como «Área» o una palabra como «varios» en el campo d
 
 ### F1-05 · Pedir los datos al cliente
 Prepara el correo de respuesta con las preguntas; una persona lo revisa y lo envía desde el dashboard o desde Gmail
-(R8). En el dashboard, el cuerpo de respuesta contiene solo el texto nuevo: se quita el historial citado que venga en
-un borrador, mientras la conversación completa sigue visible en el caso. La respuesta conserva el hilo original de
+(R8). En el dashboard, el borrador que propone Work se muestra sin el historial citado (se quita al importarlo);
+lo que la persona escribe, guarda o envía sale tal cual, sin recortes en silencio (U-39). La conversación completa
+sigue visible en el caso. La respuesta conserva el hilo original de
 Gmail. Al enviar desde el dashboard, el mensaje aparece de inmediato en «Conversación con el cliente». Un clic produce
 un correo: el mismo texto no se reenvía y el caso muestra que ya se envió.
 
@@ -91,6 +92,11 @@ seguridad diaria (local y en Drive, sin credenciales). El estado del puente es v
 ### T-07 · Seguridad del dashboard
 Solo atiende en local; los formularios llevan un token que sobrevive a los reinicios; no hay manejadores de eventos
 en línea; los datos de clientes se escapan y no pueden crear etiquetas ni scripts.
+Además (D-71): `/openapi.json` no incluye el token (lo pone `/docs`); toda respuesta, incluidas las redirecciones y
+`/eventos`, lleva `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Cache-Control: no-store` y una
+CSP `default-src 'self'`; un `POST` de más de 2 MiB se rechaza con 413 y uno con longitud no válida o mal codificado
+con 400; un error inesperado muestra un mensaje genérico con un código y nunca el detalle interno; el nombre del
+archivo descargado solo lleva `[A-Za-z0-9_-]`.
 
 ### T-08 · Privacidad del registro
 Los registros no guardan contenido de correos ni datos de clientes; las direcciones de correo se enmascaran.
@@ -239,10 +245,22 @@ La lectura exhaustiva de los adjuntos es lo que sostiene una cotización correct
 de un formato legible (hasta 50 MiB, más que el máximo de Gmail) se lee completo: ningún recorte por longitud al texto que
 recibe el modelo ni al cuerpo del correo. `lectura_parcial` se reserva para contenido legible que de verdad no se pudo
 extraer (páginas o imágenes sin texto, celdas o entradas más allá del tope de recursos, gráficos o dibujos no extraídos); un
-OCR ejecutado cuenta como lectura completa, y su aviso sobre relaciones de tabla o figura queda en el texto sin degradar la
-cobertura. Si el análisis completo no cabe en la ventana del modelo no se recorta en silencio: Ollama amplía su ventana hasta
+OCR ejecutado conserva el texto extraído, pero su aviso de relaciones de tabla o figura pendientes marca cobertura parcial.
+La extracción textual no certifica interpretación visual. Si el análisis completo no cabe no se recorta: Ollama amplía hasta
 `llm.num_ctx_max` (32768 por defecto) y, si aun así no cabe, el hilo se informa para revisión manual con el motivo.
 La cantidad de una actividad no repite su unidad (`544.5` + `ha`, no `544.5 ha` + `ha`).
+
+### T-45 · Expedientes de recepción Gmail → OCR → Drive para Work
+*Sustituido para el prompt V6 por T-41; se retira cuando T-41 esté probado en Work.*
+Un proceso optativo y separado del puente de borradores prepara expedientes bajo una carpeta de recepción configurada,
+con una búsqueda Gmail explícita y cuenta verificada. No envía correos, no clasifica solicitudes ni crea carpetas comerciales.
+Cada hilo tiene un expediente y cada versión conserva mensaje, adjunto, SHA-256, originales, texto completo segmentado,
+localizadores, cobertura y motivo. Los adjuntos homónimos y las respuestas no sobrescriben versiones anteriores.
+El manifiesto se publica al final; una descarga/subida fallida no publica una versión lista y se reintenta sin duplicar.
+Archivos no soportados o fuera de límites se enumeran con su motivo; listo para analizar no equivale a lectura completa.
+Work consulta el manifiesto vigente del hilo y todos sus segmentos, verifica message_ids contra Gmail y deja revisión interna
+si el expediente falta, está desactualizado o es parcial. Los originales siguen disponibles para inspección visual.
+La comparación distingue extracción local reproducible de interpretación real de Work; nunca atribuye a Work un resultado simulado.
 
 ### T-25 · Lectura por tramos de los documentos que no caben en el modelo
 Un documento largo se lee **entero**, nunca recortado, en el modo local y en el de API. Si el correo y sus adjuntos caben en la
@@ -283,7 +301,7 @@ Un caso ya avanzado ofrece la caja de respuesta en blanco, sin textos sugeridos 
 ### U-08 · Correos con el código de la oferta
 Un caso con código T ofrece siempre, en la caja de respuesta, preparar el correo de «proyecto recibido» (con el
 código) y, cuando la oferta pasa a T&E, el de «oferta aprobada». Al aprobar la oferta se prepara ese correo, pero
-nada se envía sin que una persona pulse «Enviar ahora» (R8).
+nada se envía sin que una persona pulse «Enviar al cliente» (R8).
 
 ### U-09 · El siguiente paso no se pierde al desplazarse
 El aviso de «siguiente paso» del caso queda a la vista mientras se recorre la pantalla (fijo arriba), con su botón que lleva
@@ -317,11 +335,11 @@ En revisión técnica, la pantalla ofrece una sola sección, «¿Cómo seguimos?
 cada una. Las preguntas para el cliente se editan ahí y no se repiten como tareas: «Qué falta resolver» solo cuenta cuántas
 hay. Mientras la respuesta está en pausa no aparece la sección «Respuesta al cliente». Al decidir, la persona llega directo
 al correo (si pregunta) o a la emisión de la T (si la información basta), y el aviso de arriba le dice que revise y envíe.
-Ningún correo sale sin «Enviar ahora» (R8).
+Ningún correo sale sin «Enviar al cliente» (R8).
 
 ### U-13 · Solicitudes: lista ordenada, con verbo y filtrada por etapa
 La lista de Solicitudes va, por defecto, de la más reciente a la más antigua (U-16). Cada fila lleva el botón con el verbo de su
-paso («Decidir», «Emitir la T», «Revisar borrador»…) y, si no espera nada de una persona, «Abrir». Se filtra por etapa (Por
+paso («Decidir», «Emitir la T», «Revisar correo»…) y, si no espera nada de una persona, «Abrir». Se filtra por etapa (Por
 atender, Esperando al cliente, Listas para la T, En cotización) con la cantidad de cada una, y por tipo de cliente. «Eliminar
 seleccionadas» queda dentro de un menú «Acciones» y conserva su confirmación: no está a la vista junto a las acciones normales.
 
@@ -383,22 +401,38 @@ oferta, con carpeta, con respuesta enviada o ya descartado no se puede unir, y e
 «No es el mismo proyecto» se guarda y esos dos hilos no vuelven a agruparse ni a sugerirse, en la lista ni en el caso.
 Nada se une solo (D-09).
 
-### T-28 · Un borrador de Work inválido no deja el puente «con avisos» para siempre
+### T-28 · Un borrador de Work con descuidos se importa con aviso; solo se rechaza lo que compromete la identidad
 El puente distingue dos cosas. Un **fallo** es transitorio (red, Gmail, importación) y se reintenta en el siguiente ciclo; deja el
-puente «con avisos» mientras dure. Un **borrador rechazado** es un problema del contenido (el JSON no cumple el contrato de
-Work): no se arregla reintentando, así que se descarga y se rechaza **una sola vez** mientras su contenido no cambie (se vuelve
-a revisar solo cuando Gmail da un mensaje nuevo para ese borrador), se anota una vez en el registro y no cuenta como fallo.
-Con borradores rechazados y sin fallos el puente está «activo» con un estado propio («con un borrador por revisar»), no en
-error: sigue importando el resto. El Resumen lista cada borrador rechazado con su hilo (si existe), el motivo (campos del
-contrato, nunca contenido del cliente) y qué hacer. En `question_audit`, un `unresolved` booleano (Work lo escribe como sí/no)
-se trata como vacío y se importa: la advertencia de la pregunta («debe precisar qué subdato sigue sin resolver») lo hace visible.
+puente «con avisos» mientras dure. Un **borrador rechazado** es un problema del contenido que no se arregla reintentando: se
+descarga y se rechaza **una sola vez** mientras su contenido no cambie (se vuelve a revisar solo cuando Gmail da un mensaje nuevo
+para ese borrador), se anota una vez en el registro y no cuenta como fallo. Con borradores rechazados y sin fallos el puente está
+«activo» con un estado propio («con un borrador por revisar»), no en error: sigue importando el resto.
+
+**Política «tolerar y avisar» (D-106, reemplaza el criterio estricto anterior y el texto de D-87).** Solo se rechaza (a) si falta la
+identidad (`thread_id`, `message_id` o `client_email`, o el `thread_id` no es el de la conversación), (b) si el estado es desconocido
+después de normalizar tildes, mayúsculas, espacios y puntuación de los extremos, o (c) si el JSON es irrecuperable (solo se reparan
+cercas de código, texto suelto, comas sobrantes y saltos de línea dentro de un texto). Todo lo demás se acepta y el caso lo dice:
+«Work escribió algo distinto de lo esperado; se corrigió solo: …» con la ruta de cada campo (p. ej. `activities[2].unit`).
+Se tolera: `no indicado` o un texto donde va un número, un booleano o un enumerado (se trata como desconocido: el campo se omite o
+queda vacío; nunca se inventa), los enumerados en español o con mayúsculas o punto final (mapa explícito en
+`spec/03-contrato-work.md`), una lista escrita como texto, `evidence` sin `excerpt` o `location`, `fields` sin `source`,
+`size_bytes` como texto o decimal entero y `quantity`/`unit` numéricos. Si el valor tolerado cambia el significado de una fila de
+la tabla, esa fila queda `pendiente` (sin confirmar), nunca `confirmado` (R12). El aviso es **propio del modo `chatgpt_work`**: en
+`local` y `api` no hay borrador de Work, y la salida del modelo se valida en el piloto; el editor de tabla es el mismo en los tres.
+
+**Qué se muestra y qué se guarda de un rechazo.** Solo el motivo en lenguaje claro y en español (sin errores de Python como
+«Expecting property name…»), la causa, los nombres de campo y la ruta, y la fecha; nunca el contenido del cliente ni el JSON (T-36).
+El aviso se limpia solo cuando llega un análisis válido del mismo hilo igual de nuevo o más. Se cuenta por día (motivo y campo, sin
+contenido): con más de 3 en un día, la «Revisión de correos» dice «Work está mandando análisis con errores: N hoy. Pide revisar
+el prompt.» (U-41). En `question_audit`, un `unresolved` booleano se trata como vacío y se importa.
 
 ### T-29 · Medir cuánto tarda un borrador de Work en llegar al dashboard
 Para saber si una demora es de Work (que tarda en dejar el borrador en Gmail) o del puente (que tarda en importarlo), el puente
 anota la hora en que el borrador apareció en Gmail y la importación la compara con su hora de llegada. El historial del caso
 lo dice en el hecho «Work analizó el caso»: «El borrador estaba en Gmail desde las HH:MM:SS; llegó al dashboard N s después»,
 y el registro técnico guarda el mismo dato. Esa hora no forma parte de la huella del contenido: reguardar un borrador sin
-cambiarlo no lo reimporta. Si no se conoce la hora, el hecho queda como antes.
+cambiarlo no lo reimporta. Si no se conoce la hora (o llega sin zona horaria, y no se puede saber cuánto pasó), el hecho
+queda como antes y el borrador se importa igual: el dato es solo informativo.
 
 ### T-31 · Las entradas inválidas se responden con claridad
 Una petición que la aplicación rechaza con su motivo (un caso que ya no existe, un dato no válido) responde 400 con ese mensaje y se
@@ -406,6 +440,13 @@ anota como aviso, no como error del servidor (500); un fallo propio del código 
 mal escrito en la dirección (`change_id=abc`) se toma como «ninguno» y no muestra el texto interno de Python. El nombre de una
 carpeta de Drive tiene un tope de 150 caracteres y no se corta una palabra a la mitad. La importación de Work sigue aceptando un texto
 donde se espera una lista (Work lo hace a veces); el contrato completo se exige en el puente, que es la entrada de producción.
+Aun así, la importación nunca termina en un error de Python: un contrato que no es un objeto JSON, un campo obligatorio que no es
+texto (`status: true`, `client_email: [...]`), un texto con sustitutos sueltos (`\ud800`) o un campo de lista con un número
+(`activities: 5`, `cited_codes: 5`) se rechazan con su motivo (`ErrorDeAnka`); `null` en un campo opcional es lo mismo que no
+escribirlo. Un estado fuera de la lista cerrada se rechaza también aquí (T-33), nunca se guarda tal cual. Los datos de Gmail
+incompletos (cabecera sin nombre, cuerpo ausente, base64 mal formado, tamaño o fecha que no son números, adjunto sin nombre)
+se leen como vacíos; el texto de un correo HTML no incluye lo que va en `<script>`, `<style>` ni comentarios, y un `<` suelto
+no lo recorta. El final del id del hilo en el nombre de una carpeta solo conserva letras, cifras, `-` y `_`.
 
 ### T-32 · Saber con qué modelo y qué versión del prompt analizó Work
 El contrato admite dos campos opcionales: `model` (el modelo que declara la interfaz de ChatGPT Work para la tarea) y `skill_version`
@@ -421,6 +462,8 @@ piden datos: «Requiere revisión técnica interna», «Faltan datos» o «Requi
 variante como un estado que avanza el caso («Alcance completo», «Información suficiente», «Borrador preparado») ni como «Descartada»:
 adivinar mal ahí adelantaría o escondería una solicitud. Cuando se acepta un sinónimo, el caso lo dice en sus advertencias
 («Work escribió el estado «X»; se tomó como «Y»»). Cualquier otro valor se rechaza como hasta ahora y se ve en el Resumen.
+Al comparar, además de tildes, mayúsculas y espacios, se ignoran las formas de ancho completo (NFKC) y los caracteres invisibles
+de ancho cero; un valor que no es texto no se reconoce.
 
 ### T-30 · Revisar Gmail ahora y un ciclo más corto del puente
 El puente revisa Gmail cada 30 segundos (antes 60; es el mínimo permitido). En modo ChatGPT Work el botón «Revisar ahora» del
@@ -461,7 +504,7 @@ va a leer. Lo que es de Anka no se sugiere para el cliente: las tareas internas 
 ### U-27 · Cambiar de idea antes de enviar las preguntas
 Mientras el correo con las preguntas no haya salido, la persona puede volver atrás desde la pantalla del caso, con dos salidas. **Volver a
 elegir las preguntas** devuelve el caso a la decisión técnica con todo lo que había elegido conservado (las que pasó al cliente, las que
-dejó para Anka, las que descartó y las que agregó), para cambiar cuáles y cuántas. **No preguntar: la información es suficiente** da el caso
+dejó para Anka, las que descartó y las que agregó), para cambiar cuáles y cuántas. **No preguntar: con esto alcanza** da el caso
 por suficiente, como en la decisión técnica, y habilita emitir la T. Ambas quedan en el historial y ninguna envía nada. Un borrador ya
 guardado en Gmail no se borra. Con el correo ya enviado no se puede volver atrás: la regla lo rechaza con su motivo.
 
@@ -474,11 +517,11 @@ nuevo. No aplica a un caso que ya tiene código ni a uno que no está esperando.
 
 ### U-24 · Armar un correo con las preguntas que la persona escribe, en cualquier etapa
 En el cuadro de respuesta de cualquier etapa en que se pueda escribir al cliente hay un campo «Preguntas para el cliente» (una por
-línea) y un botón «Armar correo con estas preguntas». El correo se arma con la misma plantilla fija de siempre (saludo, las preguntas
+línea) y un botón «Preparar el correo de nuevo». El correo se arma con la misma plantilla fija de siempre (saludo, las preguntas
 numeradas tal como se escribieron, «Puede responder a este mismo correo» y la firma), en los tres modos y sin usar ningún modelo: no
 reescribe ni inventa nada. Cada línea es un punto de la lista tal como se escribió; se ignoran las líneas vacías, la numeración
 y las viñetas que la persona haya puesto y las preguntas repetidas, con un máximo de 20. El texto queda en el cuadro para editarlo;
-nada se envía hasta «Enviar ahora» (R8), y el aviso previo cuenta las preguntas y la casilla de espera sigue funcionando.
+nada se envía hasta «Enviar al cliente» (R8), y el aviso previo cuenta las preguntas y la casilla de espera sigue funcionando.
 Si el caso ya tiene código (T o T&E) y el correo va al contacto registrado, la plantilla es otra: nombra el proyecto y el código
 («Sobre su proyecto «X» (T26145), necesitamos confirmar lo siguiente») y pide citar el código al responder, porque desde la T la
 tabla solo se actualiza con mensajes que lo citen (R11). A quien no es el contacto registrado nunca se le incluye el código.
@@ -501,3 +544,1213 @@ conserva su comportamiento de antes. Antes de enviar, la pantalla dice cuántas 
 correo y si el caso quedará esperando; una casilla «Esperar su respuesta aunque el correo no tenga preguntas» fuerza la espera
 (TR-26). Un acuse mientras queden preguntas decididas como internas devuelve el caso a «Falta tu decisión técnica» (TR-25),
 para que ese trabajo no salga de la cola de la persona.
+
+### U-80 · Pantalla del caso más clara: un camino para las preguntas, confirmaciones propias y accesibilidad
+Ajustes de usabilidad que no cambian qué se guarda ni qué se envía:
+1. **Un solo camino para las preguntas del correo.** En revisión técnica las preguntas se deciden en «¿Cómo seguimos?» (U-22),
+   que va justo debajo del aviso de siguiente paso. Después, en «Respuesta al cliente», el campo «Preguntas para el cliente»
+   (U-24) llega con las preguntas que se eligieron mientras el correo no haya salido (U-27), para cambiarlas ahí mismo. Si el
+   cuadro del correo ya tiene texto, ese campo queda plegado («Cambiar las preguntas del correo»), y si la persona ya editó el
+   correo, rearmarlo pide confirmar que se reemplaza lo escrito.
+2. **Guardar el borrador es la acción principal; enviar es aparte.** «Guardar borrador en Gmail» es el botón primario y «Enviar
+   ahora» va en una zona propia que dice que el envío es definitivo. El envío sigue pidiendo confirmación (R8), que muestra el
+   destinatario, el asunto, cuántas preguntas lleva (lo mismo que el aviso previo) y que no lleva adjuntos.
+3. **Confirmaciones propias y accesibles.** Las acciones con confirmación (`data-confirm`) abren un diálogo propio (`<dialog>`
+   modal, con foco en «Cancelar», Escape para cancelar y el foco de vuelta en el botón). Si el navegador no lo admite se usa la
+   confirmación nativa; sin JavaScript el formulario funciona como antes. No se agregan scripts ni manejadores en línea.
+4. **Un solo botón «Reautorizar Google»**, en Ajustes; el aviso «Google desconectado» del encabezado lleva a él.
+5. **Colores con un solo significado:** el rojo (`danger`) es solo para lo destructivo (eliminar); el ámbar, para avisos.
+6. **Accesibilidad:** la navegación marca la página actual (`aria-current`), hay un enlace «Saltar al contenido», la tabla de
+   actividades conserva sus `role` de tabla (no son redundantes: la cuadrícula cambia su `display` y algunos navegadores
+   pierden entonces la semántica nativa), los contadores y avisos pequeños miden al menos 12 px y
+   el botón de tema dice el tema actual y a cuál cambia.
+7. **Ayuda breve** para los términos propios («T», «T&E», «aplicabilidad», «lectura realizada»): un glosario plegable en el caso.
+8. **Menos estilos en línea:** la pantalla del caso no usa atributos `style` y la tabla de actividades no trae su propio bloque de
+   estilos (todo está en la hoja de estilos de siempre).
+9. La carpeta del proyecto en Drive se pliega mientras es solo una alternativa manual (sin código y sin un aviso de Drive pendiente).
+
+### T-46 · Trazabilidad de lectura y origen de Work
+El puente conserva el preflight y la auditoría de lectura, distingue aplicabilidad, verifica el origen en Gmail para V4.5 y evita regresiones por borradores antiguos.
+
+### T-36 · Un borrador de Work sin análisis válido no deja el caso fuera del dashboard
+Cuando Work deja en Gmail un borrador que no se puede usar (sin el bloque `ANKA_DASHBOARD_JSON_V1`, con un JSON irrecuperable, sin
+identidad o con un estado desconocido; ver T-28) y el hilo no tiene todavía un análisis importado, el puente crea el caso con lo mínimo que es verificable en Gmail:
+remitente, asunto y fecha de recepción del último mensaje recibido. El caso queda en «Requiere revisión técnica interna», sin
+actividades, sin preguntas y sin texto para el cliente; sus pendientes dicen que Work dejó un análisis que Anka no pudo leer, el
+motivo (en lenguaje claro: nombres de campo, nunca contenido del cliente ni el JSON ni errores de Python) y qué pasará: la persona
+puede completar la tabla y, si Work vuelve a mandar el análisis, se revisa solo (D-106, U-41). El historial dice que el análisis
+no se pudo leer y que el caso se creó con los datos del correo, no «Work analizó el caso». No inventa ningún dato.
+Nunca reemplaza un análisis ya importado de ese hilo, ni vuelve a crear un caso que una persona eliminó mientras el borrador no
+cambie. En cuanto Work deja un borrador válido, este reemplaza al caso mínimo. El Resumen sigue listando el borrador rechazado.
+
+Dos excepciones para un borrador **sin el bloque JSON** (no para uno con JSON roto o con campos inválidos, que sigue rechazándose de
+inmediato), porque Work a veces deja un borrador auxiliar o uno a medias que no es un fallo:
+1. **Si el hilo ya tiene un análisis válido** (en esta pasada o importado antes), ese borrador se ignora: no se lista como rechazado ni
+   crea un caso mínimo. Es el segundo borrador que Work deja a los pocos segundos del completo, con un resumen en prosa y sin JSON.
+2. **Mientras tenga menos de 10 minutos**, tampoco se rechaza ni crea el caso mínimo: Work puede estar terminando. En cuanto pasa ese
+   tiempo sin un borrador válido, se trata como siempre (se lista y crea el caso mínimo). Con ello el dashboard no dice «Work no pudo»
+   cuando Work solo está a medias.
+Un borrador rechazado de un mensaje nuevo en un hilo ya analizado queda oculto por la excepción 1 hasta que Work deje su borrador
+válido; el mensaje nuevo se sigue viendo como novedad del hilo (U-25). Motivo: D-69.
+
+### T-37 · La lectura que declara Work se verifica contra el manifiesto del preparador
+Cuando el preparador (T-45) publica un expediente, guarda una instantánea local mínima de su manifiesto (hilo, revisión, `message_ids`
+e identificador y nombre de cada segmento del correo y de los adjuntos). El puente la usa para dejar de confiar en lo que Work copia a
+mano: `DRIVE_PREFLIGHT.manifest_revision`, `message_ids`, los conteos de segmentos y las listas `*_segment_ids_expected` y
+`*_segment_ids_pending` se calculan desde el manifiesto; `*_segment_ids_read` es lo que Work declaró haber leído, reducido a lo que
+existe en el manifiesto (acepta el identificador o el nombre del segmento y lo normaliza al identificador). Cada diferencia se
+anota como aviso del puente. Si Work leyó una revisión que no es la vigente, el mensaje analizado no está en el manifiesto o quedan
+segmentos sin lectura verificada, `analysis_complete` pasa a falso y el caso a revisión técnica interna. Sin instantánea para el
+hilo (preparador apagado o expediente anterior a este cambio) no se modifica nada: el comportamiento es el de T-46.
+
+Cuando quedan segmentos de adjuntos sin lectura verificada, el puente dice **cuáles**: la instantánea guarda también el nombre del
+archivo de cada segmento, el aviso del caso lo nombra («1 de 4 segmentos de adjuntos sin lectura verificada: plano.kml») y la
+auditoría conserva la lista en `attachment_files_pending` (la calcula el puente, nunca Work). El aviso «Lectura pendiente» de la
+pantalla del caso nombra esos archivos y dice qué hacer: volver a ejecutar la tarea de Work sobre el hilo, porque un bloqueo no es un
+análisis final y un análisis completo posterior de la misma revisión reemplaza al incompleto. Los resultados siguen ocultos hasta
+que la lectura se verifique; esto solo evita que la persona deba adivinar qué falló. Una instantánea anterior a este cambio no
+trae los nombres: el aviso funciona igual, sin ellos, hasta que el preparador la vuelva a guardar.
+
+### T-38 · Lo que Work pone en la tabla se comprueba contra los textos del expediente
+Cuando el preparador (T-45) publica un expediente guarda también, solo en este equipo, el texto extraído del correo y de cada adjunto
+(con un tope de tamaño; si lo supera, la comprobación queda como «no comprobable»). El puente comprueba, sin cambiar ni bloquear nada:
+(a) que cada número de la cantidad de una actividad aparece en los textos del expediente (en el archivo citado si se puede
+identificar; si solo está en otro archivo, lo dice); (b) que los archivos citados en las fuentes existen en el expediente y que la
+página citada de un PDF no supera las páginas leídas; (c) que cada extracto literal de un adjunto aparece en el texto de ese adjunto.
+Cada diferencia es un aviso del caso con su ubicación («actividad 3, cantidad 126»). Si algún adjunto no tiene texto (ilegible o
+no extraído), un dato que no se encuentra se marca «no comprobable» y no como diferencia. El resultado queda en el caso
+(`evidence_check`: estado, cuántas comprobaciones, diferencias, no comprobables). Sin textos del hilo no se comprueba nada.
+
+### T-39 · El prompt de Work es corto y su ejemplo cumple el contrato
+El prompt de la tarea de Work cabe en unos 12 000 caracteres (la V4.7 tiene 19 500; la V6.1, 11 800), no depende de la skill para el formato de salida e incluye un
+JSON de ejemplo completo. Una prueba extrae ese ejemplo del archivo del prompt y comprueba que cumple el esquema
+(`spec/contrato_work.schema.json`), de modo que el ejemplo no se desactualiza sin que falle una prueba. Work solo declara qué
+segmentos leyó; la revisión, los conteos y los pendientes los calcula el puente (T-37).
+
+### T-40 · El preparador gasta poca cuota de Gmail y no se queda sin preparar lo más nuevo
+El preparador (T-45) no vuelve a bajar un hilo cuyo estado en Gmail (`historyId` de `threads.list`) no cambió desde la última vez que
+lo preparó con éxito, salvo que falten sus copias locales (T-37, T-38). En cada pasada baja como máximo seis hilos completos y
+empieza por los que nunca ha preparado; los demás esperan a la siguiente pasada. Si Gmail rechaza una petición por cuota, termina la
+pasada sin insistir ni contar cada hilo restante como fallo, y lo deja anotado en su estado. Pedir un hilo concreto lo prepara siempre.
+
+### U-29 · «Ya revisé estos archivos yo»: la lectura sin verificar no detiene el trabajo
+**Estado: implementado** (pruebas en `tests/test_lectura_revisada.py`). Decisión: D-73. Acota T-41.
+
+**Motivo.** T-41 oculta los resultados y las decisiones mientras la lectura de Work no se verifica contra Gmail. Hay archivos que ningún
+lector abre (un plano CAD: `read_attachment_supported: false`) y otros que Anka debe revisar por dentro aunque el motor los lea. Repetir la
+tarea de Work no arregla eso, así que el caso quedaba sin salida.
+
+**Qué debe cumplirse**
+1. **Siempre hay una salida.** Mientras la lectura esté sin verificar, la pantalla del caso muestra, bajo el aviso, «¿Ya revisaste estos
+   archivos tú?» con el botón «Ya revisé estos archivos yo» (con confirmación) y recuerda que también se puede volver a ejecutar la tarea de
+   Work. Aplica a cualquier causa: archivos sin leer, archivos que Work nombró y Gmail no tiene, o un expediente de Drive incompleto (V5).
+2. **Qué hace.** Levanta el bloqueo: se ven los resultados de Work y se habilitan las decisiones. No cambia el estado del caso, no envía
+   nada al cliente (R8) y no marca la lectura como verificada.
+3. **Deja huella.** Guarda en el análisis `reading_review` (`at`, `files`: los archivos que seguían sin verificar) y un evento
+   `reading_reviewed` en el historial (quién, cuándo y sobre qué archivos).
+4. **No se esconde.** Mientras la marca exista, el caso muestra el aviso permanente «Lectura revisada por una persona…», con los
+   archivos, y dice que los resultados son los que declaró Work.
+5. **Solo si hace falta.** Si la lectura no está pendiente, o ya se asumió, la acción responde con un mensaje claro y no cambia nada.
+6. **Un análisis nuevo de Work la reemplaza.** La marca vive en el análisis; un borrador nuevo se verifica de nuevo y, si sigue sin
+   verificarse, vuelve a ofrecer el botón.
+
+### U-30 · Mientras el caso espera tu decisión, siempre se ven las preguntas del análisis
+**Estado: implementado** (pruebas en `tests/test_preguntas_visibles.py`). Decisión: D-75. Acota U-22 y U-24.
+
+**Motivo.** Un caso quedó en «revisión» (Work lo dejó en «Requiere revisión técnica interna») pero la evaluación de recepción del dashboard
+decía «suficiente para revisión interna». Los selectores de pregunta solo se pintaban cuando esa evaluación era técnica, así que
+«¿Cómo seguimos?» decía «El análisis no dejó preguntas candidatas» aunque había 7 (4 sugeridas para el cliente), y el cuadro «Respuesta
+al cliente» quedaba en blanco sin forma de generar las preguntas.
+
+**Qué debe cumplirse**
+1. **Los selectores salen siempre que el caso espera tu decisión** (estado «revisión» y lectura no bloqueada), sea cual sea la
+   evaluación de recepción. Cada pregunta trae lo que sugiere el análisis ya elegido, y «Preparar el correo con las preguntas elegidas»
+   arma el correo con las que elijas para el cliente.
+2. **El aviso «El análisis no dejó preguntas candidatas» solo sale si de verdad no hay ninguna** (ni del análisis, ni de la auditoría de
+   preguntas, ni de la recepción).
+3. **«Usar las preguntas sugeridas».** En «Respuesta al cliente», mientras no hayas decidido nada y el análisis sugiera preguntas para el
+   cliente, un botón carga esas preguntas en el campo «Preguntas para el cliente» y arma el correo (el mismo camino de U-24, con la plantilla
+   de siempre). No envía nada; el correo se revisa y se envía con «Enviar al cliente» (R8). El botón desaparece cuando ya hay preguntas en el campo
+   o ya decidiste.
+
+### U-31 · Pantalla del caso por pasos: una tarjeta «Ahora», la tabla siempre a la vista y el resto a un clic
+**Estado: en implementación, etapas 1 a 5** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-78 (reemplazada por D-82), D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88, D-89, D-90, D-95, D-98. Acota y, donde se indica, reemplaza partes de U-12, U-17, U-18 y U-80.
+Prototipo de referencia (datos de ejemplo): https://claude.ai/artifact/6EdjHMPpWHfj3VdkQedGs8
+
+**Motivo.** La revisión de UX (2026-10-14) puntuó la pantalla del caso con 73/100 y el ingeniero la calificó de compleja, poco intuitiva y sin
+fluidez: 11 secciones, 43 campos de texto, ayuda en prosa en casi cada sección, dos caminos para las mismas preguntas y mensajes distintos sobre
+la carpeta de Drive.
+
+**Qué debe cumplirse (acordado hasta ahora)**
+1. **Una tarjeta «Ahora»** bajo el encabezado, con lo que toca hacer en este paso y como máximo dos salidas. Sin envíos al cliente en la decisión (R8).
+2. **Los cuatro pasos reales arriba**, los de siempre: «Revisar y aclarar», «Información validada», «T emitida» y «T&E aprobada», con «Paso N de 4». No cambia
+   ningún estado ni transición (`transiciones.json`, `STATUS_LABELS` y `_case_stage` quedan como están). La carpeta de Drive no es un paso: se crea al emitir la T
+   (ver el requisito de emisión) y se anota en «T emitida» («carpeta creada»).
+3. **«Actividades detectadas» siempre visible**, con la tabla del prototipo: una vista compacta de tres columnas (Actividad, Cantidad, Estado) y, en el estado, una etiqueta («Completa»,
+   «Por completar», «Contradictoria») y el motivo en letra pequeña cuando falta algo. Encima, la línea «N actividades · M por completar» (o «todas completas»). Con más de 8 filas se ven 8
+   y «Ver todas (N)»; las incompletas siempre se ven. La cabecera de la tarjeta lleva el título, el resumen y, a la derecha, «+ Agregar» y «Editar tabla»; las filas incompletas llevan una franja de color. «Editar tabla» abre la tabla completa de siempre (las 10 columnas, con «Más datos»); allí siguen el guardado con motivo,
+   «Quitar», la exportación y el historial de cambios de U-21. Lo que cambia es qué se ve primero; qué se guarda, no.
+4. **Archivos y tareas de revisión en la pestaña «Archivos»**, como en el prototipo (D-82, que reemplaza a D-36 y D-78). La pestaña lleva en su nombre cuántos archivos hay y cuántos están por
+   revisar («Archivos (3) · 1 por revisar»), se ve como una tabla simple de dos columnas (Archivo y Qué pasó, con etiqueta «Leído» o «No se pudo leer: ábrelo tú» y la razón), con lo que hay que revisar primero y una franja de color; el detalle técnico de cada archivo queda a un clic («Ver el detalle técnico de los archivos»); «Lectura y aplicabilidad» va plegada salvo que la lectura esté pendiente. Antes: muestra primero lo que no se pudo leer y deja lo leído plegado, y trae también «Qué falta resolver» y «Lectura y aplicabilidad». Abre sola
+   (es la pestaña activa al cargar) cuando hay archivos por revisar o la lectura está pendiente; si no, abre «Conversación». Un enlace a «#attachments-review» abre su pestaña.
+5. **Un solo cuadro de texto con las inquietudes del análisis.** Al elegir «Hay que preguntarle al cliente», la tarjeta muestra un único cuadro «Preguntas para el cliente (una por línea)»,
+   ya escrito con todas las inquietudes que el análisis sugiere para el cliente (las de Anka, que son internas, no van). La persona borra las que no hagan falta, corrige las que quiera
+   y escribe las suyas; «Continuar» arma el correo con lo que quede, sin más pasos (el mismo camino de U-24). Debajo, una línea dice cuántos puntos resuelve Anka por dentro («Qué falta
+   resolver»). Ya no hay una tarjeta por pregunta ni selectores por pregunta en la pantalla. Si el cuadro queda vacío, se pide escribir al menos una o elegir «Con esto alcanza». Al
+   volver a decidir antes de enviar (U-27), el cuadro trae lo que la persona había escrito. El contrato del formulario con las decisiones por pregunta (U-22: `q_id`, `q_decision_<id>`)
+   sigue aceptándose en el servidor y en la API, pero la pantalla ya no lo usa; reemplaza lo que U-22, U-26 y U-30 decían de los selectores en pantalla.
+
+**Valores por omisión propuestos (se dan por buenos si nadie los objeta antes de programar)**
+6. **Glosario.** El glosario de U-80.7 deja de ser el primer bloque del caso: un «?» junto a «Paso N de 4» lo abre (mismos términos: T, T&E, lectura realizada, aplicabilidad).
+7. **Un solo nombre por estado (D-86).** La insignia del caso, la nota del primer paso, la lista de Solicitudes, el Resumen y los botones usan los mismos nombres, según el estado del flujo y no
+   según la evaluación de recepción: «Por decidir» (revisión técnica: falta tu decisión), «Correo por revisar» (el correo para el cliente está redactado y falta que lo revises y lo envíes; D-96),
+   «Esperando al cliente» (ya se le escribió), «Información validada» (lista para emitir la T) y, con T, «T… · cotizando» o «T&E… · aprobada». Se distingue «Correo por revisar» de «Esperando» porque en el
+   primero la persona todavía debe actuar y el correo aún no salió. Desaparecen «Información suficiente para revisión interna», «Requiere revisión técnica interna», «Falta tu decisión técnica», «Listo para emitir la T» y
+   «Recepción completa» como nombre del estado de un caso. Los textos que Work envía (su etiqueta de estado) no cambian y se siguen aceptando tal cual; el panel «Evaluación de recepción» del
+   detalle técnico conserva su propia etiqueta.
+8. **Lectura sin verificar (U-29).** Si hay archivos que Anka no pudo verificar, la tarjeta «Ahora» lo dice primero y ofrece «Ya revisé estos archivos yo» (con su confirmación)
+   como acción principal; la decisión de abajo queda deshabilitada hasta entonces, igual que hoy.
+10. **Detalle técnico.** Datos comerciales, contexto interno, enrutamiento, asuntos pendientes y revisión de preguntas pasan a una sección plegada «Detalle técnico» al final del caso; la
+    trazabilidad (historial) queda en su propia pestaña. Nada se elimina ni cambia de contenido.
+11. **Orden de lectura.** Encabezado → pasos → tarjeta «Ahora» → «Actividades detectadas» → seguimiento (si espera al cliente) → pestañas «Conversación», «Archivos», «Historial» y «Detalle
+    técnico» → lo demás que aún aplica (respuesta opcional, carpeta). Reemplaza el orden de la regla 2 de `04-ux.md`.
+12. **Resumen de la tabla.** Sobre la tabla, una línea «N actividades · M por completar» (o «todas completas»); `M` cuenta las que no están «confirmado» (R12). La explicación larga de los
+    estados queda plegada en «Cómo leer los estados».
+13. **Aspecto de «Ahora» (idéntico al prototipo, D-83).** La decisión de revisión técnica es una tarjeta destacada con la etiqueta «Ahora», borde de color y el título «Revisa y decide cómo seguir», «Qué pide:» en un recuadro, una frase de lo que falta («Faltan: 3 actividades por completar y 2 archivos por revisar…») y, al final, «Elige una opción para continuar. Nada se envía al cliente en este paso.» Las salidas son
+    opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Las opciones son tarjetas sin círculo de selección, con una línea de explicación, y **no viene ninguna marcada**: el cuadro de preguntas aparece al elegir «Hay que preguntarle al cliente» (reemplaza lo que U-30 decía de marcarla de entrada). Hay un botón por opción, que aparece al elegirla: «Confirmar que alcanza» (pide confirmación, U-80.3) y «Preparar el correo». Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
+    marca, pendientes en gris, y el actual con el texto en negrita.
+
+14. **Encabezado del prototipo.** «← Mis casos» (U-32), el nombre del proyecto, una línea «cliente · correo · recibido el …» y la insignia del estado. El párrafo largo de resumen sale del
+    encabezado: en la decisión pasa a la tarjeta como «Qué pide:» (máximo unas 320 letras).
+15. **La tarjeta «Ahora» existe en todos los pasos.** Es una sola, la primera tras los pasos: la decisión (revisar), el correo por enviar, la emisión de la T o el aviso del estado
+    (esperando al cliente, T emitida, carpeta lista). Lleva la etiqueta «Ahora», no se pega al desplazarse (reemplaza esa parte de U-09) y, si otra tarjeta ya dice lo mismo, el aviso de
+    siguiente paso no se dibuja.
+16. **El correo, simple y amigable (D-84).** La tarjeta muestra «Para» en una línea, el «Mensaje (puedes editarlo)» en un cuadro grande, una línea que dice cuántas preguntas lleva y qué pasará con
+    el caso, y dos botones: «Enviar al cliente» (principal; sigue pidiendo confirmación con destinatario y asunto, R8) y «Guardar borrador en Gmail». Debajo, «Cambiar las preguntas»
+    abre un cuadro con las preguntas actuales (una por línea) para cambiarlas, y «Preparar el correo de nuevo» escribe otra vez el mensaje con ellas (reemplaza el texto; si la persona ya lo editó, pide
+    confirmar, U-80). La casilla «Esperar su respuesta aunque el correo no tenga preguntas» solo aparece cuando el mensaje no lleva preguntas. «¿Cambiaste de idea?» es una línea discreta con
+    «Volver a decidir» y «No preguntar: con esto alcanza». Dentro de esta tarjeta ya no salen «Respuesta sugerida lista…», «Recepción completa…» ni los párrafos largos
+    de ayuda. Reemplaza el punto 2 de U-80 y los textos del punto 1 de U-80.
+17. **Pestañas.** «Conversación», «Archivos», «Historial» y «Detalle técnico» (datos comerciales, contexto interno, evaluación de recepción, revisión de preguntas, enrutamiento y asuntos
+    pendientes). Funcionan con teclado (flechas) y, sin JavaScript, todos los paneles se ven uno tras otro.
+18. **Seguridad del usuario (evaluación de 4 agentes, 2026-10-14; D-85).** a) El aviso de siguiente paso solo se oculta cuando la tarjeta «Ahora» dice lo mismo, y se oculta desde el servidor
+    (atributo `hidden`), no por una regla CSS: los avisos que piden una decisión (cambio detectado, enlaces, respuesta por actualizar) nunca se esconden y se rotulan «Antes de seguir».
+    b) Ningún formulario de escritura se envía dos veces: tras el primer envío se ignoran los siguientes y el botón queda bloqueado (antes solo «Enviar»). c) Si el mensaje del correo está
+    editado y la persona intenta salir de la página, el navegador avisa. d) «+ Agregar» abre el editor de la tabla aunque ya se hubiera abierto y cerrado. e) El mensaje de éxito o de error
+    se queda a la vista tras saltar a un ancla y no reaparece al recargar. f) Ningún texto apunta a un título que ya no existe.
+19. **El Resumen no empieza con jerga (D-87; el texto y las acciones del aviso los reemplaza U-41).** El aviso de borradores de Work que el puente no pudo leer va debajo de la cola «Qué hacer hoy», no encima, con un título en lenguaje llano («Un borrador de Work
+    no se pudo leer»), una frase de qué pasó y qué hacer, el botón «Ver el caso» cuando el caso existe, y el identificador del borrador, el hilo y el motivo técnico plegados en «Ver el detalle técnico».
+20. **Ningún estado se queda sin tarjeta «Ahora» (D-88).** Todo caso muestra una tarjeta o un aviso de siguiente paso. Los que antes no tenían: «Descartada» (cómo rescatarla), «Hilo no
+    disponible», «Respuesta enviada» sin espera (cómo escribir otro correo), «Envío interrumpido» (revisar antes de reenviar) y, para cualquier otro, el nombre del estado, «Este caso no necesita nada
+    de ti ahora» y «Volver a Mis casos».
+
+21. **Lo escrito no se pierde si la acción falla (D-89).** En enviar, guardar borrador, emitir la T, decidir con preguntas y guardar la tabla, lo que la persona escribió se guarda en memoria
+    (nunca en disco, 15 minutos, hasta 50 casos, sin el token de seguridad) antes de procesarlo. Si la acción falla con un aviso o con un error del servidor, al volver al caso el mensaje, el número de
+    la T, el cuadro de preguntas o la tabla vuelven a su sitio, con el aviso «Lo que escribiste sigue aquí», y la página de error dice que lo escrito se conserva. Si la acción sale bien, o el caso ya no
+    admite ese formulario, se olvida.
+22. **CSS ordenado y legible en pantalla angosta (D-90).** Cada selector de la pantalla del caso se define una sola vez (sin reglas apendadas que pisen a otras). El borde de input, select, textarea, las opciones y los
+    botones de contorno tiene al menos 3:1 de contraste con su fondo en los dos temas (token `--control-line`). A 640 px o menos, los botones de las pestañas, los enlaces, las opciones y los botones de la
+    cabecera de la tabla no ocupan todo el ancho, y cada fila de la tabla de edición se apila con la etiqueta de cada campo. Con `prefers-reduced-motion` no hay animaciones ni desplazamientos suaves.
+23. **La acción principal del correo siempre se alcanza (D-95).** En la tarjeta del correo, la línea que dice cuántas preguntas lleva y los botones «Enviar al cliente» y «Guardar borrador en Gmail» forman una barra
+    que se queda pegada al borde inferior de la pantalla mientras se lee el mensaje, así que no hay que bajar hasta el final para enviar. El mensaje se muestra completo (sin cuadro con desplazamiento propio) para que la
+    persona pueda revisarlo entero antes de enviar (R8); no se esconde parte del texto. La barra respeta el área segura de los celulares y no tapa el último renglón del mensaje.
+24. **Un solo texto por decisión y por acción (D-97).** Cada decisión y cada acción se llama igual en toda la interfaz: «Con esto alcanza» (la opción) y «Confirmar que alcanza» (su botón); «Hay que preguntarle al cliente» y
+    «Preparar el correo»; «Cambiar las preguntas» (abre el cuadro) y «Preparar el correo de nuevo»; «Volver a decidir»; «No preguntar: con esto alcanza»; y siempre «Enviar al cliente» para enviar (el diálogo dice «Sí, enviar al cliente»).
+    No quedan «Marcar como suficiente», «Redactar de nuevo», «Volver a redactar», «Volver a elegir», «Armar correo» ni «Enviar ahora». Una prueba de vocabulario lee las plantillas y los textos de la pantalla y falla si aparece alguno.
+25. **Tabla y formularios accesibles (D-98, WCAG 2.2 AA).** a) Cada campo de la tabla de edición dice de qué actividad es («Notas de Planimetría», «Estado de Altimetría»; la fila nueva, «de la fila nueva»), y la casilla de quitar
+    dice «Quitar» más la actividad; no hay dos campos con el mismo nombre en la página. b) La tabla conserva su semántica aunque se dibuje con cuadrícula: grupos de filas, encabezados de columna y celdas con su rol.
+    c) Los errores se anuncian como alerta. d) Al saltar a un ancla, el encabezado fijo no tapa el elemento (`scroll-padding-top`). e) Tras una acción con mensaje, el foco se mueve al mensaje para que el teclado y el lector de
+    pantalla no queden al inicio de la página.
+
+**Casos de aceptación** (los que se vuelven pruebas; etapa 1 = primera entrega)
+- E1 · El caso en revisión muestra «Paso 1 de 4» y los cuatro pasos antes del aviso de siguiente paso; con la información validada, «Paso 2 de 4»; con T emitida, «Paso 3 de 4»; con T&E, «Paso 4 de 4».
+- E1 · El «?» del glosario está junto a los pasos, abre T, T&E, Lectura realizada y Aplicabilidad, y ya no hay un glosario antes del encabezado de pasos.
+- E1 · Orden: pasos, tarjeta «Ahora», actividades y, después, las pestañas (conversación, archivos, historial y detalle técnico); la conversación ya no va antes de la tabla.
+- E1 · Con 4 actividades de las que 2 no están confirmadas, la tabla dice «4 actividades · 2 por completar»; con todas confirmadas, «todas completas»; sin actividades, no hay línea.
+- E1 · La explicación de los estados está plegada («Cómo leer los estados») y las acciones de guardar, exportar y el historial de cambios no cambian (U-21).
+- E2 · Los archivos y «Qué falta resolver» están en la pestaña «Archivos», que dice «N por revisar» en su nombre y es la activa si hay algo por revisar; lo no leído se ve abierto y lo leído, plegado.
+- E2 · Con lectura sin verificar, el aviso «Ahora» dice «Lectura pendiente» y su botón «Elegir cómo seguir» lleva a «¿Ya revisaste estos archivos tú?», justo debajo, con «Ya revisé estos archivos yo»; no hay decisión ni envío (U-29).
+- E2 · Con más de 8 actividades se ven 8 y «Ver todas (N)»; las incompletas siempre se ven y las filas escondidas se guardan igual. «Detalle técnico» ya es la sección plegada «Detalles y trazabilidad del caso»: conserva su nombre y su contenido.
+- E3a · La decisión es una tarjeta «Ahora» con dos tarjetas de opción de una sola elección (`name="decision"`: `sufficient`, `ask_client`), sin círculo visible, y un botón por opción que aparece al elegirla; no hay botones de envío sueltos ni tercera opción.
+- E3a · No viene ninguna opción marcada; el cuadro único trae las preguntas sugeridas una por línea y se muestra al elegir «Hay que preguntarle al cliente». Sin las reglas CSS modernas todo sigue visible y enviable.
+- E3a · «Confirmar que alcanza» pide confirmación; «Preparar el correo» no.
+- E3a · Enviar el formulario con «Con esto alcanza» o con «Hay que preguntarle al cliente» deja el mismo estado e historial que antes; con preguntas, el caso pasa a «Revisa el correo» con ellas.
+- E3b · No hay una tarjeta ni un selector por pregunta: hay un cuadro `questions` con las sugeridas una por línea, que solo incluye las que el análisis sugiere para el cliente; las internas se cuentan en una línea.
+- E3b · Con el cuadro vacío, «Continuar» pide escribir al menos una pregunta. Lo escrito se conserva al volver a decidir antes de enviar (U-27).
+- E3b · La vista compacta de actividades tiene tres columnas con etiqueta y motivo; «Editar tabla» abre la tabla completa y guardar funciona como antes.
+- E3b · Mientras la tarjeta «Ahora» con la decisión está en la página, el aviso «Falta tu decisión de revisión técnica» no se dibuja (lo dice la tarjeta) y no se queda pegado arriba.
+- E4 · El encabezado muestra «← Mis casos», el proyecto, «cliente · correo · recibido el …» y la insignia del estado; no trae el párrafo de resumen.
+- E4 · Cada paso tiene su tarjeta «Ahora»: revisar (decisión con «Qué pide»), correo (formulario), información validada (emisión de la T), y aviso para esperando, T emitida y carpeta; nunca dos.
+- E4 · El aviso de siguiente paso no se pega al desplazarse y no se dibuja junto a una tarjeta que ya dice lo mismo.
+- E4 · La tarjeta de correo trae «Para», «Mensaje (puedes editarlo)», la línea de cuántas preguntas lleva, «Enviar al cliente» (principal, con confirmación y resumen) y «Guardar borrador en Gmail»; enviar y guardar hacen lo mismo que antes.
+- E4 · «Cambiar las preguntas» trae las preguntas actuales y «Preparar el correo de nuevo» rearma el mensaje con ellas; la casilla de esperar solo aparece si el mensaje no lleva preguntas; no hay avisos «Respuesta sugerida lista» ni «Recepción completa» en la tarjeta.
+- E4 · Hay cuatro pestañas con sus paneles, y la activa al cargar es «Archivos» si hay algo por revisar y «Conversación» si no.
+- E5 · Los pasos se ven con «Paso N de 4» y el «?» encima de la tarjeta de pasos, sin numerarlos dentro; el contenido del caso tiene un ancho máximo de lectura de 880 px.
+- E5 · «Editar tabla» y «+ Agregar» se dibujan como botones de contorno con texto del color de la marca.
+- E6 · Con una tarjeta «Ahora» el aviso estándar lleva `hidden`; sin ella se ve; el aviso de cambio, de enlaces y de respuesta por actualizar nunca lleva `hidden`.
+- E6 · Un formulario POST no se envía dos veces; con el correo editado el navegador pide confirmar al salir; «+ Agregar» abre el editor por script; el mensaje queda a la vista y su parámetro sale de la URL.
+- E8 · En el Resumen los casos por atender salen antes que el aviso de borradores de Work; el aviso dice «Un borrador de Work no se pudo leer» (o «N borradores… no se pudieron leer»), trae «Ver el caso» y deja el identificador y el motivo dentro de un detalle plegado.
+- E9 · Para cada estado del caso la pantalla trae una tarjeta «Ahora» o un aviso de siguiente paso con título, texto y un botón que lleva a algún sitio; descartada, hilo no disponible, respuesta enviada sin espera y envío interrumpido dicen qué pasó y qué hacer.
+- E10 · Si Gmail falla al enviar, el mensaje editado y la casilla de esperar vuelven a la pantalla; un aviso de la acción (por ejemplo un borrador que no se pudo guardar) también conserva lo escrito; un envío exitoso no deja nada; si el caso ya no admite responder, no se avisa en falso.
+- E10 · Lo mismo para el cuadro de preguntas de la decisión, el número y el correo de la T, y las actividades de la tabla (con el editor abierto); lo guardado caduca, tiene tope y no incluye el token.
+- E11 · `--control-line` pasa 3:1 contra el panel y el fondo de los campos en claro y oscuro; los selectores `.next-step`, `.paso-cabecera`, `.paso-n`, `.pregunta`, `.armar-correo`, `.process-step strong` y `.toolbar` se definen una vez; hay reglas de 640 px para las pestañas y la tabla apilada con `data-etiqueta`, y de `prefers-reduced-motion`.
+- E12 · «Enviar al cliente», «Guardar borrador en Gmail» y la línea de preguntas están dentro de una barra `.barra-accion` pegada abajo (`position: sticky; bottom: 0`); el mensaje crece con su contenido (`field-sizing: content`) y no tiene tope de altura.
+- E12 · En el navegador, con el caso largo (CLL 170) y la pantalla en el arranque, la barra queda dentro de la pantalla visible.
+- E13 · Ninguna plantilla ni texto de la pantalla del caso contiene los sinónimos retirados; cada decisión y cada acción usa el texto único de U-31.24.
+- E14 · Con tres actividades, todos los campos de la tabla de edición tienen nombre accesible distinto y que incluye el nombre de su actividad; la casilla «Quitar» también; la fila nueva dice «de la fila nueva».
+- E14 · `thead` y `tbody` llevan `role="rowgroup"`, los `th` `role="columnheader"` y los `td` `role="cell"`; el aviso de error de destinatario lleva `role="alert"`; hay `scroll-padding-top` y el script enfoca el mensaje.
+- E7 · En revisión técnica la insignia, la nota del paso y la lista dicen «Por decidir»; con el correo redactado sin enviar, «Correo por revisar»; con la información validada, «Información validada»; con el correo ya enviado, «Esperando al cliente»; ninguna dice «Información suficiente para revisión interna» ni «Requiere revisión técnica interna».
+
+**Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).
+
+### U-32 · Una sola entrada, «Mis casos», sin barra de pestañas
+**Estado: en implementación, pasos 1 y 2** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-91, D-92, D-93. Reemplaza lo que U-80.6 decía de la navegación; no quita ninguna función de U-11, U-13, U-16, U-19 ni U-25.
+
+**Motivo.** La persona responsable del producto no quiere la barra «Resumen / Solicitudes / Descartadas / Archivo»: pide un flujo amigable, práctico, sin tantas variaciones ni desvíos. Tres agentes de
+evaluación (UX, técnico y gestión, 2026-10-14) encontraron que Resumen y Solicitudes responden lo mismo, que solo una o dos de las cuatro pestañas sirven al trabajo diario y que Archivo (casos eliminados,
+con identificadores ilegibles) es de auditoría. La persona respondió que rescata descartados «casi nunca» y que Archivo y estadísticas los consulta solo ella, casi nunca.
+
+**Qué debe cumplirse (paso 1)**
+1. **Sin barra de pestañas.** El encabezado trae la marca, que es el enlace a «Mis casos» (la página de inicio, antes «Resumen») con el contador de casos con novedades, y a la derecha el tema, el estado
+   del puente, «Ajustes» y «Revisar ahora». La página de inicio se titula «Mis casos» y sigue mostrando «Qué hacer hoy», las novedades, el aviso de borradores y los contadores.
+2. **Lo raro, fuera del camino.** «Descartadas» es un enlace discreto al pie de toda página («Correos descartados»); «Casos eliminados (archivo)» vive dentro de «Ajustes». Las direcciones `/requests`, `/discarded` y
+   `/archive` no cambian, y desde «Mis casos» se sigue llegando a la lista completa.
+3. **Un solo «volver».** Desde un caso, «← Mis casos» lleva a la entrada; los avisos de los casos sin acción dicen «Volver a Mis casos».
+4. **Accesibilidad.** La marca lleva `aria-current="page"` en «Mis casos»; su nombre accesible dice cuántos casos tienen novedades.
+
+**Paso 2 (pedido por la persona el mismo día, D-92): la página principal es la lista de casos.** La página de inicio («Mis casos», con el título grande) lista todos los casos, uno por fila, del más urgente al menos y,
+a igual urgencia, el más reciente; un proyecto con varios hilos ocupa una sola fila. Cada fila dice el proyecto, el cliente, en qué paso está (con los nombres de U-31.7) y trae un botón con verbo («Aclarar», «Decidir», «Emitir la T»,
+«Abrir») que lleva al caso; desde el caso, «← Mis casos» regresa a la lista. Encima de la lista, chips de etapa que son los contadores de antes («Por atender», «Esperando al cliente», «Listas para la T», «En cotización») y «Todos»;
+al entrar está elegido «Por atender» si hay casos que esperan a la persona y «Todos» si no. Las novedades y el aviso de borradores de Work van en la misma página; las estadísticas siguen plegadas. Un cuadro «Buscar» (proyecto, cliente o servicio) filtra la lista, junto con los chips. Eliminar casos en lote y exportar a Excel, que se usan poco, viven en «Administrar casos» (`/requests`), al que se llega
+desde «Ajustes»: ya no hay un botón «Buscar o exportar» ni dos listas en el camino. Reemplaza lo de U-11 sobre la cola de cinco casos y el botón «Ver los N en Solicitudes».
+
+**Casos de aceptación**
+- E1 · El encabezado no tiene `<nav>` ni los enlaces «Resumen», «Solicitudes» y «Archivo»; la marca enlaza a `/` y marca la página actual; el contador de novedades está en la marca.
+- E1 · La página de inicio se titula «Mis casos»; toda página trae «Correos descartados» al pie; «Ajustes» trae «Casos eliminados (archivo)»; las tres direcciones antiguas siguen existiendo.
+- E1 · «← Mis casos» en el caso y «Volver a Mis casos» en los avisos llevan a `/`.
+- E2 · «Mis casos» lista todos los casos (no solo cinco), ordenados por urgencia y luego por fecha, con un solo botón con verbo por fila; un proyecto con varios hilos ocupa una fila; el título es un `h1` grande.
+- E2 · Los chips de etapa traen el número de casos de cada una y «Todos»; al entrar está elegido «Por atender» si hay casos por atender y «Todos» si no; elegir un chip muestra solo esas filas y, si no hay, dice que no hay casos en esa etapa.
+- E2 · El cuadro «Buscar» filtra las filas por proyecto, cliente o servicio, junto con el chip elegido; si nada coincide dice «No hay casos con esos filtros». No hay botón «Buscar o exportar».
+- E2 · «Ajustes» trae «Administrar casos (eliminar, exportar)» que lleva a `/requests`, que se titula «Administrar casos» y trae «← Mis casos»; las novedades y el aviso de borradores de Work siguen en la página principal.
+
+### U-33 · Lo que se le pide al cliente se lee como una petición, sin etiquetas internas
+**Estado: dashboard implementado; ajuste de la skill de Work pendiente de prueba manual en Work** (pruebas en `tests/test_preguntas_al_cliente.py`). Decisión: D-94. Acota U-26 y U-31.5.
+
+**Motivo.** La evaluación de calidad (2026-10-14) y la revisión de los datos reales de CLL 170 y LLANOS 8 mostraron que los puntos que el análisis de Work deja para el cliente llegan al correo escritos como
+órdenes de trabajo interno («Resolver la correspondencia del polígono…», «Resolver la contradicción entre miércoles y 30-10-2026») y, en un caso, con la etiqueta «(bloqueante)». Los puntos sí son del cliente
+(U-26 los clasifica bien); el defecto es la redacción y la etiqueta, que no deben llegarle.
+
+**Qué debe cumplirse**
+1. **Sin etiquetas internas.** Al limpiar un punto del análisis se quitan también «(bloqueante)», «(bloqueantes)» y «(blocking)» al final, además de «(crítico)», «(recomendable)» y sus equivalentes en inglés.
+2. **Sin verbos de trabajo interno.** Al escribir el cuadro «Preguntas para el cliente» (U-31.5) con lo que sugiere el análisis, un punto que empieza por «Resolver» se escribe como lo que se le pide:
+   «Resolver la contradicción entre miércoles y 30-10-2026» → «La contradicción entre miércoles y 30-10-2026». Un punto que ya es una pregunta (lleva «?») o que no empieza por ese verbo no se toca, y lo que la
+   persona escribe o edita en el cuadro nunca se reescribe.
+3. **Work escribe bien desde el origen.** La skill pide que cada punto para el cliente se redacte como dato o pregunta cortés, sin verbos de trabajo interno («Resolver», «Definir», «Reconciliar») ni etiquetas
+   como «(bloqueante)»; lo que es tarea de Anka se marca como interno. **Prueba manual en Work pendiente** antes de darlo por aceptado.
+
+**Casos de aceptación**
+- E1 · «Confirmar relación de Andrés Muñoz con OTACC (bloqueante)» se limpia a «Confirmar relación de Andrés Muñoz con OTACC»; «Crítico: confirmar el datum.» sigue limpiándose como antes.
+- E1 · Con los cinco puntos de CLL 170, el cuadro de la decisión trae «La correspondencia del polígono LevantamientoRedes con el proyecto Calle 170» y «La contradicción entre miércoles y 30-10-2026», sin «Resolver».
+- E1 · El correo que se arma con ese cuadro no contiene «Resolver» ni «bloqueante».
+- E1 · Un punto con «?» y un punto que no empieza por «Resolver» quedan igual; lo que la persona ya escribió (`ultimas_preguntas`) no se reescribe.
+- E1 · La skill de Work trae la regla de redacción para el cliente.
+
+### U-34 · Errores con salida y protección de lo irreversible (Ola 0 del plan de experiencia)
+**Estado: implementado** (pruebas en `tests/test_errores_y_proteccion.py`). Decisión: D-99. Acota U-31 (conservar lo escrito), D-08 (la T), D-12 y R8 (un correo, una vez, revisado por una persona) y D-27 (la autorización de Google solo con acción explícita).
+
+**Motivo.** La evaluación de la experiencia (2026-10-14) encontró cinco puntos donde un fallo o una pantalla vieja podían perder trabajo o romper una garantía: un `ErrorDeAnka` (Google vencido, modo inválido) terminaba en una página 500 que pedía «avisar con el código»; emitir la T consumía el consecutivo antes de comprobar que el correo podía salir;
+la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; un correo se podía enviar desde una pantalla anterior a un cambio del caso; y la tabla de actividades se guardaba aunque otra persona la hubiera cambiado, llegara incompleta o dejara filas sin nombre.
+
+**Qué debe cumplirse**
+1. **Errores con salida.** Una acción del dashboard que falla por un `ErrorDeAnka` o un `ValueError` de Anka (no solo las que ya lo atrapaban) vuelve al caso con el mensaje y conserva lo escrito (U-31); `/mode` con un modo inválido y `/link` con un número ilegible no dan 500. Un `ErrorDeAnka` que llega
+   al servidor se muestra sin la frase «avisa con el código de error» (su texto ya dice qué hacer); un fallo inesperado la conserva. Las páginas de aviso (400, 403, 404, 500) ofrecen «Volver al caso» cuando se sabe cuál es y siempre «← Mis casos»; si la causa fue la autorización de Google ofrecen además el botón «Volver a conectar Google»,
+   que pide confirmar y solo entonces abre la ventana de Google (D-27). Un caso inexistente en `GET /case` responde 404 con esa salida; un `config.json` incompleto al abrir un caso dice qué falta, en vez de un error genérico.
+2. **La T no se consume en falso.** Antes de asignar la T (D-08) «Emitir la T» comprueba el número (formato, caso sin código, número no repetido), la autorización de Google y el destinatario. Si algo falla ahí, no se asigna nada. Si después de emitir el correo no sale, la T queda, el mensaje dice la causa real
+   (sin culpar a Gmail si fue la autorización) y el texto revisado vuelve al cuadro de «Respuesta al cliente». El diálogo de confirmación muestra el número tecleado y el destinatario, y avisa si el número no es el sugerido o si su año no es el actual.
+3. **La pantalla no se recarga sobre el trabajo.** La recarga automática por cambios solo ocurre si no hay un diálogo abierto, la página está arriba del todo, ningún campo tiene el cursor y ninguno tiene texto distinto del original; en cualquier otro caso se muestra el aviso «Hay novedades en esta página», que es un estado anunciado (`role="status"`).
+4. **Un correo, una vez, desde un estado conocido (R8).** El formulario del correo lleva la marca del estado del caso al abrirse; si el caso cambió antes de enviar, el envío se rechaza («Este caso cambió desde que abriste la pantalla…»), lo escrito se conserva y no se contacta a Gmail. Sin marca (llamadas que no vienen de esa pantalla) no se comprueba.
+   El diálogo de envío dice cuándo ya se envió un correo en ese caso. Es una protección añadida: ninguna existente se relaja.
+5. **La tabla de actividades no pierde datos en silencio.** El formulario lleva la huella de la tabla que se abrió (`base_version`): si cambió (otra edición o un análisis nuevo) no se guarda y lo escrito vuelve al editor. Se rechaza un formulario sin `row_count`, o con 0 filas cuando la tabla tiene filas, un `row_count` fuera de 0 a 200,
+   una celda de más de 2000 caracteres (las cajas llevan `maxlength`) y una fila con datos pero sin nombre de actividad. Guardar sin cambios no crea una versión («No hay cambios que guardar»). Una fila existente con todas las celdas vaciadas se cuenta y se confirma como «por quitar», porque así se guarda.
+
+**Casos de aceptación**
+- E1 · Con Google sin autorización, `/send`, `/draft` y `/approve` redirigen al caso con el mensaje (303) y el texto escrito sigue disponible; `/mode` con «inventado» y `/link` con «abc» no devuelven 500.
+- E1 · `GET /case?thread_id=no-existe` es 404 y trae «← Mis casos»; un `ErrorDeAnka` en una acción es 500 sin «código de error» y con «Volver al caso»; un `RuntimeError` conserva el código y no muestra su detalle; un `AutorizacionDeGoogle` trae el botón «Volver a conectar Google» con confirmación.
+- E2 · Sin Google, sin destinatario o con un número inválido, `issue_code_and_notify` falla y el caso sigue sin T; si el envío falla después, la T queda, el aviso lleva «⚠» y la causa, y el texto vuelve a la respuesta. El botón de emitir lleva los datos para el resumen (`data-resumen="emision"`, `data-para`, `data-sugerido`, `data-anio`).
+- E3 · El script de la página contiene `puedeRecargar()` con las cuatro condiciones y el aviso lleva `role="status"`.
+- E4 · Con una marca vieja `send_dashboard_reply` lanza «Este caso cambió desde que abriste la pantalla» sin llamar a Gmail; con la vigente o sin marca sigue su camino; la pantalla trae la marca en un campo oculto.
+- E5 · Sin `row_count`, con 0 filas sobre una tabla con filas, con una celda de 2001 caracteres o con una fila sin nombre, nada se guarda; con la huella vieja, tampoco, y el editor muestra lo escrito con la huella nueva; sin cambios no hay versión nueva; con un cambio real sí.
+
+**Vacíos abiertos:** el rechazo de una tabla cambiada devuelve lo escrito junto a la tabla vigente, pero no la compara campo a campo; queda para la ola de mejoras de la tabla. Prueba manual en Work: no aplica.
+
+### U-36 · Sistema visual de Anka: color, fuente, radios, foco y animaciones
+**Estado: implementado** (pruebas en `tests/test_estilo_visual.py`; instantáneas regeneradas). Decisión: D-101. Solo estilo: no cambia textos ni estructura (U-35, D-97) y respeta D-27.
+
+**Qué debe cumplirse**
+1. **Color.** `style.css` define la paleta en `:root` (claro) y la repite igual para oscuro en `prefers-color-scheme` y en `data-theme="dark"`. La acción es `#bd5209` y el azul de marca `#2f4d73`; el naranja de marca `#f47c27` y el ámbar `#f59e0b` no se usan como color de texto ni de relleno bajo texto.
+2. **Contraste.** Cada par texto/fondo principal llega a 4,5:1 y cada borde de campo y color de foco a 3:1, en claro y en oscuro (lo calcula la prueba con las variables del CSS).
+3. **Fuente.** Inter Variable (subconjunto latino) se sirve desde `GET /static/inter-latin-wght.woff2` con `font-display: swap` y alternativa `system-ui`, «Segoe UI»; el logo, desde `GET /static/logo-anka.png`. Solo esos dos nombres: otro responde 404 (sin leer rutas del disco). Sin fuentes ni imágenes de terceros.
+4. **Forma.** Radios de .5 rem (controles) y .75 rem (tarjetas); sombras suaves; controles de al menos 44 px; foco visible de 2 px en el color de acción con desfase de 2 px; campos de 16 px en pantalla angosta.
+5. **Movimiento.** Tarjetas y paneles entran con «fade-in-up» (.2 s, 6 px), los avisos con «fade-in» (.15 s) y los controles cambian de color en .15 s; todo se anula con `prefers-reduced-motion` (también `::before` y `::after`). Sin partículas ni librerías.
+6. **Logo.** La cabecera muestra el logo (`alt="Anka"`, 38 px de alto) en vez de la «A»; el enlace conserva su nombre accesible.
+
+**Casos de aceptación**
+- E1 · Los pares de la lista cumplen 4,5:1 / 3:1 en claro y oscuro, y las dos variantes oscuras tienen las mismas variables.
+- E2 · `GET /static/logo-anka.png` y `/static/inter-latin-wght.woff2` responden 200 con su tipo; `/static/otro` y `/static/..%2Fstyle.css` responden 404.
+- E3 · El CSS declara `@font-face` con `font-display: swap`, no menciona Google Fonts y la regla de «reducir movimiento» cubre `*`, `::before` y `::after`.
+- E4 · La cabecera trae `<img … alt="Anka">` hacia `/static/logo-anka.png`.
+
+### U-39 · Lo que la persona escribe sale tal cual: solo el borrador de Work pierde el historial citado
+**Estado: implementado** (pruebas en `tests/test_texto_de_la_persona.py`). Decisión: D-104. Acota F1-05 y el contrato con Work (`spec/03-contrato-work.md`), y aplica R8 (lo revisado es lo enviado). Corrige que enviar, guardar el borrador y emitir la T recortaban en silencio líneas con «>» o «El … escribió:» que la persona había tecleado.
+
+**Qué debe cumplirse**
+1. **Dónde se recorta.** El historial citado se quita solo del borrador que viene de Work: al importarlo (`work_import`) y al mostrar uno ya guardado antes de este cambio. Nada más pasa por ese recorte.
+2. **Lo tecleado no se toca.** Enviar al cliente, guardar el borrador en Gmail y emitir la T envían exactamente el texto del cuadro (solo se quitan los espacios y saltos de los extremos). Una línea con «>» o una frase como «El cliente nos escribió: …» se conserva.
+3. **El detector no confunde frases.** Una cabecera de cita es «El/On … escribió/wrote:» con los dos puntos al final de la línea y una fecha o un correo; «>» solo cuenta con dos o más líneas seguidas. Una frase suelta de la persona no es una cita.
+4. **Aviso, no recorte.** Si el texto que se va a enviar todavía trae un mensaje citado de verdad, el diálogo de envío y el de emitir la T añaden una fila «Ojo»: «Tu respuesta incluye un mensaje citado. ¿Enviar así?». La persona decide; el texto no cambia.
+
+**Casos de aceptación**
+- A1 · Enviar con «> …» y con «El jue, 1 oct 2026, Ana <ana@acme.com> escribió:» tecleados: el correo sale con ese texto completo.
+- A2 · Guardar el borrador y emitir la T: lo mismo (la T pasa el texto al envío sin recortarlo).
+- A3 · «El cliente nos escribió: necesitamos 50 ha.» no se recorta ni se avisa; una sola línea con «>» tampoco.
+- A4 · Un borrador de Work con cita se importa sin ella y la pantalla no la muestra.
+- A5 · Los diálogos de envío y de emisión llevan el aviso de cita sin quitar nada.
+
+### U-38 · Nodos animados de fondo, sin librerías y sin molestar
+**Estado: implementado** (pruebas en `tests/test_particulas.py`; instantáneas regeneradas). Decisión: D-103. Solo estilo: no cambia textos ni estructura (U-35, D-97) y respeta D-27 y la CSP de D-71.
+
+**Qué debe cumplirse**
+1. **Qué es.** Un `<canvas id="particulas">` en el layout común (todas las pantallas), fijo detrás de todo (`position: fixed; inset: 0; z-index: -1; pointer-events: none`) y con `aria-hidden="true"`. Dibuja la animación del login de ANKA Inventario en JavaScript puro, en el `<script>` en línea del layout (sin librería, sin archivo externo, sin red). Su física reproduce la de tsparticles 3.9.1 (D-103): nodos azul `#2f4d73` y naranja `#f47c27` (al azar) de 1,5 a 3,5 px y opacidad 0,6; dirección libre con vector unitario; movimiento `velocidad · factor / 2` px por cuadro, con `factor = 60 · ms / 1000` (18 px/s con `velocidad` 0,6, con cualquier frecuencia de cuadros); rebote total en los bordes; líneas de hasta 140 px con opacidad `0,35 · (1 − d/140)`; repulsión del ratón a 100 px que suma directamente a la posición `min(easeOutQuad(1 − d/100) · 100, 50)` px por cuadro, sin suavizar. La cantidad sigue la densidad de tsparticles (40 nodos por 1920×1080, proporcional al área) multiplicada por 2 porque las tarjetas opacas tapan buena parte de la pantalla, con un mínimo de 16.
+2. **No estorba.** La intensidad (opacidad de nodos y líneas) se multiplica por 0,7 (0,84 en oscuro): el texto y las tablas siempre van sobre superficies opacas y el contraste que mide `test_estilo_visual` no cambia; la repulsión es de posición, así que su efecto no depende de la intensidad. El ratón se escucha en `window` (el canvas no recibe eventos) y se suelta al salir de la ventana, perder el foco o salir del documento. En modo oscuro el azul se aclara (`#8fb0dc`) y el naranja es `#f9a668`.
+3. **Movimiento reducido.** Con `prefers-reduced-motion: reduce` no se monta (el canvas queda `hidden`); si la preferencia cambia en vivo, se detiene o arranca. En alto contraste (`forced-colors`) y al imprimir el canvas no se muestra.
+4. **Gasto y fluidez.** Se pausa cuando la pestaña está oculta (`visibilitychange`) o la ventana pierde el foco (`blur`; `focus` la reanuda, U-65) y al volver reinicia el reloj; se limita a ~60 cuadros por segundo con `requestAnimationFrame`; el movimiento sigue al reloj (no a pasos fijos por cuadro) y un cuadro tardío mueve como mucho lo de 100 ms; sigue el tamaño de la ventana (reajusta la cantidad) y la densidad de pantalla (`devicePixelRatio`, tope 2).
+
+**Casos de aceptación**
+- A1 · Toda página trae un solo `<canvas id="particulas" aria-hidden="true">` y el CSS lo deja fijo, detrás y sin eventos.
+- A2 · El script consulta `prefers-reduced-motion`, `visibilitychange` y `devicePixelRatio`, y no carga nada externo (ni `src=`, ni `import`, ni `fetch`).
+- A3 · Los parámetros clave (40, 140, 0,35, 0,6, 100, 100, 50, 60, colores) están en el script.
+- A4 · La física, ejecutada en Node (`tests/fisica_nodos_prueba.js`), da 18 px/s con 30, 60 y 144 cuadros por segundo, mueve 50 px por cuadro a un nodo a menos de ~70 px del ratón y 0 a 100 px o más, y deja fuera del radio a todo nodo con el ratón quieto.
+
+### U-37 · Accesibilidad de la pantalla: lo que se elige y se avisa no depende del color ni del ratón (Ola 2 del plan de experiencia)
+**Estado: implementado** (pruebas en `tests/test_accesibilidad.py`; instantáneas regeneradas). Decisión: D-102. Es de forma, no de contenido: no cambia textos únicos (D-97), «Sí, enviar al cliente» ni el vocabulario de `test_vocabulario`; el texto añadido solo para lectores de pantalla (`solo-lectores`) usa ese mismo vocabulario. Complementa U-31 punto 25 (D-98) y U-36.
+
+**Qué debe cumplirse**
+1. **Avance del caso.** Los pasos son una lista ordenada (`<ol>`); el actual lleva `aria-current="step"`; cada uno dice «Hecho», «Paso actual» o «Pendiente» para lectores y lleva marca ✓, ▶ u ○ (no solo color).
+2. **Lo elegido se ve sin color.** Las tarjetas de decisión muestran ○ / ●, las píldoras y los chips marcados muestran ✓; en alto contraste (`forced-colors`) el borde pasa a `Highlight`. «Cómo seguir con este caso» es un `fieldset` con `legend`.
+3. **Avisos.** Un aviso que cuenta un fallo se anuncia como `role="alert"` con «Error:» para lectores (los demás, `role="status"`); lo escrito por el servidor lo marca con `aviso=error` en la dirección, no con el texto. Los cambios de estado de la revisión de correos y de Google se anuncian en una región `status`; el contador de casos visibles tras filtrar («3 casos a la vista») también; el texto de un aviso en vivo solo se reescribe si cambió. «Hay cambios nuevos» ya era `status` (U-34).
+4. **Pantalla angosta y zoom.** A 360 px no hay desplazamiento horizontal (el `overflow-x: hidden` del `body` se quitó y se arreglaron los desbordes); Ajustes se despliega en el flujo en ≤ 720 px, el selector de motor envuelve y Esc cierra Ajustes. Con `max-height: 600px` el encabezado, la barra de envío y el aviso dejan de ser pegajosos; hay `scroll-padding-bottom` para que la barra no tape el foco.
+5. **Tamaños.** El texto no baja de 14 px (rem, con `max(.875rem, 14px)`); los campos son de 16 px en ≤ 720 px; casillas de 24 px y enlaces/botones de acción de 44 px de alto; los botones secundarios y los chips tienen borde visible.
+6. **Campos.** El buscador y el mensaje del correo tienen etiqueta visible; los campos obligatorios de la T y de la carpeta dicen «(obligatorio)»; el número de la T usa `inputmode="numeric"`.
+7. **Tabla de actividades.** Tiene nombre accesible; todo `th` lleva `scope="col"` y ninguno está vacío (los de acción llevan texto para lectores); «Editar tabla» y «Ver todas» son botones con `aria-expanded` (no casillas ocultas) y sin JavaScript el editor se ve siempre; «+ Agregar» es un botón y lleva el cursor a la fila nueva; el editor se apila hasta 900 px.
+8. **Botón de tema.** Su nombre accesible empieza por el texto visible («Tema: sistema. Pulsa para usar el claro»).
+9. **Acciones largas.** Toda acción que escribe cambia el texto del botón («Enviando…», «Guardando…», «Creando la carpeta…»), lo dice en una región `status` y marca el formulario con `aria-busy`; a los 30 s libera el botón y avisa «No hubo respuesta…». Un envío detenido por otro script no bloquea el formulario.
+10. **Limpieza.** Los casos de `/requests` usan `h2`; los enlaces que abren pestaña nueva lo dicen; sin `alert()` (el aviso es en línea con `role="alert"`); las pestañas responden a Inicio y Fin; el punto de novedades dice «Nuevo:».
+
+**Casos de aceptación**
+- A1 · La pantalla de un caso trae `<ol class="process">` con un solo `aria-current="step"` y el texto «Paso actual».
+- A2 · Un `?message=…&aviso=error` se dibuja con `role="alert"`; sin `aviso=error`, con `role="status"`.
+- A3 · Una acción que termina con aviso añade `aviso=error` a la dirección a la que redirige.
+- A4 · El CSS no pone `overflow-x: hidden` en `body`, declara `forced-colors`, marcas ○/●/✓ y `scroll-padding-bottom`.
+- A5 · Ningún `th` de las plantillas queda sin `scope` ni vacío.
+- A6 · El código de la T pide «(obligatorio)» y `inputmode="numeric"`.
+
+### U-40 · Flujo simple: una acción principal por estado, lo secundario plegado (Ola 3 del plan de experiencia)
+**Estado: implementado** (pruebas en `tests/test_flujo_simple.py`; instantáneas regeneradas). Decisión: D-105. Es de forma y orden, no de comportamiento: no cambia `spec/transiciones.json`, ningún nombre de estado (D-86, D-96), los textos únicos de D-97, «Sí, enviar al cliente», el contrato con Work ni el momento en que se crea la carpeta. Respeta R8 (el envío sigue explícito y con su confirmación), R11, R12, R13 (no se automatiza ningún envío) y D-27.
+
+**Motivo.** La evaluación de flujo (2026-10-15) contó seis vías de salida en «Correo por revisar», un botón que no era tarea en «Esperando al cliente», la segunda ronda con los mismos rótulos que la primera, un panel de la T con tres campos y el correo abierto, dos «Ahora» compitiendo arriba del caso, secciones vacías con el mismo peso que las llenas y callejones sin salida.
+
+**Qué debe cumplirse**
+1. **Correo por revisar.** Visibles: el texto, «Enviar al cliente» (principal) y «Guardar borrador en Gmail». «Cambiar las preguntas», «Volver a decidir» y «No preguntar: con esto alcanza» están en un solo menú plegado «Cambiar de idea» (abierto solo si el correo está en blanco o se acaba de pedir otro con preguntas). La casilla «Esperar su respuesta» solo se ofrece si el correo no hace preguntas y explica qué hace; el servidor ya la entrega oculta cuando el texto trae preguntas. Rearmar el correo editado sigue pidiendo confirmación.
+2. **Esperando al cliente.** Sin botón principal: «Nada que hacer: esperando su respuesta…», con lo que se hará a los 3 y 7 días de trabajo (R13), las preguntas enviadas (plegadas) y el seguimiento como enlace. Si toca llamar, «Ya hablé con el cliente» está en la misma tarjeta (registra la llamada; no envía nada).
+3. **Segunda ronda.** Cuando el cliente contestó un correo con preguntas (hay un correo suyo posterior al envío), el paso 1 dice «· ronda N» y la tarjeta «Ahora» de la decisión o del correo abre con «El cliente respondió (ronda N): revisa lo que faltaba.», lo que se le preguntó y lo que sigue pendiente. No hay estados ni eventos nuevos y no se afirma qué respondió: la respuesta está en «Conversación». La tabla va justo debajo de la tarjeta.
+4. **Emitir la T.** Antes del botón, una lista de las 3 cosas que pasan (se crea el código, se crea la carpeta, se envía el correo a quien corresponda); el número dice de dónde sale; el correo va plegado en «Ver o editar el correo»; «Solo emitir la T» es un botón secundario visible; «Corregir el cliente» (el formulario de cliente, tipo y sector) está en el mismo panel. El bloque «Carpeta del proyecto en Drive» sale de este estado y queda en «Más datos» como «Si la carpeta falló: crearla a mano»; si hay un aviso de carpeta pendiente o la T ya está emitida sin carpeta, sigue a la vista. Un campo obligatorio vacío dentro de algo plegado lo abre.
+5. **Avisos con una prioridad.** Una tarjeta principal arriba y, plegada, «y además: N avisos» con el resto (orden en `spec/04-ux.md`). Novedades: una fila por caso. Tema, «Avisarme de novedades» y el selector de quién analiza los correos están dentro de Ajustes; el selector, en «Ajustes avanzados (administración)» con su advertencia y el modo activo dicho en llano.
+6. **Tabla.** El resumen marca lo que falta («Falta ubicación, plazo» según los datos esenciales de R12); «Corregir la tabla» abre la edición; el estado se llama igual en el resumen y en el editor (Completa / Por completar / Contradictoria) aunque el valor enviado es el de siempre; no hay botón «Ajustar cajas al texto» (las cajas se ajustan solas); «¿Por qué cambias?» solo aparece tras cambiar algo.
+7. **Secciones vacías.** «Lo que sabemos del cliente», «Revisión de las preguntas» y «Pendientes» no se dibujan si no tienen contenido. «Información comercial» pasa a «Corregir el cliente» en el panel de la T y, sin ese panel, sigue en «Más datos».
+8. **Callejones.** «Descartada» ofrece «Sí era una solicitud: analizarla»; «El correo no salió» enlaza a Gmail (pestaña nueva); «Ya no está en Gmail» ofrece «Borrar este caso» (con confirmación; el historial se conserva); un archivo que no se pudo leer dice «No pudimos leer plano.dwg: ábrelo tú o pídele al cliente un PDF»; el caso con carpeta creada dice cuál es el siguiente paso.
+
+**Casos de aceptación**
+- F1 · Un caso con el correo armado trae «Enviar al cliente» y «Guardar borrador en Gmail» fuera de `<details id="cambiar-idea">` y las tres salidas dentro.
+- F2 · Un caso en espera no tiene botón en la tarjeta y lista las preguntas enviadas; con 7 días trae el formulario «Ya hablé con el cliente».
+- F3 · Un caso con preguntas enviadas y un correo del cliente posterior dice «ronda 2»; sin correo posterior, no.
+- F4 · El panel de la T lista 3 cosas antes del botón, el correo está plegado y «Solo emitir la T» no está dentro de ningún `<details>`.
+- F5 · Con un cambio pendiente y otro por enviar, hay una tarjeta y «y además: 2 avisos»; con la tarjeta «Ahora» del paso, el aviso del estado no se repite.
+- F6 · Un plano `.dwg` no leído trae su salida en la decisión y en la lista de archivos.
+
+**Pendiente (Ola 4 o necesita decisión del dueño, no se hizo):** un solo disparador de la carpeta (R9 frente a D-29), deshacer tras «Con esto alcanza», anular la T, un evento «Confirmar alcance», pre-redactar la petición con las celdas por completar, pasar de 4 a 5 pasos, renombrar estados, «Guardar borrador» y «Administrar casos», la decisión con dos tarjetas-botón, «Abrir en Gmail» para el caso que ya no está en Gmail (no tiene sentido), agrupar el encabezado en una sola barra en pantallas angostas y poner el verbo primero en cada fila de la lista.
+
+### U-41 · Cuando Work manda un análisis que no se puede leer, la persona sabe qué pasó y qué hacer
+**Estado: implementado** (pruebas en `tests/test_tolerancia_work.py`, `tests/test_rechazo_de_work.py` y `tests/test_scripts_validos.py`). Decisión: D-106. Reemplaza el texto y las acciones de D-87 y acota T-28 y T-36. No toca R8 (nada sale al cliente), R11, R12 ni D-27. El aviso es propio de `chatgpt_work`; el editor de tabla es el de los tres modos.
+
+**Motivo.** El diagnóstico (2026-10-15) mostró que el aviso «Work no pudo entender un análisis» salía por descuidos secundarios de Work (un `no indicado` en un número, un enumerado en español, una cita sin extracto), decía el error de Python en inglés, no se limpiaba cuando llegaba un análisis válido, ofrecía «Confirmar que alcanza» sobre cero actividades, mentía en el historial («Work analizó el caso») y pedía algo que nadie puede hacer («arréglalo en Gmail»).
+
+**Qué debe cumplirse**
+1. **Tolerar y avisar** (T-28): un análisis con descuidos secundarios se importa y el caso muestra «Work escribió algo distinto de lo esperado; se corrigió solo: …». Solo se rechaza la identidad, un estado desconocido o un JSON irrecuperable.
+2. **Panel del Resumen.** Título «Falta el análisis de un caso» (o «de N casos»), qué pasó en lenguaje claro y en español, qué pasará («Si Work vuelve a mandar el análisis, se revisa solo») y dos acciones: «Completar la tabla yo» (principal: abre la tabla editable del caso, «Corregir la tabla» y «+ Agregar») y «Dejarlo para después» (secundaria: oculta el aviso y deja constancia en el historial). No dice «Pide a Work que lo haga de nuevo» ni «arréglalo en Gmail». El aviso se limpia solo cuando llega un análisis válido del mismo hilo.
+3. **Pantalla del caso mínimo.** Una franja «Este caso aún no tiene análisis de Work» con el motivo, «Completar la tabla yo» y «Ver el correo del cliente». «Confirmar que alcanza» (y la opción «Con esto alcanza») quedan desactivados, con la razón visible, mientras no haya ninguna actividad; el servidor también lo rechaza.
+4. **Historial.** Un caso mínimo no dice «Work analizó el caso»: dice que el análisis no se pudo leer y que el caso se creó con los datos del correo.
+5. **Qué se guarda.** Del rechazo solo el motivo, los nombres de campo, la ruta y la fecha (T-36).
+6. **Métrica y alerta.** Los rechazos se cuentan por día (causa y campos, sin contenido). Con más de 3 en un día la «Revisión de correos» dice «Work está mandando análisis con errores: N hoy. Pide revisar el prompt.».
+7. **Borrador HTML.** Las etiquetas que no son de formato (un `<Polygon>` citado de un KML) no se borran del bloque; las entidades se convierten.
+8. **Los scripts de las páginas se comprueban.** Una prueba pasa `node --check` a todo el JavaScript de las páginas (desde U-49, los archivos `app.js` y `tema.js`, y cualquier `<script>` en línea que reaparezca; se salta si no hay Node), para que un error de sintaxis como el de `layout.html` no pase desapercibido.
+
+**Casos de aceptación**
+- N1 · `size_bytes: "no indicado"`, `owner: "cliente"`, `status` con punto final, `sources` como texto y `evidence` sin `excerpt` se importan con aviso; un `thread_id` ajeno, un estado inventado y un JSON roto siguen rechazándose.
+- N2 · Un rechazo guarda motivo, causa y campos, sin ningún texto del cliente.
+- N3 · Un análisis válido posterior del mismo hilo limpia el aviso; uno anterior al rechazo no.
+- N4 · El caso mínimo no dice «Work analizó el caso»; «Confirmar que alcanza» sale desactivado y el servidor lo rechaza.
+- N5 · Con 4 rechazos en el día aparece la alerta; con 3 no.
+- N6 · Un KML citado en un borrador HTML llega entero al bloque JSON.
+- N7 · Todos los `<script>` de la lista y del caso pasan `node --check`.
+
+**Pendiente (no se hizo; necesita prueba manual del dueño en Work):** la versión V6.2 del prompt (núcleo y extras, valores permitidos junto a cada campo, una lista de comprobación y menos contexto); el diff propuesto está en `docs/PROPUESTA_PROMPT_V6_2.md`.
+
+### U-42 · La base aguanta tres procesos a la vez (Ola B0 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_base_concurrente.py`). Decisión: D-107. No toca R8, D-27 ni la reserva de envío.
+
+**Qué debe cumplirse**
+1. Toda conexión a la base usa `journal_mode=WAL`, `busy_timeout=15000` (15 s) y `foreign_keys=ON`. `synchronous` se queda en FULL.
+2. Las migraciones toman `BEGIN IMMEDIATE`, releen `user_version` dentro de la transacción y las tablas se crean con `IF NOT EXISTS`: dashboard, puente y preparador pueden arrancar a la vez sin error.
+3. La migración 16 retira de `quote_metadata` las filas sin caso (huérfanas); antes queda la copia `.bak-v15`.
+4. Un escritor que guarda un análisis (importación de Work, `save`) toma el candado de escritura antes de leer el estado: el puente no pisa lo que se hizo en el dashboard entre la lectura y la escritura. El envío y la resolución del destinatario releen el análisis dentro del candado en vez de guardar una copia vieja.
+5. Las copias de seguridad tratan `-wal`/`-shm`: la copia es un solo archivo, la restauración se instala con archivo temporal y `os.replace`, borra los `-wal`/`-shm` viejos, guarda lo anterior con la API de copia de SQLite y rechaza un respaldo de un esquema más nuevo. `verificar_ultima_copia` abre la última copia en una carpeta temporal y comprueba integridad y versión.
+
+**Casos de aceptación**
+- B0-1 · Una base nueva queda en WAL, con `foreign_keys=1` y `busy_timeout=15000`.
+- B0-2 · Seis hilos abren la misma base vacía a la vez: ninguno falla y `user_version` es la última.
+- B0-3 · Con otro proceso escribiendo, `record_event` espera en vez de fallar a los 5 s.
+- B0-4 · Un guardado de Work con el estado leído tarde no sobrescribe un cambio hecho dentro del candado.
+- B0-5 · Restaurar no deja `-wal`/`-shm` viejos y la base queda íntegra.
+
+### U-43 · Red con tiempo límite y reintentos solo donde es seguro
+**Estado: implementado** (pruebas en `tests/test_red_segura.py`). Decisión: D-108.
+1. Todas las llamadas a Gmail y Drive esperan como máximo 30 s por operación (también la renovación del token).
+2. Las lecturas (GET) y las escrituras idempotentes (PUT/PATCH) se reintentan hasta 3 veces con espera creciente ante 429, 5xx o corte de red. **Nunca** se reintenta un POST: enviar, crear borrador o carpeta.
+3. Un 404 al enviar un borrador solo cae a «mensaje nuevo» si vino de actualizar el borrador, no de enviarlo (B3-08): si el envío del borrador da 404 no se manda un segundo correo.
+4. El servidor del dashboard corta una conexión que no habla en 30 s. Ollama y la API ya tenían tiempo límite propio, calculado según el documento.
+
+### U-44 · El token de Google y el de CSRF se escriben completos y privados
+**Estado: implementado** (pruebas en `tests/test_archivos_privados.py`). Decisión: D-109.
+Se escriben en un archivo temporal de la misma carpeta y se mueven con `os.replace` (nunca queda a medias); el permiso queda solo para el usuario (`0600` en POSIX; en Windows `icacls` quitando la herencia). Si no se puede restringir, se avisa en el registro sin contenido y se guarda igual.
+
+### U-45 · Quien revisa ve de dónde sale cada destinatario
+**Estado: implementado** (pruebas en `tests/test_destinatarios.py`). Decisión: D-110. R8 intacto: sigue decidiendo una persona.
+Los destinatarios externos al contacto se mantienen, pero el correo a una dirección distinta del destinatario del caso muestra su origen (contacto registrado, destinatario del caso, participante del hilo, remitente de un cambio, vinculado de otro hilo) antes de enviar, y el hecho «Correo enviado…» lo repite en el historial.
+
+### U-46 · Las transiciones de estado se comprueban contra la tabla (solo registrar)
+**Estado: implementado** (pruebas en `tests/test_estados.py`). Decisión: D-111.
+`spec/transiciones.json` incluye ahora crear carpeta, enviar y terminar envío, guardar borrador, unir/descartar, rescatar, hilo no disponible, salida de `sending` y el análisis del modo Python. `cambiar_estado` / `verificar_transicion` (`anka/servicios/estados.py`) consultan la tabla: una transición que no está **se permite igual** y deja un hecho `transicion_no_prevista` (caso, origen, destino, evento) y una línea de registro. Nunca bloquea.
+
+### U-47 · Los tres modos protegen igual un caso avanzado
+**Estado: implementado** (pruebas en `tests/test_paridad_estados.py`). Decisión: D-112. Cumple «los tres modos se comportan igual».
+Un análisis (de Work o del modo local/api) nunca hace retroceder un caso `ready` (carpeta creada) ni `sending` (envío en curso); un caso `response_sent` solo se mueve si llega un mensaje **nuevo** del cliente, no por volver a analizar el mismo (TR-07, TR-08, TR-58). El análisis sí se guarda (tabla, resumen, control de cambios). En el modo Python, además, un caso protegido no recibe un envío automático de preguntas ni otra carpeta. La regla vive en un solo lugar (`estado_tras_un_analisis`, `anka/dominio/status.py`) y la usan `work_import` y `RevisorDeHilos`.
+Fuera de alcance: guardar un borrador desde el dashboard sobre un caso `ready` o `response_sent` reabierto sigue pasándolo a `draft_created` (es igual en los tres modos, TR-43 lo registra como no previsto); las transiciones no previstas siguen solo registrándose (D-111).
+
+### U-48 · El dashboard sigue ágil con cientos y miles de casos (Ola B1 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_rendimiento.py`); lo que quedó pendiente se cerró en U-49. Decisión: D-113 (ajustada por D-114). No cambia ningún texto ni estado, salvo el pie «Ver más» de las listas largas. No toca R8, D-27 ni la paridad de los tres modos.
+
+**Motivo.** Con 500 casos sintéticos, abrir «Mis casos» o un caso tardaba 2,3 a 5 s (la agrupación de proyectos comparaba todos contra todos con `difflib`), ocho pestañas a la vez 44 s, exportar todo a Excel 63 s, y cada página repetía ~48 KB de CSS. Cada pestaña con avisos en vivo consultaba la base una vez por segundo.
+
+**Qué debe cumplirse**
+1. **Agrupar proyectos sin comparar todos contra todos.** `agrupar` solo compara los pares que comparten un documento (mismo nombre y texto leído) o una palabra del nombre del proyecto con los mismos números; los demás nunca podían parecerse. Los grupos, su orden y su motivo son **idénticos** a los de comparar todos los pares (`agrupar_lento`, que las pruebas conservan como referencia). La comparación de nombres descarta antes lo que no puede llegar a 0,85 y recuerda sus respuestas.
+2. **El resultado se recuerda mientras nada cambie.** Las listas y el panel «Parece el mismo proyecto» usan `agrupar_en_cache`: la clave es el marcador de cambios (`change_marker`), los pares «No es el mismo proyecto» y los datos que leen las fichas (cliente confirmado, código, nombre y adjuntos de cada caso). Si cualquiera cambia, se recalcula. Se recuerdan posiciones, no casos: lo que se devuelve siempre contiene los casos recién leídos.
+3. **Excel lineal.** `build_workbook` escribe en modo de solo escritura: el tiempo crece en línea recta con las filas. Conserva el contenido celda por celda y el formato esencial: encabezado en negrita blanca sobre verde, color por estado de actividad, texto ajustado y arriba, filtro, primera fila y primeras cuatro columnas fijas y anchos de columna.
+4. **Índices en la base.** La migración 17 crea (con `IF NOT EXISTS`) los índices de la lista de casos (orden por «más reciente»), del estado, del código T, de los eventos por tipo y por fecha de registro, de los cambios y vínculos por estado y de las novedades sin leer. Solo aceleran lecturas: ningún dato cambia (la derivación de novedades conserva su orden de siempre con `ORDER BY rowid`).
+5. **Listas de a 200.** «Mis casos» y «Administrar casos» muestran las primeras 200 filas (un grupo de proyecto cuenta como una). Si hay más, debajo de la lista aparece «Se muestran N de M casos.» y el enlace «Ver K más» (`?mostrar=N+200`, que vuelve a mostrar todo lo anterior y, desde U-49, conserva la búsqueda y los filtros: ya no miran solo lo mostrado). Con 200 o menos casos la página es la de siempre. Los números de las etapas y el resumen cuentan todos los casos. El pie usa solo palabras ya permitidas (sin sinónimos retirados de D-97).
+6. **Respuestas más livianas.** Si el navegador acepta `gzip`, el HTML, el JSON y el CSS de 1 KB o más se envían comprimidos (`Content-Encoding: gzip`, `Vary: Accept-Encoding`); los demás tipos (Excel, imágenes, fuente, canal de avisos) no. `/api/casos`, `/api/casos/{id}` y `/openapi.json` salen en JSON compacto. El servidor habla HTTP/1.1 (la conexión se reutiliza; cada respuesta lleva su longitud, el canal de avisos `Connection: close` y un `POST` rechazado antes de leer su cuerpo cierra la conexión).
+7. **Archivos fijos con caché.** `/static/…` lleva `ETag`; con `If-None-Match` igual responde `304` sin cuerpo. El CSS compartido ya no va dentro de cada página: es `/static/style.<huella>.css`, donde la huella es la del contenido, con `Cache-Control: public, max-age=31536000, immutable`. La fuente y el logo siguen con `max-age=86400`. Lo demás (páginas, JSON, `303`, `/eventos`) sigue con `no-store`. La lista de nombres es fija: cualquier otro nombre es `404`.
+8. **Un solo cálculo por segundo para los avisos en vivo.** Todas las pestañas conectadas a `/eventos` leen el marcador de `MarcadorCompartido`, que consulta la base como máximo una vez por segundo sin importar cuántas pestañas haya.
+
+**Casos de aceptación**
+- E1 · Sobre datos sintéticos (800 casos con clientes, códigos, números y adjuntos repetidos, y pares separados), `agrupar` y `agrupar_lento` devuelven los mismos grupos, en el mismo orden y con el mismo motivo; con 600 casos `agrupar` tarda menos de 3 s (umbral holgado).
+- E2 · Cambiar el nombre, el cliente confirmado, el código o un par separado de un caso recalcula los grupos; sin cambios, la segunda llamada no vuelve a comparar.
+- E3 · El Excel nuevo y el anterior tienen las mismas celdas, el mismo filtro y los mismos estilos esenciales; 3 000 filas se escriben en menos de 8 s.
+- E4 · Una base en el esquema 16 pasa al 17 sin perder datos y las consultas de la lista, de los eventos recibidos y del marcador usan los índices (`EXPLAIN QUERY PLAN`).
+- E5 · Con 450 casos, «Mis casos» y «Administrar casos» muestran 200 filas y «Ver 200 más»; con `?mostrar=400`, 400 y «Ver 50 más»; con 150, ni pie ni enlace.
+- E6 · Con `Accept-Encoding: gzip`, la página y `/api/casos` llegan comprimidas y descomprimen al mismo contenido; sin esa cabecera, sin comprimir. `/static/<css con huella>` responde `304` con su `ETag`.
+- E7 · Veinte lecturas seguidas del marcador compartido consultan la base una vez; pasado el segundo, otra.
+
+**Pendiente (no se hizo, queda registrado):** el evento de avisos con el contenido de `/state` incluido; devolver los Excel por partes o en segundo plano. Lo demás que quedó pendiente aquí (JavaScript con huella y CSP sin `'unsafe-inline'` en scripts, búsqueda y filtros en el servidor, listar sin leer `analysis_json`) se hizo en **U-49**.
+
+### U-49 · Listar sin leer el análisis, buscar en el servidor y JavaScript en archivos con huella (cierre de la Ola B1)
+**Estado: implementado** (pruebas en `tests/test_lista_resumen.py`, `tests/test_busqueda_en_servidor.py` y `tests/test_scripts_validos.py`). Decisión: D-114 (ajusta D-113). No cambia ningún texto ni estado de la persona salvo el pie de «Ver más» (ya no dice que la búsqueda mira solo lo mostrado) y el botón «Buscar» junto a los campos. No toca R8, D-27 ni la paridad de los tres modos.
+
+**Motivo.** Con 5 000 casos sintéticos, armar la lista tardaba ~0,8 s porque cada caso leía e interpretaba su análisis completo y recalculaba la evaluación de recepción; la búsqueda y los filtros solo veían las 200 filas mostradas; y ~37 KB de JavaScript se repetían en cada página y obligaban a `'unsafe-inline'` en la CSP.
+
+**Qué debe cumplirse**
+1. **La lista no interpreta el análisis completo.** `RepositorioDeCasos.listar()` lee de `quotes` todas las columnas menos `analysis_json` y un **resumen** por caso (`resumen_json`, versión `resumen_v`): el valor exacto de las claves que pintan las listas (`project_name`, `received_at`, `routing`, `attachments`, `preguntas_enviadas`), si el análisis está vacío y lo derivado que cuesta recorrer actividades (servicios y propuesta del modelo). El `Caso` de una lista lleva un análisis **perezoso** (`AnalisisPerezoso`): esas claves salen del resumen y cualquier otra (o recorrerlo) lee y guarda el análisis completo de ese caso, una sola vez; la evaluación de recepción (`EvaluacionPerezosa`) se calcula solo si alguien la mira. `listar(completo=True)` y `obtener()` (el detalle y todo lo que escribe) leen el análisis completo como siempre.
+2. **Equivalencia.** Para cualquier base, `listar()` y `listar(completo=True)` devuelven los mismos casos, en el mismo orden (`COALESCE(updated_at, first_seen_at, '') DESC, thread_id DESC`, ahora ordenado en memoria) y con los mismos campos y análisis; la prueba lo compara campo por campo sobre datos variados (análisis vacío, dañado, sin `routing`, con adjuntos, con propuesta, descartados).
+3. **El resumen nunca queda viejo.** La migración 18 (con `BEGIN IMMEDIATE`, como todas) añade `resumen_json` y `resumen_v` solo si faltan, crea un disparador (`IF NOT EXISTS`) que borra el resumen cuando cambia `analysis_json` —lo escriba quien lo escriba— y rellena el de los casos existentes (solo los que no lo tienen: correrla otra vez no cambia nada). Un resumen ausente o de otra `VERSION_DEL_RESUMEN` se calcula al listar y se guarda **solo si el análisis no cambió mientras tanto** y sin esperar el candado (con la base ocupada se sigue con lo calculado). Guardar el resumen no cambia `updated_at` ni el marcador de cambios.
+4. **Búsqueda y filtros en el servidor.** `GET /` acepta `q` (texto, hasta 200 caracteres, sin mayúsculas, sobre proyecto, cliente, código y servicios), `etapa` (`atender`, `esperando`, `listo`, `cotizando` o `todos`; sin el campo entra en `atender` si hay algo que atender) y `mostrar`. `GET /requests` acepta `q`, `etapa`, `tipo` (tipo de cliente), `orden` (`reciente`, `antigua`, `urgencia`), `agrupar` y `mostrar`. Se filtra y ordena **todo** antes de contar y de mostrar las primeras 200 filas; «Se muestran N de M casos» y el enlace «Ver K más» (que conserva `q`, `etapa`, `tipo`, `orden` y `agrupar`) hablan del total que cumple. Los números de los chips y del resumen siguen contando todos los casos. En «Administrar casos» de cada grupo de proyecto quedan los correos que cumplen y, si queda uno solo, se ve como fila suelta.
+5. **Funciona sin JavaScript.** El campo de búsqueda, el orden y el tipo son un formulario `GET` con botón «Buscar», y las etapas son botones del mismo formulario (`aria-pressed` marca la elegida, además de la marca visual de siempre). El contador (`#n-visibles`, `role="status"`) y el aviso de «sin resultados» vienen del servidor. Con JavaScript solo se añade una mejora: escribir afina al instante las filas ya cargadas (diciendo que «Pulsa Buscar para mirar todos» si hay más) y cambiar el orden o el tipo envía el formulario.
+6. **JavaScript en archivos con huella.** Los scripts salen de las páginas a `templates/app.js` (cargado con `<script src defer>` al final) y `templates/tema.js` (en el `<head>`, sin `defer`, para pintar el tema guardado antes del primer cuadro). Se publican como `/static/app.<huella>.js` y `/static/tema.<huella>.js` con `Cache-Control: public, max-age=31536000, immutable`, `ETag` y gzip, igual que el CSS. Ninguna página lleva JavaScript en línea ni manejadores `onclick…`. Lo que hacían se conserva: recarga segura, diálogos de confirmación y resumen de la T, aviso de cita, tema, editor de tabla, «Enviando…», partículas (U-38, con el bloque `// <física>` en `app.js`) y «reducir movimiento».
+7. **CSP.** `script-src 'self'` (sin `'unsafe-inline'`). `style-src` conserva `'unsafe-inline'`: el `<noscript><style>` del layout y los anchos de las barras de estadísticas son estilos en línea; un estilo no ejecuta código y quitarlos exigiría cambiar el diseño. `/docs` no cambia (su único script en línea sigue autorizado por `nonce`).
+8. **Los scripts se comprueban.** `node --check` pasa por `app.js` y `tema.js` y, por si reaparece uno, por todo `<script>` en línea de las páginas; otra prueba exige que ninguna página lo tenga.
+
+**Casos de aceptación**
+- F1 · Con 5 000 casos sintéticos, `listar()` tarda menos de 0,4 s en una máquina de desarrollo (meta ~0,25 s; antes ~0,8 s) y listar una página de «Mis casos» no interpreta ningún análisis completo (`AnalisisPerezoso.cargado` sigue en falso).
+- F2 · `listar()` y `listar(completo=True)` son iguales campo por campo; leer `activities` de un caso de la lista da lo mismo que en el detalle.
+- F3 · Una base en el esquema 17 pasa al 18 sin perder datos, con todos los resúmenes puestos; correr la migración dos veces deja lo mismo; cambiar el análisis de un caso borra su resumen y la lista siguiente lo recalcula.
+- F4 · Con 450 casos, buscar `q=obra 449` encuentra un caso que no estaba entre las 200 primeras; la etapa filtra antes de paginar; el enlace «Ver más» conserva los filtros; el contador dice el total real.
+- F5 · La página de «Mis casos» no lleva `<script>` en línea ni `onclick`; carga `tema` y `app` con huella; la CSP de las páginas no tiene `'unsafe-inline'` en `script-src`; `/static/app.<huella>.js` responde `304` con su `ETag`.
+
+### U-50 · Errores de la API con una sola forma (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_errores_de_api.py`). Decisión: D-115. No cambia ninguna página HTML ni ningún texto de la persona. No toca R8, D-27 ni la paridad de los tres modos.
+
+**Motivo.** Un cliente que lee `/api/...` recibía a veces JSON (`{"error": "..."}`), a veces una página HTML (un 500, un 404, un `Host` no permitido) y nunca un `405`: un `POST` a una ruta de lectura era «404» y `HEAD`/`PUT`/`OPTIONS` caían en el `501` HTML de `http.server`. No había un código que un programa pudiera leer.
+
+**Qué debe cumplirse**
+1. **Una sola forma.** Todo error bajo `/api/...` y en `/state`, `/eventos` y `/openapi.json` responde `application/json` con `{"error": {"codigo": "...", "mensaje": "..."}}`: `codigo` estable y sin tildes (`solicitud_no_valida` 400, `solicitud_rechazada` 403, `no_encontrado` 404, `metodo_no_permitido` 405, `cuerpo_demasiado_grande` 413, `error_interno` 500, `metodo_no_implementado` 501, `no_disponible` 503) y `mensaje` en español claro. Un `500` añade `id` (el código de 8 caracteres que ya queda en el registro) y nunca el detalle técnico.
+2. **Coherencia HTTP.** Una ruta que no existe es `404`; existe pero con otro método, `405` con `Allow`; `Host`/`Origin`/token inválidos, `403`; un valor que la aplicación rechaza, `400`; un fallo propio, `500`; un método que el servidor no conoce, `501`. `PUT`, `DELETE`, `PATCH` y `OPTIONS` no se aceptan en ninguna ruta. Pedir una acción con `GET` o una página con `POST` también es `405` (en HTML, con la misma página de aviso de siempre). Un token inválido sigue siendo `403` antes que `405`.
+3. **`HEAD`.** Funciona en todo `GET`: mismo estado, mismas cabeceras y `Content-Length`, sin cuerpo; en `/eventos` solo confirma las cabeceras y no abre la conexión larga.
+4. **Excepción deliberada.** `GET /api/salud` con una conexión caída sigue siendo `503` con el informe de salud: es el resultado de la consulta, no un fallo de ella.
+5. **Documentado.** El esquema `Error` está en `components.schemas` de `openapi.py` y lo referencian las respuestas `403`, `404`, `405`, `500` y `503` de las rutas JSON; `spec/07-api.md` explica la tabla de códigos. Las páginas HTML siguen mostrando su aviso con salida (y el código de error en un 500).
+
+**Casos de aceptación**
+- G1 · Para cada ruta JSON: `Host` ajeno es `403` JSON, `POST` es `405` JSON con `Allow: GET, HEAD`, `PUT`/`DELETE`/`PATCH`/`OPTIONS` es `405` JSON, `HEAD` no tiene cuerpo; `/api/xyz` y `/api/casos/no-existe` son `404` JSON.
+- G2 · Una excepción dentro de `/api/casos` es `500` JSON con `id`, el `id` está en el registro y el texto de la excepción no sale; un `ValueError` es `400` JSON.
+- G3 · `GET /no-existe` y `GET /mode` siguen siendo páginas HTML (`404` y `405`); un `POST` a cada página es `405` HTML.
+
+### U-51 · Una sola política de validación del contrato con Work (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_politica_de_contrato.py`; ajusta `tests/test_entradas_adversas.py`). Decisión: D-116. No cambia el prompt de Work ni el esquema salvo una anotación `"version": 1`. No toca R8 ni D-27.
+
+**Motivo.** El puente (`work_sync`) validaba con el esquema y la tolerancia «tolerar y avisar»; la importación (`dashboard-upsert`) usaba su propia lista de campos y tipos. Un mismo JSON podía entrar por un camino y rechazarse por el otro (sin `message_id` o con actividades como texto), y la tolerancia a un `size_bytes` como texto nunca se ejercía en el puente. Además el validador del esquema ignoraba en silencio cualquier palabra clave que no conocía y lanzaba `KeyError` con un `type` desconocido.
+
+**Qué debe cumplirse**
+1. **Un solo camino.** `work_sync` y `work_import._decode_work_payload` llaman a las mismas funciones de `anka/dominio/tolerancia_work.py` (`comprobar_identidad` y `normalizar_analisis`: identidad, estado, reparación con aviso y esquema). Se rechaza lo mismo (identidad ausente, estado desconocido, lo que tras reparar aún incumple el esquema) y se acepta con aviso lo mismo (tipos, enumerados, listas escritas como texto, nulos, `engine` o nombre de proyecto ausentes). Un mismo JSON deja el mismo análisis por los dos caminos. La importación a mano sigue diciendo qué estado llegó cuando es desconocido.
+2. **Cambio visible.** Lo que la importación a mano rechazaba por tipo (`activities` o `cited_codes` como número) ahora se acepta con aviso (el campo queda vacío y el caso lo cuenta en «Work escribió algo distinto de lo esperado»), como ya hacía el puente; y ahora exige `message_id`, como el puente.
+3. **El validador no calla.** `validate` devuelve como error —con el nombre de la palabra— toda palabra clave del esquema que no comprueba (`pattern`, `oneOf`, `additionalProperties`, `minItems`, `$ref`…) y todo `type` desconocido (ya no `KeyError`). Solo se ignoran las anotaciones (`$comment`, `description`, `version`…). Una prueba exige que el esquema real use solo lo que se comprueba.
+4. **Versión.** El esquema declara `"version": 1`. Work puede escribir `schema_version` (opcional, fuera del esquema, así que el prompt no cambia): si es mayor que la que Anka entiende, el análisis se acepta y el caso avisa «Work declara la versión N del contrato y Anka entiende hasta la 1». Ausente, ilegible o igual: sin aviso.
+
+**Casos de aceptación**
+- H1 · Para catorce variaciones de un mismo JSON (completo, sin `message_id`, sin `engine`, estado sin tildes, estado desconocido, tamaño como texto, actividades como texto o número, nulos…), el puente y la importación aceptan o rechazan igual y dejan el mismo análisis.
+- H2 · Un esquema con `pattern` o con `type: date` produce errores nombrados, no se ignora ni lanza.
+- H3 · `schema_version: 2` se acepta con un aviso; `"3"` también; `"x"`, `null` o `true` no avisan.
+
+### U-52 · Una tabla única de estados y consultas por estado solo en el repositorio (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_tabla_de_estados.py` y `tests/test_arquitectura.py`). Decisión: D-117. No cambia ninguna etiqueta, etapa ni estado. No toca R8, D-27 ni la paridad de los tres modos.
+
+**Motivo.** Añadir un estado obligaba a tocar a mano `STATUS_LABELS`, `CLOSED_STATUSES`, `ACTION_STATUSES`, `REVIEW_QUEUE_STATUSES`, los estados que un análisis no mueve, la etapa de la lista (`case_stage`) y las consultas con estados escritos en el SQL (`status='waiting'` en los recordatorios, f-strings en el ciclo de revisión), y solo una prueba avisaba si se olvidaba uno.
+
+**Qué debe cumplirse**
+1. **Una fila por estado.** `ESTADOS` (`anka/dominio/status.py`) dice, por cada `QuoteStatus`, su etiqueta, su etapa visible y si pide acción, si está cerrado, si espera acción humana, si está en la cola de revisión, si un análisis nunca lo mueve, si solo lo mueve un mensaje nuevo del cliente, si genera la novedad «Respuesta sugerida» y su etapa cuando el último correo fue un acuse. `STATUS_LABELS`, `CLOSED_STATUSES`, `ACTION_STATUSES`, `REVIEW_QUEUE_STATUSES`, `ESTADOS_QUE_UN_ANALISIS_NO_MUEVE`, `ESTADOS_CON_RESPUESTA_SUGERIDA`, `estado_tras_un_analisis` y el recurso por estado de `case_stage` salen de esa tabla. Añadir un estado = una fila en `ESTADOS` + `spec/transiciones.json` (+ el aviso de la pantalla del caso y las pruebas que ya exigen cada uno).
+2. **Exhaustividad.** Una prueba exige una fila por cada `QuoteStatus`, los estados de `transiciones.json` iguales a los del enum, y congela los grupos de siempre para que añadir un estado no cambie a los demás.
+3. **Consultas por estado en el repositorio.** Ninguna consulta fuera de `servicios/repositorio.py` escribe un estado en el SQL: `hilos_en_estado`, `hilos_descartados_por_reanalizar`, `casos_esperando_con_recordatorios` y `filas_de_la_cola_de_revision` los consultan con parámetros. Una prueba recorre el paquete y falla si aparece un literal de estado en una consulta.
+4. **Presupuestos de arquitectura.** Ningún módulo de `anka/` pasa de 800 líneas; los que ya pasaban (hoy `web/pantalla_caso.py`, tope 1100) tienen un tope congelado que solo puede bajar y una prueba avisa si ya sobra. Solo `servicios/repositorio.py` y `infra/store.py` escriben en la tabla `quotes`.
+
+### U-53 · Errores de validación tipados y fallos de red distintos de los propios (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_errores_internos.py`). Decisión: D-118. No cambia ningún texto de validación. No toca R8, D-27 ni la reserva de envío.
+
+**Motivo.** Los mensajes para la persona salían de `ValueError`, el mismo tipo que lanzan Python y las librerías: un bug se confundía con un dato mal escrito. Y al emitir la T, cualquier excepción decía «Gmail no respondió», aunque fuera un `KeyError` propio.
+
+**Qué debe cumplirse**
+1. **`ErrorDeValidacion`.** `anka/dominio/errores.py` define `ErrorDeValidacion(ErrorDeAnka, ValueError)` para lo que se le explica a la persona («Escribe algo antes de guardar.»). Es un `ErrorDeAnka` (su texto se muestra) y, por compatibilidad, un `ValueError` (quien lo capturaba sigue capturándolo; el servidor lo sigue respondiendo con `400`). Los módulos principales (tabla de actividades, preguntas, acciones del caso, control de cambios, carpetas, ediciones, recordatorios, `quotes`, `vinculos`, `revision_tecnica`, repositorio e importación de Work) lo lanzan en vez de `ValueError`; un `ValueError` suelto vuelve a significar un fallo de Python o de una librería, cuyo texto no se muestra. Quedan fuera, sin cambio: la reserva de envíos (`envios.py`), las copias de seguridad, el lector geográfico y el modelo.
+2. **Red o programa.** `es_fallo_externo` (`infra/google_services.py`) dice si un fallo viene de la red o de Google (`OSError`, tiempos agotados, errores de `httplib2`/`googleapiclient`/`google.auth`, `AutorizacionDeGoogle`). Al emitir la T, al llenar la carpeta y al crear la carpeta sola, un fallo externo se registra como aviso y se explica como antes («Gmail no respondió»); cualquier otro se registra como error con su traza y un código de 8 caracteres, y la persona lee «ocurrió un error del programa, no de Gmail; si se repite, avisa con el código …». La T emitida y el texto del correo se conservan igual.
+
+**Casos de aceptación**
+- I1 · `ErrorDeValidacion` es `ErrorDeAnka` y `ValueError`; una acción que lo lanza responde `400` con su texto; un `ValueError("invalid literal…")` responde `400` sin ese texto.
+- I2 · Emitir la T con `ConnectionError` en el envío dice «Gmail no respondió» y registra un aviso; con `KeyError` no culpa a Gmail, registra un error con traza y da un código.
+
+### U-54 · `quotes.py` deja de ser un módulo-cajón (Ola B2 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_arquitectura.py`, `tests/test_vinculos.py`, `tests/test_union_de_proyectos.py` y `tests/test_review_decision.py`, que no cambian). Decisión: D-119. No cambia ningún comportamiento.
+
+**Motivo.** `quotes.py` se presentaba como fachada pero alojaba, en ~800 líneas, la lógica de vínculos y unión de casos, las decisiones de revisión técnica, la cola del piloto local y un comando que imprime por consola.
+
+**Qué debe cumplirse**
+1. **Tres módulos propios.** `servicios/vinculos.py` (confirmar o descartar un correo de otro hilo, unir o separar proyectos), `servicios/revision_tecnica.py` (decidir la revisión técnica, volver a decidir, asumir una lectura sin verificar, adoptar o descartar la tabla del modelo) y `servicios/cola_del_piloto.py` (paquete de texto y casos que esperan a una persona en el modo local). `list_reviews`, que imprime, pasa a `cli/app.py`.
+2. **Fachada fina.** `quotes.py` conserva lo de lectura, datos comerciales, descartar/rescatar, eliminar, novedades y el marcador de cambios, y reexporta los nombres movidos: ningún importador, de código o de pruebas, cambia. Los módulos nuevos se nombran en el «Mapa de módulos» de `spec/06-arquitectura.md`.
+
+### U-55 · El lector de adjuntos no se rinde ante lo que sí se puede leer (experimento de lectura 2026-10)
+**Estado: implementado** (pruebas en `tests/test_lector_de_adjuntos.py`). Decisión: D-120. No cambia R8, D-27, los tres modos ni el contrato con Work (la cobertura sigue siendo `completa`, `parcial` o `no_legible`; los motivos nuevos viajan en `reason`).
+
+**Motivo.** Un experimento de solo lectura sobre 424 archivos reales (20 proyectos) midió dónde el lector de Python fallaba o gastaba tiempo sin necesidad: 3 de 53 KML/KMZ no abrían por «unbound prefix»; los `.shp` sueltos se rechazaban; un PDF de 265 páginas se rechazaba entero; el OCR de PDF escaneados tardaba de media 17 s por página y 22 archivos (5 %) agotaron 420 s; RAR, 7z, DWG y DXF (10 % de los archivos) devolvían «formato no soportado» sin decir qué hacer.
+
+**Qué debe cumplirse**
+1. **KML/KMZ/GPX/WPML con prefijos XML sin declarar** (`gx:`, `atom:`, otros): se declaran en la raíz y se vuelve a leer; no se pierde ninguna geometría ni atributo y el texto lo dice («Lectura tolerante»). Un XML con `<!ENTITY>` se rechaza (nunca se resuelven entidades externas ni se expanden internas).
+2. **Shapefile.** Un `.shp` suelto se lee con la biblioteca estándar: tipo de geometría, extensión XY y número de registros; con `.dbf` también campos y primeros registros; lo que falte (`.dbf`, `.shx`, `.prj`) se marca `LECTURA PARCIAL` / `SISTEMA DE COORDENADAS NO DECLARADO`. Un `.dbf` suelto se lee (campos y registros) y queda parcial. Un shapefile con sus hermanos (`.shx`, `.dbf`, `.prj`, `.cpg` del mismo nombre y mensaje) cuenta como **una sola entrada**: los hermanos se leen con el `.shp` y aparecen como «ignorado: parte del shapefile …». Un ZIP con un `.shp` incompleto lo lee igual y marca lo que falta.
+3. **PDF largo.** Un PDF de más de 600 páginas (`MAX_PDF_PAGINAS_LEIDAS`) ya no se rechaza: se leen las primeras 600 y el texto dice «COBERTURA PARCIAL: PDF de N páginas; se leyeron las páginas 1–600; faltan …». El OCR se limita a 200 páginas por archivo (`MAX_OCR_PAGES`); las demás se listan como «sin OCR».
+4. **Escaneados y tiempo de OCR.** Tres claves de `config.json`, todas con un valor por defecto que conserva el comportamiento de siempre: `ocr_segundos_por_archivo` (0 = sin tope), `ocr_segundos_por_caso` (0 = sin tope) y `ocr_omitir_escaneados` (`false`). Al agotarse un presupuesto, el OCR que falta se omite y el texto dice «COBERTURA PARCIAL: OCR omitido por tiempo» con las páginas sin OCR (el motivo: «OCR omitido por tiempo»). Con `ocr_omitir_escaneados: true` y al menos la mitad de las páginas de un PDF con menos de 100 caracteres de texto nativo, **no se hace OCR** a esas páginas: «REQUIERE VISIÓN» con sus páginas (si no queda texto alguno, el archivo es `no_legible` con motivo «requiere visión»). Una imagen suelta con la política activa también es `no_legible` «requiere visión». El presupuesto se mide entre páginas (un OCR en curso no se interrumpe).
+5. **Excel.** Las hojas ocultas (`hidden`, `veryHidden`) se leen y se marcan «HOJA OCULTA» con su visibilidad; las fórmulas no se recalculan: se muestra la fórmula y el valor guardado, y «FÓRMULA SIN VALOR CALCULADO» si no hay.
+6. **Sin lector.** RAR, 7z y DWG devuelven `no_legible` con un motivo en español y la marca «pedir al cliente un formato abierto» (el DWG dice su versión si la cabecera la trae). Un DXF de texto se lee lo mínimo (versión, capas, conteo de entidades por tipo y textos) y queda `parcial`; un DXF binario es `no_legible` con la misma marca. Dentro de un ZIP, los RAR/7z/DWG se listan con la marca.
+
+**Casos de aceptación**
+- J1 · Un KML con `gx:` y `atom:` sin declarar abre con todos sus `Placemark`, `gx:Track` y atributos; un KML con `<!ENTITY>` se rechaza; una entidad externa no lee ningún archivo.
+- J2 · Un `.shp` solo da tipo, extensión y registros y es parcial; con `.dbf` da campos; con todos sus hermanos es una sola entrada en el correo, en el expediente de Drive y en el paquete de Work.
+- J3 · Un PDF de más páginas que el tope se lee parcialmente con las páginas leídas dichas.
+- J4 · Con presupuesto de 0,05 s y un motor de OCR lento, solo se hace OCR a la primera página y el resto queda «sin OCR por tiempo»; con la política activa un PDF escaneado no llama al motor de OCR.
+- J5 · Un libro con una hoja `veryHidden` la entrega marcada y con una fórmula sin recalcular.
+- J6 · `.rar`, `.7z` y `.dwg` dan `no_legible` con la marca; un `.dxf` sencillo da capas y textos.
+
+### U-58 · Encabezado compacto, verbo primero y avisos accesibles (cierre de las Olas 2 y 3)
+**Estado: implementado** (pruebas en `tests/test_cabecera_y_filas.py`). Decisión: D-123. Respeta los textos únicos de D-97, el estilo ANKA y la accesibilidad de U-37; no cambia R8, D-27 ni los tres modos.
+
+**Qué debe cumplirse**
+1. **Encabezado en una barra (≤ 600 px).** El logo, «Buscar correos nuevos» y «Ajustes» van en una sola fila (el botón puede partir su texto en dos líneas); «Mis casos» se queda solo para lectores (el enlace del logo ya dice «Anka, mis casos»); el menú de Ajustes se despliega a todo el ancho encima del contenido y sigue plegado hasta abrirlo. Cada control mide al menos 44 px de alto y ningún texto baja de 14 px. Si un chip de estado está visible, baja a una segunda fila.
+2. **Verbo primero.** En las filas de «Mis casos» y de «Administrar casos», la primera línea empieza por lo que hay que hacer: «Revisar el correo · Cliente · Proyecto». El botón de la derecha conserva exactamente el mismo texto (D-97); el verbo repetido en la primera línea es solo visual (`aria-hidden`) para que un lector de pantalla no lo lea dos veces. La segunda línea lleva el código de oferta cuando existe.
+3. **La marca «Ahora» / «Antes de seguir» es texto.** Es un elemento (`.marca-paso`) en los cuatro avisos de arriba del caso, no contenido generado por CSS, así que un lector de pantalla la lee.
+4. **Todo fallo es alerta.** Las acciones que terminan en fallo sin pasar por la guía (buscar correos nuevos que falla, actualizar la hoja de Google que falla, borrar casos que pide ELIMINAR) se anuncian con `role="alert"` y «Error:» como las demás.
+
+**Casos de aceptación**
+- E1 · A 360 px de ancho el encabezado cabe en una fila sin desbordar y Ajustes abre una caja que ocupa el ancho de la pantalla.
+- E2 · La lista muestra «Revisar el correo · Acme · Llanos 8» y el botón dice «Revisar el correo».
+- E3 · Un «Buscar correos nuevos» sin conexión muestra una alerta con el motivo y qué hacer.
+
+### U-57 · Lo que se decide por error se puede deshacer y borrar lo importante pide más (cierre de la Ola 1)
+**Estado: implementado** (pruebas en `tests/test_deshacer.py`). Decisión: D-122. Completa U-35 (ítems 1.11 y 1.12 del plan de experiencia). No cambia R8, D-27 ni los tres modos; ninguna acción envía nada.
+
+**Motivo.** «No es un cambio» y «Dejar mi tabla» eran de un solo clic y sin vuelta atrás; «Borrar» un caso con código T o con un correo ya enviado pedía el mismo «¿Borrar?» que uno recién llegado; y se podía vaciar un dato comercial por accidente.
+
+**Qué debe cumplirse**
+1. **Reabrir «No es un cambio».** La pestaña «Historial» del caso muestra «Decisiones que puedes deshacer» con los mensajes marcados «No es un cambio» (los 5 más recientes) y un botón «Reabrir este mensaje». `POST /change` con `decision=reopen` vuelve el mensaje a «por revisar», deja el hecho `change_reopened` (quién y cuándo) en el historial y no hace nada si el mensaje ya estaba por revisar o ya se confirmó como cambio. El mensaje de éxito de «No es un cambio» dice dónde se deshace.
+2. **Recuperar la propuesta de Work.** «Dejar mi tabla» guarda la propuesta descartada (`propuesta_descartada` en el análisis); el mismo panel ofrece «Recuperar la propuesta» (`POST /proposal` con `decision=restore`): la propuesta vuelve a estar pendiente, la tabla de la persona no se toca y queda anotado. No se ofrece si ya hay otra propuesta pendiente; aceptar una propuesta borra la guardada.
+3. **Borrar con código T o correo enviado.** Un caso con `quote_code` o `sent_at` solo se borra si `POST /delete` trae `confirmacion` igual a `ELIMINAR` (sin distinguir mayúsculas ni espacios en los bordes); si falta, no se borra **nada** (ni los demás casos marcados ni las carpetas de Drive) y el mensaje explica qué escribir. La lista muestra el cuadro «escribe ELIMINAR» solo cuando alguno de los casos marcados está protegido; la pantalla del caso (borrar un caso que ya no está en Gmail) lo pide con su propio cuadro y, si falla, vuelve al caso.
+4. **Vaciar datos comerciales.** El formulario de cliente y notas pide confirmar («Vas a dejar vacío «Notas comerciales» (ahora dice «…»). ¿Seguimos?») cuando la persona deja vacío un campo que ya tenía texto. Es solo del formulario: `POST /metadata` directo (API) no lo exige.
+5. **Pendiente, con su razón.** El mensaje de éxito por cookie de un solo uso en lugar de `?message=` no se hizo: 46 referencias en 23 archivos de pruebas leen el `Location` de las redirecciones y el beneficio (no repetir el mensaje al recargar) no compensa el riesgo. Se retoma si se reescriben esas pruebas por otra razón.
+
+**Casos de aceptación**
+- D1 · Se marca «No es un cambio», se abre el Historial, se pulsa «Reabrir este mensaje» y el aviso de cambio vuelve a aparecer arriba; la cadena del historial sigue íntegra.
+- D2 · Se deja la tabla propia, se recupera la propuesta y vuelve el aviso «Work propone…» con la tabla de la persona intacta.
+- D3 · Con un caso con T y otro sin ella marcados, borrar sin escribir nada no borra ninguno; con «eliminar» borra los dos.
+
+### U-56 · Las pruebas no dependen de la máquina ni del azar (pendientes pequeños 2026-10)
+**Estado: implementado** (pruebas en `tests/test_entorno_aislado.py`, `tests/test_base_concurrente.py` y `tests/test_busqueda_en_servidor.py`). Decisión: D-121. No cambia lo que ve la persona ni R8, D-27 ni los tres modos.
+
+**Motivo.** Con `OPENAI_API_KEY` definida en la máquina de quien corre las pruebas, 21 instantáneas fallaban («OpenAI» en vez de «OpenAI (sin clave)») y dos pruebas fallaban de vez en cuando por defectos reales del código, no por mala suerte.
+
+**Qué debe cumplirse**
+1. `tests/_isolate.py` (lo primero que importa cada módulo de pruebas) quita del entorno `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `ANKA_HOJA_AUTOMATICA`, `ANKA_LOG_LEVEL`, `ANKA_NO_BROWSER` y `CODEX_HOME`. Una prueba que necesita una de ellas la fija con `mock.patch.dict(os.environ, ...)`. Toda la suite pasa igual con o sin esas variables definidas.
+2. **Copia previa a migrar.** El archivo temporal de `quotes.sqlite3.bak-vN` lleva el identificador del hilo además del del proceso: dos hilos que abrían la base a la vez compartían nombre y en Windows uno recibía `PermissionError` (el servidor del dashboard es multihilo).
+3. **Huella de los archivos fijos.** La caché de `anka/web/estaticos.py` no da por igual un archivo cuya fecha de modificación es de hace menos de 2 s solo porque coincidan fecha y tamaño: dos escrituras seguidas del mismo largo dejaban la huella vieja y el navegador seguiría con el JavaScript o CSS anterior.
+
+**Casos de aceptación**
+- N1 · Con `OPENAI_API_KEY=x` definida al lanzar las pruebas, ninguna instantánea ni prueba cambia de resultado.
+- N2 · Seis hilos abren a la vez ocho bases con datos de un esquema anterior sin ningún error ni archivo `.tmp` sobrante.
+- N3 · Un guion reescrito con el mismo tamaño y la misma fecha cambia de huella.
+
+### U-35 · Lenguaje claro: mensajes que dicen qué pasó y qué hacer (Ola 1 del plan de experiencia)
+**Estado: implementado** (pruebas en `tests/test_lenguaje_claro.py` y las de texto exacto de cada pantalla). Decisión: D-100. Acota U-31 puntos 24 y 25 (un solo texto por decisión y por acción), D-96/D-97 (nombres de estado y de decisión, que no cambian) y D-27 (la autorización de Google solo con acción explícita, que no cambia).
+
+**Motivo.** La auditoría de textos (2026-10-14) encontró que una persona nueva se frena por la jerga («hilo», «puente», «motor», «enrutamiento», «integridad», «huella», «aplicabilidad»), por mensajes que dicen qué falló pero no qué hacer («Decisión no válida.», «No seleccionaste ninguna solicitud.») y por dos nombres para lo mismo («Actualizar correo» y «Revisar ahora»; «Eliminar», «Borrar» y «Quitar»).
+
+**Qué debe cumplirse**
+1. **Palabras de la pantalla.** Lo que la persona lee dice «conversación» o «correo», nunca «hilo» (el identificador `thread_id`, los parámetros de URL y los correos al cliente de R11 no cambian); «Revisión de correos» en vez de «puente» y «Programa que lee los correos» en vez de «motor»; «Volver a conectar Google» en vez de «Reautorizar Google»
+   (el botón sigue pidiendo confirmar y la ruta `/google/reautorizar` no cambia); «Más datos» en vez de «Detalle técnico»; «Primera revisión del correo», «De dónde vino el correo» y «Lo que sabemos del cliente» en vez de «Evaluación de recepción», «Enrutamiento» y «Contexto comercial interno»; «Registro de cambios» y «anotaciones» en vez de «Acta», «hechos», «huella» e «integridad».
+2. **Una acción, un nombre.** Los dos botones de revisar Gmail se llaman «Buscar correos nuevos» (el de Work solo despierta a la revisión de correos; el local la hace). Se borra, no se «elimina» ni se «quita» una fila o un caso (el botón de quitar una actividad antes de guardar sigue marcando la fila «Se borrará al guardar. Deshacer»).
+3. **Mensajes con salida.** Todo mensaje de error o de éxito de las acciones dice qué pasó y, si hace falta, qué hacer; no lleva identificadores internos (`thread_id`) ni el nombre de una excepción de Python. Un `ValueError` que no es una frase escrita por Anka (`es_mensaje_para_la_persona`) no se muestra: la persona ve «No pudimos terminar lo que pediste. Lo que escribiste sigue aquí…».
+4. **Un solo nombre para «listo».** Un caso en `ready` sin código se llama «Información validada» en la insignia, en la lista y en el paso (sin renombrar ningún estado: `STATUS_LABELS` no cambia).
+5. **Las etiquetas visibles no son valores del contrato.** Los estados de actividad siguen siendo `confirmado`, `pendiente` y `contradictorio` (R12); el glosario conserva T, T&E, Lectura realizada y Aplicabilidad, explicados con palabras simples.
+
+**Casos de aceptación**
+- E1 · Ninguna plantilla muestra la palabra «hilo» ni «puente», «Reautorizar», «Detalle técnico», «Enrutamiento», «Evaluación de recepción», «Contexto comercial interno», «Hilo no disponible» ni «Top 6»; los textos únicos de D-97 y el «Sí, enviar al cliente» siguen en `case.html`.
+- E2 · En modo local y en modo Work el encabezado ofrece «Buscar correos nuevos»; los avisos de la revisión de correos dicen «Revisión de correos: activa / con avisos / detenida / sin iniciar».
+- E3 · `_guidance` con un `ValueError("invalid literal for int()")` devuelve el mensaje genérico con «Lo que escribiste sigue aquí» y no el texto de Python; con un `ValueError` escrito por Anka devuelve su texto.
+- E4 · Un caso en `ready` sin código muestra «Información validada» en la insignia y no «Proyecto creado».
+- E5 · El glosario trae los cuatro términos y la pregunta «¿Qué significan T y T&E?».
+
+**Pendiente (necesita decisión del dueño, no se hizo):** renombrar «Guardar borrador» (D-95), «Administrar casos» (D-93; la página y el enlace de Ajustes conservan su nombre), los correos que van al cliente y la skill de Work (R11), el aviso de un solo uso por cookie en lugar de `?message=` (Ola 1.12).
+
+### T-41 · Work lee los adjuntos directamente desde Gmail, sin expediente en Drive
+**Estado: implementado** (pruebas en `tests/test_lectura_de_adjuntos.py` y `tests/test_prompt_work.py`); **prueba manual en Work parcial**: la
+primera con el prompt V6.1 (2026-10-11, D-69) leyó el hilo y dejó el borrador completo; faltan el KMZ, el ZIP y el adjunto grande (ver «Prueba
+manual»). Rige para los borradores del prompt V6 en adelante (`skill_version` `PRECISO_V6…`); los de V5 y anteriores siguen con T-45, T-37 y
+T-40 hasta que se retiren. Decisión: D-68.
+
+**Motivo.** El 2026-10-11 un caso real quedó oculto («Lectura pendiente») porque Work no abrió 1 de los 4 segmentos que el preparador
+había publicado en Drive («ID esperado no existe»), aunque el archivo existía, era del dueño y se podía descargar. Una prueba directa
+con el mismo hilo, sin Drive, abrió los 4 adjuntos: nombres y tamaños idénticos a los de Gmail, 10 de 12 extractos literales iguales en
+el texto que extrae Python y los otros 2 (coordenadas del KML) iguales en valor, solo escritos de otra forma.
+
+**Qué debe cumplirse**
+1. **Lectura.** Work abre los originales en Gmail: los del mensaje que analiza y los de los demás mensajes recibidos del hilo. Si el
+   lector de adjuntos del conector no admite el formato (p. ej. KML: `read_attachment_supported: false`) o devuelve el contenido
+   truncado, abre el mensaje en formato `raw` y extrae el original de su MIME. Nunca sustituye un archivo por otro ni da por leído lo
+   truncado. No usa Drive para leer.
+2. **Informe por archivo.** Cada elemento de `attachments[]` lleva, además de lo que ya lleva, `size_bytes` (entero: el tamaño que muestra
+   Gmail) y, opcional, `read_via` (`attachment` o `raw_mime`). Sin `size_bytes` el archivo no se puede verificar (ver 3).
+3. **Completitud verificada por el puente (sustituye a los segmentos de T-37).** Al importar un borrador de Work nuevo o cambiado, el
+   puente obtiene de Gmail la lista de adjuntos de los mensajes recibidos del hilo (nombre y tamaño; no descarga su contenido) y no cuenta
+   las imágenes inline de firma. Un adjunto queda **verificado** si Work lo reporta con el mismo nombre y el mismo tamaño y una cobertura
+   distinta de `null` (un adjunto sin `coverage` cuenta como no leído); dos adjuntos con el mismo nombre y tamaño son el mismo
+   archivo reenviado y cuentan como uno. «El mismo nombre» se compara en forma Unicode NFC y sin mayúsculas (una tilde compuesta
+   o descompuesta es la misma letra); «el mismo tamaño» acepta `10`, `10.0` o `"10"`. Un adjunto de Gmail sin nombre se nombra
+   «(adjunto sin nombre)» y queda pendiente. Una imagen con `Content-Disposition: attachment` es un adjunto del cliente aunque
+   traiga `Content-ID` (Outlook lo pone a todas); solo es imagen de firma si es `inline` o, sin disposición, trae `Content-ID`.
+   Una imagen incrustada que Work reporta no cuenta como «adjunto que Gmail no tiene». Lo que Work marca con `status: ignorado` no cuenta como adjunto desconocido. Si falta alguno, difiere un tamaño o Work reporta uno que Gmail no
+   tiene, la lectura queda incompleta: `analysis_complete` pasa a falso, el caso a revisión técnica interna, el aviso del caso nombra
+   los archivos y los resultados siguen ocultos hasta que un análisis posterior de Work los verifique (el mismo mecanismo de
+   reemplazo de T-37). La lista se guarda con el caso: se consulta una vez por borrador importado, no en cada pasada.
+4. **Si Gmail no responde** al verificar (cuota, red), el borrador no se descarta ni se da por verificado: la lectura queda «sin
+   verificar», se dice así en el caso y se reintenta en la siguiente pasada, sin insistir dentro de la misma (como T-40).
+5. **Texto local para T-38.** El puente descarga y extrae con los lectores de Python solo los adjuntos de los hilos con un borrador
+   importado, una vez por adjunto (se reconoce por su huella), y guarda el texto solo en este equipo. Ya no hay un proceso que recorra el
+   buzón cada minuto bajando hilos completos. T-38 sigue siendo solo avisos, con un cambio: **los números se comparan por valor**, no
+   por texto (`-74.304` = `-74.30400000`; `126,51` = `126.51`), y un número con separador ambiguo (`1.234`, `1,234`) se acepta si
+   coincide con cualquiera de sus lecturas. Un extracto que son solo cifras (`-74.3025,4.779,2584.3`) se comprueba por valor, leyendo la
+   coma como decimal o como separador de lista, y el texto del archivo se lee igual (los pares `lon,lat; lon,lat` que escribe el lector
+   de KML se toman número a número). Sin ese cambio las coordenadas de un KML darían diferencias falsas. El lector de KML incluye además
+   el nombre y la descripción del `Document` y de cada `Folder` (ahí suelen ir el proyecto y avisos como «datos ficticios»), que antes se
+   perdían porque solo se leían los `Placemark`.
+6. **Sin `DRIVE_PREFLIGHT` no se oculta el caso.** Un caso de Work que no trae `DRIVE_PREFLIGHT` ni verificación (un borrador anterior sin
+   expediente, o un caso viejo) ya no desaparece de la pantalla por eso; un borrador V6 se verifica por el punto 3. Solo se oculta un caso
+   con verificación `incompleta` (o, mientras existan, uno de V5 cuyo `DRIVE_PREFLIGHT` o cuyos segmentos no cuadran, como en T-37); uno
+   «sin verificar» se muestra con el aviso. En un borrador V6, `DRIVE_PREFLIGHT`, `reading_audit` y los campos `*_segment_*` se aceptan si
+   llegan, pero no se exigen ni deciden nada: `reading_audit` lo escribe el puente.
+   El origen del mensaje se sigue verificando contra Gmail (T-46) también para los borradores V6.
+7. **Qué se retira.** La publicación de expedientes en Drive (T-45, T-40), el manifiesto con segmentos, las instantáneas de manifiesto,
+   `work_drive_enabled` (queda en falso por defecto) y el paquete manual de adjuntos. El código se retira cuando T-41 esté
+   implementado **y probado en Work**, no antes. Los modos `local` y `api` no cambian: leen con Python.
+
+**Casos de aceptación** (los que se vuelven pruebas)
+- Cuatro adjuntos reportados con su nombre y tamaño: verificados, y `analysis_complete` se respeta.
+- Falta el KML en el informe de Work: aviso «Falta leer: poligono.kml», `analysis_complete` falso, caso en revisión técnica interna.
+- Un tamaño distinto al de Gmail, y un adjunto reportado que Gmail no tiene: ambos quedan pendientes y nombrados.
+- La imagen inline de firma no cuenta como adjunto pendiente.
+- Gmail falla al verificar: «sin verificar», el borrador se conserva y se reintenta.
+- Las coordenadas del KML con distinto formato no generan diferencia en T-38.
+- Un borrador sin `DRIVE_PREFLIGHT` se importa y no se oculta por eso; uno antiguo con `DRIVE_PREFLIGHT` se acepta sin exigirlo.
+
+**Cambios que acompañan (al implementar).** `spec/contrato_work.schema.json` (`attachments[].size_bytes` y `read_via`, opcionales);
+el prompt de Work pasa de la V5 a la V6 (la sección 2 se reescribe sin Drive, con la regla del formato `raw`, y el ejemplo JSON lleva
+`size_bytes` sin `DRIVE_PREFLIGHT`); `SKILL.md`; `tests/test_prompt_work.py` valida el ejemplo contra el esquema.
+**Prueba manual en Work** antes de activarlo: repetir la del 2026-10-11 con el hilo de ese caso y añadir un KMZ, un ZIP y un adjunto
+grande, para conocer el límite del conector con el correo `raw`.
+
+**Preguntas abiertas** (no se deciden aquí)
+- Qué significa `coverage` cuando falta la revisión visual: Work marcó «parcial» el Excel y el KML por no revisarlos visualmente, y
+  Python los da por «completa»; a la inversa, Python marcó «parcial» un PDF de una página que Work leyó y renderizó completo.
+- DWG/DXF: ni Python ni el conector los leen. Se seguirían registrando como no legibles, con la sugerencia de pedir al cliente un DXF y
+  un PDF de las presentaciones; leer DXF con una librería es una dependencia nueva que requiere su propia decisión.
+- Si Work puede hacer cálculos de comprobación (áreas, perímetros) marcados como derivados; la V5 dice «no calcules ni conviertas».
+- El límite de tamaño del correo `raw` en el conector.
+
+### T-42 · Eliminar un caso no deja restos, y se puede reiniciar todo para probar desde cero
+**Estado: implementado** (pruebas en `tests/test_reinicio.py`). Decisión: D-74.
+
+**Motivo.** «Eliminar seleccionadas» borraba la solicitud, los datos comerciales y las novedades, pero dejaba mensajes, versiones de la
+tabla, vínculos entre hilos, cambios pendientes, seguimiento y fallos de análisis. Si el mismo hilo volvía a entrar, esos restos
+reaparecían mezclados con el caso nuevo. Y no había forma de volver a probar desde cero sin tocar la base a mano.
+
+**Qué debe cumplirse**
+1. **Eliminar un caso borra todo lo suyo** salvo la evidencia: la solicitud, los datos comerciales, las novedades, los mensajes, las
+   versiones de la tabla, el seguimiento, los fallos de análisis y los vínculos y descartes de proyecto donde el hilo sea cualquiera de
+   los dos lados. Se conservan `case_events` (el historial, con la anotación de que se eliminó), `case_changes` (las solicitudes de
+   cambio, que alimentan el acta) y `mail_operations` (el registro de lo que se envió). Una prueba recorre las tablas de la base y falla si aparece una tabla nueva con
+   `thread_id` que no esté en una de las dos listas.
+2. **Reiniciar para probar desde cero** (`python -m anka.infra.reinicio`):
+   - Sin opciones solo **muestra** qué se borraría (filas por tabla, archivos, casos con carpeta en Drive) y no cambia nada.
+   - Con `--confirmar` primero hace una **copia de seguridad** (la de `backup`, restaurable con `--restore`); si la copia falla, no
+     borra nada. Después vacía todas las tablas de la base, borra el estado del puente (`work_dashboard_sync_state.json`) y las
+     carpetas derivadas (`review_queue`, `manifiestos`, `cache_hallazgos`).
+   - Se niega si el puente está corriendo (hay que cerrar el lanzador).
+   - **No toca** Gmail, Drive, `config.json`, el token ni las credenciales, ni `evidence/` ni `backups/`. Avisa de que los correos de
+     prueba, los borradores de Work y las carpetas de Drive siguen ahí y Work los verá como historial relacionado.
+
+### T-43 · El puente acepta el encabezado del borrador aunque Work le cambie tildes, mayúsculas o espacios
+**Estado: implementado** (pruebas en `tests/test_encabezado_de_work.py`). Decisión: D-76.
+
+**Motivo.** El 2026-10-13 un borrador completo, con su bloque JSON válido, se rechazó («El bloque JSON no está en una sección interna
+inicial válida») porque Work escribió `[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCIÓN]` con tilde. El puente comparaba el encabezado
+letra por letra y el caso quedó como un caso mínimo. Es el mismo descuido que ya se tolera con las etiquetas de estado.
+
+**Qué debe cumplirse**
+1. **Se tolera la forma, no el fondo.** El borrador sigue debiendo empezar con la línea del encabezado, pero se comparan sin tildes, sin
+   distinguir mayúsculas, con los espacios colapsados y con cualquier guion tipográfico como «-». Aplica tanto a decidir si el borrador
+   es de Anka como a exigir que el bloque JSON esté en la sección inicial.
+2. **Sigue sin aceptarse lo inseguro.** Un bloque JSON dentro de un texto que no empieza con el encabezado (por ejemplo, uno citado en una
+   respuesta) se rechaza igual que antes; un borrador con el encabezado y sin bloque se sigue reportando; los bloques repetidos o
+   incompletos también.
+3. **El prompt lo pide sin tilde.** El prompt de Work dice que la línea se copia tal cual, sin tilde en «SECCION». Con 1 ya no es
+   imprescindible, pero evita que se repita.
+
+### T-44 · Un borrador de V6 que omite `skill_version` se verifica igual contra Gmail
+**Estado: implementado** (pruebas en `tests/test_version_de_work.py`). Decisión: D-77. Acota T-41.
+
+**Motivo.** El 2026-10-13 un borrador de V6.1, con los adjuntos en formato V6 (`size_bytes`, `read_via`), omitió `skill_version` porque el prompt
+dice «omite lo desconocido». El puente lo tomó por un borrador anterior, lo verificó contra el manifiesto de Drive (que V6 ya no usa) y el caso quedó
+en «Lectura pendiente: falta leer el PDF», aunque Work había leído el original desde Gmail.
+
+**Qué debe cumplirse**
+1. **La versión declarada manda.** `PRECISO_V6` o posterior se verifica contra Gmail (T-41); `PRECISO_V5` o anterior sigue con el manifiesto (T-45,
+   T-37). Una versión declarada de V5 no se reinterpreta aunque sus adjuntos traigan `size_bytes`.
+2. **Sin versión declarada** (ausente, vacía o «no indicado»), la huella de V6 decide: si el borrador trae adjuntos y **todos** llevan su tamaño exacto
+   en bytes (`size_bytes` entero, algo que V5 y anteriores no emiten), se verifica contra Gmail. Sin adjuntos o con alguno sin `size_bytes`, sigue el camino
+   de siempre.
+3. **El prompt lo exige.** El prompt de Work dice que `skill_version` es obligatorio y se copia tal cual (`PRECISO_V6.1`).
+
+
+### U-59 · Un envío incierto no se duplica ni se queda atascado (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_envios_inciertos.py`; ajusta `tests/test_fiabilidad.py`). Decisión: D-124. Toca R8 **solo para añadir protección**: nada se envía ni se reenvía solo; la reserva durable (`BEGIN IMMEDIATE`) y el `Message-ID` estable no cambian.
+
+**Motivo.** La reserva de un envío se identificaba por el hash del texto: dos pestañas con textos distintos (o una coma editada) reservaban dos envíos del mismo caso y salían dos correos. Y un envío que quedaba incierto (el proceso murió entre «Gmail lo aceptó» y «el caso se actualizó») solo se aclaraba si la persona volvía a pulsar «Enviar» con el mismo texto. El lanzador, además, reiniciaba por un cambio de código sin esperar a que una acción en curso terminara.
+
+**Qué debe cumplirse**
+1. **Un solo envío en curso por caso.** `envios.reservar` rechaza —dentro de la misma transacción que reserva— cualquier envío si el mismo hilo tiene otra reserva `pending` de menos de 2 minutos (`MINUTOS_EN_CURSO`), aunque el texto o el destinatario difieran. Mensaje: «Ya hay un envío en curso para este caso. Espera un momento y recarga la página, o revisa Gmail (carpeta Enviados) para ver si el correo salió. No se envió otro.» Con el mismo texto sigue valiendo el mensaje de siempre.
+2. **Se guarda lo revisado.** La reserva guarda el texto que la persona revisó (`mail_operations.body`, migración 19; las filas anteriores quedan con el texto vacío) para poder completar el caso después sin pedirlo otra vez.
+3. **Se aclara solo, nunca se reenvía.** Una reserva `pending` de más de 2 minutos se aclara consultando Gmail por su `Message-ID`: si está en Enviados se da por enviada y el caso avanza como un envío normal (estado, mensaje, evento y novedad); si no está, se libera la reserva con un evento en el historial y un aviso, **sin enviar nada**. Lo hace (a) el lanzador cada 5 minutos, en un hilo aparte, solo si hay reservas viejas, y (b) el propio botón «Enviar»: antes de enviar aclara las viejas del caso y, si hubo alguna, **no envía esa vez** (la persona ve qué pasó y decide). Si Gmail no responde, no se libera nada.
+4. **«Ya salió: marcar como enviado».** En el caso con un envío sin confirmar, la persona puede declarar que el correo sí salió (`POST /mark-sent`). Cierra la reserva, completa el caso con el texto guardado y deja en el historial, con huella, que fue una declaración de la persona. No consulta ni envía nada.
+5. **Cierre ordenado.** Antes de reiniciar por un cambio de código, el lanzador espera hasta 20 s a que no haya acciones del dashboard en curso (`en_curso/` en la carpeta de datos, una marca por acción POST; las de más de 5 minutos se ignoran) ni una reserva de envío de menos de 2 minutos. Pasado el tope reinicia igual y lo anota. Las acciones se escriben para que, si aun así se cortan, la base quede consistente (transacciones) y el envío incierto se aclare como en 3.
+
+**Casos de aceptación**
+- Q1 · Con una reserva `pending` reciente del hilo, reservar otro texto (u otro destinatario) lanza el aviso; con una de otro hilo, no; con una de más de 2 minutos, no bloquea la reserva (pero `send_dashboard_reply` la aclara antes).
+- Q2 · Dos pestañas con el mismo `state_token` y textos distintos: sale un solo correo.
+- Q3 · Reserva vieja con el correo en Enviados: queda `sent`, el caso avanza y hay un evento `send_reconciled`; sin el correo: la reserva desaparece, hay un evento `send_released` y no se llamó a `messages.send` ni a `drafts.send`; con Gmail caído: nada cambia.
+- Q4 · «Ya salió» cierra la reserva y avanza el caso con el texto guardado; sin envíos pendientes se rechaza; la acción está en `POST_ROUTES` y en `openapi.py`.
+- Q5 · `cierre_ordenado` espera mientras haya una marca reciente o una reserva reciente, y se rinde al pasar el tope; una marca vieja no cuenta.
+
+### U-60 · La copia de seguridad no frena al lanzador y la cadena de huellas no se puede acortar (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_respaldo_robusto.py`). Decisión: D-125. No cambia qué contiene una copia ni cómo se restaura (B0).
+
+**Motivo.** La copia diaria corría dentro del bucle del lanzador, sin tope de tiempo: un Drive colgado congelaba la vigilancia del dashboard y los recordatorios. La copia no se comprobaba una vez hecha el zip. Borrar los últimos hechos del historial de un caso pasaba por «íntegro». Y la copia previa a migrar (`.bak-vN`) no se renovaba si ya existía de un intento fallido.
+
+**Qué debe cumplirse**
+1. **Fuera del bucle.** El lanzador lanza la copia como un proceso aparte (`python -m anka.infra.backup`) y solo lo vigila: tope de 15 minutos (`COPIA_TOPE`), pasado el cual lo cancela, lo anota en `last_backup.json` y espera una hora antes de reintentar; una copia que falla tampoco se repite en cada vuelta sino pasada una hora.
+2. **Verificada.** Tras escribir el zip, `create_backup` lo abre, comprueba cada entrada y revisa la base (`integrity_check` y versión de esquema); si no pasa, borra la copia y falla. La copia de la base ya se comprobaba antes de comprimirla.
+3. **Restauración con todo parado.** Además de exigir el puente parado, `restore` se niega si hay acciones del dashboard en curso o si otro proceso tiene una escritura abierta en la base; el comando `--restore` se niega también si algo contesta en el puerto 8765. La instalación atómica (`os.replace`, borrado de `-wal/-shm`) no cambia.
+4. **Ancla de la cadena.** Cada caso guarda el último hecho anotado (`event_anchors`: id, huella y cuántos hechos hay; migración 20, que parte de lo que ya existe). `verify_chain` devuelve «no íntegra» si la huella del último hecho o la cantidad ya no coinciden con la ancla, así que borrar la cola se detecta. Es una ancla dentro de la misma base: detecta pérdidas y borrados parciales, no a quien reescriba la base entera (eso lo cubre la copia en Drive). Eliminar un caso conserva sus hechos y su ancla; reiniciar los datos vacía todo.
+5. **Copia previa a migrar.** Si `.bak-vN` ya existe y tiene más de 5 minutos, se hace una nueva y la vieja pasa a `.bak-vN.anterior`; una de menos de 5 minutos (de otro proceso que migra a la vez) se respeta.
+
+**Casos de aceptación**
+- R1 · `CopiaDeSeguridad.check` lanza un proceso, no espera, lo cancela al pasar el tope y no reintenta antes de una hora; `servicio()` ya no llama a `run_backup`.
+- R2 · Un zip dañado o con una base corrupta hace fallar `create_backup` y no deja archivo.
+- R3 · `restore` se niega con una escritura abierta o una acción en curso, sin tocar la base.
+- R4 · Borrar el último hecho de un caso (o todos) hace que `verify_chain` dé falso; añadir hechos sigue dando verdadero; una base del esquema 19 llega al 20 con las anclas puestas.
+- R5 · Con `.bak-vN` vieja se crea una nueva y queda `.anterior`; con una reciente no se toca.
+
+### U-61 · Seguridad menor del dashboard y de la lectura de archivos (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_seguridad_menor.py`). Decisión: D-126. No cambia R8, D-27 ni la paridad de los tres modos.
+
+**Motivo.** Ocho hallazgos de severidad baja de la auditoría de seguridad (B2-04 a B2-15): avisos de la dirección sin límite, política de `Origin` laxa, `Host` sin puerto, `gmail_url` de Work sin formato, tope de píxeles implícito, ZIP leídos sin tope, `llm.base_url` sin advertencia, dependencias sin auditar y sin corpus de instrucciones inyectadas.
+
+**Qué debe cumplirse**
+1. **Avisos de la dirección.** `?message=` se recorta a 300 caracteres salvo que lo haya firmado este servidor: toda redirección propia añade `firma` (HMAC del texto con el token del dashboard), de modo que los avisos largos legítimos se ven completos y un enlace manipulado no puede mostrar un texto largo como si fuera del dashboard.
+2. **Origen de un POST.** Si llega `Sec-Fetch-Site`, debe ser `same-origin` o `none` (`cross-site` y `same-site` se rechazan con 403); si llega `Origin`, debe coincidir con el `Host` (`null` se rechaza); si no llega ninguno de los dos (un script, `curl`, las pruebas) se acepta, porque el token CSRF —que solo está en las páginas del propio dashboard— es la protección. Así no se rompe ningún cliente legítimo.
+3. **Puerto del `Host`.** Si el `Host` trae puerto, debe ser el del servidor; sin puerto se acepta.
+4. **`gmail_url`.** El esquema declara `pattern` `^(https://mail\.google\.com/.*)?$`; el validador del contrato ahora comprueba `pattern`; un enlace de otro tipo no rechaza el análisis: se deja vacío con el aviso de siempre («Work escribió algo distinto de lo esperado»).
+5. **Imágenes y ZIP.** `Image.MAX_IMAGE_PIXELS` se fija en `MAX_OCR_PIXELS` (el mismo tope del lector). Todo ZIP que se lee de un adjunto pasa por `zip_acotado` (`_zip_text` ya no lo abre a mano); las excepciones, con su propio tope equivalente, están nombradas en una prueba: el KMZ del dominio (que no puede importar `infra`), las copias propias de `backup` y la lectura de un `.docx` local del índice comercial (tope de 50 MB al XML).
+6. **`llm.base_url` fuera del equipo.** `settings.config_warnings` avisa (no rechaza) si el host no es `127.0.0.1`, `localhost` ni `::1`; el comando lo imprime al arrancar.
+7. **Dependencias.** El workflow de CI corre `pip-audit` sobre `requirements.lock` y `requirements-dev.lock` (solo ese paso; no se instala nada en el equipo del desarrollador; `docs/ESTANDAR_CAMBIOS.md` explica cómo correrlo a mano).
+8. **Instrucciones dentro de un correo.** Un corpus de pruebas (`tests/test_inyeccion_de_instrucciones.py`) comprueba que el texto del cliente y el del OCR viajan en el prompt como datos delimitados, que ni la salida del modelo ni un borrador de Work con instrucciones inyectadas cambian un destinatario, un estado o envían algo (R8: el envío solo sale de la acción de una persona), y que el contrato rechaza lo que no cumple el esquema.
+
+**Casos de aceptación**
+- S1 · `?message=` de 1 000 caracteres sin firma se muestra de 300; con la firma de una redirección propia se muestra completo; una firma de otro texto no sirve.
+- S2 · POST con `Sec-Fetch-Site: cross-site` o `Origin` ajeno → 403; con `same-origin`, con `none` o sin ninguno → pasa; sigue valiendo el token.
+- S3 · `Host: 127.0.0.1:9999` contra un servidor en 8765 → 403; `127.0.0.1:8765` y `127.0.0.1` pasan; `[::1]:8765` pasa.
+- S4 · `gmail_url: "javascript:alert(1)"` queda vacío con aviso; `https://mail.google.com/mail/u/0/#all/abc` se conserva.
+- S5 · Una prueba recorre `anka/` y falla si aparece `zipfile.ZipFile(` fuera de las excepciones nombradas.
+- S6 · `config_warnings` avisa con `http://10.0.0.5:11434` y calla con `http://127.0.0.1:11434`.
+- S7 · El workflow de CI contiene el paso `pip-audit`.
+
+### U-62 · Un solo reloj y las fechas se ordenan por instante (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_reloj.py`). Decisión: D-127. No cambia ninguna fecha ya guardada.
+
+**Motivo.** Varios módulos tomaban la hora con `datetime.now()` sin zona (el año de la T, el nombre de una copia, el sello de una exportación) y otros con `astimezone()`. Y las listas se ordenaban comparando el **texto** de la fecha: dos fechas con desfases distintos (un correo recibido en UTC y un envío local) se desordenaban.
+
+**Qué debe cumplirse**
+1. **Un reloj.** `anka/dominio/reloj.py`: `ahora()` (la hora local **con** zona, la que Anka ya guardaba), `ahora_iso()`, `instante()` y `clave_de_orden()`. `backup.py`, `change_control.py`, `pantalla_caso.py`, `server.py`, `repositorio.py`, `store.py`, `envios.py` y `case_actions.py` lo usan; no queda `datetime.now()` sin zona en esos módulos. La zona sigue siendo la del equipo (en la oficina, Bogotá, -05:00) para coincidir con lo guardado; el horario hábil de los recordatorios conserva su propia zona fija.
+2. **Orden por instante.** La lista de casos, la última respuesta del cliente, el seguimiento del caso, la conversación, el primer mensaje y los cambios se ordenan por instante, no por texto; a igual instante manda el orden de guardado. Una fecha sin zona se entiende en hora local y una ilegible va primero.
+3. **Sin tocar lo guardado.** Los textos guardados no se reescriben ni se migran.
+
+**Casos de aceptación**
+- T1 · `ahora()` trae zona; el año de la T sale de `ahora()`.
+- T2 · Dos fechas con desfases distintos se ordenan por instante en la lista de casos, en `case_events` y en la última respuesta; el orden por texto habría dado el contrario.
+- T3 · Una fecha sin zona, una vacía y una ilegible no rompen el orden.
+
+### U-63 · Consistencia entre las tablas del caso y lo que el lector descarta (Ola B3 del plan de backend)
+**Estado: implementado** (pruebas en `tests/test_consistencia_de_tablas.py`; la comprobación original sigue en `tests/test_reinicio.py`). Decisión: D-128. No cambia ningún texto que el lector entrega.
+
+**Qué debe cumplirse**
+1. **Toda tabla con `thread_id` está clasificada.** Una prueba compara las tablas de la base que tienen `thread_id` con `TABLAS_DEL_CASO`, `TABLAS_CON_DOS_HILOS` y `TABLAS_QUE_SE_CONSERVAN`, en los dos sentidos: una tabla nueva sin clasificar falla y una lista que nombra una tabla inexistente también; ninguna tabla está en dos listas. `event_anchors` se conserva con el historial.
+2. **El lector geográfico deja constancia.** Las coordenadas y datos que descarta sin avisar en el texto (coordenadas KML ilegibles, coordenadas de misión fuera de rango o ilegibles, altitudes CSV y elevaciones GPX ilegibles) se anotan en el registro a nivel depuración con su cantidad; el texto que se entrega no cambia.
+
+**Casos de aceptación**
+- U1 · Un KML con coordenadas rotas deja el mismo texto y una línea de registro con el número de descartes.
+
+### U-64 · Una sola forma de escribir en la base: `transaccion()` (Ola B3 del plan de backend)
+**Estado: parcial** (migración incremental; pruebas en `tests/test_transaccion.py`). Decisión: D-129. No cambia ningún comportamiento ni texto.
+
+**Motivo.** Cada servicio abría la base con `connect()`, hacía `commit()` donde le parecía y cerraba en un `finally`: unas cincuenta veces el mismo patrón de seis líneas, con candados de escritura tomados (o no) a mano y sin una unidad de trabajo explícita.
+
+**Qué debe cumplirse**
+1. **Dos contextos en `infra/store.py`.** `transaccion(inmediata=True)` abre la base (o comparte la de la petición web, `request_scope`), toma el candado de escritura al entrar (o con la primera escritura si `inmediata=False`), **confirma al salir bien y revierte si algo falla** (también con una interrupción), y cierra. `lectura()` abre para leer y descarta lo que quedara sin confirmar.
+2. **Migrados** (sin cambiar su comportamiento; las pruebas que ya existían pasan sin tocarse, salvo la que llamaba a `_record_sent_reply` con 9 parámetros): `envios`, `case_actions` (salvo `approve_review`), `change_control` (salvo la conexión opcional de `origen_de_destinatario`), `ediciones`, `work_import`, `vinculos`, `revision_tecnica`, `quotes`, `estado_de_revision`, `salud`, `cola_del_piloto` y `infra/rechazos_de_work`.
+3. **Pendientes** (listados en `PENDIENTES` de la prueba; la lista solo puede bajar): `case_actions.approve_review` (pasa su conexión a `_send_questions` y `_create_case_folder`), `gmail_followup.sync_thread_activity` (lee Gmail dentro de la transacción y confirma por tandas, hay que separarlo antes), `pipeline` (el ciclo de revisión comparte una conexión durante toda la pasada) y la conexión opcional de `change_control.origen_de_destinatario`. Tampoco se tocaron `repositorio.py` (ya es el repositorio del agregado «caso» y administra sus conexiones), `reintentos`, `followup_reminders` y `reinicio`, que reciben la conexión de quien los llama.
+4. **Repositorios por agregado.** Queda como propuesta: `RepositorioDeCasos` ya cubre el caso; `envios` (reserva de correos) es el siguiente candidato natural.
+
+**Casos de aceptación**
+- V1 · Dos escrituras dentro de `transaccion()` quedan juntas; si la segunda falla, no queda ninguna (también con `KeyboardInterrupt`).
+- V2 · Con `inmediata=True` otro proceso no puede tomar el candado mientras dura el bloque; al salir queda libre.
+- V3 · Dentro de `request_scope` comparte la conexión, confirma y revierte igual.
+- V4 · `lectura()` descarta lo que se escriba por error; una prueba cuenta los `connect()` que quedan fuera de `store.py` y falla si suben.
+
+### U-65 · Integración continua, desarrollo y tipos en las fronteras (Ola B3 del plan de backend)
+**Estado: parcial** (pruebas en `tests/test_ci_y_desarrollo.py`). Decisión: D-130. No cambia ningún comportamiento visible.
+
+**Qué debe cumplirse**
+1. **CI.** Cada trabajo de `.github/workflows/ci.yml` lleva `timeout-minutes` y el flujo `concurrency` con `cancel-in-progress` (una corrida nueva de la misma rama cancela la vieja).
+2. **`check.bat quick`.** Corre ruff, mypy, `check_spec` y las pruebas rápidas (`tools/pruebas_rapidas.py --rapido`, sin los módulos lentos de `LENTOS` y sin cobertura); `check.bat` sin argumentos sigue siendo lo mismo que el CI y lo único que cierra un cambio. Equivalente sin `.bat` documentado en `docs/ESTANDAR_CAMBIOS.md`.
+3. **Sin deriva de `spec/07-api.md`.** Una prueba exige que el documento nombre cada ruta `GET` que documenta `openapi.py` y las etiquetas de las acciones; las cabeceras y la política de `Origin` del documento son las vigentes.
+4. **Animación.** Los nodos de fondo se pausan también cuando la ventana pierde el foco (`blur`) y se reanudan con `focus`; la física y sus parámetros (60 cuadros por segundo como tope, `tests/fisica_nodos_prueba.js`) no cambian (U-38).
+5. **Parámetros largos.** Lo que se anota tras enviar un correo se agrupa en `RespuestaEnviada` (frozen dataclass, antes 9 parámetros). Queda para después `record_event` (9) y `register_change` (11), porque tienen decenas de llamadores y pruebas.
+6. **Glosario.** `spec/06-arquitectura.md` fija el vocabulario (caso/solicitud/hilo/«quote»/revisión…); no se renombra nada.
+7. **Protocolos de Gmail y Drive.** `anka/infra/clientes_google.py` define `ClienteGmail` y `ClienteDrive` (`Protocol`); `services()` y los parámetros `gmail`/`drive` de los módulos de `anka/` los usan en vez de `Any` (ninguno queda como `Any`). Los resultados de cada llamada siguen siendo `Any`: son JSON de Google.
+
+**Casos de aceptación**
+- W1 · El workflow tiene `timeout-minutes` en todos sus trabajos y `cancel-in-progress: true`.
+- W2 · `check.bat` reconoce `quick`, la herramienta existe y todo módulo de `LENTOS` es un módulo de pruebas real.
+- W3 · `spec/07-api.md` nombra cada ruta `GET` documentada; el script de la animación se detiene en `blur` y arranca en `focus`.
+- W4 · No queda `gmail: Any` ni `drive: Any` en `anka/`; los dobles de prueba cumplen los protocolos.
+
+### U-77 · La línea de comandos nunca envía correos al cliente (R8; auditoría de seguridad)
+**Estado: implementado** (pruebas en `tests/test_sin_envio_directo.py`). Decisión: D-144. Supersede la vía de «envío directo» de `run --apply` sin `--review-only` que describían el README y `docs/DISENO_HIBRIDO.md`.
+
+**Motivo.** R8 y los principios no negociables dicen que nada sale al cliente sin que una persona lo revise (única excepción: los recordatorios opcionales de R13). `python app.py run --apply` sin `--review-only` ni `--gmail-drafts` enviaba las preguntas al cliente desde `pipeline` sin revisión, en los modos `local` y `api`.
+
+**Qué debe cumplirse**
+1. **Ningún camino de `anka/cli/`, `pipeline` ni `decision` envía.** `Action.SEND` ya no existe; ni `RevisorDeHilos` ni `run`/`watch` llaman a `send_reply` ni a `messages().send` / `drafts().send`. El único envío al cliente sigue siendo el confirmado por una persona en el dashboard (`case_actions`), y el recordatorio de R13.
+2. **Faltan datos → revisión humana.** Con datos faltantes, la decisión es siempre `REVIEW_PENDING` («Correo por revisar») con la ficha y el texto propuesto (`Action.QUEUE`), o el borrador de Gmail con `--gmail-drafts`; `review_only` ya no cambia ese resultado. No hay clave de `config.json` ni bandera que lo active: una configuración antigua no puede pedir el envío.
+3. **`--apply` sin `--review-only` ni `--gmail-drafts` se ignora con aviso.** Imprime (stderr) y registra un aviso en español que dice que Anka ya no envía desde la línea de comandos y que el envío es solo desde el dashboard tras la revisión. Lo demás no cambia: la carpeta del proyecto (alcance completo) se sigue creando como antes y sigue exigiendo `drive_parent_id`; el contrato con Work y el modo `chatgpt_work` no se tocan.
+4. **Paridad (U-47).** Un caso `ready`, `sending` o `response_sent` sigue sin retroceder; una fila `sending` heredada se sigue omitiendo con su motivo.
+
+**Casos de aceptación**
+- S1 · Con datos faltantes, `run(True)` (sin banderas) deja el caso en `review_pending` con la ficha, escribe el aviso, y el doble de Gmail registra **cero** llamadas de envío.
+- S2 · `run(True, review_only=True)` y `run(True, gmail_drafts=True)` no envían y no escriben el aviso.
+- S3 · `Action` no tiene miembro de envío; `decide_analysis` con cualquier combinación de banderas nunca devuelve un envío.
+- S4 · Un recorrido (AST) de `anka/cli/`, `pipeline.py`, `decision.py` y `estado_de_revision.py` no encuentra `send_reply` ni llamadas `.send(`.
+
+### U-78 · La copia de seguridad no sube secretos a Drive (auditoría de seguridad)
+**Estado: implementado** (pruebas en `tests/test_respaldo_sin_secretos.py`). Decisión: D-145. Precisa U-42 y U-60; no cambia cómo se verifica la base.
+
+**Motivo.** El respaldo diario incluía `config.json` tal cual y se subía a Drive. El archivo es de uso libre (las claves desconocidas solo se avisan) y alguien puede haber puesto allí una clave, un token o un endpoint con usuario y contraseña. Las claves que Anka reconoce hoy (`anka/dominio/configuracion.py`) no son secretos (modo, consultas, direcciones, ids de carpeta, prefijos, parámetros del motor) y la clave de OpenAI se lee de la variable de entorno `OPENAI_API_KEY`, nunca del archivo; aun así, un archivo editado a mano no es una garantía.
+
+**Qué debe cumplirse**
+1. **`config.json` no entra en la copia.** En su lugar entra `config.redactado.json`: la misma estructura, con el valor de toda clave sensible cambiado por `[REDACTADO]`. Se redacta, a cualquier profundidad, por **nombre** (api_key, apikey, secret, token (no `*_tokens`), password/passwd, pwd, credential, private_key, authorization, bearer, cookie, session, signature, `*_key`, `auth`) y por **aspecto del valor** (claves `sk-…`, tokens `ya29.`/`AIza`/`ghp_`/`xox*`, `Bearer …`, claves privadas PEM, tokens de refresco `1//…`), y se quita el usuario:clave de las URL (`https://u:c@host` pasa a `https://host`). Ninguna clave que Anka reconoce se redacta.
+2. **Un archivo ilegible no se copia en bruto.** Si `config.json` no es JSON válido o no es un objeto, la copia sale sin configuración y queda un aviso en el registro.
+3. **La verificación lo comprueba.** `_verificar_zip` rechaza (y borra) una copia recién hecha que contenga `config.json`.
+4. **Restaurar sigue funcionando.** La configuración redactada **nunca pisa** la viva: solo se instala como `config.json` si no existe ninguna (y avisa que hay que volver a poner los valores `[REDACTADO]`). Una copia **antigua** que traiga `config.json` se restaura como antes (es un archivo de datos que no se ejecuta). `token.json`, `credentials.json` y la variable `OPENAI_API_KEY` nunca viajaron ni viajan: tras restaurar en un equipo nuevo hay que volver a autorizar Google (`python app.py auth`) y definir la variable.
+5. **Copias ya subidas.** Las copias anteriores en Drive pueden contener `config.json` con secretos y este cambio no las toca (el código solo borra las propias, con prefijo, por antigüedad). Quien administra la cuenta debe revisarlas, borrar las que tengan secretos y rotar las credenciales que hayan estado en el archivo (`docs/MODO_OPERACION.md`).
+
+**Casos de aceptación**
+- C1 · Con un `config.json` sintético con claves falsas (nombres y valores sensibles, anidados y en listas) la copia no contiene ninguna, ni en el zip local ni en lo que recibe el doble de Drive; sí contiene `config.redactado.json` con lo no sensible intacto.
+- C2 · Todas las claves de `Configuracion`/`ConfigLlm` sobreviven a la redacción.
+- C3 · La copia se verifica y se restaura; una copia vieja con `config.json` se restaura sin error y sin ejecutar nada; la redactada no pisa la viva y sí crea `config.json` si no había.
+- C4 · Un `config.json` roto no rompe la copia ni se copia en bruto.
+
+## Recepción determinista de correos en modo `chatgpt_work` (previsto)
+
+**Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.
+
+**Cómo se trazan mientras no existen.** Estos requisitos usan encabezado de **cuarto nivel** (`#### U-xx`) a propósito: `check_spec.py` solo exige prueba a los encabezados `### ID · ` y a las reglas R, así que no cuenta estos como requisitos sin prueba ni falla por ellos (no se modificó `check_spec.py`). Al implementar un requisito, el incremento que lo haga lo **promueve a `###`**, escribe sus pruebas y las etiqueta con `# Cubre: U-xx`; hasta entonces ninguno figura como implementado ni como probado (Constitución, Gobernanza).
+
+**Qué problema resuelven.** En modo `chatgpt_work`, un correo nuevo para el que Work aún no dejó un borrador no deja ni caso ni alerta: nadie sabe que llegó. La única vía hoy que crea un caso sin análisis válido parte de un borrador rechazado (T-36). La recepción determinista registra cada correo entrante apenas llega, crea un expediente preliminar con solo lo verificable, y avisa si Work no lo analiza en 30 minutos medidos desde la recepción real en Gmail. **No analiza, no escribe en Gmail, no cotiza y no envía nada al cliente.**
+
+### Vocabulario de esta sección
+- **Expediente preliminar**: la fila del caso (`quotes`) creada por la recepción en estado `review`, con remitente, asunto, fecha de recepción y nombres de archivos; sin actividades ni datos inferidos.
+- **Registro de recepción**: una fila por mensaje de Gmail visto (`recepcion_mensajes`), con su fase.
+- **Cubierto / pendiente de análisis**: un mensaje está cubierto cuando existe **evidencia verificable** de que un análisis de Work lo recogió (U-70). Sin esa evidencia, queda pendiente.
+- **Pendiente de comprobación**: mensaje de un hilo que sí tiene un análisis válido, pero sin evidencia de que ese análisis lo recoja. Nunca se da por cubierto por su fecha.
+
+#### U-66 · Todo correo entrante en modo Work deja un expediente, aunque Work no lo haya analizado
+**Estado: previsto** (el incremento 3 lo implementa). Decisiones: D-131, D-138, D-140, D-142.
+
+**Qué debe cumplirse**
+1. **Solo lectura y solo en modo `chatgpt_work`.** El sondeo corre dentro del proceso del puente (no es un segundo orquestador), después de importar los borradores y antes del seguimiento, en un bloque aislado: un error de recepción se guarda en su propio control y no pone en rojo al puente. Las únicas llamadas a Gmail son `getProfile`, `messages.list` y `messages.get`, más la lectura del hilo (`threads.get`) estrictamente para la comprobación de U-68 (DT-25). Nunca `modify`, etiquetas, `trash`, `send`, borradores, `import` ni `insert`; no marca leído. Los alcances (SCOPES) no cambian y `credentials()` sigue sin abrir el navegador (D-27).
+2. **Cuenta verificada.** Antes de cada pasada `getProfile` debe coincidir con la cuenta configurada del puente (`work_sync_account`); si no, el sondeo se detiene con un error de configuración visible y no mezcla cursores.
+3. **Expediente preliminar con solo lo verificable.** Se crea en `quotes` con estado `review` (creación, no transición), `first_seen_at` = recepción real (`internalDate`) del entrante más antiguo del hilo, `contact_email` vacío (para que Work pueda fijarlo), remitente = encabezado `From` tal cual (si no hay dirección válida no hay caso: se registra `sin_remitente` y se avisa), asunto recortado sin «Re:/RV:/Fwd:». **No se interpreta el asunto**: ni servicio, ni actividad, ni ubicación, ni magnitud, ni plazo, ni entregables; cliente comercial, tipo y sector quedan «No clasificado». Actividades, campos, faltantes y auditoría de preguntas, vacíos; `analysis_complete` falso.
+4. **Adjuntos: solo metadatos.** Nombre, tipo y tamaño, con la leyenda «Anka solo registró el nombre, tipo y tamaño; nadie ha leído este archivo». No se descarga ni se guarda contenido ni el `attachment_id`. La cobertura de lectura de la recepción es la constante `metadatos+estructura_de_adjuntos` y se dice (Constitución I).
+5. **Clasificación.** Cada mensaje es `entrante`, `ruido_r1`, `propio` (etiqueta `SENT`/`DRAFT` o dirección propia) o `sin_remitente`. El ruido sigue R1: solo señales de encabezado; las palabras comerciales solo **rescatan** un aviso automático del descarte; **un humano nunca se descarta por palabras**. La procedencia es `externo` o `prueba_interna` (remitente de pruebas configurado y asunto con marca de prueba); las pruebas **sí crean caso**, con la etiqueta «Prueba».
+6. **Un hilo, un expediente.** La inserción es `INSERT … ON CONFLICT(thread_id) DO NOTHING`; la recepción **nunca** usa `store.save()`, nunca escribe `analysis_json`, `status` ni `last_inbound_id` de un caso existente y no cambia estados. El segundo mensaje de un hilo solo se registra y, si el caso es todavía preliminar, sube `updated_at`.
+7. **Reenvíos.** Un asunto con prefijo de reenvío se registra (`asunto_con_reenvio`) y el texto dice que quien escribe puede ser alguien de Anka y que el cliente original no está identificado; nunca se asigna un remitente original distinto del `From`.
+8. **Los otros modos no cambian.** `local` y `api` no importan ni ejecutan la recepción; el indicador de U-73 no aparece si no hay filas de recepción. Work gana una recepción propia: es una mejora de la paridad (local y api ya crean caso por cada hilo candidato).
+9. **Nada sale al cliente (R8).** El aviso es una novedad interna; no hay envío, borrador ni recordatorio.
+10. **Configuración** (claves nuevas de `config.json`, fuera del repo; validadas en `validate_config`): `recepcion_activa` (falso por defecto, también es el rollback), `recepcion_simulacion`, `recepcion_materializar_desde_horas`, `recepcion_consulta` (`in:inbox`), `recepcion_ventana_inicial_horas` (48, máx. 168) y `recepcion_minutos_alerta` (30, entre 5 y 1440).
+
+**Casos de aceptación**: E1, E2, E3, E9, E10, E12 y E13 (tabla de aceptación, al final de esta sección).
+
+#### U-67 · Registro por fases y cola persistente: los topes limitan la velocidad, no el resultado
+**Estado: previsto** (incremento 3). Decisiones: D-132, D-140.
+
+**Qué debe cumplirse**
+1. **Fases.** Cada mensaje listado es una fila con fase `por_leer` (id listado, aún sin leer) → `registrado` (leído y clasificado como entrante) → `materializado` (tiene expediente o se reconoció el expediente existente); o `omitido` (ruido, propio, sin remitente, anterior a la activación o dado por no disponible con evidencia, U-68) o `revision_manual` (U-68). Toda fila `omitido` o `revision_manual` conserva su motivo (R3).
+2. **Clave.** El registro se identifica por el par `(thread_id, message_id)` (D-140). Un `message_id` que reaparece con otro `thread_id` no sobrescribe nada: se anota como anomalía y queda en `revision_manual`.
+3. **Registro inmediato.** Cada id que `messages.list` devuelve y no se conocía se inserta en el acto, antes de cualquier lectura. Desde ese momento el trabajo pendiente vive en la tabla, no en el cursor ni en el tamaño de la pasada.
+4. **Drenaje antes de listar, más antiguo primero.** Cada pasada procesa primero la cola: hasta 40 lecturas (`messages.get`) y hasta 10 materializaciones, siempre por `recibido_ms` ascendente (y por orden de inserción las no leídas). Los topes son ≥ 1 y solo limitan la velocidad: lo excedente queda en la cola y se procesa en las pasadas siguientes.
+5. **Garantía.** Para todo mensaje `entrante` elegible que Anka llega a listar existe un número finito de pasadas tras el cual tiene expediente o una fila terminal o de revisión con motivo. Ni un tope ni el avance del cursor lo impiden.
+6. **Cursor propio, no guardián del trabajo.** Fecha `internalDate` con solape de 10 minutos; avanza solo cuando el listado fue completo (todas las páginas, máx. 10) y todos los ids listados quedaron al menos registrados. No se guarda ningún `pageToken`: reanudar es repetir la consulta desde el cursor. Cada 6 horas se lista además `newer_than:2d` solo para restar ids (mensajes con fecha interna anterior al cursor). Ventana inicial de 48 h (máx. 168 h); tras una parada mayor que 168 h se recorta la consulta y se anota un **hueco visible**: lo ya registrado nunca caduca y el hueco y el backlog son cosas distintas, ambas visibles.
+7. **Escrituras cortas.** Todo con `transaccion()`/`lectura()` (D-129): una transacción por mensaje o lote de ≤ 10, y **ninguna llamada a Gmail dentro de una transacción**. Sin dependencias nuevas y sin `connect()` suelto.
+8. **Se conserva (T-42).** `recepcion_mensajes` y `caso_identidad` son tablas «se conservan» (evidencia de que el mensaje ya se vio; no se recrea un caso por un mensaje ya registrado). `recepcion_control` no tiene `thread_id`. La migración llega sola en su incremento y solo hacia adelante; el rollback funcional es `recepcion_activa=false`.
+
+**Casos de aceptación**: E2, E3, E8, E14.
+
+#### U-68 · Lecturas fallidas y mensajes «no encontrados»: se registran con motivo y un 404 nunca se toma por borrado
+**Estado: previsto** (incremento 3). Decisiones: D-141, D-132.
+
+**Principio.** Un error de Gmail no es una conclusión comercial ni una prueba de eliminación. Un `404` de `messages.get` puede ser un mensaje eliminado, un id inválido, una cuenta o credencial equivocada o un fallo transitorio: **un 404 aislado no es prueba de eliminación y no borra, oculta ni da por terminado nada**. Cada intento deja `intentos`, `ultimo_error` (con su clase) y la fecha; ninguna fila de registro, caso, evento ni estado se borra o cambia por un error.
+
+| Situación | Qué hace Anka |
+|---|---|
+| Cuota agotada (`es_error_de_cuota`) | Aplaza la pasada con espera creciente; no cuenta como fallo de acceso; las filas quedan como estaban |
+| Error de red o 5xx | La fila sigue `por_leer`, suma un intento, registra la clase `red`; reintenta en la pasada siguiente con espera creciente |
+| Autorización vencida o revocada | Detiene el sondeo con clase `autorizacion`, aviso en el resumen y la salud; **no abre el navegador** (D-27); las filas quedan intactas |
+| Cuenta distinta a la configurada (`getProfile`) | Detiene el sondeo con error de configuración; no mezcla cursores ni toca filas |
+| `404` aislado en un id recién listado (o con pocos intentos) | **Reintentar con espera creciente.** La fila sigue `por_leer`, registra «404» con la fecha de cada intento. No es terminal |
+| `404` en varios ids seguidos de la misma pasada | Se sospecha de cuenta o credencial, no de borrado: se repite `getProfile`, la clase de error es `acceso`, **ninguno** se marca no disponible y todas las filas siguen `por_leer` |
+| `404` que persiste tras varios intentos (mínimo 3, repartidos en al menos 30 min) | La fila pasa a `revision_manual` con el motivo «Gmail respondió 404 en N intentos entre HH:MM y HH:MM». Cuenta en el backlog y en la salud. Una persona decide: reintentar o dar por omitido (con nota, quién y cuándo, y evento) |
+| `404` con **evidencia adicional**: tras al menos 2 intentos, `getProfile` correcto de la misma cuenta y la lectura del hilo (`threads.get`) funciona y **no lista** el mensaje | `omitido` con clase `no_disponible` y el motivo «ausente del hilo según la lectura del <fecha>»; se guardan los ids que el hilo sí listó como evidencia. Es reversible: una persona puede devolverlo a `por_leer` |
+| Id con formato inválido (`400`) | `revision_manual` con motivo; sin reintentos automáticos |
+| Un mensaje ya `materializado` que después da 404 | No se toca el caso, el historial ni el registro; solo una anotación informativa. Un 404 posterior nunca deshace un expediente |
+| Listado incompleto o inesperadamente vacío | No se deduce que algo se borró: el cursor no avanza si el listado fue incompleto |
+
+Los números exactos de intentos y esperas son una decisión técnica abierta (DT-27); la regla que no cambia es que **solo la evidencia adicional, nunca el 404 solo, permite dar un mensaje por omitido**.
+
+**Casos de aceptación**: E8 (incluye el comportamiento de cada fila de la tabla) y E11.
+
+#### U-69 · Simulación primero: registrar sin crear nada, y activar sin perder lo registrado
+**Estado: previsto** (incremento 3). Decisión: D-133. Propuestas pendientes de confirmación explícita del dueño: DT-1 y DT-20.
+
+**Qué debe cumplirse**
+1. **Qué escribe la simulación (`recepcion_simulacion=true`).** Solo filas de `recepcion_mensajes` (`por_leer` → `registrado`/`omitido`) y la fila de control (cursor y salud). **No** escribe en `quotes`, `case_events`, `case_messages`, `dashboard_notifications` ni `event_anchors`; no materializa, no marca `analizado_at`. Su resultado es «registrado, pendiente de materializar»: **la simulación no puede dar nada por terminado**. Gmail sigue recibiendo solo lecturas.
+2. **Informe de la simulación.** Mientras dura, la banda de recepción y `/api/salud` dicen «Simulación: N correos habrían creado expediente (M hilos), K descartados como ruido, J propios», calculado sobre las filas.
+3. **Activación** (`recepcion_simulacion=false` con `recepcion_activa=true`). La primera pasada anota `activada_at` una sola vez, marca `omitido` («anterior a la activación») lo registrado con recepción anterior a `ahora − recepcion_materializar_desde_horas` y drena el resto con la misma cola y los mismos topes. No hay cursor que «saltar» ni duplicados (clave del registro, `DO NOTHING` y `UNIQUE (thread_id, kind, ref)` de los eventos). Lo omitido por antigüedad queda **visible con su motivo**; `omitido` no significa «cubierto» ni «analizado» (U-70).
+4. **Activar exige antes** que el ruido R1 registrado pueda revisarse y rescatarse (R3, D-142): hasta que exista ese panel (incremento 6) la recepción solo se puede usar en simulación.
+5. **Primera activación sobre la cuenta real** (propuesta DT-1, pendiente de confirmación explícita): primero simulación con ventana de 48 h, informe al dueño y solo después activación. Omitir lo más viejo que `recepcion_materializar_desde_horas` al activar (propuesta DT-20, pendiente) también necesita confirmación.
+
+**Casos de aceptación**: E15, E16.
+
+#### U-70 · Un análisis de Work posterior (o anterior) al registro cubre solo lo que su evidencia demuestra
+**Estado: previsto** (incremento 4). Decisiones: D-134, D-143. No cambia `sync_once`, el parser, el contrato V6.1 ni el prompt.
+
+**Regla central.** **La fecha nunca basta para dar un mensaje por cubierto.** Un mensaje anterior en fecha al mensaje analizado no queda «analizado» por eso: se exige **evidencia verificable** o el mensaje conserva la condición «pendiente de comprobación». `received_at`, `first_seen_at` y el `historyId` de hilo solo son **pistas** (sirven para ordenar y para decirle a quien revisa «este mensaje es anterior al analizado»); no cubren nada. (Corrige la v2, que trataba `received_at` como prueba suficiente.)
+
+**Evidencia aceptada, en orden de confianza** (un mensaje queda cubierto solo por la coincidencia exacta de su `message_id`):
+
+| # | Evidencia | Qué cubre |
+|---|---|---|
+| 1 | El `message_id` del análisis que se está importando (campo del contrato, ya verificado contra Gmail por `_verify_origin`) es el del mensaje registrado | Ese mensaje, al importar (gancho en `work_import`) |
+| 2 | `quotes.last_inbound_id` del caso es el del mensaje | Ese mensaje (casos con análisis ya importado antes del registro) |
+| 3 | `analysis.work_message_id` guardado del caso es el del mensaje | Ese mensaje (casos importados antes de que existiera `last_inbound_id`, o cuando difiere) |
+| — | Ninguna de las anteriores, aunque la fecha sea anterior (`received_at`/`first_seen_at`) | **Pendiente de comprobación**: `analizado_at` queda vacío y `cobertura_origen` en blanco |
+
+**Qué debe cumplirse**
+1. **Orden de llegada indiferente.** Si el análisis llega después del registro, un gancho dentro de la misma transacción de `_store_work_analysis` (después de `save`, antes del evento `analysis`) marca los mensajes cubiertos según la tabla. Si llegó antes, la recepción **no inserta ni actualiza** `quotes` (ni lo intenta) y aplica la misma tabla al materializar. Ambos órdenes convergen al mismo estado.
+2. **Sin preliminar sobre un caso existente, sin sobrescribir `analysis_json`**, sin alerta falsa, sin perder historial: no se borra ningún registro, evento ni mensaje; `first_seen_at` no cambia. El evento `analysis_late` («El análisis de Work llegó N minutos después de la recepción…») se añade al evento `analysis` que ya existe.
+3. **Qué se ve cuando hay pendientes de comprobación.** En un hilo con análisis válido, los mensajes sin evidencia se presentan como **novedad posterior al análisis** («Revisa si el análisis recoge este mensaje; es anterior al que Work analizó»), nunca como «Pendiente de análisis de Work» (esa etapa exige un hilo sin análisis válido). Es el error seguro: puede pedir revisar un mensaje ya recogido, nunca esconder uno que no lo está.
+4. **Cobertura confirmada por una persona.** Una persona puede confirmar que el análisis recoge un mensaje (acción verificada con CSRF): se guarda quién y cuándo, `cobertura_origen = 'persona'` y un evento; no cambia el estado del caso. Cada cobertura guarda su origen (`message_id` del análisis, `last_inbound_id`, `work_message_id` o `persona`) para auditarla.
+5. **Tabla de decisión.** Análisis de un mensaje anterior con otros ya registrados (E5): solo el analizado queda cubierto, el resto pendiente de comprobación y el aviso «Revisa si el análisis sigue vigente: llegaron N mensajes después». Payload con `_caso_minimo: True` (rechazo T-36) y caso con `sin_analisis_de_work`: **no cubren nada**. `analysis_complete: False` válido para el contrato, o estado `Descartada`: sí cubren su mensaje. Edición manual de la tabla sobre un preliminar: no cubre. Hilo sin filas de recepción (caso anterior a la función): el gancho no hace nada y no falla. Discrepancia entre el remitente registrado y el declarado por Work: se tolera y se avisa (D-106); no rechaza.
+6. **Atomicidad.** Un fallo del gancho revierte toda la importación y el puente reintenta, como cualquier fallo de importación.
+7. **Mejora futura, fuera de este requisito.** Que Work declare en el contrato los ids de los mensajes que leyó (cobertura demostrable de los mensajes anteriores) exigiría cambiar el contrato, el importador, la skill y el prompt (DT-26); no se asume.
+
+**Casos de aceptación**: E4, E5, E9, E17 y E18.
+
+#### U-71 · El seguimiento no omite los mensajes del hilo anteriores al mensaje analizado
+**Estado: previsto** (incremento 5). Decisión: D-143.
+
+**Hoy.** `gmail_followup.sync_thread_activity` descarta todo mensaje con fecha anterior a `first_seen_at`, que para un caso de Work es la recepción del mensaje **analizado**; los mensajes anteriores del hilo quedan fuera del historial y de `case_messages` (y se dan por vistos en el proceso).
+
+**Qué debe cumplirse**
+1. **Fecha de referencia del seguimiento** = el menor entre `first_seen_at` del caso y la recepción del entrante más antiguo registrado del hilo. Para un preliminar coincide con `first_seen_at`. Fuera de la ventana de la recepción se conserva el comportamiento actual (no se reescribe historia que Anka nunca vio).
+2. Un mensaje anterior a la referencia sigue omitiéndose, pero ya **no** se da por visto. Los mensajes de otro hilo nunca se vinculan por asunto (solo se proponen, como hoy).
+3. Todo mensaje del mismo hilo con fecha ≥ referencia deja su evento `sent`/`received` y su fila en `case_messages`; el aviso «El cliente respondió» solo aplica si es posterior al análisis. El evento de recepción es de otro tipo (`reception`) y no choca con `received`; la recepción no escribe `received`, `case_messages` ni avisos de respuesta: eso lo sigue haciendo el seguimiento, que guarda el texto.
+4. **Esto no marca cobertura**: registrar un mensaje anterior en el historial no significa que Work lo haya analizado (U-70).
+5. Se mantiene la guarda posterior a la T (`when > code_assigned_at`) y que los `sent` anteriores al análisis no mueven estado. La deuda de transacciones del seguimiento (U-64) no crece.
+
+**Casos de aceptación**: E6 (y el caso heredado sin registro, que se comporta como hoy).
+
+#### U-72 · La alerta de 30 minutos se mide desde la recepción real y se calcula al leer
+**Estado: previsto** (incrementos 2 y 6). Decisión: D-139.
+
+**Qué debe cumplirse**
+1. **Función pura** `alerta(pendiente_desde_ms, ahora, umbral_min)` que devuelve `ninguna`, `pendiente` o `vencida`, con enteros y reloj inyectable: **29 min 59 s → `pendiente`; 30 min 00 s → `vencida`; 31 min → `vencida`**. No hay temporizadores ni estado guardado: se evalúa al leer, con `reloj.ahora()` en el borde.
+2. **Referencia.** `pendiente_desde_ms` es la recepción real en Gmail (`internalDate`) del mensaje entrante pendiente **más antiguo** del hilo, no el momento en que Anka lo descubrió. Un hilo con `analizado_at`/`silenciado_at` en todos sus entrantes no alerta.
+3. **Umbral configurable** (`recepcion_minutos_alerta`, 30 por defecto, entre 5 y 1440).
+4. **A quién aplica.** Al hilo sin análisis válido (situación 1). Para los mensajes pendientes de comprobación en un hilo con análisis (situación 5) el umbral y el texto son los de la decisión técnica DT-6 (abierta; recomendación: mismo umbral, otro texto).
+5. **Las cinco situaciones se distinguen** y no se mezclan: (1) pendiente de análisis, (2) fallo del sondeo o del acceso a Gmail, (3) resultado de Work rechazado (T-36, panel existente; un hilo en ese panel no se repite en la banda 1), (4) análisis importado (el historial muestra `analysis_late`), (5) nueva información posterior al análisis. Textos en español sin términos técnicos (U-41).
+6. **Sistema apagado.** Tras una parada ≤ 168 h, los correos aparecen ya vencidos con el texto «Recibido hace 5 h. Anka estaba detenido y lo detectó hasta ahora» (`deteccion_tardia`); no se acusa a Work de haber tardado. Tras una parada mayor se anota el hueco y no se finge cobertura.
+7. **Una sola novedad** `reception_overdue` por mensaje y umbral (`source_key = "<message_id>:<umbral>"`).
+
+**Casos de aceptación**: E7 (el mismo resultado en lista, banda y `/api/salud`), E14 y E8 (parada y recuperación).
+
+#### U-73 · «Pendiente de análisis de Work» es un indicador derivado en la lista principal, no un estado
+**Estado: previsto** (incremento 6). Decisión: D-138. No cambia `ESTADOS`, `STATUS_LABELS`, `transiciones.json` ni las reglas operativas.
+
+**Qué debe cumplirse**
+1. **La etapa se llama exactamente «Pendiente de análisis de Work»** (nombre fijado por el dueño; sin sinónimos). Se muestra en la lista principal (y en el caso) mientras el hilo tenga mensajes entrantes registrados sin análisis válido que los cubra; desaparece sola al llegar el análisis. Va en el grupo «Por atender» con urgencia 1 y el verbo «Ver el caso», antes de «El cliente respondió» y después de los avisos de cambios y vínculos.
+2. **Derivado de dos hechos que ya existen** (mensaje entrante registrado y sin análisis válido que lo cubra); se lee de una relación agregada y no del `analysis_json` (la lista perezosa U-49 no lo lee y no sube `VERSION_DEL_RESUMEN`). La fila muestra «hace N min» con el tono de aviso hasta el umbral y de error desde el umbral, y la etiqueta «Prueba» si aplica.
+3. **No es un estado**: no hay transiciones nuevas, no cambia lo que cada TR hace con un análisis y el caso preliminar vive en `review`. «Pendiente» dice quién debe actuar (Work); los estados dicen dónde está el caso para la persona.
+4. **Novedades derivadas correctas.** Las novedades «La solicitud ya fue analizada y agregada al dashboard» y «Respuesta sugerida lista para revisar» no se derivan para un hilo con mensajes entrantes sin análisis (hoy un caso sin análisis las produce con texto falso: defecto previo, que también afecta al caso mínimo de T-36). Al llegar el análisis se derivan solas con el texto correcto.
+5. **Pantalla del caso.** Un bloque propio «Este correo aún no tiene análisis de Work» con quién escribió, asunto, hora de recepción, nombres de archivos «sin leer» y las acciones existentes («Completar la tabla yo», «Ver el correo»); distinto del bloque de T-36. Una persona puede silenciar la alerta de un mensaje que Work legítimamente no analiza («Ya lo atendí»: no cambia el estado; DT-4, abierta).
+6. Las rutas nuevas se registran en `GET_ROUTES`/`POST_ROUTES` y en `openapi.py` (con `spec/07-api.md`); los goldens se regeneran y revisan línea a línea; la comparación visual con el prototipo se hace con capturas lado a lado.
+
+**Casos de aceptación**: E1, E4, E7.
+
+#### U-74 · Identidad estable del expediente (`case_uid`) y referencia opcional a un chat
+**Estado: previsto** (`case_uid`: incrementos 3 y 4; la referencia al chat: **no se implementa**, posterior al incremento 7). Decisiones: D-135, D-136. DT-24 (fijada por el dueño): se **difiere** la tabla de conversaciones.
+
+**Qué debe cumplirse**
+1. **`case_uid`, identificador estable del expediente.** Hoy el caso solo tiene `thread_id`, que se reutilizaría si un caso eliminado (T-42) se recreara. Cada expediente recibe un `case_uid` (ULID) en la tabla `caso_identidad`, generado una sola vez en la misma transacción que crea la fila del caso. Es **inmutable** (un disparador prohíbe cambiar `case_uid` y `thread_id`), **no reutilizable** (nunca se borra su fila: es evidencia; al eliminar el caso se marca `eliminado_at`) y se conserva al eliminar (T-42): la tabla va a «se conservan». Un `thread_id` que se recrea después recibe un `case_uid` **nuevo** con `reemplaza_uid` apuntando al anterior. **Fusionar** dos casos no reasigna ni destruye ningún `case_uid`: el caso unido conserva el suyo con `unido_en_uid` = el del destino. El relleno de los casos existentes es idempotente (misma migración que la recepción; `origen` ∈ `recepcion`, `work`, `python`, `migracion`).
+2. **Referencias de Gmail.** `thread_id` y `message_id` siguen siendo referencias (no la identidad del expediente) y no cambian.
+3. **Cliente confirmado.** Hoy no existe un identificador de cliente (solo `contact_email` y datos libres); no se inventa uno. Se reserva una columna opcional `cliente_ref` en `caso_identidad` que solo se llenaría cuando una persona confirme el cliente, con evento de quién y cuándo (DT-23, abierta); no se crea hasta que exista ese flujo.
+4. **Referencia opcional a un chat de ChatGPT (requisito de identidad y trazabilidad, no implementado).** Cuando exista evidencia de que hay un chat verificable, un `case_uid` podrá llevar una referencia **opcional** (URL o id) a un chat del Proyecto «ANKA | Inteligencia Comercial Work», escrita **solo por una persona** mediante una acción verificada, con quién y cuándo, y con un evento en la cadena de huellas. **Ninguna lógica de estado, alerta, envío o análisis puede depender de esa referencia** y el caso funciona igual sin ella.
+5. **Límites explícitos.** **No se implementa la tabla de conversaciones (`caso_conversacion`) ni ninguna creación automática de chats.** **No está comprobado que Python o Work puedan crear chats dentro de un Proyecto**; por eso no se diseña ni se asume esa integración, y no se añade ninguna llamada a ChatGPT, Work ni OpenAI.
+
+**Casos de aceptación**: E18 (identidad: único, inmutable, conservado al eliminar y recrear; relleno idempotente). La referencia al chat no tiene prueba porque no se implementa.
+
+#### U-75 · El backlog de la recepción siempre se ve
+**Estado: previsto** (incrementos 3 y 6). Decisión: D-137.
+
+**Qué debe cumplirse**
+1. **Contador.** La banda de recepción y `/api/salud` muestran «N correos registrados esperan su expediente (el más antiguo, de HH:MM)», calculado sobre las filas pendientes (`por_leer`, `registrado` y `revision_manual`); cuesta proporcional a los pendientes. Un pendiente sin materializar **nunca** cuenta como «todo al día».
+2. **Alerta del backlog.** La alerta de 30 minutos (U-72) también se aplica a los `registrado` mediante ese contador y la novedad `reception_backlog`, medida desde la recepción real.
+3. **Señales de error.** La comprobación de salud es `error` si hay `registrado` con más de 10 minutos de antigüedad, `por_leer` con 3 o más intentos, o cualquier `revision_manual`.
+4. **Hueco y backlog** se muestran por separado.
+
+**Casos de aceptación**: E14, E8.
+
+#### U-76 · La salud de la recepción se informa aparte del puente
+**Estado: previsto** (incremento 6). Decisión: D-137.
+
+**Qué debe cumplirse**
+1. `/api/salud` suma la comprobación `recepcion` junto a `puente_work` (`no_aplica` fuera del modo Work). Es `error` si el último éxito tiene más de `max(3 × intervalo, 180 s)`, si hay un hueco sin atender, si hay mensajes vencidos o si el backlog cumple U-75.3; `ok` con el detalle del último sondeo en caso contrario.
+2. El estado `ok` del puente significa solo «el puente corrió»; el estado de la recepción se presenta aparte y el resumen **nunca dice «todo al día»** con pendientes vencidos, huecos de cobertura o `errores_seguidos > 0`.
+3. `sync_status_text` suma una frase de cobertura de la recepción («Anka no pudo revisar Gmail desde las 14:20 (autorización vencida). Los correos nuevos pueden no aparecer.»). La verdad vive en la tabla de control, no en el latido (el formato del latido no cambia).
+4. Un fallo de acceso se clasifica (`autorizacion`, `cuota`, `red`, `acceso`, `interno`) y no abre el navegador (D-27).
+
+**Casos de aceptación**: E11, E8.
+
+### Aceptación de la recepción determinista: los 18 escenarios
+Los 18 escenarios (los 13 primeros de la primera versión más los escenarios 14 a 18 añadidos en la v2) son los casos de aceptación de U-66 a U-76. Se implementarán en `tests/test_recepcion_determinista.py` con un doble de Gmail que registra cada llamada y falla ante cualquier escritura, aislados del entorno (`tests/_isolate.py`), con reloj inyectado y base temporal. **Ninguna prueba se escribe en el incremento 1.**
+
+| Id | Escenario | Qué verifica | Requisitos |
+|---|---|---|---|
+| E1 | Correo nuevo sin resultado de Work | Una fila en `quotes` en `review`, `first_seen_at` = `internalDate`, `contact_email` vacío, actividades vacías, nada inferido del asunto, evento `reception`, novedad `reception_pending` y **ninguna** novedad «ya fue analizada» | U-66, U-73 |
+| E2 | Dos mensajes del mismo hilo (pasadas distintas y misma pasada) | Un solo caso, dos filas de registro, `first_seen_at` = el más antiguo, `updated_at` sube | U-66, U-67 |
+| E3 | Repetición de sondeos | Mismos conteos de filas, sin eventos duplicados, cadena de huellas íntegra | U-66, U-67 |
+| E4 | Análisis tardío | Un caso; el mensaje cuyo `message_id` coincide queda cubierto; eventos `analysis` y `analysis_late`; indicador apagado; novedades con el texto correcto; `first_seen_at` y el historial intactos | U-70, U-73 |
+| E5 | Análisis antiguo frente a seguimiento reciente | Solo el analizado queda cubierto; el posterior queda pendiente (novedad «El cliente respondió»); aviso de vigencia; el estado no retrocede; `contact_email` lo fija Work | U-70 |
+| E6 | Respuesta anterior a `first_seen_at` | Con la nueva referencia el seguimiento registra el mensaje anterior; un caso heredado sin registro se comporta como antes; otro hilo con asunto parecido no se vincula | U-71 |
+| E7 | Alertas 29:59 / 30:00 / 31:00 | `pendiente`, `vencida`, `vencida`; una sola novedad `reception_overdue`; mismo resultado en lista, banda y `/api/salud` | U-72, U-73 |
+| E8 | Reinicio, paginación, recuperación y lecturas fallidas | 1200 ids en 3 páginas; corte tras el primer lote; error 5xx y cuota; el cursor no avanza con listado incompleto; parada > ventana → hueco; **cada fila de la tabla de U-68** (404 aislado reintenta, 404 persistente a revisión manual, 404 con evidencia omitido, ráfaga de 404 sin marcar nada, 404 posterior a la materialización sin efecto; nada se borra) | U-67, U-68, U-72, U-75, U-76 |
+| E9 | Concurrencia recepción contra Work | Dos conexiones, ambos órdenes: resultado único y determinista; sin «database is locked»; el `DO NOTHING` nunca pisa un análisis | U-66, U-70 |
+| E10 | Propios, publicidad y pruebas | `SENT`, dirección propia, `List-Unsubscribe`, `no-reply` → registrados con motivo y sin caso; humano en Promociones **sí** crea caso; aviso automático con término comercial se rescata; prueba interna crea caso con etiqueta; ningún descarte por palabras | U-66 |
+| E11 | Error de Gmail y salud | `getProfile`/`list` fallan, autorización vencida: la clase de error queda en el control, salud en `error` con texto claro, el latido no se contamina, no abre el navegador | U-68, U-76 |
+| E12 | Cero escrituras en Gmail | Solo `getProfile`, `messages.list`, `messages.get` (y la lectura del hilo de U-68); el doble levanta ante cualquier escritura; recorrido AST sin `.send(`; SCOPES sin cambios | U-66 |
+| E13 | Paridad y no regresión | `local` y `api` no ejecutan ni importan la recepción; suites de paridad, transiciones, arquitectura, tablas, transacciones y goldens de local/api sin diff | U-66 |
+| E14 | Ráfagas por encima de los topes | 15, 55 y 130 hilos + 20 mensajes de un hilo + ruido + propio: tras N pasadas, un caso por hilo entrante, `entrantes_sin_expediente = 0`; el cursor ya avanzó y aun así el pendiente persiste y se ve; orden por recepción ascendente; con reinicio a mitad el mismo resultado; la lectura fallida queda `por_leer` visible; convergencia con tope de pasadas | U-67, U-72, U-75 |
+| E15 | Simulación → activación | En simulación 0 filas en `quotes`, 0 eventos, 0 novedades; al activar, un caso por hilo sin duplicados y cadena íntegra; lo anterior a `recepcion_materializar_desde_horas` queda `omitido` con motivo; `activada_at` una vez | U-69 |
+| E16 | Simulación, reinicio del supervisor, activación | Igual que E15 con cierre y reapertura de la base y un mensaje nuevo entre medias; el cursor no saltó nada de la cola; el nuevo se materializa después de los antiguos | U-69 |
+| E17 | Work antes que la recepción, y su inversa | (a) análisis de m2 sin filas de recepción, Gmail con m1, m2, m3: 0 preliminares, **m2 cubierto por evidencia (`last_inbound_id`/`work_message_id`); m1 y m3 pendientes de comprobación aunque m1 sea anterior en fecha**; `analysis_json` intacto; sin `reception_pending`. (b) recepción primero y luego análisis: mismo estado final. Caso T-36: nada cubierto. `received_at` vacío o presente: nunca basta | U-70 |
+| E18 | Concurrencia ampliada e identidad | 200 corridas en ambos órdenes con dos conexiones; dos materializaciones del mismo mensaje; `case_uid` único e inmutable, conservado al eliminar y recreado con `reemplaza_uid`, `unido_en_uid` al fusionar; migración idempotente con relleno | U-70, U-74 |
+
+### Plan por incrementos (previsto)
+Solo el incremento 1 (esta especificación) está dentro de la autorización actual.
+
+| # | Incremento | Alcance |
+|---|---|---|
+| 1 | Especificación y decisiones | Solo documentos oficiales: `spec/` y `CLAUDE.md` |
+| 2 | Dominio puro | `recepcion_minima` (clasificar, expediente preliminar, alerta, referencia del seguimiento) y claves de configuración; pruebas unitarias |
+| 3 | Recepción y persistencia (apagada por defecto) | Migración, `servicios/recepcion`, listado de mensajes, bloque en el puente, fases y cola, simulación, `case_uid` |
+| 4 | Análisis tardío | Gancho en `work_import`, cobertura por evidencia, `analysis_late` |
+| 5 | Seguimiento | Referencia de seguimiento en `gmail_followup` |
+| 6 | Alertas y dashboard | Indicador, banda, salud, panel de rescate del ruido, «Ya lo atendí», revisión manual |
+| 7 | Validación integral | `check.bat` completo y pruebas reales autorizadas |
+
+**Pruebas reales que exigen autorización aparte** (ninguna se hace en el incremento 1): aplicar la migración a la base real, activar la simulación sobre la cuenta real, medir el borde de `after:` frente a `internalDate`, un correo de prueba real con y sin respuesta de Work, parada y recuperación del puente, autorización vencida durante el sondeo, cuota bajo carga, y la prueba manual en Work si algún día se cambia el prompt o la skill (hoy no se cambia).

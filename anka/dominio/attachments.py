@@ -12,7 +12,11 @@ MAX_EVIDENCE_CHARS = 700
 MAX_ARCHIVE_FILES = 200
 MAX_ARCHIVE_EXPANDED_BYTES = 40 * 1024 * 1024
 MAX_SPREADSHEET_CELLS = 50000
-MAX_OCR_PAGES = 200
+MAX_OCR_PAGES = 200          # páginas de un PDF a las que se les hace OCR por archivo (las demás quedan «sin OCR»)
+MAX_PDF_PAGINAS_LEIDAS = 600  # páginas de un PDF de las que se extrae el texto; más allá la cobertura es parcial (U-55)
+MIN_CARACTERES_POR_PAGINA = 100   # menos texto nativo que esto: la página parece escaneada o casi vacía
+FRACCION_DE_PDF_ESCANEADO = 0.5   # con esta fracción de páginas casi sin texto, el PDF se trata como escaneado
+MARCA_FORMATO_ABIERTO = "pedir al cliente un formato abierto"
 MAX_OCR_IMAGES = 100
 MAX_OCR_PIXELS = 40_000_000
 TEXT_ATTACHMENT_EXTENSIONS = {
@@ -31,6 +35,47 @@ TEXT_ATTACHMENT_EXTENSIONS = {
     ".xml",
 }
 KML_GEOMETRIES = {"Point", "LineString", "Polygon", "Track", "Model"}
+# Formatos sin lector local: no se lee nada y se le pide al cliente un formato abierto (U-55, punto 6).
+_SIN_LECTOR = {
+    ".rar": "archivo comprimido RAR",
+    ".7z": "archivo comprimido 7z",
+}
+VERSIONES_DWG = {
+    "AC1012": "R13", "AC1014": "R14", "AC1015": "2000", "AC1018": "2004", "AC1021": "2007",
+    "AC1024": "2010", "AC1027": "2013", "AC1032": "2018",
+}
+
+
+EXTENSIONES_HERMANAS_SHP = (".shx", ".dbf", ".prj", ".cpg")
+
+
+def hermanos_de_shapefile(nombres: list[str]) -> dict[str, dict[str, str]]:
+    """{nombre del .shp: {extensión: nombre del archivo hermano}} entre los adjuntos recibidos.
+
+    Hermano = mismo nombre base (sin distinguir mayúsculas) y extensión de shapefile. Un shapefile con sus hermanos
+    cuenta como una sola entrada: los hermanos se leen junto con el `.shp` y no aparecen aparte (U-55).
+    """
+    por_base: dict[str, dict[str, str]] = {}
+    for nombre in nombres:
+        base, _, extension = nombre.rpartition(".")
+        por_base.setdefault(base.casefold(), {})["." + extension.casefold()] = nombre
+    return {grupo[".shp"]: {e: n for e, n in grupo.items() if e in EXTENSIONES_HERMANAS_SHP}
+            for grupo in por_base.values() if ".shp" in grupo}
+
+
+def motivo_sin_lector(extension: str, content: bytes = b"") -> str:
+    """Motivo en español de un formato que no se puede leer, con la marca «pedir al cliente un formato abierto».
+
+    Vacío si la extensión sí tiene lector (o es desconocida: ese caso lo explica quien llama).
+    """
+    if extension in _SIN_LECTOR:
+        return f"{_SIN_LECTOR[extension]}: no hay lector local, no se vio su contenido; {MARCA_FORMATO_ABIERTO} (ZIP)"
+    if extension == ".dwg":
+        codigo = content[:6].decode("ascii", errors="replace")
+        version = f" (AutoCAD {VERSIONES_DWG[codigo]}, {codigo})" if codigo in VERSIONES_DWG else ""
+        return (f"plano DWG{version}: formato propietario sin lector local; "
+                f"{MARCA_FORMATO_ABIERTO} (DXF, PDF o imagen)")
+    return ""
 
 
 def _evidence_location(line: str, current: str) -> tuple[str, str]:
@@ -115,7 +160,7 @@ def build_attachment_evidence(text: str) -> list[EvidenciaAdjunto]:
 _PAGINAS = re.compile(r"P[áa]gina \d+(?:\s*[,;]\s*P[áa]gina \d+)+")
 
 
-def _rangos(paginas: list[int]) -> str:
+def rangos_de_paginas(paginas: list[int]) -> str:
     """3, 5, 6, 7, 10 → «3, 5–7, 10»: las páginas consecutivas se agrupan en un rango."""
     partes: list[str] = []
     inicio = anterior = paginas[0]
@@ -133,5 +178,5 @@ def compactar_paginas(texto: str) -> str:
     """Muestra una lista de «Página N, Página M…» como «págs. N, M–P»; no pierde ninguna página."""
     def reemplazo(coincidencia: re.Match[str]) -> str:
         paginas = sorted({int(n) for n in re.findall(r"\d+", coincidencia.group(0))})
-        return f"págs. {_rangos(paginas)}"
+        return f"págs. {rangos_de_paginas(paginas)}"
     return _PAGINAS.sub(reemplazo, texto)

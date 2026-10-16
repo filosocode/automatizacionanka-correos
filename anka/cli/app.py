@@ -22,8 +22,8 @@ from anka.infra.modes import (
     print_mode, set_mode,
 )
 from anka.infra.logging_setup import configure_logging
-from anka.infra.settings import ACTIVE_MODES, load_config, unknown_config_keys
-from anka.servicios.quotes import list_reviews
+from anka.infra.settings import ACTIVE_MODES, config_warnings, load_config, unknown_config_keys
+from anka.servicios.cola_del_piloto import pending_reviews
 from anka.servicios.work_import import dashboard_upsert
 from anka.servicios.work_attachment_packet import prepare_work_attachment_packet
 from anka.servicios.case_actions import approve_review
@@ -270,19 +270,22 @@ from anka.web.server import review_ui
 def warn_unknown_config_keys() -> None:
     """Avisa de claves de config.json que el programa no usa (suelen ser errores de tipeo)."""
     try:
-        unknown = unknown_config_keys(load_config())
+        config = load_config()
     except ErrorDeAnka:
         return  # el comando informará del problema de configuración por su cuenta
+    unknown = unknown_config_keys(config)
     if unknown:
         print(
             "Aviso: config.json tiene claves que el programa no usa: " + ", ".join(unknown),
             file=sys.stderr,
         )
+    for aviso in config_warnings(config):
+        print("Aviso: " + aviso, file=sys.stderr)
 
 
 COMMANDS_ORDER = (
     "auth", "drive-tree", "mode", "run", "reviews", "approve", "review-ui",
-    "set-mode", "analyze-text", "dashboard-upsert", "prepare-work-packet",
+    "set-mode", "analyze-text", "dashboard-upsert", "prepare-work-packet", "work-drive-sync",
 )
 
 
@@ -389,6 +392,15 @@ def _cmd_prepare_work_packet(args: argparse.Namespace, parser: argparse.Argument
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def _cmd_work_drive_sync(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    from anka.cli.work_drive import run as prepare
+
+    result = prepare(args.watch_seconds, args.thread_id)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if result.get("failures"):
+        raise ErrorDeAnka("Preparación incompleta; consulte work_drive_status.json y el registro.")
+
+
 def _cmd_analyze_text(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     if not args.text and not args.file:
         parser.error("analyze-text requiere --text o --file.")
@@ -427,6 +439,18 @@ def _cmd_set_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     print(set_mode(args.active_mode))
 
 
+def list_reviews() -> None:
+    """Imprime las revisiones pendientes del piloto local (comando `reviews`)."""
+    reviews = pending_reviews()
+    if not reviews:
+        print("No hay revisiones humanas pendientes.")
+        return
+    for review in reviews:
+        packet = review["packet"]
+        suffix = f" -> {packet}" if packet.exists() else " -> sin archivo en review_queue"
+        print(f"{review['thread_id']} [{review['status']}] {review['recipient']}{suffix}")
+
+
 def _cmd_reviews(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     list_reviews()
 
@@ -463,6 +487,7 @@ COMMANDS = {
     "analyze-text": _cmd_analyze_text,
     "dashboard-upsert": _cmd_dashboard_upsert,
     "prepare-work-packet": _cmd_prepare_work_packet,
+    "work-drive-sync": _cmd_work_drive_sync,
 }
 
 

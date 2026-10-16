@@ -8,6 +8,8 @@ de las preguntas que de verdad quedaron en el correo enviado.
 
 from __future__ import annotations
 
+from anka.dominio.errores import ErrorDeValidacion
+
 import hashlib
 import re
 import unicodedata
@@ -43,7 +45,10 @@ _LIMITE_DE_LECTURA = re.compile(
     r"no inspeccion|sin inspeccionar|no verificad|parcialmente|no legible|ilegible|no se pudo (?:leer|abrir)",
     re.IGNORECASE)
 _PREFIJOS = ("crítico:", "critico:", "recomendable:")
-_TIPO_AL_FINAL = re.compile(r"\s*\((?:critical|recommended|crítico|recomendable)\)\s*$", re.IGNORECASE)
+_TIPO_AL_FINAL = re.compile(
+    r"\s*\((?:critical|recommended|crítico|recomendable|bloqueantes?|blocking)\)\s*$", re.IGNORECASE)
+# Un verbo de trabajo interno no se le pide al cliente: «Resolver la contradicción…» es «La contradicción…» (U-33).
+_VERBO_INTERNO = re.compile(r"^\s*resolver\s+(?=\S)", re.IGNORECASE)
 _URL = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 _INTRODUCCION = "\u00bfpodria confirmar lo siguiente?"     # la frase de la plantilla, sin tildes ni mayúsculas
 _PREGUNTA = re.compile(r"¿[^?¿]*\?|[^\n¿.!?]{6,}\?")
@@ -67,6 +72,17 @@ def limpiar(texto: object) -> str:
             limpio = limpio[len(prefijo):].strip()
     limpio = _TIPO_AL_FINAL.sub("", limpio).strip()
     return (limpio[:1].upper() + limpio[1:])[:MAX_TEXTO]
+
+
+def como_peticion(texto: str) -> str:
+    """El punto tal como se le pide al cliente: sin el verbo de trabajo interno del principio (U-33).
+
+    Un texto que ya es una pregunta, o que no empieza por ese verbo, queda igual.
+    """
+    if "?" in texto or not _VERBO_INTERNO.match(texto):
+        return texto
+    resto = _VERBO_INTERNO.sub("", texto, count=1).strip()
+    return resto[:1].upper() + resto[1:]
 
 
 def es_interna(texto: str) -> bool:
@@ -156,7 +172,7 @@ def decidir(
             continue
         decision, texto = eleccion
         if decision not in DECISIONES:
-            raise ValueError("Decisión de pregunta no válida.")
+            raise ErrorDeValidacion("No entendimos esa opción. Recarga la página e inténtalo otra vez.")
         resultado.append(Pregunta(
             id=pregunta["id"], texto=limpiar(texto) or pregunta["texto"], sugerida=pregunta["sugerida"],
             origen=pregunta["origen"], decision=decision, por=por, en=en))
@@ -168,7 +184,7 @@ def decidir(
                                       decision=PREGUNTAR, por=por, en=en))
             existentes.add(identificador(limpio))
     if len(resultado) > MAX_PREGUNTAS:
-        raise ValueError(f"Hay demasiadas preguntas (máximo {MAX_PREGUNTAS}).")
+        raise ErrorDeValidacion(f"Hay demasiadas preguntas (máximo {MAX_PREGUNTAS}).")
     return resultado
 
 
@@ -198,7 +214,7 @@ def separar(texto: str) -> list[str]:
 
 def para_el_cliente(preguntas: Iterable[Pregunta]) -> list[str]:
     """Los textos de las preguntas que la persona decidió hacerle al cliente, en el orden en que aparecen."""
-    return [p["texto"] for p in preguntas if p.get("decision") == PREGUNTAR]
+    return [como_peticion(p["texto"]) for p in preguntas if p.get("decision") == PREGUNTAR]
 
 
 def internas(preguntas: Iterable[Pregunta]) -> list[str]:

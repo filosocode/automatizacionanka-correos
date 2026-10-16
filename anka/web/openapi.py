@@ -6,6 +6,7 @@ las rutas reales de `server.py`: una ruta sin documentar o documentada de más h
 
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass, fields
 from typing import Any, get_type_hints
 
@@ -13,6 +14,7 @@ from anka.dominio.caso import CLIENT_TYPES, SECTORS, Caso
 from anka.infra.settings import ACTIVE_MODES
 from anka.servicios.ediciones import EDIT_REASONS
 from anka.servicios.followup_reminders import ACTIONS as FOLLOWUP_ACTIONS
+from anka.web.api import CODIGOS_DE_ERROR
 
 # Swagger UI: versión fijada y huella de integridad (SRI), para que el navegador rechace un archivo alterado.
 SWAGGER_VERSION = "5.17.14"
@@ -66,13 +68,20 @@ class Operacion:
     descripcion: str
     efecto: str = "lectura"
     campos: tuple[Campo, ...] = ()
-    contenido: str = "html"                  # html | json | xlsx | redirect
+    contenido: str = "html"                  # html | json | xlsx | redirect | estatico
     ejemplo_respuesta: Any = None
 
 
 _ID = Campo("thread_id", "Id del hilo de Gmail del caso (aparece en la URL de `/case`).", requerido=True,
             ejemplo="18f3a9c2d4e5b601")
-_MENSAJE = Campo("message", "Texto que se muestra como aviso arriba de la pantalla.")
+_MENSAJE = Campo("message", "Texto que se muestra como aviso arriba de la pantalla (si no lo firmó este servidor "
+                 "en una redirección, se recorta a 300 caracteres).")
+_Q = Campo("q", "Texto que se busca (sin mayúsculas) en el proyecto, el cliente y los servicios de todos los casos "
+           "(hasta 200 caracteres).", ejemplo="llanos")
+_ETAPA = Campo("etapa", "Solo los casos de esa etapa; «todos» los muestra todos. Sin este campo, «Mis casos» entra en "
+               "«atender» si hay algo que atender.", opciones=("atender", "esperando", "listo", "cotizando", "todos"))
+_MOSTRAR = Campo("mostrar", "Cuántas filas se muestran (200 por defecto; «Ver más» suma 200 y vuelve a mostrar todo "
+                 "lo anterior).", "integer", ejemplo=400)
 _FILA = ("Filas de la tabla de actividades: `a0_activity`, `a0_servicio_tecnica`, `a0_ubicacion`, `a0_quantity`, "
          "`a0_unit`, `a0_entregable`, `a0_plazo_restriccion`, `a0_fuente`, `a0_estado`, `a0_notes`; "
          "la fila 1 usa `a1_…` y así. Se aceptan hasta 200 filas.")
@@ -94,6 +103,13 @@ OPERACIONES: tuple[Operacion, ...] = (
               campos=(Campo("thread_id", "Id del hilo de Gmail del caso.", requerido=True, en="path",
                             ejemplo="18f3a9c2d4e5b601"),),
               contenido="json"),
+    Operacion("get", "/static/{archivo}", "Páginas", "Archivos fijos del diseño",
+              "Sirve la fuente Inter (`inter-latin-wght.woff2`), el logo (`logo-anka.png`), el CSS "
+              "(`style.<huella>.css`) y los dos guiones (`app.<huella>.js`, `tema.<huella>.js`) que usan las páginas; "
+              "la huella es la del contenido, así que los tres últimos se guardan para siempre en el navegador. "
+              "Solo esos nombres; cualquier otro responde 404.",
+              campos=(Campo("archivo", "Nombre del archivo.", requerido=True, en="path",
+                            ejemplo="logo-anka.png"),), contenido="estatico"),
     Operacion("get", "/api/salud", "Lectura (JSON)", "¿Conecta todo? Salud de las conexiones",
               "Revisa la base local, la configuración, el puente de ChatGPT Work, la autorización de Google y el "
               "motor de análisis. Responde **200** si todo está bien (o no aplica) y **503** si algo falla; el "
@@ -114,7 +130,8 @@ OPERACIONES: tuple[Operacion, ...] = (
               "Se verifica como máximo cada 5 minutos.",
               contenido="json",
               ejemplo_respuesta={"estado": "vencida", "texto": "Google ya no acepta el token guardado. "
-                                 "La autorización de Google venció o falta. Pulsa «Reautorizar Google» en el dashboard "
+                                 "La autorización de Google venció o falta. "
+                                 "Pulsa «Volver a conectar Google» en el dashboard "
                                  "o ejecuta: python app.py auth"}),
     Operacion("get", "/state", "Lectura (JSON)", "Estado para refrescar la pantalla",
               "Marca de cambios (`v`), casos con novedades sin leer (`sin_leer`) y estado del puente de ChatGPT Work. "
@@ -130,12 +147,21 @@ OPERACIONES: tuple[Operacion, ...] = (
               contenido="eventos"),
     # ------------------------------------------------------------------ páginas
     Operacion("get", "/", "Páginas", "Resumen («qué hacer hoy»)",
-              "Novedades, casos que esperan acción y métricas.", campos=(_MENSAJE,)),
+              "Novedades, casos que esperan acción y métricas. La búsqueda y la etapa se resuelven en el servidor "
+              "sobre todos los casos; la lista muestra 200 filas y `mostrar` pide más (U-49).",
+              campos=(_MENSAJE, _Q, _ETAPA, _MOSTRAR)),
     Operacion("get", "/requests", "Páginas", "Lista de solicitudes",
               "Todas las solicitudes con su etapa, la más reciente primero; los hilos del mismo proyecto van "
-              "agrupados.",
-              campos=(_MENSAJE, Campo("agrupar", "«1» (por defecto) agrupa los hilos del mismo proyecto; «0» "
-                                      "los muestra por separado.", opciones=("1", "0")))),
+              "agrupados. La búsqueda, la etapa, el tipo de cliente y el orden se resuelven en el servidor sobre "
+              "todos los casos (U-49).",
+              campos=(_MENSAJE, _Q, _ETAPA, _MOSTRAR,
+                      Campo("tipo", "Solo los casos de ese tipo de cliente (vacío: todos).",
+                            opciones=("No clasificado", "Empresa privada", "Entidad pública", "Consultor o aliado",
+                                      "Particular")),
+                      Campo("orden", "«reciente» (por defecto), «antigua» o «urgencia».",
+                            opciones=("reciente", "antigua", "urgencia")),
+                      Campo("agrupar", "«1» (por defecto) agrupa los hilos del mismo proyecto; «0» "
+                            "los muestra por separado.", opciones=("1", "0")))),
     Operacion("get", "/discarded", "Páginas", "Descartadas",
               "Hilos descartados con su motivo y el botón de rescatar.", campos=(_MENSAJE,)),
     Operacion("get", "/archive", "Páginas", "Archivo",
@@ -153,7 +179,7 @@ OPERACIONES: tuple[Operacion, ...] = (
     Operacion("get", "/desempeno", "Páginas", "Desempeño del análisis",
               "Qué tan bien trabaja el análisis (Work o modelo local), medido con las correcciones de las personas "
               "en el uso real, por versión del prompt y modelo.", campos=(_MENSAJE,)),
-    Operacion("get", "/acta", "Páginas", "Acta de cambios (imprimible)",
+    Operacion("get", "/acta", "Páginas", "Registro de cambios (imprimible)",
               "Historial con fecha, autor y huella de cada hecho del caso, apto para imprimir.", campos=(_ID,)),
     Operacion("get", "/export.xlsx", "Páginas", "Exportar actividades a Excel",
               "Descarga un `.xlsx` con las actividades de un caso, o de todos si no se indica `thread_id`.",
@@ -186,16 +212,29 @@ OPERACIONES: tuple[Operacion, ...] = (
                Campo("to", "Destinatario; si se omite, el del caso.")), "redirect"),
     Operacion("post", "/send", "Acciones del caso", "⚠ Enviar la respuesta al cliente",
               "**Envía un correo real** desde Gmail. Si lleva preguntas (o `esperar=1`) deja el caso esperando al "
-              "cliente; si no, queda como respuesta enviada. Rechaza repetir el mismo texto en 15 minutos.", "correo",
+              "cliente; si no, queda como respuesta enviada. Rechaza repetir el mismo texto en 15 minutos y rechaza "
+              "cualquier envío si el mismo caso tiene otro reciente sin confirmar (U-59); un envío incierto de más de "
+              "2 minutos "
+              "se aclara antes con Gmail y, en ese caso, no se envía nada ahora.", "correo",
               (_ID, Campo("body", "Texto del correo.", requerido=True, ejemplo="Hola, ¿podría confirmar…?"),
                Campo("to", "Destinatario; si se omite, el del caso."),
                Campo("change_id", "Cambio al que responde este correo.", "integer", ejemplo=0),
                Campo("esperar", "`1` para dejar el caso esperando al cliente aunque el correo no lleve preguntas."),
                Campo("purpose", "Para qué es el correo, si responde a un cambio.",
-                     opciones=("ack", "ask_code", "notify_contact", "scope_update"))), "redirect"),
+                     opciones=("ack", "ask_code", "notify_contact", "scope_update")),
+               Campo("state_token", "Marca del estado del caso que la pantalla tenía al abrirse; si el caso cambió "
+                     "desde entonces, el envío se rechaza (opcional).")), "redirect"),
+    Operacion("post", "/mark-sent", "Acciones del caso", "Marcar como enviado un correo sin confirmar",
+              "Cuando un envío quedó incierto (Gmail no confirmó si salió), la persona declara que sí salió. Cierra "
+              "la reserva, actualiza el caso con el texto que se había revisado y deja constancia en el historial con "
+              "su huella. **No envía nada** ni consulta a Gmail.", "guarda", (_ID,), "redirect"),
     Operacion("post", "/activities", "Acciones del caso", "Guardar la tabla de actividades",
-              "Reemplaza la tabla con las filas enviadas y guarda una versión nueva con lo que cambió.", "guarda",
-              (_ID, Campo("reason", "Motivo de la edición (opcional).", opciones=tuple(k for k in EDIT_REASONS if k)),
+              "Reemplaza la tabla con las filas enviadas y guarda una versión nueva con lo que cambió. Rechaza un "
+              "formulario sin `row_count`, una fila sin nombre y, si se envía `base_version`, una tabla que cambió.",
+              "guarda",
+              (_ID, Campo("row_count", "Cuántas filas tenía la tabla al abrirse (obligatorio).", "integer", ejemplo=1),
+               Campo("base_version", "Huella de la tabla que se abrió; si cambió, no se guarda (opcional)."),
+               Campo("reason", "Motivo de la edición (opcional).", opciones=tuple(k for k in EDIT_REASONS if k)),
                Campo("a0_activity", _FILA, ejemplo="Levantamiento topográfico"),
                Campo("a0_quantity", "Cantidad de la fila 0.", ejemplo="544,5"),
                Campo("a0_unit", "Unidad de la fila 0.", ejemplo="ha"),
@@ -256,7 +295,8 @@ OPERACIONES: tuple[Operacion, ...] = (
     Operacion("post", "/change", "Acciones del caso", "Decidir si un mensaje pide un cambio",
               "Una persona decide si un mensaje posterior a la T solicita un cambio de alcance.", "guarda",
               (_ID, Campo("change_id", "Id del cambio pendiente.", "integer", True, 1),
-               Campo("decision", "`yes`: es un cambio; `no`: no lo es.", requerido=True, opciones=("yes", "no"))),
+               Campo("decision", "`yes`: es un cambio; `no`: no lo es; `reopen`: deshace un «no» y el mensaje vuelve "
+                     "a quedar por revisar.", requerido=True, opciones=("yes", "no", "reopen"))),
               "redirect"),
     Operacion("post", "/link", "Acciones del caso", "Confirmar un correo de otro hilo",
               "Una persona confirma o descarta que un correo de otro hilo pertenece al caso.", "guarda",
@@ -269,6 +309,11 @@ OPERACIONES: tuple[Operacion, ...] = (
               "suficiente. No envía nada.", "guarda",
               (_ID, Campo("accion", "Qué hacer al volver atrás.", requerido=True,
                           opciones=("reconsiderar", "suficiente"))), "redirect"),
+    Operacion("post", "/reading-accept", "Acciones del caso", "Asumir la revisión de archivos sin verificar",
+              "Cuando la lectura de Work no se pudo verificar contra Gmail (p. ej. un plano CAD que ningún lector "
+              "abre), una persona declara que revisó esos archivos y el caso sigue su curso. No cambia el estado, no "
+              "envía nada y deja constancia en el historial. Un análisis nuevo de Work reemplaza la marca.", "guarda",
+              (_ID,), "redirect"),
     Operacion("post", "/seguir-sin-respuesta", "Acciones del caso",
               "Seguir con la T sin esperar la respuesta del cliente",
               "Para un caso que ya escribió al cliente y no tiene T: da la información por suficiente bajo criterio "
@@ -283,15 +328,17 @@ OPERACIONES: tuple[Operacion, ...] = (
               (Campo("link_ref", "Referencias seleccionadas como thread_id:id (repite el campo para varias).",
                      "array", True, ["hilo:1", "otro-hilo:2"]),), "redirect"),
     Operacion("post", "/proposal", "Acciones del caso", "Resolver la propuesta del modelo",
-              "Adoptar la tabla que propone el modelo o conservar la editada por una persona.", "guarda",
-              (_ID, Campo("decision", "`use`: adoptar la propuesta; `keep`: mantener la mía.", requerido=True,
-                          opciones=("use", "keep"))), "redirect"),
+              "Adoptar la tabla que propone el modelo o conservar la editada por una persona; `restore` deshace "
+              "«dejar mi tabla» y vuelve a poner la propuesta por revisar (U-57).", "guarda",
+              (_ID, Campo("decision", "`use`: adoptar la propuesta; `keep`: mantener la mía; `restore`: recuperar la "
+                          "propuesta que se dejó de lado.", requerido=True,
+                          opciones=("use", "keep", "restore"))), "redirect"),
     # ------------------------------------------------------------------ acciones generales
     Operacion("post", "/refresh", "Acciones generales", "⚠ Actualizar correo",
               "Revisa Gmail ahora. En modo ChatGPT Work el dashboard no lee Gmail: despierta al puente para que "
               "revise sin esperar su ciclo.",
               "gmail", (), "redirect"),
-    Operacion("post", "/google/reautorizar", "Acciones generales", "⚠ Reautorizar Google",
+    Operacion("post", "/google/reautorizar", "Acciones generales", "⚠ Volver a conectar Google",
               "Abre en **este equipo** el consentimiento de Google (iniciar sesión y aceptar los permisos de Gmail y "
               "Drive) y espera hasta 5 minutos a que se complete. Responde enseguida; el avance se ve en "
               "`GET /api/autorizacion`. Solo hace falta cuando la autorización venció o fue revocada.",
@@ -303,11 +350,21 @@ OPERACIONES: tuple[Operacion, ...] = (
     Operacion("post", "/rescue", "Acciones generales", "Rescatar un correo descartado",
               "Marca el hilo para que la próxima revisión de Gmail lo analice.", "guarda", (_ID,), "redirect"),
     Operacion("post", "/delete", "Acciones generales", "⚠ Eliminar casos",
-              "Elimina del dashboard los casos indicados. El historial se conserva como evidencia.", "elimina",
+              "Elimina del dashboard los casos indicados. El historial se conserva como evidencia. Si alguno ya tiene "
+              "código T o un correo enviado, no borra nada salvo que `confirmacion` sea `ELIMINAR` (U-57).", "elimina",
               (Campo("thread_id", "Ids de los casos a eliminar (repite el campo para varios).", "array", True,
-                     ["18f3a9c2d4e5b601"]),), "redirect"),
+                     ["18f3a9c2d4e5b601"]),
+               Campo("confirmacion", "`ELIMINAR`: confirma borrar casos con código T o correo enviado.",
+                     ejemplo="ELIMINAR")), "redirect"),
     Operacion("post", "/notifications/read", "Acciones generales", "Marcar las novedades como revisadas",
               "Marca todas las novedades sin leer.", "guarda", (), "redirect"),
+    Operacion("post", "/rejection-dismiss", "Acciones del caso", "Dejar para después el aviso de un análisis de Work",
+              "Solo en modo ChatGPT Work. Oculta del Resumen el aviso de un análisis que Anka no pudo leer (U-41). "
+              "No cambia el caso ni envía nada; deja constancia en el historial del caso si existe. Si Work vuelve a "
+              "mandar el análisis, se revisa solo.", "guarda",
+              (Campo("draft", "Id del borrador de Gmail que se rechazó.", requerido=True, ejemplo="r-123"),
+               Campo("message", "Id del mensaje del borrador rechazado.", requerido=True, ejemplo="18f3a9c2d4e5b601"),
+               Campo("thread_id", "Id del hilo del caso, si ya existe.", ejemplo="18f3a9c2d4e5b601")), "redirect"),
     Operacion("post", "/notifications/seen", "Acciones del caso", "Marcar como leídas las novedades de un caso",
               "La página de un caso, cuando está a la vista, marca como leídas solo las novedades de ese caso. "
               "Responde con una redirección a `/state`.", "guarda", (_ID,), "redirect"),
@@ -372,6 +429,15 @@ _RESPUESTAS_POST = {
 }
 
 
+def _error_json(descripcion: str, codigo: str, mensaje: str, con_id: bool = False) -> dict[str, Any]:
+    """Una respuesta de error de la API: siempre el esquema `Error` (U-50)."""
+    ejemplo: dict[str, Any] = {"codigo": codigo, "mensaje": mensaje}
+    if con_id:
+        ejemplo["id"] = "ab12cd34"
+    return {"description": descripcion, "content": {"application/json": {
+        "schema": {"$ref": "#/components/schemas/Error"}, "example": {"error": ejemplo}}}}
+
+
 def _respuestas_get(operacion: Operacion) -> dict[str, Any]:
     if operacion.contenido == "json":
         schema: dict[str, Any] = {"$ref": "#/components/schemas/Caso"} if operacion.ruta.endswith("{thread_id}") \
@@ -388,24 +454,33 @@ def _respuestas_get(operacion: Operacion) -> dict[str, Any]:
             responses["503"] = {"description": "Alguna conexión falla; el cuerpo dice cuál.",
                                 "content": {"application/json": media}}
         if "{thread_id}" in operacion.ruta:
-            responses["404"] = {"description": "El caso no existe.",
-                                "content": {"application/json": {"example": {"error": "La solicitud no existe."}}}}
+            responses["404"] = _error_json("El caso no existe.", "no_encontrado", "La solicitud no existe.")
+        responses.setdefault("403", _error_json("Host no permitido.", "solicitud_rechazada", "Host no permitido."))
+        responses["405"] = _error_json("Solo acepta GET y HEAD.", "metodo_no_permitido",
+                                       "Esta dirección no acepta ese método.")
+        responses["500"] = _error_json("Error inesperado; el detalle queda en el registro bajo `id`.",
+                                       "error_interno", "Ocurrió un error inesperado.", con_id=True)
         return responses
     if operacion.contenido == "eventos":
         return {"200": {"description": "Avisos (Server-Sent Events): un `data:` con la marca de cambios "
                                        "cuando algo cambia y un latido cada 15 s.",
                         "content": {"text/event-stream": {"schema": {"type": "string"}}}},
-                "503": {"description": "Ya hay demasiadas pestañas conectadas; esa sigue con la consulta periódica.",
-                        "content": {"application/json": {"example": {"error": "Demasiadas pestañas conectadas."}}}}}
+                "503": _error_json("Ya hay demasiadas pestañas conectadas; esa sigue con la consulta periódica.",
+                                   "no_disponible", "Demasiadas pestañas conectadas.")}
     if operacion.contenido == "xlsx":
         return {"200": {"description": "Archivo Excel.", "content": {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
                 "schema": {"type": "string", "format": "binary"}}}},
                 "404": {"description": "El caso no existe.", "content": {"text/html": {"schema": {"type": "string"}}}}}
+    if operacion.contenido == "estatico":
+        binario = {"schema": {"type": "string", "format": "binary"}}
+        return {"200": {"description": "El archivo.", "content": {"font/woff2": binario, "image/png": binario}},
+                "404": {"description": "Ese archivo no existe.",
+                        "content": {"text/html": {"schema": {"type": "string"}}}}}
     return {"200": {"description": "Página HTML.", "content": {"text/html": {"schema": {"type": "string"}}}}}
 
 
-def _operacion(operacion: Operacion, csrf_token: str) -> dict[str, Any]:
+def _operacion(operacion: Operacion) -> dict[str, Any]:
     efecto = EFECTOS[operacion.efecto]
     resultado: dict[str, Any] = {
         "tags": [operacion.etiqueta], "summary": operacion.resumen,
@@ -417,8 +492,7 @@ def _operacion(operacion: Operacion, csrf_token: str) -> dict[str, Any]:
         resultado["parameters"] = [_parameter(c) for c in operacion.campos]
         resultado["responses"] = _respuestas_get(operacion)
         return resultado
-    properties = {"csrf_token": {"type": "string", "default": csrf_token, "description":
-                                 "Token de seguridad vigente (ya viene relleno). Sin él la petición se rechaza (403)."}}
+    properties = {"csrf_token": {"type": "string", "description": CSRF_DESCRIPCION}}
     properties.update({c.nombre: _form_property(c) for c in operacion.campos})
     required = ["csrf_token"] + [c.nombre for c in operacion.campos if c.requerido]
     media: dict[str, Any] = {"schema": {"type": "object", "properties": properties, "required": required}}
@@ -437,7 +511,8 @@ Dashboard **local** de Anka: páginas HTML y acciones por formulario. Esta pági
 1. Empieza por **Lectura (JSON)**: `GET /api/salud` dice si todo conecta (200) o qué falla (503) y
    `GET /api/casos` lista los casos.
 2. Copia un `thread_id` y pruébalo en `GET /api/casos/{thread_id}` o en `GET /case`.
-3. Para una **acción** (`POST`), pulsa *Try it out*: el `csrf_token` ya viene relleno. Completa los campos y *Execute*.
+3. Para una **acción** (`POST`), pulsa *Try it out*: en `/docs` el `csrf_token` ya viene relleno. Completa los campos
+   y *Execute*.
    La respuesta real es `303` hacia la pantalla del caso; el navegador la sigue y Swagger muestra esa página.
 
 ### Cuidado
@@ -446,14 +521,19 @@ Las operaciones marcadas con **⚠** actúan de verdad: envían correos reales, 
 
 ### Seguridad
 Solo se atiende desde la propia máquina (`Host` local). Los `POST` exigen `Origin` del mismo servidor y el `csrf_token`.
+Este JSON **no incluye el token** (se puede copiar o importar en otra herramienta sin llevarse el secreto); la página
+`/docs` lo rellena desde la propia página (D-71).
 """
 
+CSRF_DESCRIPCION = ("Token de seguridad del dashboard. En `/docs` viene relleno; fuera de él, cópialo del campo "
+                    "oculto `csrf_token` de cualquier formulario del dashboard. Sin él la petición se rechaza (403).")
 
-def build_spec(csrf_token: str) -> dict[str, Any]:
-    """El documento OpenAPI 3 completo; el `csrf_token` vigente se incluye como valor por defecto de los `POST`."""
+
+def build_spec() -> dict[str, Any]:
+    """El documento OpenAPI 3 completo. No lleva el `csrf_token`: lo pone la página `/docs` (D-71)."""
     paths: dict[str, dict[str, Any]] = {}
     for operacion in OPERACIONES:
-        paths.setdefault(operacion.ruta, {})[operacion.metodo] = _operacion(operacion, csrf_token)
+        paths.setdefault(operacion.ruta, {})[operacion.metodo] = _operacion(operacion)
     return {
         "openapi": "3.0.3",
         "info": {"title": "Anka · Dashboard local", "version": "1.0.0", "description": _DESCRIPCION.strip()},
@@ -462,6 +542,13 @@ def build_spec(csrf_token: str) -> dict[str, Any]:
         "paths": paths,
         "components": {"schemas": {
             "Caso": _caso_schema(),
+            "Error": {"type": "object", "required": ["error"], "properties": {"error": {
+                "type": "object", "required": ["codigo", "mensaje"], "properties": {
+                    "codigo": {"type": "string", "enum": sorted(set(CODIGOS_DE_ERROR.values())),
+                               "description": "Código estable, para programas."},
+                    "mensaje": {"type": "string", "description": "Qué pasó, en español claro."},
+                    "id": {"type": "string", "description": "Solo en `error_interno`: el código del registro."}}}},
+                "description": "Forma única de todo error bajo `/api` (y de `/state`, `/eventos` y `/openapi.json`)."},
             "Salud": {"type": "object", "properties": {
                 "estado": {"type": "string", "enum": ["ok", "error"]}, "profundo": {"type": "boolean"},
                 "comprobaciones": {"type": "array", "items": {"type": "object", "properties": {
@@ -478,15 +565,22 @@ def build_spec(csrf_token: str) -> dict[str, Any]:
     }
 
 
-def docs_page() -> str:
-    """La página de Swagger UI (carga el CSS y el JS fijados y con huella de integridad)."""
+def docs_page(csrf_token: str, nonce: str) -> str:
+    """La página de Swagger UI (CSS y JS fijados y con huella de integridad).
+
+    El token va en la propia página, como en cualquier formulario del dashboard, y el script lo pone como valor por
+    defecto del `csrf_token` de cada `POST` antes de mostrar la especificación. El único script en línea lleva el
+    `nonce` de la CSP de esta respuesta; los estilos van en un `<style>` (Swagger UI también los pone en línea).
+    """
     css, css_sri = SWAGGER_CSS
     js, js_sri = SWAGGER_JS
+    token = html.escape(csrf_token, quote=True)
     return f"""<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="anka-csrf" content="{token}">
   <title>API - Anka</title>
   <link rel="stylesheet" href="{css}" integrity="{css_sri}" crossorigin="anonymous">
   <style>
@@ -500,12 +594,22 @@ def docs_page() -> str:
     · <a href="/openapi.json">openapi.json</a></div>
   <div id="swagger-ui"></div>
   <script src="{js}" integrity="{js_sri}" crossorigin="anonymous"></script>
-  <script>
-    window.ui = SwaggerUIBundle({{
-      url: "/openapi.json", dom_id: "#swagger-ui", deepLinking: true, filter: true,
-      docExpansion: "list", defaultModelsExpandDepth: -1, tryItOutEnabled: true,
-      displayRequestDuration: true
-    }});
+  <script nonce="{html.escape(nonce, quote=True)}">
+    (function () {{
+      const token = document.querySelector('meta[name="anka-csrf"]').content;
+      fetch("/openapi.json", {{cache: "no-store"}}).then(r => r.json()).then(spec => {{
+        Object.values(spec.paths).forEach(ruta => {{
+          const formulario = ruta.post && ruta.post.requestBody.content["application/x-www-form-urlencoded"];
+          const campo = formulario && formulario.schema.properties.csrf_token;
+          if (campo) campo.default = token;
+        }});
+        window.ui = SwaggerUIBundle({{
+          spec: spec, dom_id: "#swagger-ui", deepLinking: true, filter: true, validatorUrl: null,
+          docExpansion: "list", defaultModelsExpandDepth: -1, tryItOutEnabled: true,
+          displayRequestDuration: true
+        }});
+      }});
+    }})();
   </script>
 </body>
 </html>
