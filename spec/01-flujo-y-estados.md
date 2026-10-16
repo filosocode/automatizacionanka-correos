@@ -21,6 +21,8 @@ A estos estados se suma la **etapa de la oferta**: sin código → T (cotizando)
 estado del correo. Lo que la persona ve en la lista es la **etapa o la acción pendiente** (`U-04`), no el estado
 interno.
 
+**Previsto (U-73, D-138): «Pendiente de análisis de Work» no es un estado.** Es un indicador de la lista, derivado de que el hilo tiene correos entrantes registrados sin un análisis de Work que los cubra; el caso preliminar vive en `review` y no se añade ningún estado ni transición.
+
 ## Transiciones
 La tabla completa y ejecutable es [`transiciones.json`](transiciones.json). Resumen:
 

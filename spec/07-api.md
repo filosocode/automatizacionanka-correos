@@ -36,6 +36,7 @@ detalle de cada una:
 | `puente_work` | En modo ChatGPT Work, que el puente haya revisado Gmail hace poco. Fuera de ese modo: `no_aplica`. |
 | `autorizacion_google` | Que haya autorización guardada (con `profundo=1`, que siga vigente). |
 | `gmail`, `drive` | Solo con `profundo=1`: una consulta real de solo lectura. |
+| `recepcion` *(previsto, U-76; aún no existe)* | En modo Work, que la recepción de correos esté al día, sin huecos, sin backlog ni mensajes vencidos. Fuera de ese modo: `no_aplica`. |
 | `motor_de_analisis` | Ollama responde y tiene el modelo (modo local), o hay clave de OpenAI (modo api). En Work: `no_aplica`. |
 
 **Work no se consulta directamente**: ChatGPT Work no expone una API a la que Anka llame. La conexión es indirecta

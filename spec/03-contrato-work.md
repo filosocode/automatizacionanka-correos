@@ -135,6 +135,7 @@ de cada actividad sigue R12.
 - Si el borrador no se puede usar (ver «Tolerar y avisar») y el hilo aún no tiene análisis, crea un caso mínimo con remitente, asunto
   y fecha del correo (T-36); un borrador válido posterior lo reemplaza y limpia el aviso. Un borrador sin bloque JSON se ignora si el hilo ya tiene análisis válido o si tiene
   menos de 10 minutos (T-36, D-69); un JSON roto se rechaza de inmediato.
+- **Previsto (U-70, D-134):** el `message_id` que Work declara es la evidencia con la que Anka reconoce qué mensaje cubre su análisis. El contrato, el esquema, el prompt y la skill **no cambian**: la fecha del análisis nunca basta para dar por cubiertos otros mensajes del hilo.
 
 ## Tolerar y avisar (T-28, D-106)
 **Una sola política (U-51, D-116).** El puente y la importación (`dashboard-upsert`) llaman a la misma función,

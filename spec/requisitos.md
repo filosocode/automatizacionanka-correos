@@ -1465,3 +1465,223 @@ en «Lectura pendiente: falta leer el PDF», aunque Work había leído el origin
 - W2 · `check.bat` reconoce `quick`, la herramienta existe y todo módulo de `LENTOS` es un módulo de pruebas real.
 - W3 · `spec/07-api.md` nombra cada ruta `GET` documentada; el script de la animación se detiene en `blur` y arranca en `focus`.
 - W4 · No queda `gmail: Any` ni `drive: Any` en `anka/`; los dobles de prueba cumplen los protocolos.
+
+## Recepción determinista de correos en modo `chatgpt_work` (previsto)
+
+**Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.
+
+**Cómo se trazan mientras no existen.** Estos requisitos usan encabezado de **cuarto nivel** (`#### U-xx`) a propósito: `check_spec.py` solo exige prueba a los encabezados `### ID · ` y a las reglas R, así que no cuenta estos como requisitos sin prueba ni falla por ellos (no se modificó `check_spec.py`). Al implementar un requisito, el incremento que lo haga lo **promueve a `###`**, escribe sus pruebas y las etiqueta con `# Cubre: U-xx`; hasta entonces ninguno figura como implementado ni como probado (Constitución, Gobernanza).
+
+**Qué problema resuelven.** En modo `chatgpt_work`, un correo nuevo para el que Work aún no dejó un borrador no deja ni caso ni alerta: nadie sabe que llegó. La única vía hoy que crea un caso sin análisis válido parte de un borrador rechazado (T-36). La recepción determinista registra cada correo entrante apenas llega, crea un expediente preliminar con solo lo verificable, y avisa si Work no lo analiza en 30 minutos medidos desde la recepción real en Gmail. **No analiza, no escribe en Gmail, no cotiza y no envía nada al cliente.**
+
+### Vocabulario de esta sección
+- **Expediente preliminar**: la fila del caso (`quotes`) creada por la recepción en estado `review`, con remitente, asunto, fecha de recepción y nombres de archivos; sin actividades ni datos inferidos.
+- **Registro de recepción**: una fila por mensaje de Gmail visto (`recepcion_mensajes`), con su fase.
+- **Cubierto / pendiente de análisis**: un mensaje está cubierto cuando existe **evidencia verificable** de que un análisis de Work lo recogió (U-70). Sin esa evidencia, queda pendiente.
+- **Pendiente de comprobación**: mensaje de un hilo que sí tiene un análisis válido, pero sin evidencia de que ese análisis lo recoja. Nunca se da por cubierto por su fecha.
+
+#### U-66 · Todo correo entrante en modo Work deja un expediente, aunque Work no lo haya analizado
+**Estado: previsto** (el incremento 3 lo implementa). Decisiones: D-131, D-138, D-140, D-142.
+
+**Qué debe cumplirse**
+1. **Solo lectura y solo en modo `chatgpt_work`.** El sondeo corre dentro del proceso del puente (no es un segundo orquestador), después de importar los borradores y antes del seguimiento, en un bloque aislado: un error de recepción se guarda en su propio control y no pone en rojo al puente. Las únicas llamadas a Gmail son `getProfile`, `messages.list` y `messages.get`, más la lectura del hilo (`threads.get`) estrictamente para la comprobación de U-68 (DT-25). Nunca `modify`, etiquetas, `trash`, `send`, borradores, `import` ni `insert`; no marca leído. Los alcances (SCOPES) no cambian y `credentials()` sigue sin abrir el navegador (D-27).
+2. **Cuenta verificada.** Antes de cada pasada `getProfile` debe coincidir con la cuenta configurada del puente (`work_sync_account`); si no, el sondeo se detiene con un error de configuración visible y no mezcla cursores.
+3. **Expediente preliminar con solo lo verificable.** Se crea en `quotes` con estado `review` (creación, no transición), `first_seen_at` = recepción real (`internalDate`) del entrante más antiguo del hilo, `contact_email` vacío (para que Work pueda fijarlo), remitente = encabezado `From` tal cual (si no hay dirección válida no hay caso: se registra `sin_remitente` y se avisa), asunto recortado sin «Re:/RV:/Fwd:». **No se interpreta el asunto**: ni servicio, ni actividad, ni ubicación, ni magnitud, ni plazo, ni entregables; cliente comercial, tipo y sector quedan «No clasificado». Actividades, campos, faltantes y auditoría de preguntas, vacíos; `analysis_complete` falso.
+4. **Adjuntos: solo metadatos.** Nombre, tipo y tamaño, con la leyenda «Anka solo registró el nombre, tipo y tamaño; nadie ha leído este archivo». No se descarga ni se guarda contenido ni el `attachment_id`. La cobertura de lectura de la recepción es la constante `metadatos+estructura_de_adjuntos` y se dice (Constitución I).
+5. **Clasificación.** Cada mensaje es `entrante`, `ruido_r1`, `propio` (etiqueta `SENT`/`DRAFT` o dirección propia) o `sin_remitente`. El ruido sigue R1: solo señales de encabezado; las palabras comerciales solo **rescatan** un aviso automático del descarte; **un humano nunca se descarta por palabras**. La procedencia es `externo` o `prueba_interna` (remitente de pruebas configurado y asunto con marca de prueba); las pruebas **sí crean caso**, con la etiqueta «Prueba».
+6. **Un hilo, un expediente.** La inserción es `INSERT … ON CONFLICT(thread_id) DO NOTHING`; la recepción **nunca** usa `store.save()`, nunca escribe `analysis_json`, `status` ni `last_inbound_id` de un caso existente y no cambia estados. El segundo mensaje de un hilo solo se registra y, si el caso es todavía preliminar, sube `updated_at`.
+7. **Reenvíos.** Un asunto con prefijo de reenvío se registra (`asunto_con_reenvio`) y el texto dice que quien escribe puede ser alguien de Anka y que el cliente original no está identificado; nunca se asigna un remitente original distinto del `From`.
+8. **Los otros modos no cambian.** `local` y `api` no importan ni ejecutan la recepción; el indicador de U-73 no aparece si no hay filas de recepción. Work gana una recepción propia: es una mejora de la paridad (local y api ya crean caso por cada hilo candidato).
+9. **Nada sale al cliente (R8).** El aviso es una novedad interna; no hay envío, borrador ni recordatorio.
+10. **Configuración** (claves nuevas de `config.json`, fuera del repo; validadas en `validate_config`): `recepcion_activa` (falso por defecto, también es el rollback), `recepcion_simulacion`, `recepcion_materializar_desde_horas`, `recepcion_consulta` (`in:inbox`), `recepcion_ventana_inicial_horas` (48, máx. 168) y `recepcion_minutos_alerta` (30, entre 5 y 1440).
+
+**Casos de aceptación**: E1, E2, E3, E9, E10, E12 y E13 (tabla de aceptación, al final de esta sección).
+
+#### U-67 · Registro por fases y cola persistente: los topes limitan la velocidad, no el resultado
+**Estado: previsto** (incremento 3). Decisiones: D-132, D-140.
+
+**Qué debe cumplirse**
+1. **Fases.** Cada mensaje listado es una fila con fase `por_leer` (id listado, aún sin leer) → `registrado` (leído y clasificado como entrante) → `materializado` (tiene expediente o se reconoció el expediente existente); o `omitido` (ruido, propio, sin remitente, anterior a la activación o dado por no disponible con evidencia, U-68) o `revision_manual` (U-68). Toda fila `omitido` o `revision_manual` conserva su motivo (R3).
+2. **Clave.** El registro se identifica por el par `(thread_id, message_id)` (D-140). Un `message_id` que reaparece con otro `thread_id` no sobrescribe nada: se anota como anomalía y queda en `revision_manual`.
+3. **Registro inmediato.** Cada id que `messages.list` devuelve y no se conocía se inserta en el acto, antes de cualquier lectura. Desde ese momento el trabajo pendiente vive en la tabla, no en el cursor ni en el tamaño de la pasada.
+4. **Drenaje antes de listar, más antiguo primero.** Cada pasada procesa primero la cola: hasta 40 lecturas (`messages.get`) y hasta 10 materializaciones, siempre por `recibido_ms` ascendente (y por orden de inserción las no leídas). Los topes son ≥ 1 y solo limitan la velocidad: lo excedente queda en la cola y se procesa en las pasadas siguientes.
+5. **Garantía.** Para todo mensaje `entrante` elegible que Anka llega a listar existe un número finito de pasadas tras el cual tiene expediente o una fila terminal o de revisión con motivo. Ni un tope ni el avance del cursor lo impiden.
+6. **Cursor propio, no guardián del trabajo.** Fecha `internalDate` con solape de 10 minutos; avanza solo cuando el listado fue completo (todas las páginas, máx. 10) y todos los ids listados quedaron al menos registrados. No se guarda ningún `pageToken`: reanudar es repetir la consulta desde el cursor. Cada 6 horas se lista además `newer_than:2d` solo para restar ids (mensajes con fecha interna anterior al cursor). Ventana inicial de 48 h (máx. 168 h); tras una parada mayor que 168 h se recorta la consulta y se anota un **hueco visible**: lo ya registrado nunca caduca y el hueco y el backlog son cosas distintas, ambas visibles.
+7. **Escrituras cortas.** Todo con `transaccion()`/`lectura()` (D-129): una transacción por mensaje o lote de ≤ 10, y **ninguna llamada a Gmail dentro de una transacción**. Sin dependencias nuevas y sin `connect()` suelto.
+8. **Se conserva (T-42).** `recepcion_mensajes` y `caso_identidad` son tablas «se conservan» (evidencia de que el mensaje ya se vio; no se recrea un caso por un mensaje ya registrado). `recepcion_control` no tiene `thread_id`. La migración llega sola en su incremento y solo hacia adelante; el rollback funcional es `recepcion_activa=false`.
+
+**Casos de aceptación**: E2, E3, E8, E14.
+
+#### U-68 · Lecturas fallidas y mensajes «no encontrados»: se registran con motivo y un 404 nunca se toma por borrado
+**Estado: previsto** (incremento 3). Decisiones: D-141, D-132.
+
+**Principio.** Un error de Gmail no es una conclusión comercial ni una prueba de eliminación. Un `404` de `messages.get` puede ser un mensaje eliminado, un id inválido, una cuenta o credencial equivocada o un fallo transitorio: **un 404 aislado no es prueba de eliminación y no borra, oculta ni da por terminado nada**. Cada intento deja `intentos`, `ultimo_error` (con su clase) y la fecha; ninguna fila de registro, caso, evento ni estado se borra o cambia por un error.
+
+| Situación | Qué hace Anka |
+|---|---|
+| Cuota agotada (`es_error_de_cuota`) | Aplaza la pasada con espera creciente; no cuenta como fallo de acceso; las filas quedan como estaban |
+| Error de red o 5xx | La fila sigue `por_leer`, suma un intento, registra la clase `red`; reintenta en la pasada siguiente con espera creciente |
+| Autorización vencida o revocada | Detiene el sondeo con clase `autorizacion`, aviso en el resumen y la salud; **no abre el navegador** (D-27); las filas quedan intactas |
+| Cuenta distinta a la configurada (`getProfile`) | Detiene el sondeo con error de configuración; no mezcla cursores ni toca filas |
+| `404` aislado en un id recién listado (o con pocos intentos) | **Reintentar con espera creciente.** La fila sigue `por_leer`, registra «404» con la fecha de cada intento. No es terminal |
+| `404` en varios ids seguidos de la misma pasada | Se sospecha de cuenta o credencial, no de borrado: se repite `getProfile`, la clase de error es `acceso`, **ninguno** se marca no disponible y todas las filas siguen `por_leer` |
+| `404` que persiste tras varios intentos (mínimo 3, repartidos en al menos 30 min) | La fila pasa a `revision_manual` con el motivo «Gmail respondió 404 en N intentos entre HH:MM y HH:MM». Cuenta en el backlog y en la salud. Una persona decide: reintentar o dar por omitido (con nota, quién y cuándo, y evento) |
+| `404` con **evidencia adicional**: tras al menos 2 intentos, `getProfile` correcto de la misma cuenta y la lectura del hilo (`threads.get`) funciona y **no lista** el mensaje | `omitido` con clase `no_disponible` y el motivo «ausente del hilo según la lectura del <fecha>»; se guardan los ids que el hilo sí listó como evidencia. Es reversible: una persona puede devolverlo a `por_leer` |
+| Id con formato inválido (`400`) | `revision_manual` con motivo; sin reintentos automáticos |
+| Un mensaje ya `materializado` que después da 404 | No se toca el caso, el historial ni el registro; solo una anotación informativa. Un 404 posterior nunca deshace un expediente |
+| Listado incompleto o inesperadamente vacío | No se deduce que algo se borró: el cursor no avanza si el listado fue incompleto |
+
+Los números exactos de intentos y esperas son una decisión técnica abierta (DT-27); la regla que no cambia es que **solo la evidencia adicional, nunca el 404 solo, permite dar un mensaje por omitido**.
+
+**Casos de aceptación**: E8 (incluye el comportamiento de cada fila de la tabla) y E11.
+
+#### U-69 · Simulación primero: registrar sin crear nada, y activar sin perder lo registrado
+**Estado: previsto** (incremento 3). Decisión: D-133. Propuestas pendientes de confirmación explícita del dueño: DT-1 y DT-20.
+
+**Qué debe cumplirse**
+1. **Qué escribe la simulación (`recepcion_simulacion=true`).** Solo filas de `recepcion_mensajes` (`por_leer` → `registrado`/`omitido`) y la fila de control (cursor y salud). **No** escribe en `quotes`, `case_events`, `case_messages`, `dashboard_notifications` ni `event_anchors`; no materializa, no marca `analizado_at`. Su resultado es «registrado, pendiente de materializar»: **la simulación no puede dar nada por terminado**. Gmail sigue recibiendo solo lecturas.
+2. **Informe de la simulación.** Mientras dura, la banda de recepción y `/api/salud` dicen «Simulación: N correos habrían creado expediente (M hilos), K descartados como ruido, J propios», calculado sobre las filas.
+3. **Activación** (`recepcion_simulacion=false` con `recepcion_activa=true`). La primera pasada anota `activada_at` una sola vez, marca `omitido` («anterior a la activación») lo registrado con recepción anterior a `ahora − recepcion_materializar_desde_horas` y drena el resto con la misma cola y los mismos topes. No hay cursor que «saltar» ni duplicados (clave del registro, `DO NOTHING` y `UNIQUE (thread_id, kind, ref)` de los eventos). Lo omitido por antigüedad queda **visible con su motivo**; `omitido` no significa «cubierto» ni «analizado» (U-70).
+4. **Activar exige antes** que el ruido R1 registrado pueda revisarse y rescatarse (R3, D-142): hasta que exista ese panel (incremento 6) la recepción solo se puede usar en simulación.
+5. **Primera activación sobre la cuenta real** (propuesta DT-1, pendiente de confirmación explícita): primero simulación con ventana de 48 h, informe al dueño y solo después activación. Omitir lo más viejo que `recepcion_materializar_desde_horas` al activar (propuesta DT-20, pendiente) también necesita confirmación.
+
+**Casos de aceptación**: E15, E16.
+
+#### U-70 · Un análisis de Work posterior (o anterior) al registro cubre solo lo que su evidencia demuestra
+**Estado: previsto** (incremento 4). Decisiones: D-134, D-143. No cambia `sync_once`, el parser, el contrato V6.1 ni el prompt.
+
+**Regla central.** **La fecha nunca basta para dar un mensaje por cubierto.** Un mensaje anterior en fecha al mensaje analizado no queda «analizado» por eso: se exige **evidencia verificable** o el mensaje conserva la condición «pendiente de comprobación». `received_at`, `first_seen_at` y el `historyId` de hilo solo son **pistas** (sirven para ordenar y para decirle a quien revisa «este mensaje es anterior al analizado»); no cubren nada. (Corrige la v2, que trataba `received_at` como prueba suficiente.)
+
+**Evidencia aceptada, en orden de confianza** (un mensaje queda cubierto solo por la coincidencia exacta de su `message_id`):
+
+| # | Evidencia | Qué cubre |
+|---|---|---|
+| 1 | El `message_id` del análisis que se está importando (campo del contrato, ya verificado contra Gmail por `_verify_origin`) es el del mensaje registrado | Ese mensaje, al importar (gancho en `work_import`) |
+| 2 | `quotes.last_inbound_id` del caso es el del mensaje | Ese mensaje (casos con análisis ya importado antes del registro) |
+| 3 | `analysis.work_message_id` guardado del caso es el del mensaje | Ese mensaje (casos importados antes de que existiera `last_inbound_id`, o cuando difiere) |
+| — | Ninguna de las anteriores, aunque la fecha sea anterior (`received_at`/`first_seen_at`) | **Pendiente de comprobación**: `analizado_at` queda vacío y `cobertura_origen` en blanco |
+
+**Qué debe cumplirse**
+1. **Orden de llegada indiferente.** Si el análisis llega después del registro, un gancho dentro de la misma transacción de `_store_work_analysis` (después de `save`, antes del evento `analysis`) marca los mensajes cubiertos según la tabla. Si llegó antes, la recepción **no inserta ni actualiza** `quotes` (ni lo intenta) y aplica la misma tabla al materializar. Ambos órdenes convergen al mismo estado.
+2. **Sin preliminar sobre un caso existente, sin sobrescribir `analysis_json`**, sin alerta falsa, sin perder historial: no se borra ningún registro, evento ni mensaje; `first_seen_at` no cambia. El evento `analysis_late` («El análisis de Work llegó N minutos después de la recepción…») se añade al evento `analysis` que ya existe.
+3. **Qué se ve cuando hay pendientes de comprobación.** En un hilo con análisis válido, los mensajes sin evidencia se presentan como **novedad posterior al análisis** («Revisa si el análisis recoge este mensaje; es anterior al que Work analizó»), nunca como «Pendiente de análisis de Work» (esa etapa exige un hilo sin análisis válido). Es el error seguro: puede pedir revisar un mensaje ya recogido, nunca esconder uno que no lo está.
+4. **Cobertura confirmada por una persona.** Una persona puede confirmar que el análisis recoge un mensaje (acción verificada con CSRF): se guarda quién y cuándo, `cobertura_origen = 'persona'` y un evento; no cambia el estado del caso. Cada cobertura guarda su origen (`message_id` del análisis, `last_inbound_id`, `work_message_id` o `persona`) para auditarla.
+5. **Tabla de decisión.** Análisis de un mensaje anterior con otros ya registrados (E5): solo el analizado queda cubierto, el resto pendiente de comprobación y el aviso «Revisa si el análisis sigue vigente: llegaron N mensajes después». Payload con `_caso_minimo: True` (rechazo T-36) y caso con `sin_analisis_de_work`: **no cubren nada**. `analysis_complete: False` válido para el contrato, o estado `Descartada`: sí cubren su mensaje. Edición manual de la tabla sobre un preliminar: no cubre. Hilo sin filas de recepción (caso anterior a la función): el gancho no hace nada y no falla. Discrepancia entre el remitente registrado y el declarado por Work: se tolera y se avisa (D-106); no rechaza.
+6. **Atomicidad.** Un fallo del gancho revierte toda la importación y el puente reintenta, como cualquier fallo de importación.
+7. **Mejora futura, fuera de este requisito.** Que Work declare en el contrato los ids de los mensajes que leyó (cobertura demostrable de los mensajes anteriores) exigiría cambiar el contrato, el importador, la skill y el prompt (DT-26); no se asume.
+
+**Casos de aceptación**: E4, E5, E9, E17 y E18.
+
+#### U-71 · El seguimiento no omite los mensajes del hilo anteriores al mensaje analizado
+**Estado: previsto** (incremento 5). Decisión: D-143.
+
+**Hoy.** `gmail_followup.sync_thread_activity` descarta todo mensaje con fecha anterior a `first_seen_at`, que para un caso de Work es la recepción del mensaje **analizado**; los mensajes anteriores del hilo quedan fuera del historial y de `case_messages` (y se dan por vistos en el proceso).
+
+**Qué debe cumplirse**
+1. **Fecha de referencia del seguimiento** = el menor entre `first_seen_at` del caso y la recepción del entrante más antiguo registrado del hilo. Para un preliminar coincide con `first_seen_at`. Fuera de la ventana de la recepción se conserva el comportamiento actual (no se reescribe historia que Anka nunca vio).
+2. Un mensaje anterior a la referencia sigue omitiéndose, pero ya **no** se da por visto. Los mensajes de otro hilo nunca se vinculan por asunto (solo se proponen, como hoy).
+3. Todo mensaje del mismo hilo con fecha ≥ referencia deja su evento `sent`/`received` y su fila en `case_messages`; el aviso «El cliente respondió» solo aplica si es posterior al análisis. El evento de recepción es de otro tipo (`reception`) y no choca con `received`; la recepción no escribe `received`, `case_messages` ni avisos de respuesta: eso lo sigue haciendo el seguimiento, que guarda el texto.
+4. **Esto no marca cobertura**: registrar un mensaje anterior en el historial no significa que Work lo haya analizado (U-70).
+5. Se mantiene la guarda posterior a la T (`when > code_assigned_at`) y que los `sent` anteriores al análisis no mueven estado. La deuda de transacciones del seguimiento (U-64) no crece.
+
+**Casos de aceptación**: E6 (y el caso heredado sin registro, que se comporta como hoy).
+
+#### U-72 · La alerta de 30 minutos se mide desde la recepción real y se calcula al leer
+**Estado: previsto** (incrementos 2 y 6). Decisión: D-139.
+
+**Qué debe cumplirse**
+1. **Función pura** `alerta(pendiente_desde_ms, ahora, umbral_min)` que devuelve `ninguna`, `pendiente` o `vencida`, con enteros y reloj inyectable: **29 min 59 s → `pendiente`; 30 min 00 s → `vencida`; 31 min → `vencida`**. No hay temporizadores ni estado guardado: se evalúa al leer, con `reloj.ahora()` en el borde.
+2. **Referencia.** `pendiente_desde_ms` es la recepción real en Gmail (`internalDate`) del mensaje entrante pendiente **más antiguo** del hilo, no el momento en que Anka lo descubrió. Un hilo con `analizado_at`/`silenciado_at` en todos sus entrantes no alerta.
+3. **Umbral configurable** (`recepcion_minutos_alerta`, 30 por defecto, entre 5 y 1440).
+4. **A quién aplica.** Al hilo sin análisis válido (situación 1). Para los mensajes pendientes de comprobación en un hilo con análisis (situación 5) el umbral y el texto son los de la decisión técnica DT-6 (abierta; recomendación: mismo umbral, otro texto).
+5. **Las cinco situaciones se distinguen** y no se mezclan: (1) pendiente de análisis, (2) fallo del sondeo o del acceso a Gmail, (3) resultado de Work rechazado (T-36, panel existente; un hilo en ese panel no se repite en la banda 1), (4) análisis importado (el historial muestra `analysis_late`), (5) nueva información posterior al análisis. Textos en español sin términos técnicos (U-41).
+6. **Sistema apagado.** Tras una parada ≤ 168 h, los correos aparecen ya vencidos con el texto «Recibido hace 5 h. Anka estaba detenido y lo detectó hasta ahora» (`deteccion_tardia`); no se acusa a Work de haber tardado. Tras una parada mayor se anota el hueco y no se finge cobertura.
+7. **Una sola novedad** `reception_overdue` por mensaje y umbral (`source_key = "<message_id>:<umbral>"`).
+
+**Casos de aceptación**: E7 (el mismo resultado en lista, banda y `/api/salud`), E14 y E8 (parada y recuperación).
+
+#### U-73 · «Pendiente de análisis de Work» es un indicador derivado en la lista principal, no un estado
+**Estado: previsto** (incremento 6). Decisión: D-138. No cambia `ESTADOS`, `STATUS_LABELS`, `transiciones.json` ni las reglas operativas.
+
+**Qué debe cumplirse**
+1. **La etapa se llama exactamente «Pendiente de análisis de Work»** (nombre fijado por el dueño; sin sinónimos). Se muestra en la lista principal (y en el caso) mientras el hilo tenga mensajes entrantes registrados sin análisis válido que los cubra; desaparece sola al llegar el análisis. Va en el grupo «Por atender» con urgencia 1 y el verbo «Ver el caso», antes de «El cliente respondió» y después de los avisos de cambios y vínculos.
+2. **Derivado de dos hechos que ya existen** (mensaje entrante registrado y sin análisis válido que lo cubra); se lee de una relación agregada y no del `analysis_json` (la lista perezosa U-49 no lo lee y no sube `VERSION_DEL_RESUMEN`). La fila muestra «hace N min» con el tono de aviso hasta el umbral y de error desde el umbral, y la etiqueta «Prueba» si aplica.
+3. **No es un estado**: no hay transiciones nuevas, no cambia lo que cada TR hace con un análisis y el caso preliminar vive en `review`. «Pendiente» dice quién debe actuar (Work); los estados dicen dónde está el caso para la persona.
+4. **Novedades derivadas correctas.** Las novedades «La solicitud ya fue analizada y agregada al dashboard» y «Respuesta sugerida lista para revisar» no se derivan para un hilo con mensajes entrantes sin análisis (hoy un caso sin análisis las produce con texto falso: defecto previo, que también afecta al caso mínimo de T-36). Al llegar el análisis se derivan solas con el texto correcto.
+5. **Pantalla del caso.** Un bloque propio «Este correo aún no tiene análisis de Work» con quién escribió, asunto, hora de recepción, nombres de archivos «sin leer» y las acciones existentes («Completar la tabla yo», «Ver el correo»); distinto del bloque de T-36. Una persona puede silenciar la alerta de un mensaje que Work legítimamente no analiza («Ya lo atendí»: no cambia el estado; DT-4, abierta).
+6. Las rutas nuevas se registran en `GET_ROUTES`/`POST_ROUTES` y en `openapi.py` (con `spec/07-api.md`); los goldens se regeneran y revisan línea a línea; la comparación visual con el prototipo se hace con capturas lado a lado.
+
+**Casos de aceptación**: E1, E4, E7.
+
+#### U-74 · Identidad estable del expediente (`case_uid`) y referencia opcional a un chat
+**Estado: previsto** (`case_uid`: incrementos 3 y 4; la referencia al chat: **no se implementa**, posterior al incremento 7). Decisiones: D-135, D-136. DT-24 (fijada por el dueño): se **difiere** la tabla de conversaciones.
+
+**Qué debe cumplirse**
+1. **`case_uid`, identificador estable del expediente.** Hoy el caso solo tiene `thread_id`, que se reutilizaría si un caso eliminado (T-42) se recreara. Cada expediente recibe un `case_uid` (ULID) en la tabla `caso_identidad`, generado una sola vez en la misma transacción que crea la fila del caso. Es **inmutable** (un disparador prohíbe cambiar `case_uid` y `thread_id`), **no reutilizable** (nunca se borra su fila: es evidencia; al eliminar el caso se marca `eliminado_at`) y se conserva al eliminar (T-42): la tabla va a «se conservan». Un `thread_id` que se recrea después recibe un `case_uid` **nuevo** con `reemplaza_uid` apuntando al anterior. **Fusionar** dos casos no reasigna ni destruye ningún `case_uid`: el caso unido conserva el suyo con `unido_en_uid` = el del destino. El relleno de los casos existentes es idempotente (misma migración que la recepción; `origen` ∈ `recepcion`, `work`, `python`, `migracion`).
+2. **Referencias de Gmail.** `thread_id` y `message_id` siguen siendo referencias (no la identidad del expediente) y no cambian.
+3. **Cliente confirmado.** Hoy no existe un identificador de cliente (solo `contact_email` y datos libres); no se inventa uno. Se reserva una columna opcional `cliente_ref` en `caso_identidad` que solo se llenaría cuando una persona confirme el cliente, con evento de quién y cuándo (DT-23, abierta); no se crea hasta que exista ese flujo.
+4. **Referencia opcional a un chat de ChatGPT (requisito de identidad y trazabilidad, no implementado).** Cuando exista evidencia de que hay un chat verificable, un `case_uid` podrá llevar una referencia **opcional** (URL o id) a un chat del Proyecto «ANKA | Inteligencia Comercial Work», escrita **solo por una persona** mediante una acción verificada, con quién y cuándo, y con un evento en la cadena de huellas. **Ninguna lógica de estado, alerta, envío o análisis puede depender de esa referencia** y el caso funciona igual sin ella.
+5. **Límites explícitos.** **No se implementa la tabla de conversaciones (`caso_conversacion`) ni ninguna creación automática de chats.** **No está comprobado que Python o Work puedan crear chats dentro de un Proyecto**; por eso no se diseña ni se asume esa integración, y no se añade ninguna llamada a ChatGPT, Work ni OpenAI.
+
+**Casos de aceptación**: E18 (identidad: único, inmutable, conservado al eliminar y recrear; relleno idempotente). La referencia al chat no tiene prueba porque no se implementa.
+
+#### U-75 · El backlog de la recepción siempre se ve
+**Estado: previsto** (incrementos 3 y 6). Decisión: D-137.
+
+**Qué debe cumplirse**
+1. **Contador.** La banda de recepción y `/api/salud` muestran «N correos registrados esperan su expediente (el más antiguo, de HH:MM)», calculado sobre las filas pendientes (`por_leer`, `registrado` y `revision_manual`); cuesta proporcional a los pendientes. Un pendiente sin materializar **nunca** cuenta como «todo al día».
+2. **Alerta del backlog.** La alerta de 30 minutos (U-72) también se aplica a los `registrado` mediante ese contador y la novedad `reception_backlog`, medida desde la recepción real.
+3. **Señales de error.** La comprobación de salud es `error` si hay `registrado` con más de 10 minutos de antigüedad, `por_leer` con 3 o más intentos, o cualquier `revision_manual`.
+4. **Hueco y backlog** se muestran por separado.
+
+**Casos de aceptación**: E14, E8.
+
+#### U-76 · La salud de la recepción se informa aparte del puente
+**Estado: previsto** (incremento 6). Decisión: D-137.
+
+**Qué debe cumplirse**
+1. `/api/salud` suma la comprobación `recepcion` junto a `puente_work` (`no_aplica` fuera del modo Work). Es `error` si el último éxito tiene más de `max(3 × intervalo, 180 s)`, si hay un hueco sin atender, si hay mensajes vencidos o si el backlog cumple U-75.3; `ok` con el detalle del último sondeo en caso contrario.
+2. El estado `ok` del puente significa solo «el puente corrió»; el estado de la recepción se presenta aparte y el resumen **nunca dice «todo al día»** con pendientes vencidos, huecos de cobertura o `errores_seguidos > 0`.
+3. `sync_status_text` suma una frase de cobertura de la recepción («Anka no pudo revisar Gmail desde las 14:20 (autorización vencida). Los correos nuevos pueden no aparecer.»). La verdad vive en la tabla de control, no en el latido (el formato del latido no cambia).
+4. Un fallo de acceso se clasifica (`autorizacion`, `cuota`, `red`, `acceso`, `interno`) y no abre el navegador (D-27).
+
+**Casos de aceptación**: E11, E8.
+
+### Aceptación de la recepción determinista: los 18 escenarios
+Los 18 escenarios (los 13 primeros de la primera versión más los escenarios 14 a 18 añadidos en la v2) son los casos de aceptación de U-66 a U-76. Se implementarán en `tests/test_recepcion_determinista.py` con un doble de Gmail que registra cada llamada y falla ante cualquier escritura, aislados del entorno (`tests/_isolate.py`), con reloj inyectado y base temporal. **Ninguna prueba se escribe en el incremento 1.**
+
+| Id | Escenario | Qué verifica | Requisitos |
+|---|---|---|---|
+| E1 | Correo nuevo sin resultado de Work | Una fila en `quotes` en `review`, `first_seen_at` = `internalDate`, `contact_email` vacío, actividades vacías, nada inferido del asunto, evento `reception`, novedad `reception_pending` y **ninguna** novedad «ya fue analizada» | U-66, U-73 |
+| E2 | Dos mensajes del mismo hilo (pasadas distintas y misma pasada) | Un solo caso, dos filas de registro, `first_seen_at` = el más antiguo, `updated_at` sube | U-66, U-67 |
+| E3 | Repetición de sondeos | Mismos conteos de filas, sin eventos duplicados, cadena de huellas íntegra | U-66, U-67 |
+| E4 | Análisis tardío | Un caso; el mensaje cuyo `message_id` coincide queda cubierto; eventos `analysis` y `analysis_late`; indicador apagado; novedades con el texto correcto; `first_seen_at` y el historial intactos | U-70, U-73 |
+| E5 | Análisis antiguo frente a seguimiento reciente | Solo el analizado queda cubierto; el posterior queda pendiente (novedad «El cliente respondió»); aviso de vigencia; el estado no retrocede; `contact_email` lo fija Work | U-70 |
+| E6 | Respuesta anterior a `first_seen_at` | Con la nueva referencia el seguimiento registra el mensaje anterior; un caso heredado sin registro se comporta como antes; otro hilo con asunto parecido no se vincula | U-71 |
+| E7 | Alertas 29:59 / 30:00 / 31:00 | `pendiente`, `vencida`, `vencida`; una sola novedad `reception_overdue`; mismo resultado en lista, banda y `/api/salud` | U-72, U-73 |
+| E8 | Reinicio, paginación, recuperación y lecturas fallidas | 1200 ids en 3 páginas; corte tras el primer lote; error 5xx y cuota; el cursor no avanza con listado incompleto; parada > ventana → hueco; **cada fila de la tabla de U-68** (404 aislado reintenta, 404 persistente a revisión manual, 404 con evidencia omitido, ráfaga de 404 sin marcar nada, 404 posterior a la materialización sin efecto; nada se borra) | U-67, U-68, U-72, U-75, U-76 |
+| E9 | Concurrencia recepción contra Work | Dos conexiones, ambos órdenes: resultado único y determinista; sin «database is locked»; el `DO NOTHING` nunca pisa un análisis | U-66, U-70 |
+| E10 | Propios, publicidad y pruebas | `SENT`, dirección propia, `List-Unsubscribe`, `no-reply` → registrados con motivo y sin caso; humano en Promociones **sí** crea caso; aviso automático con término comercial se rescata; prueba interna crea caso con etiqueta; ningún descarte por palabras | U-66 |
+| E11 | Error de Gmail y salud | `getProfile`/`list` fallan, autorización vencida: la clase de error queda en el control, salud en `error` con texto claro, el latido no se contamina, no abre el navegador | U-68, U-76 |
+| E12 | Cero escrituras en Gmail | Solo `getProfile`, `messages.list`, `messages.get` (y la lectura del hilo de U-68); el doble levanta ante cualquier escritura; recorrido AST sin `.send(`; SCOPES sin cambios | U-66 |
+| E13 | Paridad y no regresión | `local` y `api` no ejecutan ni importan la recepción; suites de paridad, transiciones, arquitectura, tablas, transacciones y goldens de local/api sin diff | U-66 |
+| E14 | Ráfagas por encima de los topes | 15, 55 y 130 hilos + 20 mensajes de un hilo + ruido + propio: tras N pasadas, un caso por hilo entrante, `entrantes_sin_expediente = 0`; el cursor ya avanzó y aun así el pendiente persiste y se ve; orden por recepción ascendente; con reinicio a mitad el mismo resultado; la lectura fallida queda `por_leer` visible; convergencia con tope de pasadas | U-67, U-72, U-75 |
+| E15 | Simulación → activación | En simulación 0 filas en `quotes`, 0 eventos, 0 novedades; al activar, un caso por hilo sin duplicados y cadena íntegra; lo anterior a `recepcion_materializar_desde_horas` queda `omitido` con motivo; `activada_at` una vez | U-69 |
+| E16 | Simulación, reinicio del supervisor, activación | Igual que E15 con cierre y reapertura de la base y un mensaje nuevo entre medias; el cursor no saltó nada de la cola; el nuevo se materializa después de los antiguos | U-69 |
+| E17 | Work antes que la recepción, y su inversa | (a) análisis de m2 sin filas de recepción, Gmail con m1, m2, m3: 0 preliminares, **m2 cubierto por evidencia (`last_inbound_id`/`work_message_id`); m1 y m3 pendientes de comprobación aunque m1 sea anterior en fecha**; `analysis_json` intacto; sin `reception_pending`. (b) recepción primero y luego análisis: mismo estado final. Caso T-36: nada cubierto. `received_at` vacío o presente: nunca basta | U-70 |
+| E18 | Concurrencia ampliada e identidad | 200 corridas en ambos órdenes con dos conexiones; dos materializaciones del mismo mensaje; `case_uid` único e inmutable, conservado al eliminar y recreado con `reemplaza_uid`, `unido_en_uid` al fusionar; migración idempotente con relleno | U-70, U-74 |
+
+### Plan por incrementos (previsto)
+Solo el incremento 1 (esta especificación) está dentro de la autorización actual.
+
+| # | Incremento | Alcance |
+|---|---|---|
+| 1 | Especificación y decisiones | Solo documentos oficiales: `spec/` y `CLAUDE.md` |
+| 2 | Dominio puro | `recepcion_minima` (clasificar, expediente preliminar, alerta, referencia del seguimiento) y claves de configuración; pruebas unitarias |
+| 3 | Recepción y persistencia (apagada por defecto) | Migración, `servicios/recepcion`, listado de mensajes, bloque en el puente, fases y cola, simulación, `case_uid` |
+| 4 | Análisis tardío | Gancho en `work_import`, cobertura por evidencia, `analysis_late` |
+| 5 | Seguimiento | Referencia de seguimiento en `gmail_followup` |
+| 6 | Alertas y dashboard | Indicador, banda, salud, panel de rescate del ruido, «Ya lo atendí», revisión manual |
+| 7 | Validación integral | `check.bat` completo y pruebas reales autorizadas |
+
+**Pruebas reales que exigen autorización aparte** (ninguna se hace en el incremento 1): aplicar la migración a la base real, activar la simulación sobre la cuenta real, medir el borde de `after:` frente a `internalDate`, un correo de prueba real con y sin respuesta de Work, parada y recuperación del puente, autorización vencida durante el sondeo, cuota bajo carga, y la prueba manual en Work si algún día se cambia el prompt o la skill (hoy no se cambia).

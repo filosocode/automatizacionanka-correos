@@ -19,6 +19,21 @@ Una capa solo importa de las que tiene **debajo**. `cli` puede iniciar el servid
 | `web/` | El servidor HTTP local (`server`: valida y enruta), las acciones de los formularios (`acciones`), las páginas (`paginas`: resumen y listas; `pantalla_caso`: un caso y su acta), el token CSRF y la comprobación de Host/Origen (`seguridad`), los archivos fijos y la compresión (`estaticos`), el marcador compartido de los avisos (`marcador`), los fragmentos (`views`), la documentación OpenAPI/Swagger y el JSON de lectura (`openapi`, `api`) y las plantillas. | Importar de `cli`. |
 | `cli/` | Los puntos de entrada: comandos (`app`), lanzador (`supervisor`) y puente con Work (`work_sync`). | — |
 
+## Previsto (aún no implementado)
+
+Esta sección describe lo que la recepción determinista (U-66 a U-76, D-131 a D-143) añadiría; **nada de esto existe todavía**, por eso **no está en el «Mapa de módulos»** (que solo nombra módulos existentes y lo comprueba `tests/test_arquitectura.py`). Cuando un módulo exista, se mueve al mapa en el incremento que lo crea.
+
+| Módulo previsto | Capa | Para qué serviría | Incremento |
+|---|---|---|---|
+| `recepcion_minima` | `dominio/` | Funciones puras: clasificar un mensaje (entrante, ruido R1, propio, sin remitente), armar el expediente preliminar, `alerta(...)` (29:59 / 30:00 / 31:00) y la fecha de referencia del seguimiento. Sin I/O ni reloj propio | 2 |
+| `listar_mensajes` | `infra/mail.py` (función nueva en un módulo existente) | Listar ids de mensajes de Gmail con paginación acotada; `candidate_thread_ids` pasaría a usarla sin cambiar su comportamiento | 3 |
+| `recepcion` | `servicios/` | `sondear` (una pasada: guardas, cola, listado, clasificación, materialización) y `reconocer_analisis` (la cobertura por evidencia de U-70) | 3 y 4 |
+| (bloque en `main`) | `cli/work_sync.py` | Llamar a `sondear` después de importar borradores y antes del seguimiento, aislado en su propio `try/except` | 3 |
+
+**Datos previstos.** Tres tablas nuevas en una migración posterior a la 20, solo hacia adelante y con copia previa: `recepcion_control` (una fila por cuenta: cursor, cobertura, hueco, salud), `recepcion_mensajes` (una fila por `(thread_id, message_id)` con su fase, clase, motivo, intentos, fechas de recepción, cobertura y su origen) y `caso_identidad` (`case_uid`, `thread_id`, `reemplaza_uid`, `unido_en_uid`, `eliminado_at`; sin clave foránea a `quotes`). `recepcion_mensajes` y `caso_identidad` se clasifican en `TABLAS_QUE_SE_CONSERVAN` (U-63, T-42); `recepcion_control` no tiene `thread_id`. **No se crea la tabla de conversaciones** (D-136, DT-24).
+
+**Dependencias entre capas.** Se respetan las cinco capas: el dominio no importa Gmail ni SQLite; `servicios/recepcion` usa `infra/mail`, `infra/store` y el cliente de Gmail ya tipado; solo `infra/store.py` y el repositorio escriben en `quotes` (U-52); la recepción no es importada por `pipeline` ni por `estado_de_revision` (los modos `local` y `api` no la ejecutan). Sin dependencias externas nuevas.
+
 ## Mapa de módulos
 
 Una fila por módulo (lo comprueba `tests/test_arquitectura.py`: si agregas un módulo y no lo nombras aquí, falla).
@@ -173,6 +188,8 @@ El código mezcla inglés y español por su historia; no se renombra (cientos de
 | `link`, `case_links` | **vínculo** | Un correo de otro hilo que parece del mismo proyecto. |
 | `change`, `case_changes` | **cambio** | Un mensaje posterior a la T que pide algo distinto al alcance. |
 | `marker`, `change_marker` | **marcador de cambios** | Un texto barato que cambia cuando algo cambia, para refrescar pantallas. |
+| `recepcion_*` *(previsto, U-66)* | **recepción** / **expediente preliminar** | Registrar cada correo entrante en modo Work aunque Work no lo haya analizado, y el caso mínimo que eso crea. |
+| `case_uid` *(previsto, U-74)* | **identificador del expediente** | Identidad estable de un caso, distinta de `thread_id`: no se reutiliza si el caso se elimina y se recrea. |
 
 ## Clases y funciones: cuándo cada una
 Se usa una clase donde hay **estado y operaciones que viajan juntas**, y funciones donde no:

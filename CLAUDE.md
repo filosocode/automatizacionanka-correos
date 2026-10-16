@@ -22,7 +22,9 @@ Código en el paquete `anka/` (detalle en `spec/06-arquitectura.md`), en cinco c
   `gmail_followup`, `drive_layout`, `drive_contents`).
 - `anka/web/`: servidor (`server.py`), acciones de los formularios (`acciones.py`), páginas (`paginas.py` y `pantalla_caso.py`), API JSON y Swagger (`api.py`, `openapi.py`), seguridad CSRF (`seguridad.py`), vistas (`views.py`) y `templates/`. `anka/cli/`: `app`, `supervisor`, `work_sync`.
 - **Tres modos** (`active_mode` en `config.json`, fuera del repo): `local` (Ollama) y `api` comparten el código de
-  `pipeline`; `chatgpt_work` mantiene a Work como único analizador. El puente (`anka/cli/work_sync.py`) importa
+  `pipeline`; `chatgpt_work` mantiene a Work como único analizador. Python puede leer Gmail en ese modo **solo para identificar,
+  registrar y controlar pendientes**, sin escribir en Gmail ni analizar y sin ser otro orquestador (D-131, que reformula
+  D-01; la recepción determinista de U-66 a U-76 está **prevista, aún sin implementar**). El puente (`anka/cli/work_sync.py`) importa
   borradores y el preparador optativo (`anka/cli/work_drive.py`) lee adjuntos de Gmail y publica OCR en Drive (T-34).
   El preparador no envía correos ni decide estados comerciales; se activa explícitamente y corre separado del puente.
 - `app.py`, `supervisor.py` y `work_dashboard_sync.py` en la raíz son envoltorios de una línea hacia `anka/cli/`.
