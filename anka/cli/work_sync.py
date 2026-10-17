@@ -8,8 +8,10 @@ import hashlib
 import html
 import json
 import re
+import tempfile
 import time
 from collections.abc import Callable
+from functools import partial
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn
@@ -148,9 +150,12 @@ def _hora_del_borrador(marca_ms: int) -> str:
         return ""
 
 
-def _verify_origin(gmail: ClienteGmail, payload: dict) -> dict:
-    """Verifica el origen de contratos con preflight; un fallo de acceso se reintenta, nunca se inventa."""
-    if (not payload.get("DRIVE_PREFLIGHT") and payload.get("skill_version") != "PRECISO_V4.5_DRIVE"
+def _verify_origin(gmail: ClienteGmail, payload: dict, forzar: bool = False) -> dict:
+    """Verifica el origen de contratos con preflight; un fallo de acceso se reintenta, nunca se inventa.
+
+    `forzar` (importación aislada, T-47) comprueba el origen aunque el borrador no declare versión ni preflight.
+    """
+    if (not forzar and not payload.get("DRIVE_PREFLIGHT") and payload.get("skill_version") != "PRECISO_V4.5_DRIVE"
             and not usa_verificacion_por_adjuntos(payload)):
         return payload  # compatibilidad con borradores anteriores al contrato auditable
     source = gmail.users().messages().get(userId="me", id=payload["message_id"], format="metadata").execute()
@@ -201,20 +206,29 @@ def _verificar_con_el_expediente(payload: dict, instantaneas: Path) -> list[str]
 
 
 def _extract_verified(gmail: ClienteGmail, message: dict, draft_id: str,
-                      instantaneas: Path | None = None, propias: set[str] | None = None) -> tuple[dict, str] | None:
+                      instantaneas: Path | None = None, propias: set[str] | None = None,
+                      aislado: tuple[str, str] | None = None) -> tuple[dict, str] | None:
     """Extrae el contrato y recupera metadatos del mensaje origen antes de admitirlo en la caché.
 
     Un borrador del prompt V6 se verifica contra los adjuntos que Gmail tiene en el hilo (T-41); uno anterior, con la
     instantánea del manifiesto del preparador (T-37). Si Gmail no responde, el borrador se marca
     `_lectura_sin_verificar` y no se recuerda en la caché, para reintentarlo en la siguiente revisión.
+
+    `aislado` es el par (thread_id, message_id) de la importación aislada (T-47): el borrador debe declarar ese
+    mensaje, su origen se verifica siempre y el texto que se baje de Gmail no se guarda en la carpeta del puente.
     """
     found = extract(message, draft_id)
     if not found:
         return None
-    payload = _verify_origin(gmail, found[0])
+    if aislado and (found[0]["thread_id"], found[0]["message_id"]) != aislado:
+        raise Rechazo("El borrador declara otro mensaje que el de la importación aislada.", "mensaje_ajeno",
+                      ["message_id"])
+    payload = _verify_origin(gmail, found[0], forzar=aislado is not None)
     if instantaneas is not None:
         if usa_verificacion_por_adjuntos(payload):
-            avisos, consultado = verificar_lectura(gmail, payload, propias or {DEFAULT_ACCOUNT}, instantaneas)
+            with tempfile.TemporaryDirectory() as temporal:
+                avisos, consultado = verificar_lectura(
+                    gmail, payload, propias or {DEFAULT_ACCOUNT}, Path(temporal) if aislado else instantaneas)
             if not consultado:
                 payload["_lectura_sin_verificar"] = True
         else:
@@ -350,7 +364,7 @@ def _olvidar_borradores_retirados(cache: dict, drafts: list[dict]) -> None:
 
 
 def _leer_borrador(gmail: ClienteGmail, draft: dict, cache: dict, instantaneas: Path,
-                   propias: set[str]) -> tuple[str | None, int, object]:
+                   propias: set[str], aislado: tuple[str, str] | None = None) -> tuple[str | None, int, object]:
     """(message_id, marca, hallazgo) de un borrador: de la caché si Gmail no lo cambió; si no, lo baja y lo verifica.
 
     Un contenido que incumple el contrato queda como `Rechazado`: reintentar no lo arregla, así que se recuerda por
@@ -364,7 +378,7 @@ def _leer_borrador(gmail: ClienteGmail, draft: dict, cache: dict, instantaneas: 
     stamp = int(message.get("internalDate", "0"))
     found: object
     try:
-        found = _extract_verified(gmail, message, draft["id"], instantaneas, propias)
+        found = _extract_verified(gmail, message, draft["id"], instantaneas, propias, aislado)
     except Rechazo as exc:
         found = Rechazado(exc.motivo[:MOTIVO_MAX], exc.causa, exc.campos)
         log.warning("Borrador %s: rechazado (%s: %s)", draft["id"], exc.causa, ", ".join(exc.campos) or "-")
@@ -411,6 +425,48 @@ def _codificar_para_importar(payload: dict, raw: str, stamp: int) -> str:
     if hora:
         raw = json.dumps({**payload, "draft_at": hora}, ensure_ascii=False, sort_keys=True)
     return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+
+def importar_aislado(gmail: ClienteGmail, upsert: Callable[[str], None], instantaneas: Path, thread_id: str,
+                     message_id: str, propias: set[str] | None = None) -> dict[str, Any]:
+    """Importa el borrador de Work de un solo mensaje y nada más (T-47, D-150).
+
+    Solo se descargan los borradores del hilo; deben declarar ese hilo y ese mensaje y su origen se verifica siempre.
+    No usa el estado ni el latido del puente, no crea casos mínimos, no sincroniza actividad ni registra rechazos. Con
+    más de un borrador válido para el mensaje no importa ninguno. El resultado no lleva texto del correo.
+    """
+    propias = {DEFAULT_ACCOUNT} if propias is None else propias
+    par = (thread_id, message_id)
+    resultado: dict[str, Any] = {"thread_id": thread_id, "message_id": message_id, "borradores": [],
+                                 "ignorados": [], "rechazados": []}
+    candidatos: list[tuple[str, int, tuple[dict, str]]] = []
+    for draft in _list_drafts(gmail):
+        if draft.get("message", {}).get("threadId") != thread_id:
+            continue                                  # otro hilo: ni se descarga
+        try:
+            _, stamp, found = _leer_borrador(gmail, draft, {}, instantaneas, propias, par)
+        except Exception as exc:                      # Gmail no respondió: sin origen verificado no se importa
+            return {**resultado, "resultado": "error_de_origen", "borrador": draft["id"],
+                    "error": type(exc).__name__}
+        if isinstance(found, Rechazado):
+            lista = "ignorados" if found.causa in ("mensaje_ajeno", "sin_bloque") else "rechazados"
+            resultado[lista].append({"borrador": draft["id"], "causa": found.causa})
+        elif isinstance(found, tuple):
+            candidatos.append((draft["id"], stamp, found))
+        else:
+            resultado["ignorados"].append({"borrador": draft["id"], "causa": "sin_bloque"})
+    resultado["borradores"] = [item[0] for item in candidatos]
+    if len(candidatos) > 1:
+        return {**resultado, "resultado": "ambiguo"}
+    if not candidatos:
+        return {**resultado, "resultado": "rechazado" if resultado["rechazados"] else "sin_borrador"}
+    draft_id, stamp, (payload, raw) = candidatos[0]
+    try:
+        upsert(_codificar_para_importar(payload, raw, stamp))
+    except (Exception, SystemExit) as exc:
+        log.warning("Importación aislada fallida (%s)", type(exc).__name__, exc_info=True)
+        return {**resultado, "resultado": "fallo_de_importacion", "error": type(exc).__name__}
+    return {**resultado, "resultado": "importado", "avisos": len(payload.get("_avisos_del_puente", []))}
 
 
 def sync_once(gmail: ClienteGmail, upsert: Callable[[str], None], checkpoint: Path,
@@ -470,14 +526,40 @@ def fatal(message: str) -> NoReturn:
     raise SystemExit(EXIT_STOP)
 
 
+def _importacion_aislada(account: str, thread_id: str, message_id: str) -> NoReturn:
+    """Importa un solo borrador y termina: sin estado, latido ni seguimiento del puente general (T-47)."""
+    gmail, _ = services()
+    profile = gmail.users().getProfile(userId="me").execute()
+    if profile.get("emailAddress", "").lower() != account:
+        fatal(f"Cuenta incorrecta: se requiere {account}.")
+    result = importar_aislado(gmail, partial(dashboard_upsert, actualizar_hoja=False),
+                              settings.DATA_DIR / "manifiestos", thread_id, message_id, {account})
+    print(json.dumps(result, ensure_ascii=True, sort_keys=True), flush=True)
+    raise SystemExit(0 if result["resultado"] == "importado" else 1)
+
+
+def _pide_importacion_aislada(parser: argparse.ArgumentParser, args: argparse.Namespace) -> bool:
+    """¿Se pidió la importación aislada? Si se pidió mal (sin `--once`, una sola opción o vacías), se niega."""
+    if args.only_thread_id is None and args.only_message_id is None:
+        return False
+    if not args.once:
+        parser.error("--only-thread-id y --only-message-id solo se usan con --once")
+    if not (args.only_thread_id or "").strip() or not (args.only_message_id or "").strip():
+        parser.error("--only-thread-id y --only-message-id son obligatorios juntos y no pueden estar vacíos")
+    return True
+
+
 def main() -> None:
     """Importa los borradores de Work al dashboard una vez (`--once`) o cada N segundos, solo leyendo Gmail."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--seconds", type=int, default=30)
+    parser.add_argument("--only-thread-id", help="importa solo el borrador de este hilo (T-47)")
+    parser.add_argument("--only-message-id", help="y solo el que declara este mensaje (T-47)")
     args = parser.parse_args()
     if args.seconds < 30:
         parser.error("--seconds debe ser al menos 30")
+    aislado = _pide_importacion_aislada(parser, args)
     # Sin consola (arranque con Windows) los errores quedaban solo en stdout y se perdían: ahora van al registro.
     configure_logging(console=False)
     if not es_modo_work(load_config()):
@@ -485,6 +567,8 @@ def main() -> None:
     if not args.once and other_bridge_running():
         fatal("Ya hay otro puente activo (ver work_sync_heartbeat.json). No se inicia un segundo.")
     account = load_config().get("work_sync_account", DEFAULT_ACCOUNT).lower()
+    if aislado:
+        _importacion_aislada(account, args.only_thread_id.strip(), args.only_message_id.strip())
     checkpoint = settings.DATA_DIR / "work_dashboard_sync_state.json"
     cache: dict = {}
     seen: set[str] = set()

@@ -38,6 +38,16 @@ En `config.json`, `own_addresses` debe incluir la cuenta principal y todos los a
 
 La política predeterminada para reenvíos es `forwarded_reply_policy: internal_reviewer`. El sistema intenta identificar al cliente original dentro del mensaje, pero prepara el borrador para el comercial de Anka que lo reenvió. Cambiarla a `original_sender` solo debe hacerse después de validar el enrutamiento con suficientes casos reales.
 
+### Importación aislada de un borrador (piloto 03, T-47)
+
+Para probar el retorno Work → Python con **un** mensaje, sin que el puente toque el resto de la cuenta:
+
+```powershell
+.\.venv\Scripts\python.exe work_dashboard_sync.py --once --only-thread-id 1a149ae2f36b4147 --only-message-id 1a149ae2f36b4147
+```
+
+Las dos opciones son obligatorias juntas y solo valen con `--once`. Solo se leen los borradores de ese hilo; el JSON debe declarar ese hilo y ese mensaje; el mensaje origen se verifica en Gmail siempre (existe, no es borrador ni enviado, el remitente coincide con `internal_sender` o `client_email`), aunque el borrador no declare `skill_version`. Con dos borradores válidos para el mismo mensaje no importa ninguno. No escribe el estado ni el latido del puente, no crea casos mínimos, no sincroniza la actividad ni la hoja de Google, no anota rechazos y no actualiza `recepcion_mensajes`. Imprime una línea JSON con el resultado (`importado`, `sin_borrador`, `rechazado`, `ambiguo`, `error_de_origen`, `fallo_de_importacion`) y sale con 0 solo si importó. Importar dos veces no duplica la auditoría. Como no guarda estado, el puente general volverá a ver ese borrador cuando se active (es idempotente). Requisito: T-47; decisión: D-150.
+
 ## Activar modo API
 
 Usa proveedor API. Actualmente el bot soporta OpenAI API.

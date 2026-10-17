@@ -343,8 +343,11 @@ def _commercial_metadata(payload: dict, saved: sqlite3.Row | None) -> tuple[str,
     return client_name, client_type, sector, notes
 
 
-def dashboard_upsert(payload_base64: str) -> None:
-    """Importa al dashboard el borrador de Work (JSON en base64): crea o actualiza el caso y sus datos comerciales."""
+def dashboard_upsert(payload_base64: str, actualizar_hoja: bool = True) -> None:
+    """Importa al dashboard el borrador de Work (JSON en base64): crea o actualiza el caso y sus datos comerciales.
+
+    `actualizar_hoja=False` (importación aislada, T-47) no programa la actualización de la hoja de Google.
+    """
     raw, payload = _decode_work_payload(payload_base64)
     analysis = _work_analysis(payload)
     thread_id = payload["thread_id"]
@@ -356,7 +359,8 @@ def dashboard_upsert(payload_base64: str) -> None:
         ).fetchone()
     client_name, client_type, sector, notes = _commercial_metadata(payload, saved)
     save_quote_metadata(thread_id, client_name, client_type, sector, notes)
-    programar_actualizacion_de_hoja(thread_id)   # si el análisis cambió la tabla, la hoja de Google lo refleja
+    if actualizar_hoja:
+        programar_actualizacion_de_hoja(thread_id)   # si el análisis cambió la tabla, la hoja de Google lo refleja
 
 
 def dejar_para_despues_el_rechazo(draft_id: str, message_id: str, thread_id: str = "") -> str:

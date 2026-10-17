@@ -1535,6 +1535,44 @@ en «Lectura pendiente: falta leer el PDF», aunque Work había leído el origin
 - C3 · La copia se verifica y se restaura; una copia vieja con `config.json` se restaura sin error y sin ejecutar nada; la redactada no pisa la viva y sí crea `config.json` si no había.
 - C4 · Un `config.json` roto no rompe la copia ni se copia en bruto.
 
+### T-47 · Importación aislada de un borrador de Work (piloto 03)
+**Estado: implementado** (pruebas en `tests/test_importacion_aislada.py`). Decisión: D-150. Acota T-41, T-44 y T-46; no cambia el contrato de Work.
+
+**Motivo.** El piloto del retorno Work → Python necesita importar **un** borrador sin que `--once` toque nada más: `--once` revisa todos los borradores
+de la cuenta, crea casos mínimos para los rechazados (T-36), sincroniza la actividad de los hilos, programa la hoja de Google y escribe el estado y el
+latido del puente general.
+
+**Qué debe cumplirse**
+1. **Opciones.** `work_dashboard_sync.py --once --only-thread-id T --only-message-id M`. Las dos son obligatorias juntas y solo valen con `--once`;
+   sin `--once`, con una sola o con un valor vacío el comando se niega antes de abrir Gmail. Sin ellas, el modo general no cambia.
+2. **Filtro previo.** Solo se descargan e interpretan los borradores cuyo `threadId` en Gmail es `T`. Los demás ni se leen.
+3. **Identidad contra el JSON.** El bloque debe declarar `thread_id = T` y `message_id = M`. Un borrador del hilo con otro `message_id` se informa como
+   ignorado y no se verifica ni se importa.
+4. **Origen obligatorio.** El mensaje `M` se comprueba en Gmail (mismo `id` y `threadId`, no es borrador ni enviado, el remitente coincide con
+   `internal_sender` o `client_email`, tiene `internalDate`) **aunque el borrador no declare `skill_version`** ni preflight. No se escribe ni se
+   finge ninguna versión. Si Gmail no responde, no se importa.
+5. **Ambigüedad.** Si hay más de un borrador válido para `(T, M)` no se importa ninguno: se informa la lista de borradores y el comando termina con error.
+6. **Validaciones de lectura que siguen aplicando.** Con `skill_version` V6 o posterior (o adjuntos con `size_bytes`) la lectura se verifica contra los
+   adjuntos que Gmail tiene en el hilo (T-41). En cualquier otro caso se verifica contra la instantánea del manifiesto de Drive del hilo (T-37/T-38):
+   sin instantánea (mensaje sin adjuntos, preparador sin publicar) no hay nada que reconciliar y no se inventa una advertencia; **con** instantánea
+   que no incluya a `M`, el análisis queda incompleto y con aviso, igual que en el modo general.
+7. **Escritura mínima.** Solo se escribe el análisis del caso `T` (tabla del caso, su auditoría y los datos comerciales de ese caso). No se crean casos
+   mínimos, no se sincroniza la actividad de Gmail, no se programa la hoja de Google, no se escribe el estado (`work_dashboard_sync_state.json`) ni el
+   latido del puente general, no se anotan rechazos en `work_rejections` y no se toca `recepcion_mensajes` (el acuse queda fuera de este cambio).
+8. **Salida.** Una línea JSON con el resultado (`importado`, `sin_borrador`, `rechazado`, `ambiguo`, `error_de_origen`, `fallo_de_importacion`), los ids de borrador
+   implicados y los borradores ignorados o rechazados con su causa. Código de salida 0 solo si se importó; 1 en los demás casos. No imprime el contenido del correo.
+9. **Repetir es seguro.** Importar dos veces el mismo borrador no duplica el hecho de auditoría (misma referencia).
+
+**Casos de aceptación**
+- C1 · Con tres borradores de hilos distintos, solo se descarga el del hilo elegido; los otros dos no se leen (`gets` = 1) ni se crean casos mínimos.
+- C2 · Un borrador del hilo con otro `message_id` se ignora y se informa; sin válido, resultado `sin_borrador`.
+- C3 · Sin `skill_version`, el origen se verifica igual; un remitente distinto o un mensaje que es un borrador rechaza.
+- C4 · Dos borradores válidos para `(T, M)` → `ambiguo`, nada importado.
+- C5 · Tras importar, no cambian el archivo de estado ni el latido del puente general, no se programa la hoja, no hay filas en `work_rejections` ni en `recepcion_mensajes`.
+- C6 · Con instantánea del manifiesto que no incluye `M`, el análisis queda incompleto con aviso; sin instantánea, sin aviso.
+- C7 · Argumentos incompletos o sin `--once` terminan en error de uso sin llamar a Gmail.
+- C8 · El modo general sigue igual (las pruebas del puente no cambian).
+
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 
 **Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.
