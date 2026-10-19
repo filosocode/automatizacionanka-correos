@@ -212,7 +212,8 @@ class LanzadorTests(unittest.TestCase):
                 patch.object(supervisor, "work_mode", side_effect=[True, False]), \
                 patch.object(supervisor, "work_drive_enabled", side_effect=[True, False]), \
                 patch.object(supervisor, "CopiaDeSeguridad") as copia, patch.object(supervisor, "Reconciliador"), \
-                patch.object(supervisor, "run_due_reminders", side_effect=RuntimeError("sin red")), \
+                patch.object(supervisor, "run_due_reminders", side_effect=RuntimeError("sin red")),                 patch.object(supervisor.settings, "load_config",
+                             return_value={"active_mode": "chatgpt_work", "work_general_bridge_enabled": True}), \
                 patch.object(supervisor.time, "sleep", side_effect=[None, KeyboardInterrupt]), \
                 self.assertLogs("anka.cli.supervisor", "INFO") as registro:
             self.assertEqual(supervisor.servicio(), 0)                 # Ctrl+C: parada normal
@@ -498,7 +499,8 @@ class BucleDelPuenteTests(_DatosTemporales):
     CUENTA = "puente@example.com"
 
     def ejecutar(self, *argv, modos=None, sincronizar=None, seguimiento=None, cuenta=None):
-        modos = modos or [{"active_mode": "chatgpt_work", "work_sync_account": self.CUENTA}] * 4
+        modos = modos or [{"active_mode": "chatgpt_work", "work_sync_account": self.CUENTA,
+                           "work_general_bridge_enabled": True}] * 4
         gmail = MagicMock()
         gmail.users.return_value.getProfile.return_value.execute.return_value = {"emailAddress": cuenta or self.CUENTA}
         self.latidos = []
@@ -540,7 +542,7 @@ class BucleDelPuenteTests(_DatosTemporales):
         self.assertIn("Seguimiento: RuntimeError", self.latidos[0]["error"])
 
     def test_un_fallo_de_gmail_reconecta_en_el_ciclo_siguiente_y_el_cambio_de_modo_lo_detiene(self):
-        trabajo = {"active_mode": "chatgpt_work", "work_sync_account": self.CUENTA}
+        trabajo = {"active_mode": "chatgpt_work", "work_sync_account": self.CUENTA, "work_general_bridge_enabled": True}
         pasadas = [ConnectionError("sin red"), {"drafts": 0, "updated": 0, "failures": 0, "rejected": []}]
         codigo = self.ejecutar("--seconds", "30", modos=[trabajo, trabajo, trabajo, trabajo, {"active_mode": "api"}],
                                sincronizar=pasadas)

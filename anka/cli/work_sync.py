@@ -10,13 +10,14 @@ import json
 import re
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import partial
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn
 
 from anka.servicios.gmail_followup import sync_thread_activity
+from anka.dominio import coordinacion_work
 from anka.dominio.configuracion import es_modo_work
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.caso_minimo import caso_minimo
@@ -520,6 +521,28 @@ def sync_once(gmail: ClienteGmail, upsert: Callable[[str], None], checkpoint: Pa
     return {"drafts": len(drafts), "updated": updated, "failures": failures, "rejected": rejected}
 
 
+MENSAJE_COORDINACION = ("Sincronización detenida: la coordinación Work (T-55) está activa y es el único importador "
+                        "automático de borradores. Apágala (work_coordination_enabled) o usa la importación aislada.")
+
+
+MENSAJE_SIN_AUTORIZACION = ("Sincronización detenida: el puente general de borradores no está autorizado. Para usarlo, "
+                            "pon work_general_bridge_enabled en true (T-56); la importación aislada no lo necesita.")
+
+
+def coordinacion_activa(config: Mapping[str, Any]) -> bool:
+    """¿Está activada la coordinación Python–Work? Entonces este puente general no debe importar (D-161)."""
+    return config.get("work_coordination_enabled") is True
+
+
+def motivo_de_bloqueo(config: Mapping[str, Any]) -> str | None:
+    """Por qué este puente general no debe correr con esa configuración, o `None` si puede (T-55, T-56)."""
+    if coordinacion_activa(config):
+        return MENSAJE_COORDINACION
+    if not coordinacion_work.puente_general_habilitado(config):
+        return MENSAJE_SIN_AUTORIZACION
+    return None
+
+
 def fatal(message: str) -> NoReturn:
     """Error que no se arregla reintentando: el .bat no debe reiniciar el puente."""
     print(message, flush=True)
@@ -562,21 +585,27 @@ def main() -> None:
     aislado = _pide_importacion_aislada(parser, args)
     # Sin consola (arranque con Windows) los errores quedaban solo en stdout y se perdían: ahora van al registro.
     configure_logging(console=False)
-    if not es_modo_work(load_config()):
+    config = load_config()
+    if not es_modo_work(config):
         fatal("Sincronización detenida: active_mode no es chatgpt_work.")
     if not args.once and other_bridge_running():
         fatal("Ya hay otro puente activo (ver work_sync_heartbeat.json). No se inicia un segundo.")
     account = load_config().get("work_sync_account", DEFAULT_ACCOUNT).lower()
     if aislado:
         _importacion_aislada(account, args.only_thread_id.strip(), args.only_message_id.strip())
+    if (motivo := motivo_de_bloqueo(config)) is not None:
+        fatal(motivo)
     checkpoint = settings.DATA_DIR / "work_dashboard_sync_state.json"
     cache: dict = {}
     seen: set[str] = set()
     gmail = None
     print("Sincronización Work activa. Solo lectura de Gmail y escritura en dashboard local.", flush=True)
     while True:
-        if not es_modo_work(load_config()):
+        config = load_config()
+        if not es_modo_work(config):
             fatal("Sincronización detenida por cambio de modo.")
+        if (motivo := motivo_de_bloqueo(config)) is not None:
+            fatal(motivo)
         result: dict[str, Any] = {"drafts": 0, "updated": 0, "failures": 0, "events": 0, "rejected": []}
         error = ""
         try:

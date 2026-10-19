@@ -158,6 +158,8 @@ class Analisis(TypedDict, total=False):
     evidence_check: dict[str, Any]   # T-38: lo que se comprobó de la tabla de Work contra los textos del expediente
     related_threads: list[dict[str, Any]]
     applicability: dict[str, Any]
+    classification: str                  # T-52: una de las cuatro clases (de Work)
+    classification_reason: str
     analysis_complete: bool
     force_analysis: bool
     preguntas: list[Any]                 # preguntas del caso con la decisión de una persona (U-22)

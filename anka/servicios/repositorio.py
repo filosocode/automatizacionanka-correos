@@ -183,7 +183,8 @@ def _build_caso(row: sqlite3.Row, rel: _CaseRelations, resumen: dict | None = No
 TABLAS_DEL_CASO = ("dashboard_notifications", "quote_metadata", "case_messages", "case_followup", "table_versions",
                    "analysis_failures", "quotes")
 TABLAS_CON_DOS_HILOS = ("case_links", "project_dismissals")
-TABLAS_QUE_SE_CONSERVAN = ("case_events", "event_anchors", "case_changes", "mail_operations", "work_rejections")
+TABLAS_QUE_SE_CONSERVAN = ("case_events", "event_anchors", "case_changes", "mail_operations", "work_rejections",
+                           "recepcion_mensajes", "recepcion_eventos", "trabajos_work")
 
 
 class RepositorioDeCasos:

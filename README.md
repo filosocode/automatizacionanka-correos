@@ -18,6 +18,7 @@ espera de él. Nada sale al cliente sin que una persona lo revise y lo envíe.
 ## Mapa del repositorio
 
 ```
+
 anka/               el código, en capas (ver spec/06-arquitectura.md)
   dominio/            reglas puras: estados, actividades, recepción, correo, contrato con Work
   infra/              lo externo: configuración, base SQLite, Gmail/Drive, modelos, registro, copias
@@ -35,6 +36,7 @@ app.py, supervisor.py, work_dashboard_sync.py    puntos de entrada de una línea
 check.bat, check_spec.py                         verificación completa (igual que el CI)
 Iniciar Anka.bat                                 el lanzador de uso diario
 ```
+El trigger de Gmail determinístico es opt-in y corre en modo `chatgpt_work`; su configuración e instrucciones de activación están en [`docs/MODO_OPERACION.md`](docs/MODO_OPERACION.md). La primera ejecución solo ancla el cursor actual y no importa correos anteriores.
 
 ## Documentación
 

@@ -14,23 +14,22 @@ Una capa solo importa de las que tiene **debajo**. `cli` puede iniciar el servid
 | Capa (`anka/…`) | Qué contiene | Qué NO puede hacer |
 |---|---|---|
 | `dominio/` | Reglas del negocio y funciones puras: estados, tabla de actividades, recepción (qué falta y qué preguntar), contrato con Work, lectura de un mensaje de Gmail (`correo`), la decisión sobre un hilo (`decision`: qué hacer, sin ejecutarlo), los objetos del caso (`Caso`, `Evento`, `Cambio`, `Vinculo`: dataclasses inmutables que también se leen como mapa) y la forma del análisis y de `config.json` (`Analisis`, `Actividad`, `Configuracion`…: `TypedDict` que mypy verifica y que se guardan como JSON sin cambios), extracción de texto de adjuntos. | Hablar con Gmail, Drive, la base de datos ni el disco. |
-| `infra/` | Todo lo que toca el mundo exterior: configuración (`settings`), base SQLite (`store`), clientes de Google (`google_services`, `mail`), modelos de lenguaje (`llm`), registro (`logging_setup`), copias de seguridad, modo de operación. | Conocer casos de uso ni pantallas. |
+| `infra/` | Todo lo que toca el mundo exterior: configuración (`settings`), base SQLite (`store`, `recepcion_store`), clientes de Google (`google_services`, `mail`), modelos de lenguaje (`llm`), registro (`logging_setup`), copias de seguridad, modo de operación. | Conocer casos de uso ni pantallas. |
 | `servicios/` | Los casos de uso: importar un borrador de Work (`work_import`), ver y decidir casos (`quotes`), editar la tabla (`ediciones`), enviar y borrar casos (`case_actions`), el ciclo de revisión (`pipeline`), control de cambios y código de la oferta, seguimiento de hilos y recordatorios, carpetas de Drive. | Conocer el servidor web ni los comandos. |
 | `web/` | El servidor HTTP local (`server`: valida y enruta), las acciones de los formularios (`acciones`), las páginas (`paginas`: resumen y listas; `pantalla_caso`: un caso y su acta), el token CSRF y la comprobación de Host/Origen (`seguridad`), los archivos fijos y la compresión (`estaticos`), el marcador compartido de los avisos (`marcador`), los fragmentos (`views`), la documentación OpenAPI/Swagger y el JSON de lectura (`openapi`, `api`) y las plantillas. | Importar de `cli`. |
 | `cli/` | Los puntos de entrada: comandos (`app`), lanzador (`supervisor`) y puente con Work (`work_sync`). | — |
 
 ## Previsto (aún no implementado)
 
-Esta sección describe lo que la recepción determinista (U-66 a U-76, D-131 a D-143) añadiría; **nada de esto existe todavía**, por eso **no está en el «Mapa de módulos»** (que solo nombra módulos existentes y lo comprueba `tests/test_arquitectura.py`). Cuando un módulo exista, se mueve al mapa en el incremento que lo crea.
+La recepción determinista completa (U-66 a U-76, D-131 a D-143) sigue prevista. La base de detección y registro local U-81 ya existe: sondeo Gmail, cursor y cola idempotente, sin materialización en `quotes`, alertas, panel ni integración automática con Work. Esta separación mantiene el detector fuera de `pipeline` y permite validar el mecanismo sin cambiar `[ANKA_DASHBOARD_JSON_V1]`.
 
 | Módulo previsto | Capa | Para qué serviría | Incremento |
 |---|---|---|---|
 | `recepcion_minima` | `dominio/` | Funciones puras: clasificar un mensaje (entrante, ruido R1, propio, sin remitente), armar el expediente preliminar, `alerta(...)` (29:59 / 30:00 / 31:00) y la fecha de referencia del seguimiento. Sin I/O ni reloj propio | 2 |
 | `listar_mensajes` | `infra/mail.py` (función nueva en un módulo existente) | Listar ids de mensajes de Gmail con paginación acotada; `candidate_thread_ids` pasaría a usarla sin cambiar su comportamiento | 3 |
-| `recepcion` | `servicios/` | `sondear` (una pasada: guardas, cola, listado, clasificación, materialización) y `reconocer_analisis` (la cobertura por evidencia de U-70) | 3 y 4 |
 | (bloque en `main`) | `cli/work_sync.py` | Llamar a `sondear` después de importar borradores y antes del seguimiento, aislado en su propio `try/except` | 3 |
 
-**Datos previstos.** Tres tablas nuevas en una migración posterior a la 20, solo hacia adelante y con copia previa: `recepcion_control` (una fila por cuenta: cursor, cobertura, hueco, salud), `recepcion_mensajes` (una fila por `(thread_id, message_id)` con su fase, clase, motivo, intentos, fechas de recepción, cobertura y su origen) y `caso_identidad` (`case_uid`, `thread_id`, `reemplaza_uid`, `unido_en_uid`, `eliminado_at`; sin clave foránea a `quotes`). `recepcion_mensajes` y `caso_identidad` se clasifican en `TABLAS_QUE_SE_CONSERVAN` (U-63, T-42); `recepcion_control` no tiene `thread_id`. **No se crea la tabla de conversaciones** (D-136, DT-24).
+**Datos previstos.** La migración 21 crea `recepcion_control` (cursor, estado del sondeo y lease) y `recepcion_mensajes` (identidad `(account, thread_id, message_id)`, fase, metadatos, reintento y paquete). La 22 añade el límite temporal del primer checkpoint, confirmación de una delta sincronizada, contador del lote paginado y estado/ventana de recuperación. La cola se conserva al eliminar casos; el control no tiene `thread_id`. Sigue prevista `caso_identidad` (`case_uid`, `thread_id`, `reemplaza_uid`, `unido_en_uid`, `eliminado_at`; sin clave foránea a `quotes`). **No se crea la tabla de conversaciones** (D-136, DT-24).
 
 **Dependencias entre capas.** Se respetan las cinco capas: el dominio no importa Gmail ni SQLite; `servicios/recepcion` usa `infra/mail`, `infra/store` y el cliente de Gmail ya tipado; solo `infra/store.py` y el repositorio escriben en `quotes` (U-52); la recepción no es importada por `pipeline` ni por `estado_de_revision` (los modos `local` y `api` no la ejecutan). Sin dependencias externas nuevas.
 
@@ -71,6 +70,9 @@ La descripción es la primera frase de su docstring.
 | `status` | Estados del ciclo de vida de una solicitud, definidos en un solo lugar. |
 | `tolerancia_work` | Tolerar y avisar: lo que Work escribe distinto de lo esperado se corrige solo, con aviso (T-28, D-106). |
 | `work_contract` | Contrato entre ChatGPT Work y el puente: valida el JSON del borrador contra `spec/contrato_work.schema.json`. |
+| `clasificacion` | Clasificación comercial preliminar (T-52): `SOLICITUD_NUEVA`, `SEGUIMIENTO`, `NO_SOLICITUD` o `REVISION_MANUAL`, sobre R1 y T-51. Reglas puras. |
+| `coordinacion_work` | Reglas puras de la coordinación Python-Work (T-55): validación de `work_coordination_*`, plan del ciclo (límites, corte, laboratorio) y retroceso por fallo. |
+| `trabajo_work` | Trabajo Python → Work (T-49): `job_id` determinista, referencia verificable al mensaje y hoja `.xlsx` del trabajo. Reglas puras. |
 
 ### `anka/infra/`
 
@@ -92,6 +94,10 @@ La descripción es la primera frase de su docstring.
 | `reinicio` | Reinicio de los datos locales para volver a probar desde cero: vista previa, copia de seguridad y vaciado. |
 | `clientes_google` | La forma mínima de los clientes de Gmail y de Drive que usa Anka (`Protocol`), para tiparlos sin `Any` (U-65). |
 | `google_services` | Cliente de Gmail y Drive: credenciales, servicios y carpetas. |
+| `recepcion_store` | Migración SQLite del cursor, la cola y la auditoría del trigger Gmail (U-81). |
+| `trabajos_work_store` | Migración SQLite de `trabajos_work`, la cola de trabajos Python → Work (T-49, D-153). |
+| `gmail_reception_auth` | Autorización y cliente Gmail de solo lectura del receptor, con token propio y alcance verificado (U-81). |
+| `instancia_unica` | Candado de instancia única entre procesos, con el candado del sistema operativo y sin depender de un PID; lo usa el receptor aislado (U-81, D-151). |
 | `drive_exchange` | Intercambio de archivos propios en Drive con claves estables, paginación y bloqueo local. |
 | `llm` | Análisis del correo con el motor elegido (Ollama u OpenAI). |
 | `logging_setup` | Registro de la aplicación: consola con todo el detalle, archivo sin datos de clientes. |
@@ -126,6 +132,7 @@ La descripción es la primera frase de su docstring.
 | `estado_de_revision` | Estado de la revisión de Gmail: cuándo fue la última, cuánto tardó, qué cambió y cómo se cuenta a la persona. |
 | `followup_reminders` | Seguimiento cuando el cliente tarda en responder (R13). |
 | `gmail_followup` | Seguimiento del hilo en Gmail (solo lectura): registra lo enviado y lo recibido, venga de donde venga. |
+| `recepcion` | Detecta mensajes nuevos con Gmail History y los registra idempotentemente en una cola local (U-81). |
 | `hoja_de_calculo` | La hoja de Google Sheets de cada caso: se crea en la carpeta del proyecto y se mantiene al día sola (spec T-17). |
 | `internal_context` | Contexto comercial interno: solo lectura, nunca sale en correos. |
 | `pipeline` | Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica. |
@@ -138,6 +145,9 @@ La descripción es la primera frase de su docstring.
 | `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
 | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
 | `work_import` | Importación del borrador de ChatGPT Work al dashboard (`dashboard_upsert`). |
+| `trabajos_work` | Crea el trabajo de un mensaje pendiente, publica su hoja en Drive sin duplicar (reclamo en SQLite, marca `appProperties`, adopta antes de crear, verifica después) y cierra el trabajo al importar (T-49, D-153). |
+| `despacho` | Despacho a Work (T-53): una pasada que asegura `PENDIENTES`/`CERRADOS`, crea y publica el trabajo elegible del mensaje del piloto, reintenta y archiva los conciliados. |
+| `coordinacion` | Coordinación automática (T-55): un ciclo acotado que archiva lo conciliado, importa los borradores de Work con T-47 y despacha los mensajes elegibles nuevos, con límites, retroceso por trabajo, auditoría y candado de instancia única. |
 | `work_attachment_packet` | Prepara localmente manifiesto de evidencia y textos de adjuntos segmentados para que una persona los aporte a la tarea de Work. |
 | `work_drive` | Expedientes de recepción versionados de Gmail a Drive, con originales y extracción para Work. |
 
@@ -170,6 +180,10 @@ El JavaScript de las páginas vive en `templates/app.js` (el de cada página, co
 | `supervisor` | Lanzador único: arranca dashboard y puente, los reinicia si se caen o si cambia el código (y se reinicia a sí mismo), y hace la copia de seguridad diaria. |
 | `work_sync` | Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. |
 | `work_drive` | Proceso de preparación de expedientes, separado del puente de borradores. |
+| `gmail_reception` | Sondeo aislado de recepción Gmail (solo lectura, `python -m anka.cli.gmail_reception`); no arranca el supervisor (U-81). |
+| `work_jobs` | Órdenes `crear`, `ver`, `exportar` y `publicar` (esta con `--confirmar-drive`) de los trabajos Python → Work; no corre solo (T-49). |
+| `paquete_work` | Paquete de referencia del contrato para la tarea Work de la cola (T-54): construye, verifica y publica en Drive (solo con confirmación) los archivos que Work lee. |
+| `work_coordinacion` | Prepara y ejecuta el ciclo de T-55 con Gmail y Drive reales (lo usan el lanzador, en un hilo, y la orden `work_jobs coordinar`); solo corre con la coordinación activada en `config.json`. También la verificación previa de solo lectura (`work_jobs verificar-piloto`: configuración, procesos, candados, cola y mensaje de laboratorio). |
 | `evaluacion` | Evaluación del análisis con solicitudes reales del histórico: `python -m anka.cli.evaluacion <comando>`. |
 
 ## Glosario
@@ -193,7 +207,7 @@ El código mezcla inglés y español por su historia; no se renombra (cientos de
 | `link`, `case_links` | **vínculo** | Un correo de otro hilo que parece del mismo proyecto. |
 | `change`, `case_changes` | **cambio** | Un mensaje posterior a la T que pide algo distinto al alcance. |
 | `marker`, `change_marker` | **marcador de cambios** | Un texto barato que cambia cuando algo cambia, para refrescar pantallas. |
-| `recepcion_*` *(previsto, U-66)* | **recepción** / **expediente preliminar** | Registrar cada correo entrante en modo Work aunque Work no lo haya analizado, y el caso mínimo que eso crea. |
+| `recepcion_*` (U-81) | **recepción** / **evento interno** | Cursor y mensajes nuevos detectados, pendientes o con error; no crea casos ni modifica Gmail. |
 | `case_uid` *(previsto, U-74)* | **identificador del expediente** | Identidad estable de un caso, distinta de `thread_id`: no se reutiliza si el caso se elimina y se recrea. |
 
 ## Clases y funciones: cuándo cada una

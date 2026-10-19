@@ -28,6 +28,9 @@ from anka.servicios.change_control import apply_guard
 from anka.servicios.estados import verificar_transicion
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.quotes import save_quote_metadata
+from anka.dominio.clasificacion import AVANZAN, NO_SOLICITUD, REVISION_MANUAL
+from anka.servicios.recepcion import conciliar_con_work
+from anka.servicios.trabajos_work import marcar_conciliado
 from anka.dominio.caso import CLIENT_TYPES, SECTORS
 from anka.dominio.work_contract import attachment_coverage_warnings, question_evidence_warnings, reading_summary
 
@@ -177,6 +180,8 @@ def _work_analysis(payload: dict) -> Analisis:
                 unit_warnings.append(message)
                 unit_dependencies.append({"description": message, "source": row.get("fuente") or source,
                                           "status": "pendiente"})
+    clasificacion = str(payload.get("classification") or "")
+    avanza = not clasificacion or clasificacion in AVANZAN          # T-52: solo lo confirmado sigue a actividades
     coverage_warnings = attachment_coverage_warnings(payload)
     reading = reading_summary(payload)
     visual_dependencies = [{"description": warning, "source": source, "status": "pendiente"}
@@ -191,10 +196,12 @@ def _work_analysis(payload: dict) -> Analisis:
                              "status": "pendiente"} for warning in reading["warnings"]]
     dependencies = [*dependencies, *unit_dependencies, *visual_dependencies, *reading_dependencies]
     return {
-        "is_quote_request": payload["status"] != "Descartada",
+        "is_quote_request": payload["status"] != "Descartada" and clasificacion != NO_SOLICITUD,
+        **({"classification": clasificacion,
+            "classification_reason": _declarado(payload.get("classification_reason"), 300)} if clasificacion else {}),
         "project_name": payload["project_name"],
         "summary": payload.get("summary", ""),
-        "activities": _work_activities(payload),
+        "activities": _work_activities(payload) if avanza else [],
         "fields": payload.get("fields", []),
         "question_audit": payload.get("question_audit", []),
         "evidence_register": payload.get("evidence_register", []),
@@ -203,14 +210,14 @@ def _work_analysis(payload: dict) -> Analisis:
            if _como_lista(payload.get("_correcciones_de_work")) else {}),
         **({"sin_analisis_de_work": _rechazo_guardado(payload.get("_rechazo_de_work"))}
            if payload.get("_caso_minimo") is True else {}),
-        "other_questions": _work_missing_data(payload.get("missing_data", [])),
+        "other_questions": _work_missing_data(payload.get("missing_data", [])) if avanza else [],
         "scope_dependencies": dependencies,
         "contradictions": _list_or_wrapped(payload.get("contradictions", []), lambda text: {
             "topic": "dato técnico", "details": text, "sources": [], "status": "pendiente"}),
         "attachments": _list_or_wrapped(payload.get("attachments", []), lambda text: {
             "filename": text, "status": "registrado", "reason": "", "blocked_fields": []}),
         "work_reply": ({"text": reply_text, "draft_id": str(payload.get("draft_id") or "")}
-                       if reply_text else {}),
+                       if reply_text and avanza else {}),
         "received_at": payload.get("received_at", ""),
         "work_message_id": payload.get("message_id") or "",
         "gmail_url": payload.get("gmail_url", ""),
@@ -247,6 +254,10 @@ def _internal_status(payload: dict, analysis: Analisis) -> str:
     """Estado interno que corresponde al borrador de Work."""
     # el estado ya se validó al decodificar; si aun así no se reconoce, decide una persona (nunca se guarda tal cual)
     status = _WORK_STATUS_MAP.get(payload["status"], QuoteStatus.REVIEW)
+    if payload.get("classification") == NO_SOLICITUD:           # T-52: Work confirma que no es una solicitud
+        return QuoteStatus.IGNORED
+    if payload.get("classification") == REVISION_MANUAL:        # T-52: decide una persona, sin avanzar el caso
+        return QuoteStatus.REVIEW
     if payload.get("analysis_complete") is False or analysis.get("reading_summary", {}).get("status") == "pendiente":
         return QuoteStatus.REVIEW
     if status in (QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED
@@ -308,6 +319,8 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
         "SELECT status, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)
     ).fetchone()
     reanalysis_of_same_message = bool(row) and row["last_inbound_id"] == message_id
+    if row and status == QuoteStatus.IGNORED and payload.get("classification") == NO_SOLICITUD:
+        status = QuoteStatus.REVIEW       # T-52: un mensaje que no es solicitud no descarta un expediente existente
     if row:
         # un caso ya avanzado en el dashboard no retrocede por un borrador posterior; solo una
         # respuesta nueva del cliente puede mover un caso que estaba esperando su respuesta (U-47)
@@ -320,7 +333,32 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
     hecho = (SIN_ANALISIS if payload.get("_caso_minimo") is True else
              f"Work analizó el caso: {payload['status']}.{_modelo_declarado(payload)}{_demora_del_puente(payload)}")
     record_event(db, thread_id, "analysis", "work", version, hecho, payload.get("received_at", ""))
+    _conciliar_recepcion(db, payload, analysis, version)
     db.commit()
+
+
+def _conciliar_recepcion(db: sqlite3.Connection, payload: dict, analysis: Analisis, version: str) -> None:
+    """Cierra en la cola de recepción el mensaje que este análisis interpretó (T-48), dentro de la transacción.
+
+    Solo cuenta un análisis de Work de verdad (no el caso mínimo del puente) de un mensaje que el borrador nombra. Un
+    fallo de la cola no pierde el análisis: se revierte solo la conciliación y se avisa sin datos del correo.
+    """
+    message_id = payload.get("message_id")
+    if payload.get("_caso_minimo") is True or not isinstance(message_id, str) or not message_id.strip():
+        return
+    db.execute("SAVEPOINT conciliacion_recepcion")
+    try:
+        resultado = conciliar_con_work(db, payload["thread_id"], message_id, version, analysis.get("analysis_complete"),
+                                       str(payload.get("status") or ""),
+                                       clasificacion=analysis.get("classification", ""))
+        log.info("Conciliación de recepción: %s", resultado)
+        if resultado in ("conciliado", "ya_conciliado"):
+            marcar_conciliado(db, payload["thread_id"], message_id, version)      # T-49: cierra el trabajo del mensaje
+    except sqlite3.Error as exc:
+        db.execute("ROLLBACK TO conciliacion_recepcion")
+        log.warning("No se pudo conciliar la cola de recepción; el análisis se guarda igual (%s)", type(exc).__name__)
+    finally:
+        db.execute("RELEASE conciliacion_recepcion")
 
 
 def _commercial_metadata(payload: dict, saved: sqlite3.Row | None) -> tuple[str, str, str, str]:

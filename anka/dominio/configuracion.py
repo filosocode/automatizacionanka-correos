@@ -67,3 +67,20 @@ class Configuracion(TypedDict, total=False):
     ocr_segundos_por_archivo: float   # segundos de OCR local por archivo; 0 = sin límite (por defecto)
     ocr_segundos_por_caso: float      # segundos de OCR local por caso (todos sus adjuntos); 0 = sin límite
     ocr_omitir_escaneados: bool       # no hacer OCR a PDF e imágenes escaneados: marcarlos «requiere visión»
+    gmail_reception_enabled: bool     # trigger Gmail determinista, solo lectura y opt-in
+    gmail_reception_interval_seconds: int  # frecuencia del sondeo (30–3600 s, por defecto 60)
+    work_dispatch_enabled: bool       # despacho automático a Work (T-53); desactivado por defecto
+    work_dispatch_folder_id: str      # raíz de laboratorio con PENDIENTES y CERRADOS
+    work_dispatch_thread_id: str      # el único hilo del primer piloto
+    work_dispatch_message_id: str     # el único mensaje del primer piloto
+    work_general_bridge_enabled: bool  # puente general de borradores (T-56); apagado por defecto, autorización expresa
+    work_coordination_enabled: bool   # coordinación automática Python-Work (T-55); desactivada por defecto
+    work_coordination_folder_id: str  # raíz con PENDIENTES y CERRADOS
+    work_coordination_since: str      # fecha y hora ISO con zona: lo detectado antes nunca se procesa
+    work_coordination_interval_seconds: int   # cada cuánto corre un ciclo (60-3600)
+    work_coordination_max_publish: int        # trabajos nuevos por ciclo (1-5)
+    work_coordination_max_import: int         # importaciones por ciclo (1-5)
+    work_coordination_max_archive: int        # archivados por ciclo (1-10)
+    work_coordination_thread_id: str          # laboratorio: solo este hilo (opcional, junto con el mensaje)
+    work_coordination_message_id: str         # laboratorio: solo este mensaje
+    work_coordination_alert_minutes: int      # minutos sin respuesta de Work antes de alertar (15-1440)

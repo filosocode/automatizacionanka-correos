@@ -9,6 +9,11 @@
 | [`GUIA_COMERCIAL.md`](GUIA_COMERCIAL.md) | El comercial | Cómo usar el dashboard en el día a día |
 | [`FLUJO_FASE1.md`](FLUJO_FASE1.md) | Todos | El flujo de la Fase 1, paso a paso |
 | [`MODO_OPERACION.md`](MODO_OPERACION.md) | Quien opera | Los tres modos (Ollama, API, Work) y cómo cambiar |
+| [`PILOTO_TRIGGER_GMAIL.md`](PILOTO_TRIGGER_GMAIL.md) | Quien autorice un piloto futuro | Observación, criterios de éxito, detención y reversión del trigger Gmail de solo lectura |
+| [`PILOTO_COLA_WORK.md`](PILOTO_COLA_WORK.md) | Quien autorice la prueba manual de la cola Python → Work | Crear el trabajo, revisar la hoja, publicarla en Drive de laboratorio, importar el retorno y verificar (T-49) |
+| [`PILOTO_6C_ACTIVACION.md`](PILOTO_6C_ACTIVACION.md) | Quien autorice el piloto automático de un solo mensaje ficticio | Verificar, activar, supervisar y desactivar el coordinador T-55 con puntos de parada y reversión |
+| [`TAREA_WORK_COLA.md`](TAREA_WORK_COLA.md) | Quien vaya a crear la tarea de Work que recoge un trabajo por ejecución | Texto propuesto (no es una tarea creada): qué hace Work y qué hace Python con PENDIENTES y CERRADOS (T-53) |
+| [`paquete_work/`](paquete_work/) | Quien mantenga el paquete que Work lee desde Drive | Fuentes del paquete de referencia del contrato (T-54): LEEME, T-52, formato de retorno e instrucciones de una ejecución |
 | [`PILOTO_ACEPTACION.md`](PILOTO_ACEPTACION.md) | Quien prueba | Checklist de la prueba de aceptación en Work |
 | [`PROMPT_WORK_ANKA_V6.txt`](PROMPT_WORK_ANKA_V6.txt) | Quien configura la tarea de Work | Candidato V6.1 (T-41): Work lee los adjuntos directamente desde Gmail, sin Drive; cada adjunto se reporta con nombre y `size_bytes` y el puente lo verifica. Se prueba primero en una conversación aparte |
 | [`PROPUESTA_PROMPT_V6_2.md`](PROPUESTA_PROMPT_V6_2.md) | Quien configura la tarea de Work | Propuesta (no aplicada) de V6.2: núcleo y extras, valores permitidos junto a cada campo y lista de comprobación; exige prueba manual en Work |

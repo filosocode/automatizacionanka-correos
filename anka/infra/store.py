@@ -19,6 +19,10 @@ from anka.dominio.caso import VERSION_DEL_RESUMEN, load_analysis, resumen_de_ana
 from anka.dominio.reloj import ahora_iso, clave_de_orden
 from anka.dominio.status import ESTADOS_CON_RESPUESTA_SUGERIDA, QuoteStatus, sql_in
 from anka.infra import settings
+from anka.infra.recepcion_store import (
+    migration_recepcion_auditoria, migration_recepcion_gmail, migration_recepcion_segura,
+)
+from anka.infra.trabajos_work_store import migration_trabajos_work
 
 
 QUOTES_EXTRA_COLUMNS = ("first_seen_at", "updated_at", "draft_id", "draft_body", "sent_at")
@@ -408,6 +412,10 @@ MIGRATIONS = (
     _migration_18_resumen_de_casos,
     _migration_19_texto_del_envio,
     _migration_20_anclas_de_la_cadena,
+    migration_recepcion_gmail,
+    migration_recepcion_segura,
+    migration_recepcion_auditoria,
+    migration_trabajos_work,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -478,6 +486,15 @@ def migrate(db: sqlite3.Connection, db_path: Path | None = None) -> None:
         db.commit()
 
 
+# Un análisis que se declara incompleto y no trae respuesta preparada (ni borrador de una persona ni texto de Work) no
+# tiene nada que anunciar como «respuesta sugerida» (T-50, D-154). `json_valid` evita que un análisis dañado rompa la
+# apertura de la base: ese caso se sigue derivando como siempre.
+_SIN_RESPUESTA_PREPARADA = """(CASE WHEN json_valid(analysis_json)
+        THEN json_extract(analysis_json, '$.analysis_complete') IS 0
+             AND TRIM(COALESCE(draft_body, ''), ' ' || char(9, 10, 13)) = ''
+             AND TRIM(COALESCE(json_extract(analysis_json, '$.work_reply.text'), ''), ' ' || char(9, 10, 13)) = ''
+        ELSE 0 END)"""
+
 # Novedades que se derivan de los casos guardados: (tipo, título, mensaje, fecha, condición sobre el caso).
 _DERIVED_NOTIFICATIONS = (
     ("request_received", "Correo nuevo recibido",
@@ -486,7 +503,7 @@ _DERIVED_NOTIFICATIONS = (
     ("draft_suggested", "Respuesta sugerida lista para revisar",
      "Revisa el destinatario y el texto antes de guardarlo en Gmail o enviarlo.",
      "COALESCE(updated_at, first_seen_at)",
-     "status IN " + sql_in(*ESTADOS_CON_RESPUESTA_SUGERIDA)),
+     "status IN " + sql_in(*ESTADOS_CON_RESPUESTA_SUGERIDA) + f" AND NOT {_SIN_RESPUESTA_PREPARADA}"),
 )
 
 

@@ -17,6 +17,7 @@ import unicodedata
 from collections.abc import Sequence
 from typing import Any
 
+from anka.dominio.clasificacion import CLASIFICACIONES, REVISION_MANUAL
 from anka.dominio.status import reconocer_estado_de_work
 from anka.dominio.work_contract import (
     corregir_descuidos_de_tipo, load_schema, tipo_cumple, validate, version_del_contrato,
@@ -400,6 +401,25 @@ def comprobar_identidad(payload: dict) -> None:
                       + " o no es un texto: sin eso no se sabe de qué correo habla.", "falta_identidad", faltan)
 
 
+def _normalizar_clasificacion(payload: dict) -> str:
+    """T-52: una `classification` ilegible NO se borra (el caso avanzaría como si no existiera): va a revisión.
+
+    Se toleran mayúsculas, espacios y guiones («solicitud nueva»); `null` equivale a no traerla.
+    """
+    if "classification" not in payload:
+        return ""
+    valor = payload["classification"]
+    if valor is None:
+        del payload["classification"]
+        return ""
+    texto = "_".join(str(valor).upper().replace("-", " ").split()) if isinstance(valor, str) else ""
+    if texto in CLASIFICACIONES:
+        payload["classification"] = texto
+        return ""
+    payload["classification"] = REVISION_MANUAL
+    return "La clasificación que escribió Work no es una de las cuatro permitidas; el mensaje queda en revisión manual."
+
+
 def normalizar_analisis(payload: dict) -> None:
     """Deja el análisis listo para importar: estado oficial, descuidos de tipo corregidos y avisos de lo corregido.
 
@@ -417,6 +437,9 @@ def normalizar_analisis(payload: dict) -> None:
     payload["status"] = status  # la etiqueta oficial (aunque venga sin tildes, con punto final o con un sinónimo)
     if aviso:
         payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso]
+    aviso_de_clase = _normalizar_clasificacion(payload)
+    if aviso_de_clase:
+        payload["_avisos_del_puente"] = [*payload.get("_avisos_del_puente", []), aviso_de_clase]
     reparado = reparar(payload)
     if reparado:
         payload["_correcciones_de_work"] = [*payload.get("_correcciones_de_work", []), reparado]

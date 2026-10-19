@@ -54,6 +54,13 @@ def _noise_signal_id(message: dict) -> str | None:
     return None
 
 
+def noise_signal_id(message: dict) -> str | None:
+    """El identificador de la señal de ruido (R1) de un mensaje de Gmail, o None.
+
+    Es el que el receptor guarda en la evidencia del mensaje y el que usa la elegibilidad de los trabajos (T-51)."""
+    return _noise_signal_id(message)
+
+
 def _automated_signal(message: dict) -> str | None:
     """Motivo (genérico) por el que un mensaje es automático, o None."""
     signal = _noise_signal_id(message)

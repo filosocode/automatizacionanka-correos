@@ -237,10 +237,17 @@ class EfectosLateralesTests(Base):
             db.execute("""INSERT INTO recepcion_mensajes(account,thread_id,message_id,state,disposition,detected_at,updated_at)
                 VALUES('ankacomercialia@gmail.com',?,?,'pendiente_de_procesar','pendiente_de_interpretacion_work','t','t')""",
                        (ID, ID))
-        antes = self.recepcion()
+            for hilo, mensaje in ((ID, OTRO), ("B", "mB")):          # otro mensaje del mismo hilo y uno de otro hilo
+                db.execute("""INSERT INTO recepcion_mensajes(account,thread_id,message_id,state,disposition,detected_at,
+                    updated_at) VALUES('ankacomercialia@gmail.com',?,?,'pendiente_de_procesar',
+                    'pendiente_de_interpretacion_work','t','t')""", (hilo, mensaje))
+        antes = {fila[2]: fila for fila in self.recepcion()}
         gmail = GmailAislado({"dT": borrador(), "dOtro": borrador(hilo="B", mensaje="mB", gmail_id="gB")})
         self.assertEqual(self.importar(gmail)["resultado"], "importado")
-        self.assertEqual(self.recepcion(), antes)                     # el acuse queda fuera de este cambio
+        despues = {fila[2]: fila for fila in self.recepcion()}
+        self.assertEqual(despues[OTRO], antes[OTRO])                  # T-48: solo se concilia el mensaje elegido
+        self.assertEqual(despues["mB"], antes["mB"])
+        self.assertEqual(despues[ID][3:5], ("procesado", "interpretado_por_work"))
         self.hoja.assert_not_called()
         self.actividad.assert_not_called()
         for nombre in ("work_dashboard_sync_state.json", "work_sync_heartbeat.json"):

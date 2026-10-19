@@ -329,6 +329,7 @@ cuenta uno aunque tenga dos novedades. Al abrir un caso con la página a la vist
 Para avisar sin mirar el Resumen, el título de la pestaña lleva el número de casos con novedades («(2) Resumen comercial - Anka») y,
 si la persona lo activa, el navegador muestra un aviso cuando entran novedades nuevas con la pestaña oculta. Es solo el navegador de
 este equipo: no se envía nada fuera.
+La novedad «respuesta sugerida lista» solo se deriva si hay una respuesta preparada o el análisis no se declara incompleto (T-50, D-154).
 
 ### U-12 · Decidir y preguntar en un solo paso
 En revisión técnica, la pantalla ofrece una sola sección, «¿Cómo seguimos?», con las dos salidas y lo que ocurre después de
@@ -1558,7 +1559,8 @@ latido del puente general.
    que no incluya a `M`, el análisis queda incompleto y con aviso, igual que en el modo general.
 7. **Escritura mínima.** Solo se escribe el análisis del caso `T` (tabla del caso, su auditoría y los datos comerciales de ese caso). No se crean casos
    mínimos, no se sincroniza la actividad de Gmail, no se programa la hoja de Google, no se escribe el estado (`work_dashboard_sync_state.json`) ni el
-   latido del puente general, no se anotan rechazos en `work_rejections` y no se toca `recepcion_mensajes` (el acuse queda fuera de este cambio).
+   latido del puente general y no se anotan rechazos en `work_rejections`. De `recepcion_mensajes` solo se concilia la fila del mensaje elegido, con la misma
+   regla de T-48 (ningún otro mensaje del hilo ni de otros hilos).
 8. **Salida.** Una línea JSON con el resultado (`importado`, `sin_borrador`, `rechazado`, `ambiguo`, `error_de_origen`, `fallo_de_importacion`), los ids de borrador
    implicados y los borradores ignorados o rechazados con su causa. Código de salida 0 solo si se importó; 1 en los demás casos. No imprime el contenido del correo.
 9. **Repetir es seguro.** Importar dos veces el mismo borrador no duplica el hecho de auditoría (misma referencia).
@@ -1568,10 +1570,311 @@ latido del puente general.
 - C2 · Un borrador del hilo con otro `message_id` se ignora y se informa; sin válido, resultado `sin_borrador`.
 - C3 · Sin `skill_version`, el origen se verifica igual; un remitente distinto o un mensaje que es un borrador rechaza.
 - C4 · Dos borradores válidos para `(T, M)` → `ambiguo`, nada importado.
-- C5 · Tras importar, no cambian el archivo de estado ni el latido del puente general, no se programa la hoja, no hay filas en `work_rejections` ni en `recepcion_mensajes`.
+- C5 · Tras importar, no cambian el archivo de estado ni el latido del puente general, no se programa la hoja, no hay filas en `work_rejections` y de `recepcion_mensajes` solo cambia la fila del mensaje elegido (T-48).
 - C6 · Con instantánea del manifiesto que no incluye `M`, el análisis queda incompleto con aviso; sin instantánea, sin aviso.
 - C7 · Argumentos incompletos o sin `--once` terminan en error de uso sin llamar a Gmail.
 - C8 · El modo general sigue igual (las pruebas del puente no cambian).
+
+### T-48 · Una importación de Work confirma el mensaje que la originó en la cola de recepción
+**Estado: implementado** (pruebas en `tests/test_conciliacion_work.py`). Decisión: D-152. Acota U-81 y T-47; no cambia `[ANKA_DASHBOARD_JSON_V1]` ni el receptor.
+
+**Motivo.** El receptor Gmail (U-81) deja cada mensaje entrante en `pendiente_de_procesar` / `pendiente_de_interpretacion_work` y nada lo cierra: aunque Work ya
+lo analizó y el puente lo importó, la fila sigue pendiente (piloto 03: `1a149ae2f36b4147`).
+
+**Cuándo queda confirmada una importación.** `work_import._store_work_analysis` guarda el caso (`store.save` confirma `quotes` y la versión de la tabla), anota el hecho
+`analysis` de la auditoría y confirma. La conciliación se escribe en esa **última transacción, después del hecho de auditoría**: se confirma junto con él y nunca antes de que
+el caso esté guardado. Si algo falla antes, la fila no cambia; si el proceso se interrumpe tras guardar el caso y antes de confirmar, la fila sigue pendiente y reimportar (el
+puente reintenta lo que falló) la concilia.
+
+**Qué debe cumplirse**
+1. **Identidad exacta.** Se concilia la fila `(cuenta, thread_id, message_id)` con el `thread_id` y el `message_id` que el borrador declara. Nunca otro mensaje del mismo hilo: un
+   seguimiento del cliente (otro `message_id`) concilia el suyo, y los anteriores siguen como estaban. Un borrador sin `message_id` propio (el importador lo sustituye por el
+   `thread_id`) no concilia nada.
+2. **Cambio de estado.** Solo `pendiente_de_procesar` / `pendiente_de_interpretacion_work` pasa a `procesado` / `interpretado_por_work`. Se anota en la evidencia de la fila (`work`:
+   referencia del análisis, `analysis_complete`, estado declarado por Work, hora) y se audita con un evento `interpretado_por_work`.
+3. **Estados independientes.** La recepción solo dice «Work ya interpretó este mensaje y el dashboard lo guardó». No dice si el análisis está completo, si hay que revisarlo
+   técnicamente ni en qué etapa comercial va el caso: eso sigue en `quotes` (`analysis_complete`, estado del caso). Un análisis incompleto se concilia igual.
+4. **Idempotente.** Reimportar el mismo borrador, o uno nuevo del mismo mensaje, no cambia la fila ni duplica el evento (`ya_conciliado`).
+5. **Sin registro.** Si la fila no existe no se crea, no se toca el cursor ni `recepcion_control`, y se deja **un** evento `conciliacion_sin_registro` (por mensaje) para poder investigarlo.
+6. **Otros estados.** Si el mensaje aún no está leído por el receptor (`por_leer`, `requiere_reintento`) la conciliación se difiere: la fila no cambia y queda **un** evento
+   `conciliacion_diferida`. Si está en `revision_manual` o excluido (propio o anterior al cursor) queda **un** evento `conciliacion_omitida` y la fila no cambia.
+7. **Un fallo de la conciliación no pierde el análisis.** Se ejecuta en un punto de guardado: si falla (p. ej. tabla ausente) se revierte solo ella, se avisa en el registro (sin
+   datos del correo) y el análisis se confirma. La fila queda pendiente y se puede conciliar después (punto 9).
+8. **Solo análisis de Work.** Un caso mínimo creado por el puente porque el borrador era inválido (T-36, `_caso_minimo`) no es una interpretación de Work y no concilia.
+9. **Conciliación de lo ya importado.** `recepcion.conciliar_pendientes()` aplica la misma regla a las filas pendientes cuyo mensaje ya tiene un análisis de Work guardado
+   (`work_message_id` igual al `message_id`, no un caso mínimo): cubre lo importado antes de este cambio y lo diferido. Es idempotente y no se ejecuta sola.
+10. **Sin efectos fuera de la cola.** No escribe Gmail, Drive ni Sheets, no toca el cursor, no cambia el código del receptor ni el contrato con Work.
+
+**Casos de aceptación**
+- C1 · Importación válida: la fila pasa a `procesado/interpretado_por_work` con evento y evidencia; el caso queda en `quotes`.
+- C2 · Reimportar (mismo borrador y uno nuevo) no duplica el evento ni cambia la fila.
+- C3 · Seguimiento: el análisis del mensaje 2 concilia solo el mensaje 2; el mensaje 1 del hilo y los de otros hilos no cambian.
+- C4 · Análisis incompleto (`analysis_complete=false`, «Requiere revisión técnica interna»): la fila se concilia y el caso sigue en revisión.
+- C5 · Sin fila: no se crea fila, el cursor no cambia y queda un solo evento `conciliacion_sin_registro`, aunque se reimporte.
+- C6 · Mensaje `por_leer`, `requiere_reintento`, `revision_manual` o excluido: la fila no cambia y queda un evento.
+- C7 · Fallo al anotar el hecho de auditoría: la fila no cambia y reimportar la concilia. Fallo de la conciliación: el análisis queda, la fila no cambia y no queda un evento a medias.
+- C8 · Caso mínimo y borrador sin `message_id`: no concilian.
+- C9 · `conciliar_pendientes()` concilia lo ya importado una sola vez y respeta C3 y C8.
+- C10 · La importación aislada (T-47) concilia solo el mensaje elegido.
+
+### T-49 · Cola de trabajos Python → Work: un trabajo por mensaje y una hoja `.xlsx` de Drive por trabajo
+**Estado: implementado en local, sin publicar** (pruebas en `tests/test_trabajos_work.py`; ninguna prueba toca Drive). Decisión: D-153. Acota D-131 y U-66 a U-76 (que siguen previstos) y no cambia `[ANKA_DASHBOARD_JSON_V1]`, T-47, T-48 ni el receptor.
+
+**Motivo.** Para que Work lea un expediente que Python eligió, el mensaje registrado en `recepcion_mensajes` necesita un trabajo con identidad estable y una hoja que Work pueda abrir. La primera prueba es manual y supervisada: nada lo activa solo.
+
+**Qué debe cumplirse**
+1. **Tabla `trabajos_work` (migración 24), SQLite como autoridad.** Campos: `job_id` (clave), `account`, `thread_id`, `message_id`, `job_type`, `contract_version`, `state`, `message_ref_json`, `ref_sha256`, `sheet_file_id`, `folder_id`, `claim_token`, `claim_until`, `attempts`, `last_error`, fechas. Clave única `(account, thread_id, message_id, job_type, contract_version)`.
+2. **`job_id` determinista.** `ANKAJOB-` + los 16 primeros hexadecimales del SHA-256 de `account|thread_id|message_id|job_type|contract_version`. El mismo mensaje con el mismo tipo y la misma versión da siempre el mismo trabajo; cambiar el tipo o la versión del contrato da otro.
+3. **Crear un trabajo.** Solo para una fila que exista en `recepcion_mensajes` y siga en `pendiente_de_procesar` / `pendiente_de_interpretacion_work`. Si no existe o ya está interpretada, se rechaza y no se inventa nada. Crear dos veces devuelve el mismo trabajo, sin duplicar fila ni evento. Hoy el único tipo es `analizar_solicitud` y la versión es `ANKA_DASHBOARD_JSON_V1`.
+4. **Referencia verificable al mensaje.** `message_ref_json` guarda solo metadatos que ya tiene la cola: `gmail_thread_id`, `gmail_message_id`, remitente, asunto, `internal_date`, `header_date` y la lista de adjuntos (nombre, tipo, tamaño e id de adjunto). Nunca el cuerpo ni el texto de los adjuntos. `ref_sha256` es el SHA-256 de esa referencia en JSON canónico y viaja en la hoja.
+5. **Estados.** `pendiente_de_publicar` → `publicando` → `publicado` → `conciliado`; además `ambiguo` (requiere una persona) y `cancelado`. Cada transición es un `UPDATE ... WHERE state=<esperado>`: solo una de dos transiciones simultáneas lo logra. Los eventos de auditoría van a `recepcion_eventos` (`trabajo_creado`, `trabajo_publicado`, `trabajo_ambiguo`, `trabajo_conciliado`), uno por transición.
+6. **Hoja `.xlsx` por trabajo** (Drive existente, conversión a hoja de Google). Archivo `ANKA_JOB_<job_id>`. Hojas: `TRABAJO` (campo/valor: `job_id`, `thread_id`, `message_id`, tipo, estado, versión del contrato, fecha de creación, `ref_sha256`, referencia al mensaje, instrucción para Work), `ADJUNTOS_ESPERADOS` y `VERIFICACION` (qué debe comparar Work con Gmail antes de analizar). Work solo lee la hoja; nunca la escribe.
+7. **Publicar sin duplicar bajo concurrencia.** Buscar por nombre no basta. Controles:
+   a. **Reclamo en SQLite:** antes de tocar Drive se reclama el trabajo (`pendiente_de_publicar` → `publicando` con `claim_token` y `claim_until`). Quien no obtiene el reclamo no escribe en Drive. Un reclamo vencido (proceso caído) se puede retomar.
+   b. **Marca verificable en Drive:** el archivo se crea con `appProperties.anka_job_id = job_id` y se busca por esa marca (el nombre es solo una pista), nunca solo por nombre.
+   c. **Adoptar antes de crear:** si el trabajo ya tiene `sheet_file_id`, se verifica que exista, no esté en la papelera y lleve la marca de ese trabajo. Si falta el id pero hay un archivo con la marca (respuesta perdida tras crear), se adopta.
+   d. **Verificar después de crear:** se vuelve a listar por la marca. Con exactamente un archivo, es el resultado. Con más de uno (carrera entre procesos) el trabajo pasa a `ambiguo`, se anota cuáles son y **no se borra ni se elige ninguno**.
+   e. **Resultado ambiguo o error:** un error de Drive deja el trabajo en `pendiente_de_publicar` (con `last_error` sin datos del correo) si no hay efecto comprobado, o en `ambiguo` si hay más de un candidato. Un trabajo `ambiguo` no se vuelve a publicar solo.
+   f. **Crear no se reintenta a ciegas** (un POST puede haber tenido efecto): se verifica primero por la marca. Actualizar el mismo archivo sí es idempotente.
+8. **Retorno sin cambiar el contrato.** Work devuelve el borrador `[ANKA_DASHBOARD_JSON_V1]` de siempre; el trabajo se une al retorno por `(thread_id, message_id)`. La importación (general o T-47) concilia el mensaje (T-48) y, en la misma transacción y punto de guardado, pasa el trabajo (`pendiente_de_publicar`, `publicando` o `publicado`) a `conciliado` con un evento único. Reimportar no cambia nada. `ambiguo` y `cancelado` no cambian.
+9. **Solo local por ahora.** Existe `python -m anka.cli.work_jobs` con `crear`, `exportar` (escribe el `.xlsx` en un archivo local, sin Drive), `ver` y `publicar`. `publicar` exige `--carpeta-id` y `--confirmar-drive` y no se ejecuta sin autorización expresa. Nada corre de forma periódica, no hay hilo ni tarea programada.
+10. **Sin efectos fuera de lo dicho.** No crea ni envía borradores, no escribe en Gmail ni Sheets, no toca el cursor, `quotes` ni ANKA 01.
+
+**Casos de aceptación**
+- C1 · `job_id` estable, distinto por mensaje, tipo y versión; formato `ANKAJOB-` + 16 hexadecimales.
+- C2 · Crear dos veces: una fila y un evento. Sin fila de recepción, ya interpretada o sin identidad: se rechaza.
+- C3 · La referencia solo lleva metadatos; `ref_sha256` cambia si cambia la referencia.
+- C4 · La hoja `.xlsx` trae el `job_id`, ambos ids, el hash y los adjuntos, y no trae cuerpo ni texto.
+- C5 · Publicar: crea con la marca, verifica, guarda `sheet_file_id` y deja `publicado` con un evento. Republicar actualiza el mismo archivo.
+- C6 · Dos publicaciones simultáneas: un solo archivo en Drive.
+- C7 · Respuesta perdida tras crear: la siguiente publicación adopta el archivo con la marca, sin crear otro.
+- C8 · Dos archivos con la misma marca: `ambiguo`, sin borrar y sin republicar.
+- C9 · Error de Drive: vuelve a `pendiente_de_publicar` con `last_error`; el reclamo vencido se retoma; el reclamo vigente no.
+- C10 · Importar el borrador concilia el mensaje y el trabajo; reimportar y la importación aislada no duplican nada.
+- C11 · Un trabajo no se concilia por otro mensaje del mismo hilo.
+- C12 · La CLI `publicar` se niega sin `--confirmar-drive`.
+
+### T-50 · «Respuesta sugerida lista para revisar» solo anuncia una respuesta que existe
+**Estado: implementado** (pruebas en `tests/test_novedad_respuesta_sugerida.py`). Decisión: D-154. Acota U-25 y U-73.4; no cambia estados, `ESTADOS`, `transiciones.json`, la recepción, la cola T-49 ni los contratos de Work.
+
+**Defecto (piloto 3B).** `_derive_notifications` (`anka/infra/store.py`) derivaba la novedad `draft_suggested` solo del estado del caso (`sugiere_respuesta`). Un análisis de Work **incompleto** queda en `review` («Por decidir») y `_work_analysis` le quita el texto al cliente (`work_reply` vacío): la persona veía «Respuesta sugerida lista para revisar» sin que hubiera ninguna respuesta. El importador no crea novedades; las produce la derivación al abrir la base.
+
+**Cuatro cosas distintas** (no se mezclan):
+- **Análisis importado:** el caso existe en `quotes` con el hecho `analysis` en la auditoría. Lo anuncia `request_received` («La solicitud ya fue analizada y agregada al dashboard»).
+- **Análisis incompleto:** `analysis_complete = false`. Work no pudo cerrar el alcance; el caso necesita revisión técnica y **no** propone correo al cliente.
+- **Revisión técnica pendiente:** es el estado del caso (`review`, «Por decidir»). Es lo que ya dice la etapa en la lista; no genera una novedad propia.
+- **Respuesta comercial preparada:** hay texto utilizable para el cliente: `quotes.draft_body` no vacío o `analysis.work_reply.text` no vacío.
+
+**Qué debe cumplirse**
+1. **Regla.** `draft_suggested` no se deriva cuando el análisis declara `analysis_complete = false` **y** no hay respuesta preparada (`draft_body` vacío y `work_reply.text` vacío). Con una respuesta preparada por una persona (`draft_body`) sí se deriva, aunque el análisis siga incompleto: ahí la respuesta existe y es suya.
+2. **Sin respuesta, la novedad es la que ya existe.** El caso conserva `request_received` («analizada y agregada»). No se crea un tipo nuevo ni se cambia `REQUIEREN_ACCION`; la revisión técnica pendiente se ve en la etapa de la lista (U-13).
+3. **Se decide en la derivación, sin tocar el caso.** La condición va en la derivación SQL (con `json_valid`, para que un `analysis_json` dañado no la rompa y siga el comportamiento de siempre). No cambia estados, análisis ni `quotes`.
+4. **Reimportar.** Reimportar un análisis incompleto no crea la novedad ni duplica `request_received`. Si el mismo mensaje se reanaliza después de forma completa y con respuesta, `draft_suggested` aparece una sola vez (la clave `UNIQUE` y el `INSERT OR IGNORE` no cambian). Una novedad ya creada **no se borra ni se modifica** (historial intacto).
+5. **No cambia lo demás.** Un análisis que no declara `analysis_complete` (modos `local` y `api`, o Work completo) se deriva como siempre. No se toca ninguna otra novedad.
+6. **Límite conocido.** Un análisis completo de Work con `draft_reply` vacío sigue derivando `draft_suggested` por el estado: la pantalla aún puede proponer un texto armado con las preguntas (`suggested_reply`), y decidir eso exige las preguntas, fuera de esta corrección.
+
+**Casos de aceptación**
+- C1 · Incompleto sin respuesta: solo `request_received`; el estado del caso es el mismo que antes del cambio.
+- C2 · Incompleto aunque Work mande `draft_reply`: no hay respuesta (el importador la descarta); solo `request_received`.
+- C3 · Completo con respuesta: `request_received` y `draft_suggested`.
+- C4 · Incompleto con un borrador de la persona (`draft_body`): se deriva `draft_suggested`.
+- C5 · Reimportar el incompleto: sin duplicados ni `draft_suggested`.
+- C6 · Incompleto y luego completo con respuesta para el mismo mensaje: `draft_suggested` una sola vez; completo y luego incompleto: la novedad anterior se conserva.
+- C7 · `analysis_json` dañado: la apertura de la base no falla y se deriva como siempre.
+- C8 · Una novedad `draft_suggested` histórica de un caso incompleto no se borra ni se marca.
+
+### T-51 · Un trabajo Work solo se crea y se publica para un mensaje elegible
+**Estado: implementado** (pruebas en `tests/test_elegibilidad_de_trabajos.py`). Decisión: D-155. Acota T-49 y aplica R1/R3; no cambia `[ANKA_DASHBOARD_JSON_V1]`, T-47, T-48 ni el estado de recepción de ningún mensaje.
+
+**Defecto (diagnóstico 4A).** `crear_trabajo` aceptaba cualquier fila `pendiente_de_procesar`, incluidas las notificaciones de ChatGPT («[Task Update] ANKA 01…», de `noreply@tm.openai.com`). El receptor (U-81) solo excluye los mensajes propios y los anteriores al primer checkpoint: nunca aplicó R1.
+
+**Una sola clasificación.** No hay un segundo clasificador: se reutiliza el de R1 (`anka/dominio/reception.py`: remitente no-reply, `List-Unsubscribe`, `Auto-Submitted`, `Precedence` masivo, spam de Gmail) y su rescate por términos comerciales (`commercial_filter_terms`, el mismo de `pipeline`). Se añade una única señal propia, inequívoca: la notificación de las tareas de ChatGPT (dominio `tm.openai.com`).
+
+**Qué debe cumplirse**
+1. **Tres veredictos**, calculados por una función pura (`evaluar_elegibilidad`, `anka/dominio/trabajo_work.py`) a partir de la fila de `recepcion_mensajes`:
+   - `elegible`: remitente humano o sin ninguna señal de automatización registrada. Las solicitudes y los seguimientos de personas son siempre elegibles, aunque Gmail los ponga en Promociones (R1).
+   - `excluido` (con motivo): TODOS los remitentes del mensaje son automáticos de forma inequívoca. Motivos: los de R1 (`remitente_no_reply`, `list_unsubscribe`, `auto_submitted`, `precedence_masivo`, `spam_gmail`) y `notificacion_de_chatgpt`.
+   - `revision` (clasificación pendiente, con motivo): hay duda y no se descarta en silencio. Motivos: `aviso_automatico_con_terminos_comerciales` (R1: un aviso automático que habla de cotizaciones sí se analiza; no aplica a la notificación de ChatGPT) y `remitente_desconocido` (fila sin remitente legible).
+2. **Qué señales usa.** El receptor guarda en la evidencia del mensaje la señal de R1 que detectó al leerlo (`evidence.noise_signal`; solo cuando hay una). Las filas registradas antes de este cambio no la tienen: para ellas solo se evalúa el remitente guardado (no-reply y ChatGPT). La falta de señal registrada nunca cuenta como ruido.
+3. **Antes de crear.** `crear_trabajo` evalúa la elegibilidad y rechaza (`TrabajoRechazado`) lo `excluido` y lo `revision`. Un trabajo ya existente se devuelve igual (idempotencia T-49).
+4. **Antes de publicar.** `publicar_trabajo` vuelve a evaluar antes de reclamar el trabajo: si no es elegible no toca Drive y devuelve `no_elegible` o `clasificacion_pendiente`. Cubre trabajos creados antes de esta regla o cuando cambió la clasificación.
+5. **Nada desaparece en silencio (R3).** Cada rechazo deja un solo evento por mensaje y veredicto en `recepcion_eventos` (`trabajo_excluido` o `trabajo_clasificacion_pendiente`, con motivo y etapa). La fila de recepción y su estado no cambian.
+6. **Rescate por una persona.** `work_jobs crear --forzar-elegibilidad` (y `elegibilidad --forzar`) deja el evento `trabajo_elegibilidad_forzada` y desde entonces el mensaje cuenta como elegible para crear y publicar. No se puede forzar un mensaje que no está en la cola ni uno ya interpretado.
+7. **Ver sin escribir.** `work_jobs elegibilidad` (sin argumentos) lista, solo en lectura, el veredicto de cada mensaje pendiente (ids, veredicto, motivo; nunca asunto ni cuerpo).
+8. **Sin efectos fuera de lo dicho.** No cambia la recepción, el cursor, los estados de `recepcion_mensajes`, `quotes`, Gmail, Drive, Sheets ni ANKA 01.
+
+**Casos de aceptación**
+- C1 · Notificación de ChatGPT (`noreply@tm.openai.com`, y otra dirección de `tm.openai.com`): excluida, sin trabajo y con un evento.
+- C2 · Cada señal de R1 registrada por el receptor (`list_unsubscribe`, `auto_submitted`, `precedence_masivo`, `spam_gmail`) y el remitente no-reply excluyen.
+- C3 · Solicitud de una persona, y seguimiento en un hilo existente: elegibles, aunque el hilo tenga mensajes automáticos.
+- C4 · Aviso automático cuyo asunto o adjunto menciona un término comercial: `revision`; sin término: excluido. La notificación de ChatGPT no se rescata.
+- C5 · Fila sin remitente: `revision`. Fila antigua sin señal registrada y con remitente humano: elegible.
+- C6 · Varios remitentes: solo se excluye si todos son automáticos.
+- C7 · Un trabajo creado antes de la regla y no elegible no se publica ni toca Drive.
+- C8 · Repetir el rechazo no duplica el evento; el estado de la fila de recepción no cambia.
+- C9 · Forzar la elegibilidad permite crear y publicar y deja su evento; no sirve para un mensaje inexistente o ya interpretado.
+- C10 · El receptor guarda `noise_signal` solo cuando hay señal y no cambia nada más de lo que ya guardaba.
+- C11 · La identidad (`job_id`) y la idempotencia de T-49 siguen iguales para los elegibles.
+
+### T-52 · Clasificación comercial de cada mensaje: preliminar en Python, confirmada por Work
+**Estado: implementado en Python** (pruebas en `tests/test_clasificacion_comercial.py`); **pendiente de prueba real en Work** (que ANKA 01 devuelva `classification`). Decisión: D-156. Se apoya en R1 y T-51; no cambia T-49 (`job_id`, idempotencia), `[ANKA_DASHBOARD_JSON_V1]` (solo se le añade un campo opcional), el receptor ni ANKA 01.
+
+**Una sola cadena, sin sistema paralelo.** El receptor (U-81) guarda el mensaje; T-51 excluye el ruido inequívoco; T-52 clasifica lo que queda y Work confirma o corrige. Un remitente humano NO prueba por sí solo que haya una solicitud.
+
+**Las cuatro clasificaciones** (`SOLICITUD_NUEVA`, `SEGUIMIENTO`, `NO_SOLICITUD`, `REVISION_MANUAL`)
+1. **Preliminar de Python** (función pura `clasificar_preliminar`, `anka/dominio/clasificacion.py`), con el veredicto de T-51, si el hilo tiene expediente, el asunto, el fragmento (`snippet`) de Gmail que guarda el receptor y los nombres de adjuntos:
+   - T-51 `excluido` → `NO_SOLICITUD` (motivo de T-51). No se crea trabajo.
+   - T-51 `revision` → `REVISION_MANUAL` (motivo de T-51). No se crea trabajo hasta que una persona lo fuerce (T-51).
+   - el `thread_id` ya tiene un expediente (`quotes`) → `SEGUIMIENTO`.
+   - menciona (en el asunto, el fragmento o un adjunto) un servicio de Grupo Anka (topografía, geomática, LiDAR, fotogrametría, batimetría, inspección, georadar, catastro, escáner terrestre y afines) o un término comercial de R1, sea o no una petición explícita → `SOLICITUD_NUEVA`.
+   - cualquier otro mensaje humano → `REVISION_MANUAL` con motivo `ambiguo_para_work`: **se envía a Work** para la clasificación semántica; las solicitudes indirectas, que no usan esas palabras, no se pierden.
+   Las palabras clave solo elevan la confianza; **nunca descartan**. Solo T-51 descarta, y solo ruido inequívoco.
+2. **Trazabilidad.** Cada clasificación preliminar queda como evento `clasificacion_preliminar` en `recepcion_eventos` (por `thread_id` y `message_id`; clase y motivo, sin asunto ni cuerpo). Repetir la evaluación no duplica el evento; solo se añade otro si cambia la clase o el motivo (p. ej. el hilo ya tiene expediente).
+3. **Hacia Work.** `crear_trabajo` informa la clasificación preliminar y la hoja TRABAJO la lleva (`clasificacion_preliminar`, `motivo_preliminar`) junto con la orden de confirmarla o corregirla. La hoja es solo de lectura; la identidad del trabajo y su huella no cambian.
+4. **De vuelta de Work.** El borrador puede traer, además, `classification` (uno de los cuatro valores) y `classification_reason` (texto breve). Es opcional: si falta, el análisis se importa como siempre (compatibilidad). Se toleran mayúsculas y espacios («solicitud nueva»); `null` equivale a no traerla. Un valor ilegible NO se borra (el caso avanzaría como si Work no hubiera dicho nada): se toma como `REVISION_MANUAL` y se avisa.
+5. **Solo lo confirmado avanza.** Si `classification` es `SOLICITUD_NUEVA` o `SEGUIMIENTO` (o falta) el análisis sigue su camino: tabla de actividades, faltantes y respuesta preparada. Si es `NO_SOLICITUD` el caso queda descartado (como el estado `Descartada`) sin actividades ni respuesta. Si es `REVISION_MANUAL` el caso queda en revisión técnica interna sin actividades, preguntas ni respuesta preparada, para que decida una persona. En los dos últimos casos el mensaje igualmente se concilia (T-48): la cola no se queda esperándolo.
+6. **Auditoría de Work.** La clasificación de Work se guarda en el análisis (`classification`) y queda como evento `clasificacion_work` por mensaje; el evento `interpretado_por_work` la incluye. Si Work corrige la preliminar, ambas quedan visibles.
+7. **Nada sale al cliente** (R8) ni se escribe en Gmail, Drive o Sheets por esta clasificación.
+
+**Casos de aceptación**
+- C1 · Notificación de ChatGPT / aviso automático: `NO_SOLICITUD`, sin trabajo.
+- C2 · Aviso automático con término comercial o remitente sin dirección: `REVISION_MANUAL`, sin trabajo.
+- C3 · Mensaje de una persona que menciona un servicio en el asunto o en un adjunto, con o sin la palabra «cotización»: `SOLICITUD_NUEVA`.
+- C4 · Mensaje de una persona en un hilo con expediente: `SEGUIMIENTO`, aunque no mencione servicios.
+- C5 · Mensaje humano sin señales (p. ej. «Hola, ¿podemos hablar?»): `REVISION_MANUAL` / `ambiguo_para_work`, con trabajo y sin descartarlo.
+- C6 · El `job_id`, la huella y la idempotencia de T-49 son los mismos con o sin clasificación.
+- C7 · Evento preliminar único por clase y motivo; cambia de clase → evento nuevo.
+- C8 · Work devuelve `NO_SOLICITUD`: el caso se descarta, sin actividades; la cola queda `interpretado_por_work`.
+- C9 · Work devuelve `REVISION_MANUAL`: revisión técnica interna, sin actividades ni respuesta.
+- C10 · Work devuelve `SOLICITUD_NUEVA` o `SEGUIMIENTO`, o no devuelve el campo: se importa como siempre.
+- C11 · Un valor de `classification` ilegible se toma como `REVISION_MANUAL` con aviso, y nunca avanza.
+- C12 · La hoja del trabajo lleva la clasificación preliminar y sigue sin incluir cuerpo del correo.
+
+### T-53 · Despacho de trabajos a Work: cola documental PENDIENTES / CERRADOS administrada por Python
+**Estado: implementado en Python** (pruebas en `tests/test_despacho.py`); **pendiente de prueba real** (un solo expediente, con autorización). Decisión: D-157. Une U-81 (recepción), T-51/T-52 (elegibilidad y clasificación), T-49 (cola de trabajos) y T-48 (conciliación); no crea otro receptor ni otro clasificador y no cambia `[ANKA_DASHBOARD_JSON_V1]`, `job_id` ni la huella de T-49.
+
+**La cola documental.** En la carpeta de laboratorio de Drive (la «raíz») Python administra dos subcarpetas, `PENDIENTES` y `CERRADOS`. Solo es una vista para Work: **SQLite es la autoridad de los estados** (`trabajos_work`); si Drive y SQLite discrepan, manda SQLite y Drive se corrige. Work solo lee `PENDIENTES`; no mueve, no borra ni escribe archivos.
+
+**Qué debe cumplirse**
+1. **Carpetas sin duplicados.** `asegurar_carpetas` busca cada subcarpeta por nombre, tipo y padre (fuera de la papelera), la crea si falta y verifica después de crear. Si hay más de una con el mismo nombre se detiene (`carpeta_ambigua`) y no elige.
+2. **Qué se publica.** Solo un mensaje (a) pendiente de interpretación en `recepcion_mensajes`, (b) elegible por T-51 (el ruido y la duda nunca generan trabajo) y (c) dentro del alcance del despacho. Un mensaje de T-52 `REVISION_MANUAL` con motivo `ambiguo_para_work` sí se publica: Work lo clasifica. El trabajo se crea con `crear_trabajo` y se publica en `PENDIENTES` con `publicar_trabajo`; ambos conservan sus controles anti-duplicado.
+3. **Qué se mueve a CERRADOS.** Un trabajo `conciliado` (Work ya devolvió el análisis y el importador lo guardó, T-48) cuya hoja sigue en `PENDIENTES`. Antes de mover se comprueba la marca `anka_job_id` del archivo; un archivo sin la marca, en la papelera o ausente no se mueve y se informa. Mover es idempotente: si la hoja ya está en `CERRADOS` no se hace nada. El movimiento anota un solo evento `trabajo_archivado` y guarda `folder_id` = `CERRADOS`; el estado del trabajo no cambia.
+4. **Recuperación e idempotencia.** Cada pasada es repetible: un trabajo `pendiente_de_publicar` o `publicado` sin su hoja se reintenta; un fallo de Drive o de red se anota en `last_error` y se reintenta en la pasada siguiente, hasta `MAXIMO_DE_INTENTOS` (5); luego el trabajo queda `agotado` en el informe y requiere a una persona. Un trabajo `ambiguo` nunca se toca. Dos pasadas simultáneas no duplican: lo impiden el reclamo y la marca de T-49.
+5. **Límite del piloto.** Cada pasada publica **como máximo un trabajo nuevo** y solo del mensaje nombrado en el alcance. Sin mensaje en el alcance no hay despacho (no existe un modo «toda la cola»; la cola histórica no se procesa).
+6. **Desactivado por defecto.** `config.json`: `work_dispatch_enabled` (falso), `work_dispatch_folder_id` (la raíz), `work_dispatch_thread_id` y `work_dispatch_message_id` (el único mensaje del piloto). Activarlo exige modo `chatgpt_work` y los tres textos. `work_jobs despachar --automatico` lee esa configuración y no hace nada si está desactivada; sin `--automatico` se indican la carpeta y el mensaje en la orden. En ambos casos escribir en Drive exige `--confirmar-drive`. **No hay proceso persistente ni tarea periódica**: cada orden es una sola pasada.
+7. **Informe.** Cada pasada devuelve un resumen sin asuntos ni cuerpos: carpetas, trabajo creado o reutilizado, publicación, archivados, rechazados por T-51, agotados, ambiguos y errores.
+8. **Instrucciones para la futura tarea Work.** `docs/TAREA_WORK_COLA.md` define qué hace una ejecución: toma **un** trabajo de `PENDIENTES`, verifica la hoja contra Gmail, evita repetir si ya existe el borrador de ese mensaje, devuelve el borrador con `[ANKA_DASHBOARD_JSON_V1]` (y `classification`) y no mueve archivos. Es un texto para revisar; **no se crea ninguna tarea** ni se modifica ANKA 01.
+9. **Nada sale al cliente** (R8) ni se crean borradores desde Python.
+
+**Casos de aceptación**
+- C1 · Primera pasada: se crean `PENDIENTES` y `CERRADOS`, se publica un trabajo en `PENDIENTES`; repetirla no duplica carpetas ni archivos.
+- C2 · Dos subcarpetas con el mismo nombre: `carpeta_ambigua` y no se escribe nada más.
+- C3 · Ruido (ChatGPT, no-reply) y duda de T-51: no se crea trabajo ni se publica nada.
+- C4 · Un mensaje fuera del alcance (otro hilo u otro mensaje) no se despacha, aunque esté pendiente.
+- C5 · Con varios mensajes elegibles pero alcance de uno, solo se publica ese.
+- C6 · Un trabajo conciliado se mueve de `PENDIENTES` a `CERRADOS` una sola vez; sin marca o en la papelera no se mueve.
+- C7 · Fallo de Drive al publicar: queda anotado, la pasada siguiente lo recupera sin duplicar; tras 5 intentos queda `agotado`.
+- C8 · Respuesta perdida al crear la hoja: la pasada siguiente adopta la hoja existente (T-49).
+- C9 · Despacho automático desactivado, incompleto o sin mensaje: no hace nada ni toca Drive.
+- C10 · SQLite manda: el estado del trabajo no depende del contenido de las carpetas.
+- C11 · `job_id`, huella y clasificación preliminar de T-49/T-52 no cambian.
+
+### T-54 · Paquete de referencia del contrato para la tarea Work de la cola, legible desde Drive
+**Estado: implementado en Python** (pruebas en `tests/test_paquete_work.py`); **pendiente de publicar y de prueba real en Work**. Decisión: D-158. No cambia `[ANKA_DASHBOARD_JSON_V1]`, el esquema, `PRECISO_V6.1`, T-52, T-53 ni ANKA 01.
+
+**Defecto.** La primera ejecución programada de la cola (piloto 5B) descubrió el trabajo y verificó Gmail, pero se detuvo: no pudo acceder a una versión verificable del contrato T-52 ni de `PRECISO_V6.1`. Work solo lee lo que está en Drive o en Gmail; el repositorio y sus ZIP no le sirven.
+
+**Qué debe cumplirse**
+1. **Fuentes canónicas, sin copias a mano.** El paquete se construye con `python -m anka.cli.paquete_work construir`: el esquema es `spec/contrato_work.schema.json` y el prompt es `docs/PROMPT_WORK_ANKA_V6.txt` (`PRECISO_V6.1`), copiados byte a byte; las reglas T-52, el formato de retorno y las instrucciones de una ejecución viven en `docs/paquete_work/`. Los ejemplos se derivan del ejemplo oficial de `PRECISO_V6.1`, de modo que no se inventan ni se simplifican campos obligatorios.
+2. **Autónomo.** Una carpeta de archivos de texto (`.md`, `.json`, `.txt`), sin ZIP, sin rutas locales y sin depender de otro archivo del repositorio.
+3. **Verificable.** `manifest.json` declara la versión del paquete (derivada de las huellas, por lo que es reproducible), el origen (rutas relativas del repositorio), el contrato (nombre, versión del esquema y las cuatro clases) y el prompt, y la huella SHA-256 y el tamaño de cada archivo.
+4. **Cuatro ejemplos ficticios válidos**, uno por clasificación (`SOLICITUD_NUEVA`, `SEGUIMIENTO`, `NO_SOLICITUD`, `REVISION_MANUAL`). Cada uno cumple el esquema, se importa sin avisos de formato y produce en Python el efecto que T-52 define. Además son **coherentes en el sentido**: un dato que el resumen da por recibido no figura como faltante, pregunta pendiente ni hallazgo ausente; el estado dice lo mismo que las preguntas; y la clasificación concuerda con el estado y la tabla. `incoherencias` (heurística) lo comprueba y `verificar_paquete` rechaza un paquete cuyos ejemplos se contradigan (defecto hallado por Work en `ejemplo_SEGUIMIENTO.json`, piloto 5B).
+5. **Detenerse ante un paquete dudoso.** Las instrucciones obligan a Work a verificar el paquete (completo, íntegro, vigente, sin contradicciones) antes de analizar y a detenerse, sin borrador, si algo falla. Python ofrece la misma verificación (`verificar_paquete`) y la prueba con paquetes alterados, incompletos y desactualizados.
+6. **Excepción declarada.** La tarea de la cola lee Drive solo para leer (`PENDIENTES` y la referencia); `PRECISO_V6.1` dice que ANKA 01 no usa Drive y sigue siendo así.
+7. **Publicación explícita e idempotente.** `paquete_work publicar --carpeta-id <raíz> --confirmar-drive` crea (si falta) una sola subcarpeta `REFERENCIA_ANKA_V1` en la raíz de laboratorio y sube cada archivo; repetirla no duplica nada y solo actualiza lo que cambió (marca `anka_paquete_sha256`). Más de un archivo o carpeta con el mismo nombre detiene la publicación. Nunca borra. Sin `--confirmar-drive` no toca Drive. No hay proceso ni tarea periódica.
+
+**Casos de aceptación**
+- C1 · Construir dos veces produce los mismos bytes y la misma versión.
+- C2 · El esquema y el prompt del paquete son idénticos a los del repositorio y las huellas del manifiesto coinciden.
+- C3 · Los cuatro ejemplos cumplen el esquema y se importan sin avisos; `NO_SOLICITUD` descarta el caso y `REVISION_MANUAL` lo deja en revisión sin actividades; los otros avanzan.
+- C4 · Un paquete con un archivo alterado, faltante, un esquema sin la clasificación o de otra versión no pasa `verificar_paquete`.
+- C5 · Ningún archivo menciona ZIP ni rutas locales.
+- C7 · El ejemplo de `SEGUIMIENTO` no vuelve a pedir un dato que su resumen declara recibido; un ejemplo que se contradiga (en la forma original defectuosa o en las equivalentes) no pasa la verificación.
+- C6 · Publicar crea la subcarpeta y los archivos una sola vez; repetir no duplica; un duplicado detiene la publicación.
+
+### T-55 · Coordinación automática Python–Work: un ciclo acotado que despacha, importa y archiva
+**Estado: implementado en Python** (pruebas en `tests/test_coordinacion.py`); **desactivado por defecto y sin prueba real automática** (requiere autorización). Decisiones: D-159, D-160, D-161, D-162. Compone T-53 (despacho), T-47 (importación aislada), T-48/T-49 (conciliación) y U-81 (recepción); no crea otro receptor, otro importador ni otro clasificador y no cambia `[ANKA_DASHBOARD_JSON_V1]`, `job_id`, la huella de T-49 ni ANKA 01.
+
+**Qué resuelve.** El piloto 5B probó a mano el ciclo completo (recepción → trabajo → PENDIENTES → Work → borrador → importación → CERRADOS). T-55 lo ejecuta solo, en pasos pequeños y repetibles, sin que Python decida nada comercial y sin enviar nada al cliente.
+
+**Qué debe cumplirse**
+1. **Un ciclo, tres fases, siempre en este orden:** (a) *archivar* los trabajos conciliados cuya hoja sigue en `PENDIENTES`; (b) *importar* el borrador estructurado de los trabajos `publicado` con T-47 (`importar_aislado`, un mensaje cada vez, origen verificado siempre); (c) *despachar* a `PENDIENTES` los mensajes elegibles nuevos y reintentar los trabajos `pendiente_de_publicar`. El orden cierra lo terminado antes de abrir lo nuevo. Un fallo en una fase se anota y no impide las otras.
+2. **Solo lo que SQLite dice.** Qué se archiva, importa o publica sale de `trabajos_work` y `recepcion_mensajes`; Drive solo se toca para ejecutar y nunca decide por el contenido de las hojas ni por qué hay en las carpetas. La conciliación sigue siendo la de T-48 dentro de la importación: el ciclo no cambia estados de trabajo por su cuenta, salvo lo que ya hacen `publicar_trabajo` y el archivado de T-53.
+3. **Solo mensajes elegibles (T-51) y nuevos.** Un mensaje entra únicamente si está pendiente de interpretación, es elegible, **no tiene trabajo** y fue detectado en o después de `work_coordination_since`. Ruido, duda de T-51 y la cola histórica anterior a esa fecha nunca se procesan. Los mensajes con clasificación preliminar ambigua (`ambiguo_para_work`) se publican para que Work los clasifique; Python no los trata como solicitud comercial (T-52).
+4. **Límites conservadores por ciclo.** `work_coordination_max_publish` (1 por defecto, máximo 5), `work_coordination_max_import` (1, máx. 5) y `work_coordination_max_archive` (2, máx. 10). Las importaciones rotan: el trabajo consultado hace más tiempo (o nunca) va primero, para que uno sin borrador no deje sin turno a los demás.
+5. **Desactivado por defecto.** `work_coordination_enabled` (falso). `work_coordination_alert_minutes` (120) fija la alerta del punto 12. Activarlo exige modo `chatgpt_work`, `work_coordination_folder_id` (la raíz con PENDIENTES y CERRADOS), `work_coordination_since` (fecha y hora con zona), que `work_dispatch_enabled` esté apagado (un solo despachador) y los límites dentro de rango. `work_coordination_interval_seconds` (60 a 3600; 300 por defecto) fija cada cuánto corre. Sin esa configuración completa, no hay ciclo ni se toca Drive o Gmail.
+6. **Mensaje de laboratorio.** Con `work_coordination_thread_id` y `work_coordination_message_id` (ambos o ninguno) todas las fases se limitan a ese mensaje, como en el piloto. También se acepta por la orden `work_jobs coordinar --thread-id --message-id`.
+7. **Concurrencia.** Un candado de instancia única del sistema operativo (`work_coordinacion.lock`) impide dos ciclos a la vez, aunque sean del supervisor y de una orden manual; el segundo responde `concurrente` sin hacer nada. Debajo siguen el reclamo y la marca de T-49. **No se supone exclusión entre ejecuciones de Work:** si Work deja más de un borrador válido para un mensaje, la importación no importa ninguno (`ambiguo`) y el trabajo queda `publicado` para una persona.
+8. **Reintentos y recuperación.** Una importación sin borrador es normal (Work aún no responde) y se vuelve a mirar en un ciclo posterior. Una importación `ambiguo`, `rechazado`, `error_de_origen` o `fallo_de_importacion` suma un fallo al trabajo y espera con retroceso exponencial (el doble cada vez, hasta una hora); al quinto fallo consecutivo el ciclo deja de mirarlo en ese proceso (`requiere_persona`) y lo anota. Un fallo de Drive al publicar o archivar se anota (`last_error`) y se reintenta; la publicación se rinde tras `MAXIMO_DE_INTENTOS` (T-53). Tras reiniciar, todo se retoma desde SQLite sin repetir efectos: crear trabajo, publicar, importar y archivar son idempotentes.
+9. **Auditoría.** El primer fallo de importación de un trabajo (todo salvo `importado` y `sin_borrador`) deja el evento `coordinacion_importacion` con el resultado, y el quinto fallo consecutivo deja `coordinacion_requiere_persona` con el número de fallos (T-49 guarda un evento por trabajo y tipo); ninguno lleva asuntos ni cuerpos; lo demás ya deja los eventos de T-49/T-53/U-81. Cada ciclo devuelve y registra un resumen con contadores y sin datos del correo.
+10. **Sin envíos ni borradores desde Python.** Python solo lee Gmail (borradores y mensajes) y escribe en la carpeta de laboratorio de Drive y en SQLite; no envía, no crea ni modifica borradores (R8). Crear la tarea programada de Work y activar esta función son decisiones del dueño.
+11. **Dónde corre.** Como hilo del lanzador, con el mismo patrón que el receptor Gmail (un hilo, nunca dos solapados), y como orden manual de una pasada: `work_jobs coordinar --una-vez --confirmar` (escribe en Drive, lee Gmail). Cambiar el código reinicia el lanzador y no deja ciclos a medias gracias a las reglas de arriba.
+
+12. **Alerta por falta de respuesta de Work.** Un trabajo `publicado` cuyo `published_at` supera `work_coordination_alert_minutes` (15 a 1440; 120 por defecto) sin conciliarse se declara **sin respuesta**: el ciclo lo incluye en `sin_respuesta` del informe cada vez (estado actual), deja **una sola vez** el evento `coordinacion_sin_respuesta` y **una sola vez** un aviso en el registro. Repetir ciclos o reiniciar no duplica el evento ni el aviso (el evento existente manda). La alerta no cambia el estado del trabajo ni lo detiene: sigue importándose si Work responde tarde.
+13. **Hoja desaparecida y recuperación segura.** Cuando la importación de un trabajo `publicado` no encuentra borrador, el ciclo comprueba su hoja (`hoja_guardada`: existe, fuera de la papelera y con la marca `anka_job_id` del trabajo). Si falta, deja una sola vez el evento `coordinacion_hoja_ausente` y la recupera en la fase de despacho con la misma ruta de T-49/T-53 (reclamo, adopción de una hoja marcada ya existente, creación con marca y verificación posterior), sin duplicar: si aparecieran dos hojas con la marca el trabajo pasa a `ambiguo` y nada se elige ni se borra. Cada recuperación cuenta contra `work_coordination_max_publish` y un mismo trabajo se recupera como máximo 3 veces por proceso; después queda `requiere_persona`. Un error de Drive al comprobar no se interpreta como ausencia.
+14. **Un único responsable de importar borradores.** Con la coordinación activada el coordinador es el **único importador automático**: (a) el lanzador no arranca el puente general (`work_dashboard_sync`) y detiene el que esté en marcha; (b) el puente general, lanzado a mano, se niega a ejecutarse (código de salida de parada, no se reinicia); (c) antes de importar, el ciclo comprueba el latido del puente (`other_bridge_running`): si hay un puente vivo no importa, informa `puente_general_activo` y lo anota en el registro una vez. Se conservan el candado de ciclo (punto 7) y la importación aislada por mensaje (T-47), que una persona puede seguir usando a mano porque es idempotente.
+15. **Verificación previa a la activación.** `work_jobs verificar-piloto` (solo lectura: no usa Gmail ni Drive, no escribe en SQLite ni en `config.json`) informa de la configuración efectiva (modo, recepción, despacho, coordinación y límites), los procesos de Anka en marcha (lanzador, dashboard, puente general, receptor aislado, preparador, ciclos manuales), los candados y el latido del puente, el estado de la cola (pendientes y trabajos por estado, cuántos mensajes quedan fuera por el corte histórico, trabajos sin respuesta) y el estado del mensaje de laboratorio. Devuelve `listo` (verdadero solo sin bloqueos), `bloqueos` y `avisos`. Son **bloqueos**: configuración inválida o incompleta para el piloto (carpeta, corte, un solo mensaje de laboratorio), `work_dispatch_enabled` activo, un puente general o un ciclo manual en marcha, dos receptores, y un mensaje de laboratorio que no está en la cola, no es elegible o fue detectado antes del corte. Son **avisos**: que la tarea programada de Work no se puede comprobar desde Python, que la recepción esté apagada, o que el lanzador esté corriendo (leerá la configuración en 30 s).
+16. **Apagada por defecto y sin cambios de contrato.** Nada de esto activa la coordinación, la recepción ni el lanzador; no cambia T-51, T-52, `[ANKA_DASHBOARD_JSON_V1]`, `job_id` ni ANKA 01.
+
+**Casos de aceptación**
+- C1 · Ciclo vacío o desactivado: no toca Drive ni Gmail.
+- C2 · Un mensaje elegible nuevo se convierte en un trabajo y se publica en `PENDIENTES`; repetir el ciclo no duplica trabajo ni hoja.
+- C3 · Mensajes anteriores a `work_coordination_since`, ruido y duda de T-51 no generan trabajo.
+- C4 · Con varios mensajes elegibles y `max_publish = 1`, un ciclo publica uno; los siguientes ciclos publican los demás.
+- C5 · Un trabajo `publicado` con un borrador válido se importa, queda `conciliado` y su hoja pasa a `CERRADOS` en el mismo ciclo o en el siguiente; repetir no duplica.
+- C6 · Sin borrador: no cambia nada y no cuenta como fallo.
+- C7 · Dos borradores válidos del mismo mensaje: no se importa ninguno, el trabajo sigue `publicado`, queda un evento y se reintenta con retroceso; al quinto fallo `requiere_persona`.
+- C8 · Borrador inválido (otro mensaje, sin bloque, JSON ilegible): se rechaza o ignora según T-47 y el trabajo sigue `publicado`.
+- C9 · Fallo de Drive al publicar o archivar: se anota y el ciclo siguiente lo recupera sin duplicar.
+- C10 · Dos ciclos simultáneos: uno responde `concurrente`.
+- C11 · Reinicio (un coordinador nuevo) a mitad de camino: retoma desde SQLite sin duplicar.
+- C12 · Un trabajo ya `conciliado` no se vuelve a importar ni a publicar.
+- C13 · Alcance de laboratorio: solo se toca el mensaje nombrado.
+- C14 · El módulo no importa envío de correo ni crea borradores.
+- C15 · La configuración incompleta, fuera de rango o junto con `work_dispatch_enabled` se rechaza al validarla.
+- C16 · Un trabajo publicado más allá del umbral sin respuesta queda en `sin_respuesta`, con un solo evento y un solo aviso aunque pasen muchos ciclos o se reinicie; uno dentro del umbral no.
+- C17 · Si Work responde tarde, el trabajo se importa y se concilia aunque ya estuviera alertado.
+- C18 · Hoja borrada, en la papelera o sin la marca de su trabajo: se recupera una sola hoja marcada; repetir no duplica; con una hoja marcada ya existente la adopta; con dos marcadas queda `ambiguo`; un error de Drive al comprobar no recupera nada.
+- C19 · Con la coordinación activada, el lanzador no arranca el puente general y detiene el que esté en marcha; el puente general manual se niega; con un puente vivo el ciclo no importa.
+- C20 · Con la coordinación apagada, el lanzador y el puente general se comportan como antes.
+- C21 · `verificar-piloto` no usa Google ni escribe, y señala cada bloqueo y aviso del punto 15.
+- C22 · Un reinicio del coordinador no repite alertas, recuperaciones ni importaciones.
+- C23 · El mensaje de laboratorio anterior al corte, no elegible o ausente de la cola bloquea la verificación.
+
+
+### T-56 · El puente general de borradores solo corre con autorización expresa
+**Estado: implementado** (pruebas en `tests/test_puente_autorizado.py`). Decisión: D-163. Corrige el incidente del piloto 6C (19/10/2026): al poner `work_coordination_enabled=false` con el lanzador activo, el supervisor arrancó `work_dashboard_sync` y procesó borradores históricos de laboratorio. No cambia T-47, T-55, `[ANKA_DASHBOARD_JSON_V1]`, `job_id` ni ANKA 01.
+
+**Qué resuelve.** Hasta ahora el puente general corría por omisión en modo `chatgpt_work` siempre que la coordinación no estuviera activa; apagarla era, sin querer, una orden de arrancar el puente. El puente es el único componente que importa en bloque todos los borradores de la cuenta, así que arrancarlo debe ser una decisión expresa.
+
+**Qué debe cumplirse**
+1. **Clave de autorización.** `work_general_bridge_enabled` (booleano, **falso por defecto**). El puente general solo corre si vale exactamente `true`: ausente, nulo, texto, número u otro valor cuenta como apagado, y `validate_config` rechaza un valor que no sea booleano.
+2. **Tabla de decisión** (`supervisor.puente_general_corre`): corre solo con modo `chatgpt_work` **y** autorización **y** coordinación inactiva. Cualquier otra combinación no lo arranca, y si ya estaba en marcha el lanzador lo detiene en la siguiente relectura de la configuración (30 s).
+3. **Apagar la coordinación nunca arranca el puente.** Es el caso del incidente: coordinación `true` → `false` sin autorización deja el puente apagado.
+4. **La coordinación activa lo excluye siempre** (D-161), aunque la autorización esté en `true`.
+5. **El puente lanzado a mano respeta el mismo control**: `work_dashboard_sync.py` (con `--once` o continuo) sale con el código de parada y un mensaje claro si falta la autorización o si la coordinación está activa; se comprueba antes de abrir Gmail y en cada ciclo.
+6. **La importación aislada (T-47) no depende de la clave**: `--once --only-thread-id --only-message-id` sigue permitida, como la usa el coordinador.
+7. **Configuración conservadora.** Una configuración ilegible en la relectura del lanzador deja el puente apagado.
+8. **Procedimiento de cierre.** Detener primero los servicios (lanzador y su árbol de procesos) y después cambiar la coordinación; `docs/PILOTO_6C_ACTIVACION.md` lo dice y `docs/MODO_OPERACION.md` explica cuándo volver a autorizar el puente.
+
+**Casos de aceptación**
+- C1 · Tabla completa (ocho combinaciones de modo, coordinación y autorización): solo (Work, sin coordinación, autorizado) corre.
+- C2 · Incidente: coordinación `true` → `false` sin autorización, durante tres relecturas, no vigila ni arranca el puente.
+- C3 · Clave ausente o con valores inválidos (`"true"`, `1`, `null`, lista…): el puente no corre.
+- C4 · Autorizado y sin coordinación: corre en cada vuelta. Autorizado con coordinación: no corre; si estaba en marcha, se detiene. Retirar la autorización lo detiene; una configuración ilegible lo detiene.
+- C5 · El puente manual se niega sin autorización (con y sin `--once`) y con coordinación, sin abrir Gmail; autorizado, llega a Gmail; la importación aislada funciona sin autorización.
+- C6 · La clave es conocida, booleana, y `config.example.json` la trae en `false`; autorizar no activa la coordinación.
+- C7 · La documentación de cierre detiene primero los servicios y la de operación explica cómo volver a autorizar el puente.
 
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 
@@ -1778,8 +2081,26 @@ Los 18 escenarios (los 13 primeros de la primera versión más los escenarios 14
 | E17 | Work antes que la recepción, y su inversa | (a) análisis de m2 sin filas de recepción, Gmail con m1, m2, m3: 0 preliminares, **m2 cubierto por evidencia (`last_inbound_id`/`work_message_id`); m1 y m3 pendientes de comprobación aunque m1 sea anterior en fecha**; `analysis_json` intacto; sin `reception_pending`. (b) recepción primero y luego análisis: mismo estado final. Caso T-36: nada cubierto. `received_at` vacío o presente: nunca basta | U-70 |
 | E18 | Concurrencia ampliada e identidad | 200 corridas en ambos órdenes con dos conexiones; dos materializaciones del mismo mensaje; `case_uid` único e inmutable, conservado al eliminar y recreado con `reemplaza_uid`, `unido_en_uid` al fusionar; migración idempotente con relleno | U-70, U-74 |
 
+### U-81 · Trigger Gmail determinístico, acotado y de solo lectura
+**Estado: implementado parcialmente** (detección y registro local; no materializa casos ni activa Work). Decisión: D-148.
+
+1. En modo `chatgpt_work`, una opción apagada por defecto activa un sondeo configurable (60 s por defecto) de `ankacomercialia@gmail.com`, ejecutado por el supervisor. En otros modos no corre.
+2. La primera ejecución guarda el `historyId` actual y no lista ni importa mensajes previos. Después usa Gmail History API y guarda mensajes por identidad `(thread_id, message_id)`; los reintentos y reinicios no duplican eventos.
+3. El cursor solo avanza después de persistir todos los IDs de las páginas. Un lote de History mayor a 1000 candidatos se pausa en `revision_manual` sin avanzar el cursor. IDs pendientes sobreviven a reinicios; fallos se reintentan con espera creciente y, tras cinco fallos, pasan a `revision_manual`. Cada escritura del sondeo comprueba un token propietario y que el lease SQLite no haya vencido; se renueva antes y después de llamadas Gmail.
+4. Si Gmail devuelve cursor vencido, una búsqueda `in:anywhere` con `includeSpamTrash` cubre desde el último sondeo correcto menos el solapamiento; el `after:` se expresa como fecha PST con un día adicional de margen. La recuperación automática se limita a 30 días y 1000 candidatos. Si el cursor vence antes de la primera sincronización delta correcta, no se intenta buscar: se requiere revisión para preservar la política de línea base. Fuera de esos límites, sin timestamps verificables o ante un fallo de paginación, se conserva el cursor y se detiene en `revision_manual`; no se supone continuidad por una búsqueda parcial o vacía.
+5. Se registran tanto mensajes entrantes como propios; los propios quedan excluidos de interpretación por `SENT` y remitente. No hay análisis, alta en `quotes`, cambios de lectura/etiquetas, envío, borradores ni escritura en Drive/Sheets.
+6. El paquete interno expone IDs Gmail, remitente, destinatarios, asunto, fechas, referencia al hilo, metadatos de adjuntos (sin descargarlos, con `storage_path` vacío), estado, evidencia y errores clasificados. El cuerpo/snippet no se persiste. No cambia `[ANKA_DASHBOARD_JSON_V1]`.
+7. Logs contienen solo conteos y clases/tipos de error; nunca cabeceras, contenido, IDs, credenciales ni respuesta textual de Gmail. La opción permanece apagada hasta habilitarla explícitamente.
+8. `initial_checkpoint_at` preserva el límite de la primera ejecución: en una búsqueda de recuperación, los mensajes con `internalDate` anterior se auditan como `anterior_al_checkpoint_inicial` y no quedan pendientes de interpretación. La recuperación solo puede comprobar mensajes que aún existen en el buzón; no reconstruye mensajes eliminados permanentemente. Un hueco que requiere revisión se incluye en la salida interna y pausa el sondeo sin mover el cursor.
+9. **Destinatarios.** `recipients_json` guarda las direcciones de `To`, `Cc` y `Bcc` aunque alguno de esos encabezados falte o venga vacío. Cada encabezado se interpreta por separado: uno vacío o malformado se descarta sin perder los demás (Python 3.12 devuelve una lista vacía para todos si un valor de `getaddresses` está en blanco). Piloto 01: los 9 mensajes registrados antes de la corrección quedaron con `[]`; no se reescriben.
+10. **Instancia única del receptor aislado.** `python -m anka.cli.gmail_reception` (con o sin `--once`) toma un candado del sistema operativo sobre `gmail_reception.lock` en la carpeta de datos. Funciona entre procesos independientes y lo libera el sistema si el proceso muere (un cierre inesperado no deja un bloqueo obsoleto). Un segundo receptor se niega a arrancar con el PID y la hora del que lo tiene. El archivo guarda como información el PID, un identificador de instancia y la hora de inicio: nunca decide por sí solo (no basta un PID) y una instancia solo borra su propia información, nunca la de otra. Al tomar un candado libre con información de una instancia anterior, informa que recuperó un bloqueo de una instancia que ya no existe. El hilo de recepción del supervisor no usa este candado (el lease de SQLite sigue serializando los sondeos).
+11. **Contadores.** Cada pasada con estado `ok` informa, además de `discovered`, `processed`, `retried`, `manual_review`, `own_excluded` y `baseline_excluded` (sin cambios de significado): `history_seen` (mensajes que Gmail History reportó, nuevos o no) y `already_registered` (los que ya estaban en la cola). Siempre `history_seen = discovered + already_registered`. `discovered` sigue contando solo lo insertado por primera vez; un cero ya no se puede confundir con «no llegó nada».
+12. **Auditoría del cursor.** `cursor_actualizado` se registra solo cuando el `historyId` cambia (con el valor anterior y el nuevo); un sondeo sin novedades solo actualiza `last_success_at` del control. No cambian los eventos de detección, error, `revision_manual` ni recuperación (`hueco_reconstruido_desde_buzon`, `recuperacion_requiere_revision`).
+
+**Casos cubiertos**: primera ejecución sin historial, mensaje nuevo, seguimiento, repetición, reinicio, recuperación de conexión, error, concurrencia entre procesos, cola durable, mensaje propio, cursor vencido, hueco >24 h, período >30 días, overflow >1000, falla de paginación y fencing del propietario vencido (mocks de Gmail y SQLite temporal); destinatarios con `Cc`/`Bcc` vacíos, múltiples y malformados; dos procesos que compiten por el candado, recuperación tras un cierre brusco y liberación solo de lo propio; contadores `history_seen` y `already_registered` en una pasada repetida; el cursor sin cambio no genera evento.
+
 ### Plan por incrementos (previsto)
-Solo el incremento 1 (esta especificación) está dentro de la autorización actual.
+El plan original por incrementos se mantiene para U-66 a U-76. La solicitud explícita del 2026-10-16 autoriza U-81 (código, migración y pruebas con mocks); no autoriza ejecutar sondeos contra la cuenta real ni activar el ajuste de producción.
 
 | # | Incremento | Alcance |
 |---|---|---|

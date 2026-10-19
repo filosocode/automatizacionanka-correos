@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from anka.dominio import coordinacion_work
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.errores import ErrorDeAnka
 
@@ -36,6 +37,9 @@ KNOWN_CONFIG_KEYS = {
     "work_sync_account",
     "work_drive_enabled", "work_drive_parent_id", "work_drive_query",
     "ocr_segundos_por_archivo", "ocr_segundos_por_caso", "ocr_omitir_escaneados",
+    "gmail_reception_enabled", "gmail_reception_interval_seconds",
+    "work_dispatch_enabled", "work_dispatch_folder_id", "work_dispatch_thread_id", "work_dispatch_message_id",
+    *coordinacion_work.CLAVES,
 }
 FORWARDED_POLICIES = {"internal_reviewer", "original_sender"}
 PROVIDERS = {"ollama", "openai"}
@@ -52,6 +56,12 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
     if mode not in ACTIVE_MODES:
         problems.append("active_mode debe ser 'local', 'api' o 'chatgpt_work'.")
 
+    if not isinstance(config.get("gmail_reception_enabled", False), bool):
+        problems.append("gmail_reception_enabled debe ser booleano.")
+    interval = config.get("gmail_reception_interval_seconds", 60)
+    if isinstance(interval, bool) or not isinstance(interval, int) or not 30 <= interval <= 3600:
+        problems.append("gmail_reception_interval_seconds debe ser un entero entre 30 y 3600.")
+
     for key in ("gmail_query", "drive_parent_id", "folder_prefix", "work_sync_account"):
         if key in config and not isinstance(config[key], str):
             problems.append(f"{key} debe ser texto.")
@@ -67,6 +77,8 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
     elif not _is_text_list(config["required_fields"]):
         problems.append("required_fields debe ser una lista de textos.")
     problems.extend(_work_drive_problems(config))
+    problems.extend(_work_dispatch_problems(config))
+    problems.extend(coordinacion_work.problemas_de_configuracion(config))
     problems.extend(_ocr_problems(config))
     if config.get("forwarded_reply_policy", "internal_reviewer") not in FORWARDED_POLICIES:
         problems.append("forwarded_reply_policy debe ser 'internal_reviewer' u 'original_sender'.")
@@ -76,6 +88,24 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
         problems.append("llm debe ser un objeto con al menos provider.")
         return problems
     problems.extend(_engine_problems(engine, mode))
+    return problems
+
+
+def _work_dispatch_problems(config: Mapping[str, Any]) -> list[str]:
+    """T-53: el despacho automático a Work es opt-in y, en el primer piloto, de un solo mensaje."""
+    problems = []
+    if not isinstance(config.get("work_dispatch_enabled", False), bool):
+        problems.append("work_dispatch_enabled debe ser booleano.")
+    claves = ("work_dispatch_folder_id", "work_dispatch_thread_id", "work_dispatch_message_id")
+    for key in claves:
+        if not isinstance(config.get(key, ""), str):
+            problems.append(f"{key} debe ser texto.")
+    if config.get("work_dispatch_enabled") is True:
+        if config.get("active_mode") != "chatgpt_work":
+            problems.append("work_dispatch_enabled requiere active_mode 'chatgpt_work'.")
+        for key in claves:
+            if not str(config.get(key) or "").strip():
+                problems.append(f"{key} es obligatorio al activar el despacho a Work (piloto de un solo mensaje).")
     return problems
 
 

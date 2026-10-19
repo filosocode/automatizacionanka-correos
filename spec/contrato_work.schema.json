@@ -439,6 +439,13 @@
     },
     "applicability": {
       "type": "object"
+    },
+    "classification": {
+      "type": "string",
+      "enum": ["SOLICITUD_NUEVA", "SEGUIMIENTO", "NO_SOLICITUD", "REVISION_MANUAL"]
+    },
+    "classification_reason": {
+      "type": "string"
     }
   }
 }

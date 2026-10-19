@@ -84,6 +84,11 @@ vacío (la pregunta queda con la advertencia correspondiente). Qué se tolera y 
 El puente agrega `draft_reply` y `draft_id`. Los valores `null` en campos opcionales se tratan como
 ausentes; los campos desconocidos se toleran.
 
+T-52: el borrador puede traer, opcional, `classification` (`SOLICITUD_NUEVA`, `SEGUIMIENTO`, `NO_SOLICITUD` o
+`REVISION_MANUAL`) y `classification_reason`. Confirma o corrige la clasificación preliminar de la hoja del trabajo.
+Solo las dos primeras (o la ausencia del campo) siguen a actividades y respuesta; `NO_SOLICITUD` descarta el caso y
+`REVISION_MANUAL` lo deja en revisión técnica interna sin actividades. Ver T-52 en `requisitos.md`.
+
 `activities[].quantity` admite texto o número JSON; el importador normaliza las cantidades numéricas a texto antes
 de guardarlas en el dashboard.
 

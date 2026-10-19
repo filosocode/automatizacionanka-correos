@@ -91,6 +91,30 @@ class BackupTests(unittest.TestCase):
 
 # Cubre: T-06
 class SupervisorTests(unittest.TestCase):
+    # Cubre: U-81
+    def test_gmail_receiver_runs_only_when_enabled_and_interval_has_elapsed(self):
+        worker = supervisor.ReceptorGmail()
+        started = []
+
+        class Thread:
+            def __init__(self, target, name, daemon):
+                self.target = target
+                started.append(name)
+
+            def start(self):
+                pass
+
+            def is_alive(self):
+                return False
+
+        with patch.object(supervisor.threading, "Thread", Thread), \
+                patch.object(supervisor.time, "time", side_effect=[100, 100, 101, 161, 161]):
+            worker.check(False, 60)
+            worker.check(True, 60)
+            worker.check(True, 60)
+            worker.check(True, 60)
+        self.assertEqual(started, ["recepcion-gmail", "recepcion-gmail"])
+
     def test_backoff_grows_and_caps(self):
         self.assertEqual([supervisor.backoff(n) for n in (1, 2, 3, 10)], [2, 4, 8, 60])
 

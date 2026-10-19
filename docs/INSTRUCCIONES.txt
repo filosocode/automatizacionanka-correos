@@ -25,7 +25,7 @@ Para cada dato relevante, registra un hallazgo atómico en evidence_register con
 El dashboard muestra advertencias para revisión humana y conserva el análisis y el borrador. La importación es compatible con payloads anteriores sin evidence_register.
 
 PUENTE GMAIL → DASHBOARD LOCAL
-El puente (`work_dashboard_sync.py`) lo inicia `Iniciar Anka.bat` junto con el dashboard. Para ejecutarlo una vez:
+El puente (`work_dashboard_sync.py`) lo inicia `Iniciar Anka.bat` junto con el dashboard SOLO si config.json trae "work_general_bridge_enabled": true (T-56); sin esa clave el puente no corre, ni siquiera a mano. Para ejecutarlo una vez:
 python .\work_dashboard_sync.py --once
 Para mantenerlo activo:
 python .\work_dashboard_sync.py --seconds 60
@@ -50,4 +50,5 @@ reading_audit contiene email_segment_ids_expected, email_segment_ids_read, attac
 related_threads conserva los candidatos relacionados y la auditoría de preguntas previas, sin consolidarlos.
 analysis_complete es false cuando existe bloqueo o revisión pendiente; no indica que todo el contenido sea ilegible.
 applicability contiene status y reason; por ejemplo simulado / documento de prueba. Datos simulados se leen y extraen para evaluar capacidad, con fuentes, sin confirmarlos comercialmente.
+classification (opcional, T-52): si la hoja del trabajo trae clasificacion_preliminar, confirmala o corrigela con SOLICITUD_NUEVA, SEGUIMIENTO, NO_SOLICITUD o REVISION_MANUAL, leyendo el cuerpo del correo y sin decidir solo por palabras clave; classification_reason explica el motivo en una frase. Solo SOLICITUD_NUEVA y SEGUIMIENTO siguen a actividades y respuesta; ante la duda usa REVISION_MANUAL.
 La tarea remota debe recibir estas instrucciones de manera explícita; modificar esta copia local no configura la tarea activa.
