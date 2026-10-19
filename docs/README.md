@@ -15,7 +15,8 @@
 | [`TAREA_WORK_COLA.md`](TAREA_WORK_COLA.md) | Quien vaya a crear la tarea de Work que recoge un trabajo por ejecución | Texto propuesto (no es una tarea creada): qué hace Work y qué hace Python con PENDIENTES y CERRADOS (T-53) |
 | [`paquete_work/`](paquete_work/) | Quien mantenga el paquete que Work lee desde Drive | Fuentes del paquete de referencia del contrato (T-54): LEEME, T-52, formato de retorno e instrucciones de una ejecución |
 | [`PILOTO_ACEPTACION.md`](PILOTO_ACEPTACION.md) | Quien prueba | Checklist de la prueba de aceptación en Work |
-| [`PROMPT_WORK_ANKA_V6.txt`](PROMPT_WORK_ANKA_V6.txt) | Quien configura la tarea de Work | Candidato V6.1 (T-41): Work lee los adjuntos directamente desde Gmail, sin Drive; cada adjunto se reporta con nombre y `size_bytes` y el puente lo verifica. Se prueba primero en una conversación aparte |
+| [`PROMPT_WORK_ANKA_V6.txt`](PROMPT_WORK_ANKA_V6.txt) | Quien configura la tarea de Work | Vigente **V6.1.1** (T-57): la V6.1 más la regla «revisión interna sin bloqueo» (una solicitud legible, aunque sea ficticia, conserva su tabla preliminar). Es el prompt que lleva el paquete de referencia |
+| [`PROMPT_WORK_ANKA_V6_1.txt`](PROMPT_WORK_ANKA_V6_1.txt) | Quien revisa antecedentes | La V6.1 tal como era antes de T-57 (la del piloto 6C), conservada como antecedente |
 | [`PROPUESTA_PROMPT_V6_2.md`](PROPUESTA_PROMPT_V6_2.md) | Quien configura la tarea de Work | Propuesta (no aplicada) de V6.2: núcleo y extras, valores permitidos junto a cada campo y lista de comprobación; exige prueba manual en Work |
 | [`PROMPT_WORK_ANKA_PRECISO_V4_6.txt`](PROMPT_WORK_ANKA_PRECISO_V4_6.txt) | Quien revisa antecedentes | Versión anterior a la V5, conservada como antecedente |
 | [`PROMPT_WORK_ANKA_PRECISO_V4_7.txt`](PROMPT_WORK_ANKA_PRECISO_V4_7.txt) | Quien revisa antecedentes | Versión anterior a la V5 (unos 19 500 caracteres), conservada como antecedente |

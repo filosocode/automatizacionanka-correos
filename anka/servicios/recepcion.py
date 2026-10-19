@@ -131,14 +131,20 @@ def registrar_fallo(exc: BaseException) -> None:
     _record_failure(CUENTA, exc, ahora_iso("seconds"))
 
 
-def _acquire(account: str, now_epoch: float, now: str) -> str | None:
+def _acquire(account: str, now_epoch: float, now: str, registrar_intento: bool = True) -> str | None:
+    """Toma la reserva. Con `registrar_intento=False` (T-58) no toca `last_attempt_at` ni crea el control."""
     token = uuid.uuid4().hex
     with transaccion() as db:
         now_epoch = max(now_epoch, time.time())
         row = db.execute("SELECT lease_until FROM recepcion_control WHERE account=?", (account,)).fetchone()
         if row and row["lease_until"] and row["lease_until"] > now_epoch:
             return None
-        if row:
+        if row and not registrar_intento:
+            db.execute("UPDATE recepcion_control SET lease_token=?, lease_until=? WHERE account=?",
+                       (token, now_epoch + LEASE_SEGUNDOS, account))
+        elif not registrar_intento:
+            return None
+        elif row:
             db.execute("UPDATE recepcion_control SET lease_token=?, lease_until=?, last_attempt_at=?, updated_at=? "
                        "WHERE account=?", (token, now_epoch + LEASE_SEGUNDOS, now, now, account))
         else:

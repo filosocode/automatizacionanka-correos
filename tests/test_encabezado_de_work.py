@@ -82,7 +82,7 @@ class ElPrompt(unittest.TestCase):
         texto = PROMPT.read_text(encoding="utf-8")
         self.assertIn("cópiala tal cual, sin tilde en SECCION", texto)
         self.assertIn(ENCABEZADO, texto)
-        self.assertLess(len(texto), 12000)
+        self.assertLess(len(texto), 13000)
 
 
 if __name__ == "__main__":

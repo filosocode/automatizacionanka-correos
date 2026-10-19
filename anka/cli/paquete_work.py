@@ -30,8 +30,10 @@ CARPETA_EN_DRIVE = "REFERENCIA_ANKA_V1"
 CONTRATO = "ANKA_DASHBOARD_JSON_V1"
 MARCA_DE_HUELLA = "anka_paquete_sha256"
 DE_PLANTILLA = ("00_LEEME.md", "T-52_CLASIFICACION.md", "FORMATO_DE_RETORNO.md", "INSTRUCCIONES_UNA_EJECUCION.md")
-OBLIGATORIOS = ("manifest.json", "contrato_work.schema.json", "PRECISO_V6.1.txt", *DE_PLANTILLA,
-                *(f"ejemplo_{clase}.json" for clase in CLASIFICACIONES))
+# T-57: un ejemplo más, de SOLICITUD_NUEVA en revisión interna que conserva su tabla preliminar (no es una clase nueva)
+EN_REVISION = "SOLICITUD_NUEVA_REVISION_INTERNA"
+OBLIGATORIOS = ("manifest.json", "contrato_work.schema.json", "PRECISO_V6.1.1.txt", *DE_PLANTILLA,
+                *(f"ejemplo_{clase}.json" for clase in (*CLASIFICACIONES, EN_REVISION)))
 TIPOS = {".md": "text/markdown", ".json": "application/json", ".txt": "text/plain"}
 # Lo que un paquete autónomo no puede mencionar: nada del equipo de Anka ni archivos comprimidos.
 PROHIBIDO_EN_TEXTO = (".zip", "D:\\", "C:\\", "%LOCALAPPDATA%", "/Users/")
@@ -42,10 +44,10 @@ def _sha(datos: bytes) -> str:
 
 
 def _ejemplo_oficial(prompt: str) -> dict[str, Any]:
-    """El ejemplo ficticio de PRECISO_V6.1: la base de los demás, para no inventar ni simplificar obligatorios."""
+    """El ejemplo ficticio de PRECISO_V6.1.1: la base de los demás, para no inventar ni simplificar obligatorios."""
     bloque = re.search(r"\[ANKA_DASHBOARD_JSON_V1\]\s*(.*?)\s*\[/ANKA_DASHBOARD_JSON_V1\]", prompt, re.S)
     if bloque is None:
-        raise ErrorDeAnka("El prompt PRECISO_V6.1 no trae su ejemplo del bloque JSON.")
+        raise ErrorDeAnka("El prompt PRECISO_V6.1.1 no trae su ejemplo del bloque JSON.")
     return dict(json.loads(bloque.group(1)))
 
 
@@ -110,6 +112,58 @@ def ejemplos(prompt: str) -> dict[str, dict[str, Any]]:
             "REVISION_MANUAL": revision}
 
 
+def ejemplo_en_revision(prompt: str) -> dict[str, Any]:
+    """T-57: SOLICITUD_NUEVA ficticia en revisión interna que CONSERVA su tabla preliminar (no es un BLOQUEO).
+
+    El caso es de prueba: sus datos quedan «unconfirmed» y «pendiente», sin precios ni método inventados, sin
+    preguntas al cliente y sin texto para él. Es el contrapeso del retorno vacío del piloto 6C.
+    """
+    base = _ejemplo_oficial(prompt)
+    fila = base["activities"][0]
+    return {
+        **copy.deepcopy(base), "thread_id": "18f0000000000005", "message_id": "18f0000000000005",
+        "client_email": "laura@ejemplo-ingenieria.com", "client_name": "Laura Ejemplo",
+        "requested_by_email": "laura@ejemplo-ingenieria.com", "requested_by_name": "Laura Ejemplo",
+        "project_name": "Levantamiento lote Hatoviejo (caso de prueba)",
+        "received_at": "2026-03-05T08:00:00-05:00", "status": "Requiere revisión técnica interna",
+        "classification": "SOLICITUD_NUEVA",
+        "classification_reason": "El mensaje pide un levantamiento; los datos son de prueba, no un bloqueo de lectura.",
+        "summary": ("BORRADOR INTERNO — NO ENVIAR. Caso de prueba ficticio: se extrae el alcance, pero los datos "
+                    "no están "
+                    "validados. Pide un levantamiento planimétrico y altimétrico de unas 4,5 ha en Hatoviejo, con "
+                    "curvas de nivel. El texto no menciona sistema de referencia."),
+        "activities": [
+            {**copy.deepcopy(fila), "activity": "Levantamiento planimétrico y altimétrico",
+             "servicio_tecnica": "no indicado", "ubicacion": "Lote en Hatoviejo",
+             "quantity": "aprox. 4,5 ha", "unit": "ha",
+             "entregable": "Curvas de nivel", "plazo_restriccion": "",
+             "fuente": "correo, párrafo 1", "estado": "pendiente",
+             "notes": "Caso de prueba: datos sin validar. El texto no menciona el sistema de referencia."},
+            {**copy.deepcopy(fila), "activity": "Localización de linderos, construcciones y drenajes",
+             "servicio_tecnica": "no indicado", "ubicacion": "Lote en Hatoviejo", "quantity": "", "unit": "",
+             "entregable": "", "plazo_restriccion": "",
+             "fuente": "correo, párrafo 1", "estado": "pendiente",
+             "notes": "Sin cantidad ni entregable en el texto."}],
+        "fields": [{"name": "Ubicación", "value": "Hatoviejo", "source": "correo, párrafo 1"},
+                   {"name": "Área", "value": "aprox. 4,5 ha", "source": "correo, párrafo 1"}],
+        "missing_data": [{"name": "Sistema de referencia de entrega", "type": "critical"}],
+        "evidence_register": [
+            {"id": "E1", "topic": "Vigencia de los datos", "status": "unconfirmed", "value": "caso de prueba",
+             "source": "correo, párrafo 1", "location": "mensaje completo", "owner": "anka", "blocking": True},
+            {"id": "E2", "topic": "Sistema de referencia", "status": "absent", "value": "",
+             "source": "correo", "location": "revisado completo", "owner": "client", "blocking": False}],
+        "question_audit": [
+            {"question": "¿Se validan los datos del caso de prueba antes de cotizar?",
+             "reason_missing": "El caso es ficticio: los datos no tienen vigencia confirmada.",
+             "reviewed_sources": ["correo, párrafo 1"], "question_id": "Q1", "target_finding_ids": ["E1"],
+             "disposition": "internal_review", "unresolved": "vigencia de los datos"},
+            {"question": "Sistema de referencia de entrega (se preguntaría si el caso fuera real).",
+             "reason_missing": "No lo indica el correo; al ser un caso de prueba no se consulta al cliente.",
+             "reviewed_sources": ["correo, párrafo 1"], "question_id": "Q2", "target_finding_ids": ["E2"],
+             "disposition": "internal_review", "unresolved": "sistema de referencia de entrega"}],
+        "attachments": [], "analysis_complete": False}
+
+
 def _plano(texto: object) -> str:
     sin = unicodedata.normalize("NFKD", str(texto or "").casefold())
     return "".join(c for c in sin if not unicodedata.combining(c))
@@ -165,16 +219,42 @@ def incoherencias(ejemplo: Mapping[str, Any]) -> list[str]:
         problemas.append("REVISION_MANUAL exige revisión técnica interna y ninguna actividad.")
     if clase in ("SOLICITUD_NUEVA", "SEGUIMIENTO") and estado == "Descartada":
         problemas.append(f"{clase} no puede quedar Descartada.")
+    problemas += _incoherencias_de_revision_interna(ejemplo, a_cliente)
+    return problemas
+
+
+def _incoherencias_de_revision_interna(ejemplo: Mapping[str, Any], a_cliente: Sequence[Mapping[str, Any]]) -> list[str]:
+    """T-57: la revisión interna es un estado, no la forma de BLOQUEO; solo el bloqueo documentado vacía la tabla."""
+    clase, estado = ejemplo.get("classification"), ejemplo.get("status")
+    if clase not in ("SOLICITUD_NUEVA", "SEGUIMIENTO") or estado != "Requiere revisión técnica interna":
+        return []
+    problemas: list[str] = []
+    adjuntos = [a for a in ejemplo.get("attachments") or [] if isinstance(a, dict)]
+    bloqueado = any(a.get("status") == "bloqueado" for a in adjuntos)
+    if not ejemplo.get("activities") and not bloqueado:
+        problemas.append(f"{clase} en revisión interna sin adjunto bloqueado no puede vaciar la tabla de actividades.")
+    if ejemplo.get("analysis_complete") is True:
+        problemas.append("Un análisis en revisión interna no puede declararse completo.")
+    if ejemplo.get("draft_reply"):
+        problemas.append("Un análisis en revisión interna no lleva texto para el cliente.")
+    if a_cliente and any(p in _plano(ejemplo.get("summary")) for p in ("ficticio", "de prueba", "laboratorio")):
+        problemas.append("Un caso ficticio o de laboratorio no genera preguntas ask_client.")
+    confirmadas = any(a.get("estado") == "confirmado" for a in ejemplo.get("activities") or [] if isinstance(a, dict))
+    if confirmadas and any(e.get("status") == "unconfirmed" and e.get("blocking")
+                           for e in ejemplo.get("evidence_register") or [] if isinstance(e, dict)):
+        problemas.append("Una actividad no puede estar confirmada con un hallazgo bloqueante sin confirmar.")
     return problemas
 
 
 def _contenidos(esquema: bytes, prompt: bytes) -> dict[str, bytes]:
     """Todos los archivos del paquete (menos el manifiesto), por ruta relativa, sin la versión aún."""
-    archivos: dict[str, bytes] = {"contrato_work.schema.json": esquema, "PRECISO_V6.1.txt": prompt}
+    archivos: dict[str, bytes] = {"contrato_work.schema.json": esquema, "PRECISO_V6.1.1.txt": prompt}
     for nombre in DE_PLANTILLA:
         archivos[nombre] = (PLANTILLAS / nombre).read_bytes()
     for clase, datos in ejemplos(prompt.decode("utf-8")).items():
         archivos[f"ejemplo_{clase}.json"] = (json.dumps(datos, ensure_ascii=False, indent=2) + "\n").encode()
+    archivos[f"ejemplo_{EN_REVISION}.json"] = (
+        json.dumps(ejemplo_en_revision(prompt.decode("utf-8")), ensure_ascii=False, indent=2) + "\n").encode()
     return archivos
 
 
@@ -192,13 +272,13 @@ def construir(destino: Path) -> dict[str, Any]:
         "paquete": NOMBRE_DEL_PAQUETE, "paquete_version": version,
         "origen": {"repositorio": "Automatizacion_Correos",
                    "archivos": {"contrato_work.schema.json": "spec/contrato_work.schema.json",
-                                "PRECISO_V6.1.txt": "docs/PROMPT_WORK_ANKA_V6.txt",
+                                "PRECISO_V6.1.1.txt": "docs/PROMPT_WORK_ANKA_V6.txt",
                                 "documentos": "docs/paquete_work/", "requisitos": "T-52, T-53, T-54"}},
         "contract": {"name": CONTRATO, "schema_version": schema.get("version"),
                      "classification_enum": list(schema["properties"]["classification"]["enum"]),
                      "required": list(schema["required"])},
         "schema_sha256": _sha(esquema),
-        "prompt": {"file": "PRECISO_V6.1.txt", "version": ejemplo.get("skill_version"), "sha256": _sha(prompt)},
+        "prompt": {"file": "PRECISO_V6.1.1.txt", "version": ejemplo.get("skill_version"), "sha256": _sha(prompt)},
         "files": [{"path": n, "sha256": _sha(archivos[n]), "size_bytes": len(archivos[n])} for n in sorted(archivos)],
     }
     archivos["manifest.json"] = (json.dumps(manifiesto, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
@@ -226,7 +306,7 @@ def _problemas_de_archivos(carpeta: Path, manifiesto: Mapping[str, Any]) -> list
             problemas.append(f"El tamaño de {ruta} no coincide con el manifiesto.")
         elif _sha(datos) != ficha.get("sha256"):
             problemas.append(f"La huella SHA-256 de {ruta} no coincide con el manifiesto.")
-        if ruta.endswith((".md", ".txt")) and ruta != "PRECISO_V6.1.txt":
+        if ruta.endswith((".md", ".txt")) and ruta != "PRECISO_V6.1.1.txt":
             texto = datos.decode("utf-8", errors="replace")
             problemas += [f"{ruta} menciona «{x}», que Work no puede usar." for x in PROHIBIDO_EN_TEXTO if x in texto]
     return problemas
@@ -238,7 +318,7 @@ def _problemas_de_vigencia(carpeta: Path, manifiesto: Mapping[str, Any], version
     contrato = manifiesto.get("contract", {})
     if contrato.get("name") != version_del_contrato:
         problemas.append(f"El paquete es del contrato {contrato.get('name')}, no de {version_del_contrato}.")
-    if manifiesto.get("prompt", {}).get("version") != "PRECISO_V6.1":
+    if manifiesto.get("prompt", {}).get("version") != "PRECISO_V6.1.1":
         problemas.append("El paquete no es de PRECISO_V6.1.")
     try:
         esquema = json.loads((carpeta / "contrato_work.schema.json").read_text(encoding="utf-8"))
@@ -257,7 +337,7 @@ def _problemas_de_vigencia(carpeta: Path, manifiesto: Mapping[str, Any], version
 def _problemas_de_ejemplos(carpeta: Path) -> list[str]:
     """Los ejemplos no pueden contradecirse a sí mismos (coherencia semántica, no solo el esquema)."""
     problemas: list[str] = []
-    for clase in CLASIFICACIONES:
+    for clase in (*CLASIFICACIONES, EN_REVISION):
         ruta = carpeta / f"ejemplo_{clase}.json"
         try:
             datos = json.loads(ruta.read_text(encoding="utf-8"))

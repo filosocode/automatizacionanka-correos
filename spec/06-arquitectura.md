@@ -180,7 +180,8 @@ El JavaScript de las páginas vive en `templates/app.js` (el de cada página, co
 | `supervisor` | Lanzador único: arranca dashboard y puente, los reinicia si se caen o si cambia el código (y se reinicia a sí mismo), y hace la copia de seguridad diaria. |
 | `work_sync` | Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. |
 | `work_drive` | Proceso de preparación de expedientes, separado del puente de borradores. |
-| `gmail_reception` | Sondeo aislado de recepción Gmail (solo lectura, `python -m anka.cli.gmail_reception`); no arranca el supervisor (U-81). |
+| `recepcion_individual` | Registro de UN mensaje de prueba en la cola de recepción por su `message_id`, sin sondeo ni cursor (T-58). |
+| `gmail_reception` | Sondeo aislado de recepción Gmail (solo lectura, `python -m anka.cli.gmail_reception`); no arranca el supervisor (U-81). Con `--registrar-mensaje` registra un único mensaje de prueba por su `message_id`, sin tocar el cursor (T-58). |
 | `work_jobs` | Órdenes `crear`, `ver`, `exportar` y `publicar` (esta con `--confirmar-drive`) de los trabajos Python → Work; no corre solo (T-49). |
 | `paquete_work` | Paquete de referencia del contrato para la tarea Work de la cola (T-54): construye, verifica y publica en Drive (solo con confirmación) los archivos que Work lee. |
 | `work_coordinacion` | Prepara y ejecuta el ciclo de T-55 con Gmail y Drive reales (lo usan el lanzador, en un hilo, y la orden `work_jobs coordinar`); solo corre con la coordinación activada en `config.json`. También la verificación previa de solo lectura (`work_jobs verificar-piloto`: configuración, procesos, candados, cola y mensaje de laboratorio). |

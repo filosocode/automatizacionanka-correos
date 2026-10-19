@@ -623,7 +623,7 @@ no extraído), un dato que no se encuentra se marca «no comprobable» y no como
 (`evidence_check`: estado, cuántas comprobaciones, diferencias, no comprobables). Sin textos del hilo no se comprueba nada.
 
 ### T-39 · El prompt de Work es corto y su ejemplo cumple el contrato
-El prompt de la tarea de Work cabe en unos 12 000 caracteres (la V4.7 tiene 19 500; la V6.1, 11 800), no depende de la skill para el formato de salida e incluye un
+El prompt de la tarea de Work cabe en unos 12 000 caracteres (la V4.7 tiene 19 500; la V6.1, 11 800; la V6.1.1, 12 800 por la regla de revisión interna de T-57; el límite de las pruebas es 13 000), no depende de la skill para el formato de salida e incluye un
 JSON de ejemplo completo. Una prueba extrae ese ejemplo del archivo del prompt y comprueba que cumple el esquema
 (`spec/contrato_work.schema.json`), de modo que el ejemplo no se desactualiza sin que falle una prueba. Work solo declara qué
 segmentos leyó; la revisión, los conteos y los pendientes los calcula el puente (T-37).
@@ -1875,6 +1875,53 @@ puente reintenta lo que falló) la concilia.
 - C5 · El puente manual se niega sin autorización (con y sin `--once`) y con coordinación, sin abrir Gmail; autorizado, llega a Gmail; la importación aislada funciona sin autorización.
 - C6 · La clave es conocida, booleana, y `config.example.json` la trae en `false`; autorizar no activa la coordinación.
 - C7 · La documentación de cierre detiene primero los servicios y la de operación explica cómo volver a autorizar el puente.
+
+### T-57 · Una revisión interna no vacía el análisis técnico de una solicitud legible
+**Estado: implementado en Python y en el paquete; pendiente de publicar el paquete y de prueba real en Work** (pruebas en `tests/test_analisis_conservado.py`). Decisión: D-164. Corrige la calidad del análisis del piloto 6C (19/10/2026): Work clasificó bien `SOLICITUD_NUEVA` pero devolvió `activities`, `fields`, `missing_data` y `evidence_register` vacíos porque el caso era de laboratorio, aplicando la forma de «BLOQUEO» a un estado de revisión interna.
+
+**Qué resuelve.** `PRECISO_V6.1` y T-52 mezclaban dos cosas: el *estado* «Requiere revisión técnica interna» (que agrupa bloqueo, datos ficticios, contradicción…) y la *forma de salida* BLOQUEO (que vacía la tabla). Nada decía que «datos ficticios» no vacía la tabla, y no había ejemplo de una `SOLICITUD_NUEVA` en revisión interna con su tabla. El esquema y el importador no cambian: ya admiten ambas formas.
+
+**Qué debe cumplirse**
+1. **Cuatro dimensiones independientes:** `classification`, estado del expediente, completitud del análisis (`analysis_complete`) y autorización para contactar al cliente. Ninguna se deduce de otra.
+2. **`SOLICITUD_NUEVA` / `SEGUIMIENTO` con mensaje legible conservan la tabla** aunque el caso sea ficticio, de laboratorio, sin vigencia, contradictorio o con lectura parcial documentada: una actividad por servicio pedido con su `fuente` y `estado` «pendiente»; `quantity`, `unit` y `entregable` solo si el texto los dice; `fields`, `missing_data` y `evidence_register` (`unconfirmed` o el que corresponda). `analysis_complete` sigue en `false`.
+3. **La forma BLOQUEO se reserva** a: mensaje o adjunto esencial ilegible, identidad o hilo que no coinciden con la hoja, o `REVISION_MANUAL`. Nunca por usar el estado de revisión interna. `NO_SOLICITUD` sigue vacía y `Descartada`.
+4. **Preguntas.** Un caso ficticio solo genera `internal_review` (también para lo que se preguntaría al cliente); `ask_client` solo si el caso es real y falta algo indispensable. Nunca texto para el cliente en un caso interno.
+5. **No se inventa** método, equipo, precisión, sistema de referencia, cantidad, fecha ni precio; un dato sin fuente no se confirma.
+6. **`estado_del_trabajo` = `publicando`** en la hoja `TRABAJO` es la instantánea de su creación; el estado operativo definitivo está en SQLite. No es motivo para vaciar el análisis.
+7. **Paquete.** Versión del prompt `PRECISO_V6.1.1` (archivo `PRECISO_V6.1.1.txt`), T-52 actualizada y un ejemplo más, `ejemplo_SOLICITUD_NUEVA_REVISION_INTERNA.json`; `incoherencias` rechaza una `SOLICITUD_NUEVA`/`SEGUIMIENTO` en revisión interna con la tabla vacía sin adjunto bloqueado, un análisis en revisión interna declarado completo o con texto para el cliente, preguntas `ask_client` en un caso ficticio y actividades confirmadas con un hallazgo bloqueante sin confirmar.
+8. **Compatibilidad.** Sin cambios en `contrato_work.schema.json` ni en el importador; los retornos históricos (`PRECISO_V6.1`, incluido el del 6C con la tabla vacía) siguen validando e importándose igual, y `PRECISO_V6.1.1` se trata como V6 (verificación por adjuntos).
+
+**Casos de aceptación**
+- C1 · `SOLICITUD_NUEVA` normal: sin incoherencias.
+- C2 · `SOLICITUD_NUEVA` ficticia en revisión interna: el ejemplo conserva actividades con fuente y `pendiente`, `analysis_complete=false`, solo `internal_review`, sin texto para el cliente, sin precios ni métodos inventados.
+- C3 · Retorno vacío del 6C: `incoherencias` lo señala; con un adjunto `bloqueado` se admite vacío.
+- C4 · Lectura parcial documentada: conserva la tabla; declararla completa se rechaza.
+- C5 · `SEGUIMIENTO` con información adicional y en revisión interna: conserva la tabla.
+- C6 · `REVISION_MANUAL` y `NO_SOLICITUD` siguen vacías.
+- C7 · Los retornos históricos 5B y 6C validan e importan; la versión nueva se importa sin avisos de formato.
+- C8 · El paquete se construye, se verifica y lista el ejemplo nuevo (manifiesto con `PRECISO_V6.1.1`).
+
+### T-58 · Registro individual de un mensaje en la cola de recepción
+**Estado: implementado en Python; sin ejecutar contra Gmail real** (pruebas en `tests/test_recepcion_individual.py`). Decisión: D-165. Corrige el hueco que apareció preparando la prueba integrada de T-57: un mensaje de laboratorio llegado después del último sondeo solo podía entrar en la cola con una pasada general de `gmail_reception --once`, que registra todo lo nuevo desde el cursor (aquí, cinco mensajes, tres de ellos ajenos: avisos de ChatGPT y mensajes del hilo del piloto 6C) y avanza el cursor.
+
+**Qué debe cumplirse**
+1. **Orden explícita y aislada.** `python -m anka.cli.gmail_reception --registrar-mensaje --thread-id T --message-id M --remitente-esperado D --marca PRUEBA-… --confirmar`. Los cinco parámetros son obligatorios; sin `--confirmar` se rechaza sin tocar Gmail ni SQLite. No se combina con `--once`, `--authorize` ni `--interval`. No hay búsqueda: se exige el `message_id` exacto.
+2. **Verificación previa a cualquier escritura**, leyendo ese único mensaje en Gmail: la cuenta del perfil es `ankacomercialia@gmail.com`; el `id` y el `threadId` devueltos son los pedidos; el remitente es exactamente el esperado; la cuenta es destinataria; no es borrador ni enviado; la marca (`PRUEBA-` más letras, números o guiones) está en el asunto y en el cuerpo como «Identificador: <marca>»; y el cuerpo se declara a sí mismo «prueba ficticia». Si algo falla, no se escribe nada.
+3. **Reutiliza el procesamiento normal** (`_register_message`): mismos estados, clasificaciones (propio, anterior al checkpoint, pendiente), metadatos de adjuntos, evidencia y eventos. La fuente de la detección queda como `registro_individual`.
+4. **Solo ese mensaje.** No se leen ni procesan otras filas de la cola (ni las pendientes ni las que esperan reintento), no se consulta History ni se hace búsqueda, y no se tocan `quotes`, trabajos, borradores ni Drive.
+5. **El cursor general no se altera**: `history_id`, `history_page_token`, `last_success_at`, `last_attempt_at`, `initial_checkpoint_at`, el estado de recuperación y los contadores de error quedan como estaban. Solo se toma y se suelta la reserva de la cuenta (evita competir con un sondeo) y se renueva `updated_at`. Sin fila de control inicializada, se rechaza.
+6. **Idempotencia.** Si el mensaje ya está en la cola (en cualquier estado) no se escribe nada y se informa `ya_registrado`. Un fallo al leerlo tras insertar deja la cola como estaba (se retira la fila y el evento de esa orden).
+7. **Salida sin contenido**: ids, estado y disposición; nunca asunto, cuerpo ni remitente.
+8. **Compatibilidad.** La fila registrada es la que `work_jobs elegibilidad` y `work_jobs crear` esperan. La orden no crea trabajos ni publica en Drive.
+9. **Uso.** Es una herramienta de laboratorio y de recuperación supervisada: la marca `PRUEBA-` limita hoy su uso a mensajes de prueba declarados.
+
+**Casos de aceptación**
+- C1 · Registro correcto: una fila pendiente de interpretación, eventos `detectado` y `pendiente_work`.
+- C2 · Segunda ejecución: `ya_registrado`, sin filas ni eventos nuevos.
+- C3 · `message_id` inexistente, hilo, remitente o cuenta incorrectos, mensaje no ficticio, sin marca, borrador o enviado: rechazo sin escrituras.
+- C4 · El cursor y el resto de la cola quedan idénticos; no se llama a History ni a búsquedas.
+- C5 · Sin `--confirmar` o con parámetros faltantes o combinados: rechazo sin Gmail.
+- C6 · `work_jobs crear` acepta la fila registrada.
 
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 

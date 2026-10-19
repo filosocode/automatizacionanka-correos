@@ -25,7 +25,7 @@ CON_TAMANO = [{"filename": "a.pdf", "size_bytes": 10}, {"filename": "b.dwg", "si
 class LaHuellaDeV6(unittest.TestCase):
     def test_la_version_declarada_manda(self) -> None:
         # Cubre: T-44
-        for version, esperado in (("PRECISO_V6.1", True), ("PRECISO_V7.0", True), ("PRECISO_V5.0", False),
+        for version, esperado in (("PRECISO_V6.1.1", True), ("PRECISO_V7.0", True), ("PRECISO_V5.0", False),
                                   ("PRECISO_V4.5_DRIVE", False)):
             # aunque los adjuntos traigan size_bytes, una versión declarada de V5 no se reinterpreta
             self.assertIs(usa_verificacion_por_adjuntos({"skill_version": version, "attachments": CON_TAMANO}),
@@ -105,10 +105,10 @@ class ElPrompt(unittest.TestCase):
     def test_hace_obligatorio_el_campo_skill_version(self) -> None:
         # Cubre: T-44
         texto = PROMPT.read_text(encoding="utf-8")
-        regla = "skill_version es obligatorio y va exactamente como en el ejemplo: PRECISO_V6.1. Nunca lo omitas ni lo cambies."
+        regla = "skill_version es obligatorio y va exactamente como en el ejemplo: PRECISO_V6.1.1. Nunca lo omitas ni lo cambies."
         self.assertIn(regla, texto)
         self.assertGreater(texto.index(regla), texto.index("Reglas del JSON"))        # está en las reglas, no en el ejemplo
-        self.assertLess(len(texto), 12000)
+        self.assertLess(len(texto), 13000)
 
 
 if __name__ == "__main__":
