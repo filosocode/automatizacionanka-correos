@@ -120,12 +120,12 @@ class ConstruccionTests(Base):
 
     def test_el_esquema_y_el_prompt_son_copias_exactas_de_las_fuentes_canonicas(self):
         import hashlib
-        self.assertEqual((self.carpeta / "contrato_work.schema.json").read_bytes(), paquete_work.ESQUEMA.read_bytes())
-        self.assertEqual((self.carpeta / "PRECISO_V6.1.2.txt").read_bytes(), paquete_work.PROMPT.read_bytes())
+        self.assertEqual((self.carpeta / "contrato_work.schema.json").read_bytes(), paquete_work.leer(paquete_work.ESQUEMA))
+        self.assertEqual((self.carpeta / "PRECISO_V6.1.2.txt").read_bytes(), paquete_work.leer(paquete_work.PROMPT))
         self.assertEqual(self.manifiesto["schema_sha256"],
-                         hashlib.sha256(paquete_work.ESQUEMA.read_bytes()).hexdigest())
+                         hashlib.sha256(paquete_work.leer(paquete_work.ESQUEMA)).hexdigest())
         self.assertEqual(self.manifiesto["prompt"]["sha256"],
-                         hashlib.sha256(paquete_work.PROMPT.read_bytes()).hexdigest())
+                         hashlib.sha256(paquete_work.leer(paquete_work.PROMPT)).hexdigest())
 
     def test_es_autonomo_sin_zip_ni_rutas_locales(self):
         for ruta in OBLIGATORIOS:

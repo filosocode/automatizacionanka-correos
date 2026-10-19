@@ -2004,10 +2004,16 @@ por el mismo circuito Python → Drive → Work → Python y sin cambiar el esqu
     trabajos creados antes no la tienen y su hoja no cambia; el `job_id` no cambia.
 15. **Nada se toca de lo ya hecho.** Construir la hoja no escribe en el expediente; los expedientes conciliados y las hojas
     históricas no se modifican; el esquema, el importador y las importaciones históricas siguen igual.
+16. **Paquete reproducible.** La versión, las huellas y el manifiesto del paquete se calculan sobre el texto de sus fuentes
+    (esquema, prompt y documentos) con final de línea LF, venga el árbol de trabajo en LF o en CRLF (`core.autocrlf`):
+    `paquete_work.leer` normaliza al construir y `.gitattributes` fija esas fuentes en `eol=lf`. Construir desde el árbol
+    actual, desde una copia en LF y desde un checkout limpio con CRLF da el mismo paquete byte a byte. Un paquete ya
+    publicado se verifica con los bytes con que se publicó (cada archivo contra su propio manifiesto).
 Casos: C15 seguimiento con tabla existente (tres hojas); C16 solicitud nueva sin contexto; C17 pregunta enviada, propuesta
 no enviada e interna; C18 pregunta respondida o sin respuesta demostrada; C19 tabla editada por una persona y propuesta
 pendiente; C20 contexto recortado y sin datos de otro expediente; C21 retornos de Work que cambian una magnitud, agregan una
-actividad, eliminan, contradicen o conservan nombres; C22 trabajo nuevo con versión del paquete y trabajo antiguo sin ella.
+actividad, eliminan, contradicen o conservan nombres; C22 trabajo nuevo con versión del paquete y trabajo antiguo sin ella; C23 el paquete sale igual desde un árbol en LF,
+en CRLF y desde un checkout limpio.
 
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 

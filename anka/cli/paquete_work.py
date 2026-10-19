@@ -39,6 +39,16 @@ TIPOS = {".md": "text/markdown", ".json": "application/json", ".txt": "text/plai
 PROHIBIDO_EN_TEXTO = (".zip", "D:\\", "C:\\", "%LOCALAPPDATA%", "/Users/")
 
 
+def leer(ruta: Path) -> bytes:
+    """Los bytes de un archivo fuente del paquete con final de línea LF, como están en Git.
+
+    El paquete no puede depender de si el entorno hizo checkout con CRLF o LF (`core.autocrlf`): la versión y las
+    huellas se calculan siempre sobre el texto en LF (T-59). Un paquete ya publicado conserva los bytes con que se
+    publicó.
+    """
+    return ruta.read_bytes().replace(b"\r\n", b"\n")
+
+
 def _sha(datos: bytes) -> str:
     return hashlib.sha256(datos).hexdigest()
 
@@ -250,7 +260,7 @@ def _contenidos(esquema: bytes, prompt: bytes) -> dict[str, bytes]:
     """Todos los archivos del paquete (menos el manifiesto), por ruta relativa, sin la versión aún."""
     archivos: dict[str, bytes] = {"contrato_work.schema.json": esquema, "PRECISO_V6.1.2.txt": prompt}
     for nombre in DE_PLANTILLA:
-        archivos[nombre] = (PLANTILLAS / nombre).read_bytes()
+        archivos[nombre] = leer(PLANTILLAS / nombre)
     for clase, datos in ejemplos(prompt.decode("utf-8")).items():
         archivos[f"ejemplo_{clase}.json"] = (json.dumps(datos, ensure_ascii=False, indent=2) + "\n").encode()
     archivos[f"ejemplo_{EN_REVISION}.json"] = (
@@ -264,12 +274,12 @@ def _version(archivos: Mapping[str, bytes]) -> str:
 
 def version_del_paquete() -> str:
     """La versión que tendría el paquete con los archivos de hoy (la del manifiesto), sin escribir nada."""
-    return _version(_contenidos(ESQUEMA.read_bytes(), PROMPT.read_bytes()))
+    return _version(_contenidos(leer(ESQUEMA), leer(PROMPT)))
 
 
 def construir(destino: Path) -> dict[str, Any]:
     """Escribe el paquete en `destino` (una carpeta) y devuelve su manifiesto. Es determinista."""
-    esquema, prompt = ESQUEMA.read_bytes(), PROMPT.read_bytes()
+    esquema, prompt = leer(ESQUEMA), leer(PROMPT)
     schema = json.loads(esquema)
     archivos = _contenidos(esquema, prompt)
     version = _version(archivos)

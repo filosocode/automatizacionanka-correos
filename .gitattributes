@@ -1,0 +1,4 @@
+# Fuentes del paquete contractual de Work: siempre LF, para que su versión y sus huellas no dependan del entorno (T-59).
+spec/contrato_work.schema.json text eol=lf
+docs/PROMPT_WORK_ANKA_V6.txt text eol=lf
+docs/paquete_work/*.md text eol=lf
