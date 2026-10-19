@@ -53,8 +53,9 @@ class Coordinador:
 
     def __init__(self, drive: ClienteDrive, importar: Importar, bloqueo: Path | None = None,
                  reloj: Callable[[], float] = time.time, fecha: Callable[[], datetime] = _ahora,
-                 puente_activo: Callable[[], bool] = other_bridge_running) -> None:
+                 puente_activo: Callable[[], bool] = other_bridge_running, paquete_version: str = "") -> None:
         self.drive = drive
+        self.paquete_version = paquete_version
         self.importar = importar
         self.reloj = reloj
         self.fecha = fecha
@@ -218,7 +219,8 @@ class Coordinador:
         cola += [(m["thread_id"], m["message_id"], "") for m in trabajos_work.mensajes_nuevos(plan.desde, alcance)]
         for hilo, mensaje, recuperando in cola[:plan.max_publicar]:
             try:
-                publicacion = despacho.despachar_mensaje(self.drive, Alcance(hilo, mensaje), carpetas, self.reloj)
+                publicacion = despacho.despachar_mensaje(self.drive, Alcance(hilo, mensaje), carpetas, self.reloj,
+                                                      self.paquete_version)
             except Exception as exc:
                 informe["errores"].append(f"despachar:{type(exc).__name__}")
                 log.warning("No se pudo despachar un mensaje (%s)", type(exc).__name__)

@@ -90,8 +90,8 @@ class PromptV6Tests(unittest.TestCase):
     def test_es_corto_llega_completo_y_no_usa_drive(self):
         # Cubre: T-39, T-41
         contenido = texto_v6()
-        self.assertLess(len(contenido), 13000)
-        self.assertTrue(contenido.rstrip().endswith("FIN_PROMPT_ANKA_V6.1.1"))
+        self.assertLess(len(contenido), 14500)
+        self.assertTrue(contenido.rstrip().endswith("FIN_PROMPT_ANKA_V6.1.2"))
         self.assertIn("[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]", contenido)
         for palabra in ("DRIVE_PREFLIGHT", "MANIFIESTO", "reading_audit", "segmento"):
             self.assertNotIn(palabra, contenido)
@@ -107,7 +107,7 @@ class PromptV6Tests(unittest.TestCase):
         datos = ejemplo_v6()
         self.assertEqual(validate(datos), [])
         self.assertTrue(set(load_schema()["required"]) <= set(datos))
-        self.assertEqual(datos["skill_version"], "PRECISO_V6.1.1")
+        self.assertEqual(datos["skill_version"], "PRECISO_V6.1.2")
         self.assertTrue(usa_verificacion_por_adjuntos(datos))
         self.assertTrue(datos["attachments"])
         for adjunto in datos["attachments"]:

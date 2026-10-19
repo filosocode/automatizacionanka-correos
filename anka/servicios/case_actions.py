@@ -5,6 +5,7 @@ from anka.infra.clientes_google import ClienteDrive, ClienteGmail
 from anka.servicios.repositorio import actualizar_caso
 
 import base64
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -22,13 +23,14 @@ from anka.dominio.status import (
 from anka.servicios.drive_layout import DriveLayoutError, create_project_folder, trash_project_folder, year_mismatch
 from anka.infra.google_services import es_fallo_externo, services
 from anka.dominio.correo import (
+    comprobar_texto_para_el_cliente,
     forwarded_routing,
     inbound_messages,
     reply_email,
     valid_email_address,
 )
 from anka.infra.mail import own_addresses, send_reply
-from anka.dominio.preguntas import en_el_correo, hay_pendientes_internos
+from anka.dominio.preguntas import anotar_envio, en_el_correo, hay_pendientes_internos
 from anka.dominio.reception import (
     question_email, reception_questions, safe_folder_name,
 )
@@ -108,14 +110,29 @@ def _recipient(thread_id: str, quote: dict, to: str) -> str:
     return to
 
 
+def huella_del_texto(texto: str) -> str:
+    """SHA-256 del texto de un correo con los saltos de línea normalizados: la huella de lo que una persona aprobó."""
+    normal = texto.replace(chr(13) + chr(10), chr(10)).replace(chr(13), chr(10)).strip()
+    return hashlib.sha256(normal.encode("utf-8")).hexdigest()
+
+
+def _comprobar_lo_entregado(email: Any, aprobado: str) -> None:
+    """Lo que se entrega a Gmail es exactamente el texto aprobado; si no, no se envía nada (T-59)."""
+    if huella_del_texto(email.get_content()) != huella_del_texto(aprobado):
+        raise ErrorDeAnka("El texto que iba a salir no coincide con el que aprobaste, así que no se envió nada. "
+                          "Vuelve a intentarlo.")
+
+
 def save_dashboard_draft(thread_id: str, body: str, to: str = "") -> str:
     """Guarda como borrador de Gmail el texto escrito en el dashboard, sin enviarlo."""
     body = body.strip()      # lo que la persona escribió sale tal cual: nunca se recorta en silencio (U-39)
     if not body:
         raise ErrorDeValidacion("Escribe algo antes de guardar.")
+    comprobar_texto_para_el_cliente(body)      # antes de leer el caso o contactar Gmail (T-59)
     quote, gmail, thread, account_addresses = case_email_context(thread_id)
     recipient = _recipient(thread_id, quote, to)
     email = reply_email(thread, recipient, body, account_addresses)
+    _comprobar_lo_entregado(email, body)
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
     if quote["draft_id"]:
         result = gmail.users().drafts().update(
@@ -229,7 +246,7 @@ def _record_sent_reply(quote: Any, envio: RespuestaEnviada) -> None:
         # el análisis de ahora: durante el envío el puente pudo guardar uno nuevo (U-42)
         analysis = json.loads(fila["analysis_json"]) if fila else dict(quote["analysis"])
         analysis.pop("work_reply", None)  # el borrador de Work ya se envió: no debe volver a proponerse
-        analysis["preguntas_enviadas"] = {"en": now, "preguntas": list(preguntas), "esperada": bool(esperar)}
+        anotar_envio(analysis, now, message_id, preguntas, esperar)       # T-59: la ronda enviada y su mensaje de Gmail
         if preguntas:
             con_preguntas = f"con {len(preguntas)} pregunta(s) para el cliente: se espera su respuesta"
         elif esperar:
@@ -248,7 +265,8 @@ def _record_sent_reply(quote: Any, envio: RespuestaEnviada) -> None:
         add_message(db, thread_id, message_id, "sent", "", "", body, now)
         origen = origen_de_destinatario(thread_id, recipient, db)
         record_event(db, thread_id, "sent", "dashboard", message_id,
-                     f"Correo enviado desde el dashboard a {recipient}{origen_en_texto(origen)}, {con_preguntas}.", now)
+                     f"Correo enviado desde el dashboard a {recipient}{origen_en_texto(origen)}, {con_preguntas}. "
+                     f"Huella SHA-256 del texto aprobado: {huella_del_texto(body)}.", now)
         add_dashboard_notification(
             db, thread_id, QuoteStatus.RESPONSE_SENT, message_id,
             "Respuesta enviada",
@@ -270,6 +288,7 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     body = body.strip()      # lo revisado es lo enviado: no se recorta nada en silencio (U-39, R8)
     if not body:
         raise ErrorDeValidacion("Escribe el correo antes de enviar.")
+    comprobar_texto_para_el_cliente(body)      # antes de reservar, guardar o contactar Gmail (T-59)
     actual = get_quote(thread_id)
     if state_token and actual and actual.marca_de_estado != state_token:
         raise ErrorDeValidacion("Este caso cambió desde que abriste la pantalla, así que el correo no se envió. Lo que "
@@ -296,6 +315,7 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
     if duplicate:
         raise ErrorDeValidacion(duplicate)
     email = reply_email(thread, recipient, body, account_addresses)
+    _comprobar_lo_entregado(email, body)
     operation_key, stable_message_id = envios.reservar(thread_id, recipient, body)
     email['Message-ID'] = stable_message_id
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
@@ -617,6 +637,7 @@ def _send_questions(db: sqlite3.Connection, gmail: ClienteGmail, config: Configu
             reception_questions(analysis, config["required_fields"]),
             analysis.get("routing", {}).get("is_forwarded", False),
         )
+    comprobar_texto_para_el_cliente(body)     # antes de pasar el caso a «enviando» (T-59)
     verificar_transicion(db, thread_id, QuoteStatus.SENDING, "iniciar_envio")
     save(db, thread_id, last_id, QuoteStatus.SENDING, recipient, analysis)
     sent_id = send_reply(gmail, thread, recipient, body, account_addresses)

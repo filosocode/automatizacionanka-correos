@@ -121,7 +121,8 @@ def create_reply_draft(
     own_email_addresses: list[str] | set[str] | None = None,
 ) -> str:
     """Guarda la respuesta como borrador de Gmail en el hilo y devuelve el id del borrador."""
-    email = reply_email(thread, recipient, body, own_email_addresses)
+    # el borrador de revisión de Python lleva a propósito la sección interna; no sale por Anka, lo revisa una persona
+    email = reply_email(thread, recipient, body, own_email_addresses, permitir_seccion_interna=True)
     raw = base64.urlsafe_b64encode(email.as_bytes()).decode("ascii")
     result = gmail.users().drafts().create(
         userId="me", body={"message": {"raw": raw, "threadId": thread["id"]}}

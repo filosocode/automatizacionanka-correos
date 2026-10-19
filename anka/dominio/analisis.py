@@ -163,7 +163,9 @@ class Analisis(TypedDict, total=False):
     analysis_complete: bool
     force_analysis: bool
     preguntas: list[Any]                 # preguntas del caso con la decisión de una persona (U-22)
-    preguntas_enviadas: dict[str, Any]   # {en, preguntas}: las preguntas que llevaba el último correo enviado (U-22)
+    preguntas_enviadas: dict[str, Any]   # {en, mensaje, preguntas}: las preguntas que llevaba el último correo enviado
+    rondas_de_preguntas: list[dict[str, Any]]   # cada correo enviado, sus preguntas y la respuesta que siguió (T-59)
+    revision_de_tabla: list[dict[str, str]]     # lo que un seguimiento propone y requiere revisión humana (T-59)
     analysis_failure: dict[str, Any]     # {motivo, intentos, proximo_intento}: el hilo no se pudo analizar (T-26)
     lectura_por_tramos: dict[str, Any]   # {adjuntos: [{adjunto, tramos, hallazgos}], niveles}: leídos por tramos
     ignored_reason: str

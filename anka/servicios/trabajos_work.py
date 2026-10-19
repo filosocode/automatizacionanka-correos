@@ -19,7 +19,9 @@ from typing import Any
 from anka.dominio.coordinacion_work import instante
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.reloj import ahora_iso
-from anka.dominio.clasificacion import Clasificacion, clasificar_preliminar
+from anka.dominio.caso import STATUS_LABELS
+from anka.dominio.clasificacion import SEGUIMIENTO, Clasificacion, clasificar_preliminar
+from anka.dominio.contexto_previo import Contexto, contexto_de_seguimiento
 from anka.dominio.trabajo_work import (
     AMBIGUO, CLAVE_DE_MARCA, CONCILIABLES, CONCILIADO, EXCLUIDO, PENDIENTE_DE_PUBLICAR, PUBLICADO, PUBLICANDO,
     TIPO_ANALIZAR, TIPOS, VERSION_DEL_CONTRATO, Veredicto, construir_libro_del_trabajo, evaluar_elegibilidad,
@@ -154,8 +156,12 @@ def trabajos_del_mensaje(thread_id: str, message_id: str) -> list[dict[str, Any]
 
 
 def crear_trabajo(thread_id: str, message_id: str, job_type: str = TIPO_ANALIZAR,
-                  contract_version: str = VERSION_DEL_CONTRATO, ahora: str | None = None) -> dict[str, Any]:
-    """Crea (o devuelve) el trabajo de un mensaje que sigue pendiente en la cola de recepción. No inventa filas."""
+                  contract_version: str = VERSION_DEL_CONTRATO, ahora: str | None = None,
+                  paquete_version: str = "") -> dict[str, Any]:
+    """Crea (o devuelve) el trabajo de un mensaje que sigue pendiente en la cola de recepción. No inventa filas.
+
+    `paquete_version` es la del paquete contractual vigente (T-59): queda en el evento de creación y la hoja la muestra.
+    """
     thread_id, message_id = str(thread_id or "").strip(), str(message_id or "").strip()
     if not thread_id or not message_id:
         raise TrabajoRechazado("Falta el thread_id o el message_id.")
@@ -178,14 +184,14 @@ def crear_trabajo(thread_id: str, message_id: str, job_type: str = TIPO_ANALIZAR
         if rechazo is not None:
             resultado: dict[str, Any] = {}
         else:
-            resultado = _insertar_trabajo(db, fila, job_id, job_type, contract_version, when)
+            resultado = _insertar_trabajo(db, fila, job_id, job_type, contract_version, when, paquete_version)
     if rechazo is not None:                # fuera de la transacción: el evento del rechazo ya quedó confirmado
         raise NoElegible(rechazo)
     return resultado
 
 
 def _insertar_trabajo(db: sqlite3.Connection, fila: sqlite3.Row, job_id: str, job_type: str, contract_version: str,
-                      when: str) -> dict[str, Any]:
+                      when: str, paquete_version: str = "") -> dict[str, Any]:
     """Crea la fila del trabajo y su evento (el mensaje ya se comprobó pendiente y elegible)."""
     referencia = referencia_del_mensaje(dict(fila))
     clasificacion = _registrar_clasificacion(db, fila, when)
@@ -195,7 +201,8 @@ def _insertar_trabajo(db: sqlite3.Connection, fila: sqlite3.Row, job_id: str, jo
                 PENDIENTE_DE_PUBLICAR, json.dumps(referencia, ensure_ascii=False, sort_keys=True),
                 huella_de_la_referencia(referencia), when, when))
     creado = db.execute("SELECT * FROM trabajos_work WHERE job_id=?", (job_id,)).fetchone()
-    _evento(db, creado, "trabajo_creado", when, {"job_type": job_type, "contract_version": contract_version})
+    _evento(db, creado, "trabajo_creado", when, {"job_type": job_type, "contract_version": contract_version,
+                                                 **({"package_version": paquete_version} if paquete_version else {})})
     return {**(_como_dict(creado) or {}), "creado": True, "clasificacion": clasificacion.clase,
             "motivo_de_clasificacion": clasificacion.motivo}
 
@@ -327,7 +334,35 @@ def _con_clasificacion(trabajo: dict[str, Any]) -> dict[str, Any]:
         if fila is None:
             return trabajo
         clasificacion = clasificacion_del_mensaje(db, fila)
-    return {**trabajo, "clasificacion_preliminar": clasificacion.clase, "motivo_preliminar": clasificacion.motivo}
+        creacion = db.execute("SELECT detail_json FROM recepcion_eventos WHERE account=? AND thread_id=? "
+                              "AND message_id=? AND event_kind='trabajo_creado' "
+                              "AND json_extract(detail_json,'$.job_id')=? LIMIT 1",
+                              (CUENTA, trabajo["thread_id"], trabajo["message_id"], trabajo["job_id"])).fetchone()
+        contexto = _contexto_previo(db, trabajo) if clasificacion.clase == SEGUIMIENTO else None
+    paquete = ""
+    if creacion is not None:
+        try:
+            paquete = str(json.loads(creacion["detail_json"]).get("package_version") or "")
+        except ValueError:
+            paquete = ""
+    return {**trabajo, "clasificacion_preliminar": clasificacion.clase, "motivo_preliminar": clasificacion.motivo,
+            "contexto_previo": contexto, "paquete_version": paquete}
+
+
+def _contexto_previo(db: sqlite3.Connection, trabajo: dict[str, Any]) -> Contexto | None:
+    """El contexto del expediente de ESE hilo (T-59, Fase C), o `None` si no hay: nunca se inventa."""
+    caso = db.execute("SELECT status, analysis_json, quote_code, last_inbound_id FROM quotes WHERE thread_id=?",
+                      (trabajo["thread_id"],)).fetchone()
+    if caso is None:
+        return None
+    try:
+        analisis = json.loads(caso["analysis_json"] or "{}")
+    except ValueError:
+        analisis = {}
+    return contexto_de_seguimiento(
+        analisis if isinstance(analisis, dict) else {}, thread_id=trabajo["thread_id"],
+        estado=STATUS_LABELS.get(caso["status"], str(caso["status"] or "")), codigo_t=str(caso["quote_code"] or ""),
+        ultimo_mensaje=str(caso["last_inbound_id"] or ""), mensaje_nuevo=trabajo["message_id"])
 
 
 # --- Publicación en Drive -------------------------------------------------------------------------------------------

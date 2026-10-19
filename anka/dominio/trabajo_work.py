@@ -12,6 +12,7 @@ from email.utils import parseaddr
 from io import BytesIO
 from typing import Any, NamedTuple
 
+from anka.dominio import contexto_previo
 from anka.dominio.analisis import Adjunto
 from anka.dominio.reception import NOISE_SIGNALS, mentions_commercial_terms, noise_signal_id
 
@@ -119,6 +120,12 @@ def construir_libro_del_trabajo(trabajo: Mapping[str, Any]) -> bytes:
         ("motivo_preliminar", str(trabajo.get("motivo_preliminar") or "")),
         ("instruccion_para_work", INSTRUCCION_PARA_WORK),
     ]
+    paquete = str(trabajo.get("paquete_version") or "")
+    if paquete:                                  # solo los trabajos creados con versión de paquete (T-59, punto 14)
+        filas.insert(6, ("version_del_paquete", paquete))
+    contexto = trabajo.get("contexto_previo")
+    if isinstance(contexto, contexto_previo.Contexto):
+        filas.append(("instruccion_de_seguimiento", contexto_previo.INSTRUCCION_DE_SEGUIMIENTO))
     principal.append(["campo", "valor"])
     for fila in filas:
         principal.append(list(fila))
@@ -136,6 +143,13 @@ def construir_libro_del_trabajo(trabajo: Mapping[str, Any]) -> bytes:
     for paso in PASOS_DE_VERIFICACION:
         pasos.append(list(paso))
     _estilo(pasos, (8, 110))
+    if isinstance(contexto, contexto_previo.Contexto):
+        for nombre, encabezados, datos in contexto_previo.hojas(contexto):
+            hoja_de_contexto = libro.create_sheet(nombre)
+            hoja_de_contexto.append(list(encabezados))
+            for dato in datos:
+                hoja_de_contexto.append(list(dato))
+            _estilo(hoja_de_contexto, (24, 110) if len(encabezados) == 2 else (22,) * len(encabezados))
     for hoja in libro.worksheets:     # texto, nunca fórmulas: openpyxl toma por fórmula lo que empieza con "="
         for fila_de_celdas in hoja.iter_rows():
             for celda in fila_de_celdas:

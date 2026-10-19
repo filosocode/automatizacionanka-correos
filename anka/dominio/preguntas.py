@@ -9,7 +9,9 @@ de las preguntas que de verdad quedaron en el correo enviado.
 from __future__ import annotations
 
 from anka.dominio.errores import ErrorDeValidacion
+from anka.dominio.reloj import instante
 
+import copy
 import hashlib
 import re
 import unicodedata
@@ -276,3 +278,69 @@ def en_el_correo(cuerpo: str) -> list[str]:
         if punto not in unicos:
             unicos.append(punto)
     return unicos
+
+
+# --- Rondas de preguntas (T-59, Fase B): lo que de verdad se envió, aparte de lo que Work propuso ----------
+#
+# Una pregunta pasa por cuatro momentos que no se confunden: *propuesta* (la candidata del análisis), *aprobada* (la
+# persona decidió «preguntar al cliente»; vive en `preguntas`), *enviada* (salió en un correo, con su mensaje de Gmail)
+# y
+# *atendida*. Solo el envío crea una ronda. Que el cliente haya escrito después se anota en la ronda (`respuesta`); de
+# cada pregunta solo se afirma lo que se ve: sigue abierta si el análisis nuevo la vuelve a pedir, y «sin confirmar» si
+# no, porque que ya no aparezca no prueba que la hayan respondido.
+
+ENVIADA = "enviada"
+ABIERTA = "sigue_abierta"
+SIN_CONFIRMAR = "sin_confirmar"
+MAX_RONDAS = 20
+
+
+def huella_de_pregunta(texto: str) -> str:
+    """El texto de una pregunta sin tildes, mayúsculas ni puntuación: para reconocer la misma pregunta."""
+    return " ".join(re.sub(r"[^\w\s]", " ", _plano(texto)).split())
+
+
+def nueva_ronda(en: str, mensaje: str, preguntas: Iterable[str], esperada: bool = False) -> dict[str, Any]:
+    """La ronda de un correo que ya salió: cuándo, con qué mensaje de Gmail y qué preguntas llevaba."""
+    return {"en": en, "mensaje": mensaje, "esperada": bool(esperada), "respuesta": None,
+            "preguntas": [{"texto": texto, "estado": ENVIADA} for texto in preguntas]}
+
+
+def anotar_envio(analysis: dict[str, Any], en: str, mensaje: str, preguntas: Iterable[str], esperada: bool) -> None:
+    """Deja en el análisis la última ronda (`preguntas_enviadas`) y la suma al historial (sin duplicar)."""
+    texto = list(preguntas)
+    analysis["preguntas_enviadas"] = {"en": en, "mensaje": mensaje, "preguntas": texto, "esperada": bool(esperada)}
+    rondas = [r for r in analysis.get("rondas_de_preguntas") or [] if isinstance(r, dict)]
+    if not any(r.get("mensaje") == mensaje and mensaje for r in rondas):
+        rondas.append(nueva_ronda(en, mensaje, texto, esperada))
+    analysis["rondas_de_preguntas"] = rondas[-MAX_RONDAS:]
+
+
+def conservar_rondas(anterior: Mapping[str, Any], nuevo: Any, mensaje_id: str) -> None:
+    """Lleva al análisis nuevo lo que se le preguntó al cliente y anota si el mensaje analizado es su respuesta.
+
+    Un expediente anterior a las rondas (solo `preguntas_enviadas`) se convierte en una ronda al pasar por aquí.
+    Nunca se inventa una correspondencia: la ronda se liga a UN mensaje posterior a su envío y distinto de él, y
+    cada pregunta queda `sigue_abierta` solo si el análisis nuevo la vuelve a pedir.
+    """
+    enviadas = anterior.get("preguntas_enviadas")
+    rondas = [copy.deepcopy(r) for r in anterior.get("rondas_de_preguntas") or [] if isinstance(r, dict)]
+    if isinstance(enviadas, Mapping) and enviadas:
+        nuevo.setdefault("preguntas_enviadas", copy.deepcopy(dict(enviadas)))
+        if not rondas and enviadas.get("preguntas"):
+            rondas = [nueva_ronda(str(enviadas.get("en") or ""), str(enviadas.get("mensaje") or ""),
+                                  enviadas["preguntas"], bool(enviadas.get("esperada")))]
+    if not rondas:
+        return
+    llegada = instante(str(nuevo.get("received_at") or ""))
+    abiertas = {huella_de_pregunta(t) for c in candidatas(nuevo) if c["sugerida"] == PREGUNTAR
+                for t in (c["texto"], como_peticion(c["texto"]))}
+    for ronda in rondas:
+        salida = instante(str(ronda.get("en") or ""))
+        if (not ronda.get("respuesta") and llegada and salida and mensaje_id and llegada > salida
+                and mensaje_id != ronda.get("mensaje")):
+            ronda["respuesta"] = {"mensaje": mensaje_id, "en": str(nuevo.get("received_at"))}
+        if ronda.get("respuesta"):
+            for pregunta in ronda.get("preguntas") or []:
+                pregunta["estado"] = ABIERTA if huella_de_pregunta(pregunta["texto"]) in abiertas else SIN_CONFIRMAR
+    nuevo["rondas_de_preguntas"] = rondas[-MAX_RONDAS:]

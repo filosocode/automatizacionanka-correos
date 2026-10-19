@@ -13,6 +13,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from anka.cli import paquete_work
 from anka.dominio.errores import ErrorDeAnka
 from anka.servicios import trabajos_work
 
@@ -96,7 +97,7 @@ def _despachar(args: argparse.Namespace) -> dict[str, Any]:
     from anka.infra.google_services import services
 
     _gmail, drive = services()
-    return despacho.despachar(drive, raiz, alcance)
+    return despacho.despachar(drive, raiz, alcance, paquete=paquete_work.version_del_paquete())
 
 
 def _publicar(args: argparse.Namespace) -> dict[str, Any]:
@@ -133,7 +134,8 @@ def main(argv: Sequence[str] | None = None, salida: Callable[[str], object] = pr
         if args.orden == "crear":
             if args.forzar_elegibilidad:
                 trabajos_work.forzar_elegibilidad(args.thread_id, args.message_id)
-            resultado: dict[str, Any] = _publico(trabajos_work.crear_trabajo(args.thread_id, args.message_id))
+            resultado: dict[str, Any] = _publico(trabajos_work.crear_trabajo(
+                args.thread_id, args.message_id, paquete_version=paquete_work.version_del_paquete()))
         elif args.orden == "elegibilidad":
             resultado = _elegibilidad(args)
         elif args.orden == "despachar":

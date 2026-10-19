@@ -106,7 +106,7 @@ def _archivar(drive: ClienteDrive, trabajo: dict[str, Any], cerrados: str) -> st
 
 
 def _despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str, str],
-                       reloj: Callable[[], float]) -> dict[str, Any]:
+                       reloj: Callable[[], float], paquete: str = "") -> dict[str, Any]:
     """Crea (si hace falta) y publica en PENDIENTES el trabajo del mensaje del alcance."""
     existentes = [t for t in trabajos_work.trabajos_del_mensaje(alcance.thread_id, alcance.message_id)
                   if t["job_type"] == TIPO_ANALIZAR and t["contract_version"] == VERSION_DEL_CONTRATO]
@@ -123,7 +123,7 @@ def _despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str
             return {"resultado": "ya_publicado", "job_id": trabajo["job_id"]}
     else:
         try:
-            trabajo = trabajos_work.crear_trabajo(alcance.thread_id, alcance.message_id)
+            trabajo = trabajos_work.crear_trabajo(alcance.thread_id, alcance.message_id, paquete_version=paquete)
         except NoElegible as rechazo:
             return {"resultado": "no_elegible" if rechazo.veredicto.estado == EXCLUIDO else "clasificacion_pendiente",
                     "motivo": rechazo.veredicto.motivo_id}
@@ -134,9 +134,9 @@ def _despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str
 
 
 def despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str, str],
-                      reloj: Callable[[], float] = time.time) -> dict[str, Any]:
+                      reloj: Callable[[], float] = time.time, paquete: str = "") -> dict[str, Any]:
     """Crea (si hace falta) y publica en PENDIENTES el trabajo de un mensaje (lo usa la coordinación, T-55)."""
-    return _despachar_mensaje(drive, alcance, carpetas, reloj)
+    return _despachar_mensaje(drive, alcance, carpetas, reloj, paquete)
 
 
 def archivar_trabajo(drive: ClienteDrive, trabajo: dict[str, Any], cerrados: str) -> str:
@@ -145,7 +145,7 @@ def archivar_trabajo(drive: ClienteDrive, trabajo: dict[str, Any], cerrados: str
 
 
 def despachar(drive: ClienteDrive, raiz: str, alcance: Alcance,
-              reloj: Callable[[], float] = time.time) -> dict[str, Any]:
+              reloj: Callable[[], float] = time.time, paquete: str = "") -> dict[str, Any]:
     """Una pasada del despacho para un solo mensaje: carpetas, archivado de lo conciliado y publicación pendiente.
 
     Repetirla no duplica nada. Un fallo de Drive queda anotado en el trabajo y se reintenta en la pasada siguiente.
@@ -166,7 +166,7 @@ def despachar(drive: ClienteDrive, raiz: str, alcance: Alcance,
                 log.warning("No se pudo archivar el trabajo %s (%s)", trabajo["job_id"], type(exc).__name__)
                 archivados.append({"job_id": trabajo["job_id"], "resultado": "error", "error": type(exc).__name__})
     informe["archivados"] = archivados
-    informe["publicacion"] = _despachar_mensaje(drive, alcance, carpetas, reloj)
+    informe["publicacion"] = _despachar_mensaje(drive, alcance, carpetas, reloj, paquete)
     return informe
 
 

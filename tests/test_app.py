@@ -1041,7 +1041,8 @@ class ActivitiesTests(unittest.TestCase):
             db.close()
             analysis = quotes.get_quote("t1")["analysis"]
         self.assertEqual(analysis["activities"][0]["activity"], "editada")
-        self.assertEqual(analysis["pending_model_activities"][0]["activity"], "modelo v2")
+        # la propuesta es la tabla de la persona con lo del modelo sumado: adoptarla no borra lo que el modelo no repite
+        self.assertEqual([a["activity"] for a in analysis["pending_model_activities"]], ["editada", "modelo v2"])
 
     def test_editor_renders_state_classes_and_export_link(self):
         from anka.web.views import activities_editor

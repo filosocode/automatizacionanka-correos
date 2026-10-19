@@ -623,7 +623,7 @@ no extraído), un dato que no se encuentra se marca «no comprobable» y no como
 (`evidence_check`: estado, cuántas comprobaciones, diferencias, no comprobables). Sin textos del hilo no se comprueba nada.
 
 ### T-39 · El prompt de Work es corto y su ejemplo cumple el contrato
-El prompt de la tarea de Work cabe en unos 12 000 caracteres (la V4.7 tiene 19 500; la V6.1, 11 800; la V6.1.1, 12 800 por la regla de revisión interna de T-57; el límite de las pruebas es 13 000), no depende de la skill para el formato de salida e incluye un
+El prompt de la tarea de Work cabe en unos 12 000 caracteres (la V4.7 tiene 19 500; la V6.1, 11 800; la V6.1.1, 12 800 por la regla de revisión interna de T-57; la V6.1.2, 14 000 por las reglas de seguimiento de T-59, D-168; el límite de las pruebas es 14 500), no depende de la skill para el formato de salida e incluye un
 JSON de ejemplo completo. Una prueba extrae ese ejemplo del archivo del prompt y comprueba que cumple el esquema
 (`spec/contrato_work.schema.json`), de modo que el ejemplo no se desactualiza sin que falle una prueba. Work solo declara qué
 segmentos leyó; la revisión, los conteos y los pendientes los calcula el puente (T-37).
@@ -1922,6 +1922,92 @@ puente reintenta lo que falló) la concilia.
 - C4 · El cursor y el resto de la cola quedan idénticos; no se llama a History ni a búsquedas.
 - C5 · Sin `--confirmar` o con parámetros faltantes o combinados: rechazo sin Gmail.
 - C6 · `work_jobs crear` acepta la fila registrada.
+
+### T-59 · Ningún texto interno de Work llega al cliente (Fase A: protección de respuestas comerciales)
+El contenido interno de Work (el bloque `[ANKA_DASHBOARD_JSON_V1]`…`[/ANKA_DASHBOARD_JSON_V1]`, la sección «REVISAR ANTES
+DE ENVIAR - BORRAR ESTA SECCION» y el rótulo «BORRADOR INTERNO — NO ENVIAR») nunca se guarda como borrador de Gmail ni se
+envía desde Anka.
+1. **Dónde.** Se comprueba el texto final, el que de verdad iría a Gmail, en `reply_email`, por donde pasa todo correo que
+   Anka guarda o envía (guardar borrador, enviar desde el dashboard, preguntas del flujo de Python, recordatorios). Además
+   `save_dashboard_draft`, `send_dashboard_reply` y el envío de preguntas lo comprueban antes de reservar, cambiar de estado
+   o tocar Gmail.
+2. **Qué.** Los marcadores del contrato JSON se reconocen sin distinguir mayúsculas. Las frases de la sección y del rótulo
+   internos se reconocen **en mayúsculas** (o como encabezado inicial con la forma de T-43), para no bloquear «revisar antes
+   de enviar» escrito en un correo normal. Palabras sueltas como «JSON», «borrador» o «dashboard» no se bloquean.
+3. **Ante contenido prohibido** se rechaza la operación con el motivo («El correo contiene texto interno de Work…»): no se
+   envía nada, no se crea ni actualiza un borrador de Gmail, no se reserva ningún envío y el estado del caso no cambia.
+4. **Excepción única.** El borrador de revisión que los modos `local` y `api` dejan en Gmail lleva a propósito la sección
+   interna (es el aviso para quien lo revisa y Anka no lo envía): `create_reply_draft` permite la sección pero **nunca** los
+   marcadores del contrato.
+5. **Lo aprobado es lo entregado.** Antes de reservar el envío o de guardar el borrador se comprueba que el texto del
+   mensaje que se va a entregar a Gmail es el aprobado; si no coincide no se envía nada. El evento `sent` del caso incluye
+   la **huella SHA-256** del texto aprobado (con saltos de línea normalizados), sin guardar nada más.
+6. **No cambia** la aprobación humana (R8), la `marca_de_estado`, las reservas de `mail_operations` ni el importador del
+   JSON de Work, que sigue aceptando sus marcadores.
+Casos: C1 guardar o enviar con cada marcador → rechazo sin efectos; C2 el mismo texto pegado a mitad de un correo; C3 un
+correo legítimo con frases comunes se guarda y se envía, con huella; C4 un cambio de texto después de la aprobación es otro
+envío con otra huella; C5 un texto entregado distinto del aprobado no se envía; C6 el importador sigue aceptando el
+borrador de Work y su `draft_reply` queda limpio; C7 el borrador de revisión de Python conserva su encabezado.
+
+**Fase B · Continuidad de preguntas y actividades.** Una respuesta del cliente actualiza el mismo expediente sin perder
+lo preguntado ni las actividades anteriores.
+7. **Rondas de preguntas.** Cada correo enviado desde Anka deja una *ronda* en `rondas_de_preguntas`: cuándo salió, su
+   mensaje de Gmail (`mensaje`) y las preguntas que llevaba. `preguntas_enviadas` sigue siendo la última ronda (ahora con
+   `mensaje`) y **no se pierde** al importar un análisis posterior, en ningún modo (`store.save`). Una pregunta que Work solo
+   propuso, o que la persona aprobó pero no salió en un correo, no es una pregunta enviada. Un expediente anterior, con solo
+   `preguntas_enviadas`, se convierte en una ronda al primer análisis.
+8. **Respuesta, sin inventar correspondencias.** Un análisis de un mensaje posterior al envío y distinto de él liga su
+   `respuesta` (mensaje y hora) a la ronda, una sola vez. De cada pregunta solo se afirma lo visible: `sigue_abierta` si el
+   análisis nuevo la vuelve a pedir y `sin_confirmar` si no (que ya no aparezca no prueba que la hayan respondido). Las
+   decisiones de `preguntas` se renuevan con cada mensaje (U-22) y el historial queda en las rondas.
+9. **Tabla acumulada (`tabla_acumulada.integrar`).** Un seguimiento (análisis de un mensaje posterior al primero del caso)
+   se suma a la tabla vigente en vez de reemplazarla. Una actividad es la misma si su nombre coincide sin tildes,
+   mayúsculas ni puntuación; nada más se fusiona. Que el seguimiento no repita una actividad **no** la elimina. Se aplica
+   solo: agregar una actividad sin parecido, llenar un dato vacío y reemplazar uno que aún no estaba confirmado (si la fila
+   nueva no es dudosa), sumando la fuente. **No** se aplica solo, y queda como propuesta (`pending_model_activities`, la misma que
+   ya revisa la persona) con su motivo en `revision_de_tabla`: un dato ya confirmado que cambia, una contradicción
+   (la fila se marca `contradictorio`), una eliminación pedida en el texto, dos filas con el mismo nombre y datos distintos
+   y una actividad nueva parecida a una anterior (mismo servicio y lugar, o nombre con la mitad de las palabras en común).
+   La propuesta es la tabla vigente con todo aplicado, así que adoptarla no borra lo que el seguimiento no repitió.
+10. **Edición humana y R11.** Con una tabla editada por una persona (`manual_edit`) o bloqueada por la T nada se aplica solo:
+    todo queda como propuesta. La tabla vigente solo cambia por lo seguro; si nada se puede aplicar con seguridad, queda
+    igual. Importar dos veces el mismo seguimiento da el mismo resultado y no crea versiones ni eventos de más. El primer
+    análisis y el reanálisis del mensaje original reemplazan como siempre.
+Casos: C8 la ronda sobrevive a un seguimiento; C9 respuesta ligada a la ronda y preguntas abiertas o sin confirmar; C10
+propuestas de Work nunca enviadas; C11 expediente anterior a las rondas; C12 seguimiento que aclara un dato, que no repite
+el alcance, con actividad nueva, con cantidad corregida, con eliminación pedida, con sustitución ambigua, duplicadas y
+contradictorias; C13 tabla de una persona y tabla bloqueada por la T; C14 importación repetida.
+
+**Fase C · Contexto acumulado para Work.** Work interpreta un `SEGUIMIENTO` con el estado vigente del expediente a la vista,
+por el mismo circuito Python → Drive → Work → Python y sin cambiar el esquema `ANKA_DASHBOARD_JSON_V1`.
+11. **Contexto previo en la hoja.** Cuando la clasificación preliminar del mensaje es `SEGUIMIENTO` (el hilo ya tiene
+    expediente), el libro del trabajo agrega tres hojas de solo lectura, construidas al publicar desde el expediente de ESE
+    `thread_id` y de ningún otro: `CONTEXTO_PREVIO` (campo/valor: expediente, estado, último mensaje analizado, mensaje por
+    analizar, si ese mensaje ya se analizó, si una persona editó la tabla, si hay una propuesta pendiente y sus motivos,
+    contradicciones abiertas), `ACTIVIDADES_VIGENTES` (las diez columnas de la tabla vigente, con su fuente) y
+    `PREGUNTAS` (cada pregunta con su `tipo`: `enviada`, `propuesta_no_enviada` o `interna`; para las enviadas, la ronda, la
+    fecha, el mensaje de Gmail, su estado `enviada`/`sigue_abierta`/`sin_confirmar` y el mensaje que la siguió). Una
+    `SOLICITUD_NUEVA` conserva el libro de siempre: no lleva hojas de contexto, ni vacías ni inventadas.
+12. **Mínimo y sin secretos.** El contexto no trae correos de otros expedientes, direcciones de correo, tokens, rutas ni
+    configuración; los textos largos se recortan (con aviso en `CONTEXTO_PREVIO`) y las listas tienen tope. Una pregunta que
+    Work solo propuso o que la persona dejó como interna nunca figura como enviada. El contexto es un estado provisional de
+    Python: la hoja lo dice y Work lo contrasta con el hilo.
+13. **Reglas de interpretación (`PRECISO_V6.1.2`).** El prompt añade, solo para `SEGUIMIENTO`: leer el mensaje nuevo y el
+    hilo; tratar el contexto como provisional; devolver la tabla **acumulada** reutilizando el `activity` exacto de las
+    filas vigentes; no quitar una fila por no mencionarla; para una eliminación pedida por el cliente conservar la fila con
+    «ya no se requiere» en `notes`; marcar lo modificado en `notes` y los desacuerdos como `contradictorio` con
+    `status` de revisión; no volver a pedir datos ya dados ni preguntas enviadas; no dar una pregunta por respondida sin
+    evidencia; conservar la revisión humana ante contradicciones. Es compatible con `tabla_acumulada.integrar`, que decide
+    qué se aplica solo y qué queda para revisar (los casos se prueban con retornos de ejemplo de Work).
+14. **Versión del paquete en los trabajos nuevos.** Al crear un trabajo se anota en su evento `trabajo_creado` la versión del
+    paquete contractual vigente (`paquete_version`, la del manifiesto) y la hoja la muestra en `version_del_paquete`. Los
+    trabajos creados antes no la tienen y su hoja no cambia; el `job_id` no cambia.
+15. **Nada se toca de lo ya hecho.** Construir la hoja no escribe en el expediente; los expedientes conciliados y las hojas
+    históricas no se modifican; el esquema, el importador y las importaciones históricas siguen igual.
+Casos: C15 seguimiento con tabla existente (tres hojas); C16 solicitud nueva sin contexto; C17 pregunta enviada, propuesta
+no enviada e interna; C18 pregunta respondida o sin respuesta demostrada; C19 tabla editada por una persona y propuesta
+pendiente; C20 contexto recortado y sin datos de otro expediente; C21 retornos de Work que cambian una magnitud, agregan una
+actividad, eliminan, contradicen o conservan nombres; C22 trabajo nuevo con versión del paquete y trabajo antiguo sin ella.
 
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 

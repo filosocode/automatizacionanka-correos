@@ -615,6 +615,31 @@ def _forma_simple(texto: str) -> str:
     return re.sub(r"\s+", " ", plano).strip().casefold()
 
 
+# Delimitadores que solo existen en el material interno de Work (T-59). Las frases en mayúsculas distinguen el
+# delimitador de la frase común «revisar antes de enviar», que puede escribirse en un correo legítimo.
+_MARCADORES_DEL_CONTRATO = re.compile(r"\[/?ANKA_DASHBOARD_JSON_V\w*\]", re.IGNORECASE)
+_SECCION_INTERNA = re.compile(r"REVISAR ANTES DE ENVIAR|BORRAR ESTA SECCI[OÓ]N")
+_BORRADOR_INTERNO = re.compile(r"BORRADOR INTERNO\s*[-‐-―−]+\s*NO ENVIAR")
+
+
+def marcadores_internos(texto: str, permitir_seccion_interna: bool = False) -> list[str]:
+    """Los delimitadores internos de Work que contiene un texto destinado al cliente; vacío si está limpio (T-59).
+
+    `permitir_seccion_interna` es solo para el borrador de revisión que Python deja en Gmail (modos local y api): su
+    encabezado «REVISAR ANTES DE ENVIAR» es el aviso para quien lo revisa y nunca sale por Anka. Los marcadores del
+    contrato JSON no se permiten nunca.
+    """
+    encontrados = []
+    if _MARCADORES_DEL_CONTRATO.search(texto):
+        encontrados.append("marcador del contrato de Work [ANKA_DASHBOARD_JSON_V1]")
+    if not permitir_seccion_interna:
+        if _SECCION_INTERNA.search(texto) or empieza_con_el_encabezado_interno(texto):
+            encontrados.append("sección interna «REVISAR ANTES DE ENVIAR»")
+        if _BORRADOR_INTERNO.search(texto):
+            encontrados.append("rótulo «BORRADOR INTERNO — NO ENVIAR»")
+    return encontrados
+
+
 def empieza_con_el_encabezado_interno(texto: str) -> bool:
     """¿El borrador empieza con la línea fija de la sección interna (T-43)? Tolera tildes, mayúsculas y espacios."""
     primera_linea = texto.lstrip().split("\n", 1)[0]

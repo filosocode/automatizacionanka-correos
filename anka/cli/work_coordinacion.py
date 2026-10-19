@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from typing import Any
 
+from anka.cli import paquete_work
 from anka.cli.work_sync import importar_aislado
 from anka.dominio.configuracion import es_modo_work
 from anka.dominio.coordinacion_work import ALERTA, Plan, instante, plan_desde_config
@@ -55,7 +56,7 @@ def nuevo_coordinador() -> Coordinador:
     def importar(thread_id: str, message_id: str) -> dict[str, Any]:
         return importar_aislado(gmail, subir, instantaneas, thread_id, message_id, {cuenta})
 
-    return Coordinador(drive, importar)
+    return Coordinador(drive, importar, paquete_version=paquete_work.version_del_paquete())
 
 
 def ejecutar_un_ciclo(config: Mapping[str, Any] | None = None) -> dict[str, Any]:

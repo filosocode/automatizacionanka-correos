@@ -169,7 +169,7 @@ class CandadoAlGuardar(BaseDeTodos):
         hilo.join(timeout=30)
         final = json.loads(db.execute("SELECT analysis_json FROM quotes WHERE thread_id='T9'").fetchone()[0])
         self.assertEqual(final["activities"], [{"a": 2}])
-        self.assertEqual(final["pending_model_activities"], [{"a": 3}])
+        self.assertEqual(final["pending_model_activities"], [{"a": 2}, {"a": 3}])     # la tabla de la persona + lo nuevo
 
     def test_b0_4_el_puente_no_hace_retroceder_un_caso_que_el_dashboard_avanzo_durante_la_espera(self):
         work_import.dashboard_upsert(b64(json.dumps(payload(thread="T8", message="m1", status="Faltan datos"))))

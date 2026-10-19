@@ -7,6 +7,8 @@ Lo que sí habla con Gmail (enviar, crear borradores, descargar adjuntos) vive e
 from __future__ import annotations
 
 from anka.dominio.configuracion import Configuracion
+from anka.dominio.errores import ErrorDeValidacion
+from anka.dominio.work_contract import marcadores_internos
 from anka.dominio.analisis import Enrutamiento
 
 import base64
@@ -325,11 +327,25 @@ def forwarded_routing(message: dict, config: Configuracion) -> Enrutamiento:
     }
 
 
+def comprobar_texto_para_el_cliente(body: str, permitir_seccion_interna: bool = False) -> None:
+    """Rechaza un texto con delimitadores internos de Work: no debe guardarse como borrador ni enviarse (T-59)."""
+    encontrados = marcadores_internos(body, permitir_seccion_interna)
+    if encontrados:
+        raise ErrorDeValidacion(
+            "El correo contiene texto interno de Work (" + "; ".join(encontrados) + ") y no se guardó ni se envió. "
+            "Quita esa parte —el cliente solo debe leer la respuesta— y vuelve a intentarlo.")
+
+
 def reply_email(
     thread: dict, recipient: str, body: str,
     own_email_addresses: list[str] | set[str] | None = None,
+    permitir_seccion_interna: bool = False,
 ) -> EmailMessage:
-    """Arma la respuesta al último mensaje del cliente, en el mismo hilo (asunto «Re:», cabeceras de hilo)."""
+    """Arma la respuesta al último mensaje del cliente, en el mismo hilo (asunto «Re:», cabeceras de hilo).
+
+    Es el punto por el que pasa todo correo que Anka guarda o envía: aquí se rechaza el texto interno de Work (T-59).
+    """
+    comprobar_texto_para_el_cliente(body, permitir_seccion_interna)
     last = inbound_messages(thread, own_email_addresses)[-1]
     message_id = header(last, "Message-ID")
     subject = header(last, "Subject")

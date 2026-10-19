@@ -16,7 +16,9 @@ from pathlib import Path
 
 from anka.dominio.analisis import Analisis
 from anka.dominio.caso import VERSION_DEL_RESUMEN, load_analysis, resumen_de_analisis
+from anka.dominio.preguntas import conservar_rondas
 from anka.dominio.reloj import ahora_iso, clave_de_orden
+from anka.dominio.tabla_acumulada import describir, integrar_seguimiento
 from anka.dominio.status import ESTADOS_CON_RESPUESTA_SUGERIDA, QuoteStatus, sql_in
 from anka.infra import settings
 from anka.infra.recepcion_store import (
@@ -750,13 +752,20 @@ def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, reci
     received_at = analysis.get("received_at") or now
     begin_immediate(db)      # leer y escribir bajo el mismo candado: el puente no pisa al dashboard (U-42)
     previous = db.execute(
-        "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
+        "SELECT analysis_json, first_seen_at, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)
     ).fetchone()
+    resumen_de_la_tabla = ""
     if previous:
         try:
             old = json.loads(previous["analysis_json"])
         except (TypeError, ValueError):
             old = {}
+        conservar_rondas(old, analysis, last_id)       # T-59: lo que se le preguntó al cliente no se pierde
+        suma = integrar_seguimiento(old, analysis, previous["first_seen_at"], previous["last_inbound_id"], last_id)
+        resumen_de_la_tabla = describir(suma) if suma else ""
+        if suma and (suma.aplicado or suma.revisar):
+            record_event(db, thread_id, "table_merge", "analisis", f"merge-{last_id}", resumen_de_la_tabla,
+                         str(analysis.get("received_at") or ""))
         if old.get("manual_edit"):
             # la edicion manual prevalece; lo nuevo del modelo queda para revisar
             if analysis.get("activities") != old.get("activities"):
@@ -787,5 +796,5 @@ def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, reci
             add_table_version(
                 db, thread_id, activities, "model",
                 "Tabla original del modelo" if first
-                else f"El modelo actualizó la tabla ({len(activities)} actividades)")
+                else resumen_de_la_tabla or f"El modelo actualizó la tabla ({len(activities)} actividades)")
     db.commit()

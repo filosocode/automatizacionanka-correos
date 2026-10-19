@@ -109,7 +109,7 @@ class ConstruccionTests(Base):
         for ruta in OBLIGATORIOS:
             self.assertTrue((self.carpeta / ruta).is_file(), ruta)
         m = self.manifiesto
-        self.assertEqual((m["contract"]["name"], m["prompt"]["version"]), ("ANKA_DASHBOARD_JSON_V1", "PRECISO_V6.1.1"))
+        self.assertEqual((m["contract"]["name"], m["prompt"]["version"]), ("ANKA_DASHBOARD_JSON_V1", "PRECISO_V6.1.2"))
         self.assertEqual(m["contract"]["classification_enum"], list(CLASIFICACIONES))
         self.assertEqual(m["contract"]["required"], load_schema()["required"])
         self.assertEqual(len(m["paquete_version"]), 12)
@@ -121,7 +121,7 @@ class ConstruccionTests(Base):
     def test_el_esquema_y_el_prompt_son_copias_exactas_de_las_fuentes_canonicas(self):
         import hashlib
         self.assertEqual((self.carpeta / "contrato_work.schema.json").read_bytes(), paquete_work.ESQUEMA.read_bytes())
-        self.assertEqual((self.carpeta / "PRECISO_V6.1.1.txt").read_bytes(), paquete_work.PROMPT.read_bytes())
+        self.assertEqual((self.carpeta / "PRECISO_V6.1.2.txt").read_bytes(), paquete_work.PROMPT.read_bytes())
         self.assertEqual(self.manifiesto["schema_sha256"],
                          hashlib.sha256(paquete_work.ESQUEMA.read_bytes()).hexdigest())
         self.assertEqual(self.manifiesto["prompt"]["sha256"],
@@ -129,7 +129,7 @@ class ConstruccionTests(Base):
 
     def test_es_autonomo_sin_zip_ni_rutas_locales(self):
         for ruta in OBLIGATORIOS:
-            if ruta == "PRECISO_V6.1.1.txt":
+            if ruta == "PRECISO_V6.1.2.txt":
                 continue
             texto = (self.carpeta / ruta).read_text(encoding="utf-8")
             for prohibido in paquete_work.PROHIBIDO_EN_TEXTO:
@@ -148,7 +148,7 @@ class ConstruccionTests(Base):
         self.assertIn("REVISION_MANUAL", t52.split("Ante la duda")[1])
 
     def test_no_modifica_el_prompt_ni_el_esquema_del_repositorio(self):
-        self.assertIn("PRECISO_V6.1.1", PROMPT)
+        self.assertIn("PRECISO_V6.1.2", PROMPT)
         self.assertEqual(load_schema()["properties"]["classification"]["enum"], list(CLASIFICACIONES))
 
 
@@ -159,7 +159,7 @@ class EjemplosTests(Base):
                 self.assertEqual(datos["classification"], clase)
                 self.assertEqual(validate(datos), [])
                 self.assertTrue(set(load_schema()["required"]) <= set(datos))
-                self.assertEqual(datos["skill_version"], "PRECISO_V6.1.1")
+                self.assertEqual(datos["skill_version"], "PRECISO_V6.1.2")
                 copia = copy.deepcopy(datos)
                 normalizar_analisis(copia)
                 self.assertNotIn("_correcciones_de_work", copia)
@@ -352,7 +352,7 @@ class VerificacionTests(Base):
     def test_la_orden_verificar_responde_con_el_codigo_de_salida(self):
         salida = []
         self.assertEqual(paquete_work.main(["verificar", "--carpeta", str(self.carpeta)], salida=salida.append), 0)
-        (self.carpeta / "PRECISO_V6.1.1.txt").write_text("otro", encoding="utf-8")
+        (self.carpeta / "PRECISO_V6.1.2.txt").write_text("otro", encoding="utf-8")
         self.assertEqual(paquete_work.main(["verificar", "--carpeta", str(self.carpeta)], salida=salida.append), 2)
 
 
@@ -414,7 +414,7 @@ class PublicacionTests(Base):
         self.assertEqual(self.drive.escrituras, [])
 
     def test_un_paquete_que_no_pasa_la_verificacion_no_se_publica(self):
-        (self.carpeta / "PRECISO_V6.1.1.txt").write_text("alterado", encoding="utf-8")
+        (self.carpeta / "PRECISO_V6.1.2.txt").write_text("alterado", encoding="utf-8")
         with self.assertRaises(ErrorDeAnka):
             publicar(self.drive, CARPETA_RAIZ, self.carpeta)
         self.assertEqual(self.drive.elementos, {})

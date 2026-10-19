@@ -53,7 +53,9 @@ La descripción es la primera frase de su docstring.
 | `lectores_shapefile` | Shapefile y tabla dBase leídos con la biblioteca estándar, aunque falten sus archivos hermanos (U-55). |
 | `lectores_cad` | DXF en texto: versión, capas, conteo de entidades y textos de un plano CAD sin biblioteca externa (U-55). |
 | `tramos` | Dividir un texto largo sin perder nada y condensar los hallazgos de cada tramo (T-25). |
-| `preguntas` | Preguntas candidatas de un caso, decisión de una persona por pregunta y preguntas que lleva un correo (U-22). |
+| `preguntas` | Preguntas candidatas de un caso, decisión de una persona por pregunta, preguntas que lleva un correo (U-22) y rondas de preguntas enviadas con su respuesta (T-59). |
+| `contexto_previo` | Contexto de un expediente para el trabajo Work de un SEGUIMIENTO: tabla vigente, rondas de preguntas y revisión pendiente, recortado y sin secretos (T-59). |
+| `tabla_acumulada` | Integra la tabla de un seguimiento en la vigente sin perder actividades: aplica lo seguro y deja lo ambiguo como propuesta (T-59). |
 | `novedades` | Qué novedades piden acción a una persona y por tanto cuentan en el contador (U-25). |
 | `desempeno` | Desempeño del análisis medido con las correcciones del uso real (T-35). |
 | `evaluacion` | Medir el análisis contra lo esperado (T-34): comparar un caso, resumir varios y reconocer de qué habla una pregunta. |
