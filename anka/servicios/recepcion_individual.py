@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from anka.dominio.configuracion import Configuracion
-from anka.dominio.correo import normalized_address, valid_email_address
+from anka.dominio.correo import contenido_nuevo, normalized_address, valid_email_address
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
 from anka.infra.clientes_google import ClienteGmail
@@ -31,8 +31,34 @@ def _texto_plano(payload: dict) -> str:
     return "\n".join(partes)
 
 
+def _problemas_del_texto(message: dict, marca: str, con_expediente: bool) -> list[str]:
+    """Marca y declaración ficticia. Un hilo SIN expediente las exige como siempre (asunto y cuerpo completo); uno CON
+    expediente admite la marca en una línea exacta «Identificador:» del contenido NUEVO, sin mirar el historial."""
+    texto = _texto_plano(message.get("payload", {}))
+    if not con_expediente:
+        problemas = []
+        if marca not in recepcion._headers(message).get("subject", ""):
+            problemas.append("la marca no está en el asunto")
+        cuerpo = " ".join(texto.casefold().split())
+        if f"identificador: {marca}".casefold() not in cuerpo:
+            problemas.append("el cuerpo no trae «Identificador: <marca>»")
+        if DECLARACION_FICTICIA not in cuerpo:
+            problemas.append("el cuerpo no se declara «prueba ficticia»")
+        return problemas
+    nuevo = contenido_nuevo(texto)
+    if nuevo is None:
+        return ["no se puede separar con fiabilidad el contenido nuevo del historial citado"]
+    linea = re.compile(rf"identificador:\s*{re.escape(marca)}\.?", re.IGNORECASE)
+    problemas = []
+    if not any(linea.fullmatch(" ".join(renglon.split())) for renglon in nuevo.splitlines()):
+        problemas.append("el contenido nuevo no trae la línea «Identificador: <marca>»")
+    if DECLARACION_FICTICIA not in " ".join(nuevo.casefold().split()):
+        problemas.append("el contenido nuevo no se declara «prueba ficticia»")
+    return problemas
+
+
 def _problemas_del_mensaje_individual(message: dict, thread_id: str, message_id: str, esperado: str,
-                                      marca: str) -> list[str]:
+                                      marca: str, con_expediente: bool = False) -> list[str]:
     """Todo lo que impide registrar este mensaje de prueba; vacío = verificado. No incluye contenido del correo."""
     headers = recepcion._headers(message)
     problemas = []
@@ -46,14 +72,7 @@ def _problemas_del_mensaje_individual(message: dict, thread_id: str, message_id:
         problemas.append(f"{CUENTA} no es destinataria")
     if {"DRAFT", "SENT"} & set(message.get("labelIds", [])):
         problemas.append("es un borrador o un mensaje enviado")
-    if marca not in headers.get("subject", ""):
-        problemas.append("la marca no está en el asunto")
-    cuerpo = " ".join(_texto_plano(message.get("payload", {})).casefold().split())
-    if f"identificador: {marca}".casefold() not in cuerpo:
-        problemas.append("el cuerpo no trae «Identificador: <marca>»")
-    if DECLARACION_FICTICIA not in cuerpo:
-        problemas.append("el cuerpo no se declara «prueba ficticia»")
-    return problemas
+    return problemas + _problemas_del_texto(message, marca, con_expediente)
 
 
 def _validar_parametros_individuales(thread_id: str, message_id: str, esperado: str, marca: str,
@@ -69,7 +88,7 @@ def _validar_parametros_individuales(thread_id: str, message_id: str, esperado: 
 
 
 def _leer_y_verificar_individual(gmail: ClienteGmail, thread_id: str, message_id: str, esperado: str,
-                                 marca: str) -> None:
+                                 marca: str, con_expediente: bool = False) -> None:
     """Lee ese único mensaje y comprueba cuenta y contenido; cualquier fallo es un rechazo sin escrituras."""
     try:
         perfil = gmail.users().getProfile(userId="me").execute()
@@ -81,7 +100,7 @@ def _leer_y_verificar_individual(gmail: ClienteGmail, thread_id: str, message_id
     except Exception as exc:
         tipo = recepcion._error_kind(exc)
         raise ErrorDeAnka(f"No se pudo leer el mensaje en Gmail ({tipo}); no se registra nada.") from exc
-    problemas = _problemas_del_mensaje_individual(message, thread_id, message_id, esperado, marca)
+    problemas = _problemas_del_mensaje_individual(message, thread_id, message_id, esperado, marca, con_expediente)
     if problemas:
         raise ErrorDeAnka("El mensaje no se registra: " + "; ".join(problemas) + ".")
 
@@ -109,6 +128,7 @@ def registrar_mensaje_individual(gmail: ClienteGmail, thread_id: str, message_id
                                  (CUENTA,)).fetchone()
             existente = db.execute("SELECT state,disposition FROM recepcion_mensajes WHERE account=? AND message_id=?",
                                    (CUENTA, message_id)).fetchone()
+            con_expediente = db.execute("SELECT 1 FROM quotes WHERE thread_id=?", (thread_id,)).fetchone() is not None
         if existente is not None:
             return {"resultado": "ya_registrado", "thread_id": thread_id, "message_id": message_id,
                     "state": existente["state"], "disposition": existente["disposition"]}
@@ -117,7 +137,7 @@ def registrar_mensaje_individual(gmail: ClienteGmail, thread_id: str, message_id
         owner = recepcion._acquire(CUENTA, time.time(), observed, registrar_intento=False)
         if owner is None:
             raise ErrorDeAnka("Otro proceso tiene la reserva de la recepción; no se registra nada.")
-        _leer_y_verificar_individual(gmail, thread_id, message_id, esperado, marca)
+        _leer_y_verificar_individual(gmail, thread_id, message_id, esperado, marca, con_expediente)
         with transaccion() as db:
             recepcion._require_owner(db, CUENTA, owner)
             creado = recepcion._enqueue_in_transaction(db, CUENTA, [{"id": message_id, "threadId": thread_id}],

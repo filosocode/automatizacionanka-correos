@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from anka.cli import gmail_reception
+from anka.dominio.correo import contenido_nuevo
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings, store
 from anka.servicios import recepcion, recepcion_individual, trabajos_work
@@ -292,6 +293,180 @@ class OrdenTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as salida:
                 gmail_reception.main(self.ARGS)
         self.assertEqual(salida.exception.code, 1)
+
+
+SEGUIMIENTO = "1a155f5531f151d3"
+MARCA_SEGUIMIENTO = "PRUEBA-T59-SEGUIMIENTO-001"
+ASUNTO_DE_RESPUESTA = f"Re: Solicitud de cotización topografía — {MARCA}"
+NUEVO = ("Como seguimiento, confirmamos que el área definitiva es de 6,5 hectáreas.\n\n"
+         "Este mensaje es exclusivamente una prueba ficticia interna de Grupo Anka.\n\n"
+         f"Identificador: {MARCA_SEGUIMIENTO}.\n")
+ATRIBUCION = "El lun, 19 oct 2026 a las 10:10, Andrés <91andresmunoz@gmail.com> escribió:"
+
+
+def respuesta(nuevo=NUEVO, cita=CUERPO, atribucion=ATRIBUCION):
+    """Una respuesta como la de Gmail en texto plano: lo nuevo, la atribución y el historial con «>» en cada línea."""
+    citado = "\n".join("> " + linea if linea else ">" for linea in cita.splitlines())
+    return f"{nuevo}\n{atribucion}\n{citado}\n"
+
+
+def seguimiento(cuerpo=None, asunto=ASUNTO_DE_RESPUESTA, **cambios):
+    return mensaje(cuerpo=respuesta() if cuerpo is None else cuerpo, asunto=asunto, ident=SEGUIMIENTO, **cambios)
+
+
+class SeguimientoTests(Base):
+    """T-58, D-165: la respuesta a un hilo con expediente se registra con la marca en su contenido NUEVO."""
+
+    def setUp(self):
+        super().setUp()
+        from anka.dominio.status import QuoteStatus
+        with store.transaccion() as db:
+            store.save(db, ID, ID, QuoteStatus.REVIEW, "cliente@example.com",
+                       {"project_name": "P", "activities": [{"activity": "Levantamiento", "quantity": "6"}],
+                        "received_at": "2026-10-19T10:10:28-05:00"})
+            store.save(db, "otro-hilo", "o1", QuoteStatus.REVIEW, "otro@example.com",
+                       {"project_name": "Otro", "activities": [{"activity": "Otra"}], "received_at": "x"})
+        self.gmail.mail_items[SEGUIMIENTO] = seguimiento()
+        self.gmail.calls.clear()
+
+    def registrar_seguimiento(self, **cambios):
+        return self.registrar(message_id=SEGUIMIENTO, marca=MARCA_SEGUIMIENTO, **cambios)
+
+    def rechazo(self, cuerpo=None, asunto=ASUNTO_DE_RESPUESTA, **cambios):
+        self.gmail.mail_items[SEGUIMIENTO] = seguimiento(cuerpo, asunto)
+        return self.sin_escrituras(self.registrar_seguimiento, **cambios)
+
+    def test_un_seguimiento_valido_cuyo_asunto_conserva_la_marca_anterior_se_registra(self):
+        # Cubre: T-58
+        resultado = self.registrar_seguimiento()
+        self.assertEqual((resultado["resultado"], resultado["thread_id"], resultado["message_id"]),
+                         ("registrado", ID, SEGUIMIENTO))
+        filas = [f for f in self.tabla("recepcion_mensajes", "message_id") if f["message_id"] == SEGUIMIENTO]
+        self.assertEqual([(f["thread_id"], f["sender"]) for f in filas], [(ID, REMITENTE)])
+        self.assertEqual(filas[0]["snippet"], "")
+        self.assertNotIn(MARCA_SEGUIMIENTO, str(resultado))
+        eventos = [e["event_kind"] for e in self.tabla("recepcion_eventos", "id") if e["message_id"] == SEGUIMIENTO]
+        self.assertEqual(eventos, ["detectado", "pendiente_work"])
+
+    def test_un_seguimiento_no_cambia_el_cursor_los_expedientes_ni_crea_trabajos(self):
+        # Cubre: T-58
+        cursor, _ = self.control()
+        quotes_antes, trabajos_antes = self.tabla("quotes", "thread_id"), self.tabla("trabajos_work", "job_id")
+        self.registrar_seguimiento()
+        self.assertEqual(self.control()[0], cursor)
+        self.assertEqual(self.tabla("quotes", "thread_id"), quotes_antes)
+        self.assertEqual(self.tabla("trabajos_work", "job_id"), trabajos_antes)
+        nombres = [c[0] for c in self.gmail.calls]
+        self.assertNotIn("history.list", nombres)
+        self.assertNotIn("messages.list", nombres)
+
+    def test_la_segunda_ejecucion_no_duplica_nada(self):
+        # Cubre: T-58
+        self.registrar_seguimiento()
+        antes = self.foto()
+        self.gmail.calls.clear()
+        self.assertEqual(self.registrar_seguimiento()["resultado"], "ya_registrado")
+        self.assertEqual(self.foto(), antes)
+        self.assertEqual(self.gmail.calls, [])
+
+    def test_la_marca_solo_en_la_cita_se_rechaza(self):
+        # Cubre: T-58
+        nuevo = "Confirmamos el área.\n\nEs una prueba ficticia interna de Grupo Anka.\n"
+        cita = f"Primera prueba ficticia.\n\nIdentificador: {MARCA_SEGUIMIENTO}.\n"
+        self.assertIn("Identificador", self.rechazo(respuesta(nuevo, cita)))
+
+    def test_la_declaracion_ficticia_solo_en_la_cita_se_rechaza(self):
+        # Cubre: T-58
+        nuevo = f"Confirmamos el área.\n\nIdentificador: {MARCA_SEGUIMIENTO}.\n"
+        self.assertIn("prueba ficticia", self.rechazo(respuesta(nuevo)))     # la cita (CUERPO) sí la declara
+
+    def test_la_marca_debe_ser_una_linea_exacta_no_una_frase(self):
+        # Cubre: T-58
+        for linea in (f"Vea el Identificador: {MARCA_SEGUIMIENTO} de arriba.", f"Identificador: {MARCA_SEGUIMIENTO}-2",
+                      f"Identificador {MARCA_SEGUIMIENTO}", f"Id: {MARCA_SEGUIMIENTO}"):
+            with self.subTest(linea):
+                nuevo = f"Una prueba ficticia interna.\n\n{linea}\n"
+                self.assertIn("Identificador", self.rechazo(respuesta(nuevo)))
+
+    def test_la_linea_exacta_admite_espacios_mayusculas_y_punto_final(self):
+        # Cubre: T-58
+        for linea in (f"Identificador: {MARCA_SEGUIMIENTO}", f"  IDENTIFICADOR:   {MARCA_SEGUIMIENTO}.  "):
+            with self.subTest(linea):
+                self.gmail.mail_items[SEGUIMIENTO] = seguimiento(respuesta(f"Una prueba ficticia interna.\n\n{linea}\n"))
+                self.assertEqual(self.registrar_seguimiento()["resultado"], "registrado")
+                with store.transaccion() as db:
+                    db.execute("DELETE FROM recepcion_mensajes WHERE message_id=?", (SEGUIMIENTO,))
+
+    def test_un_hilo_sin_expediente_se_rechaza_con_las_reglas_originales(self):
+        # Cubre: T-58
+        with store.transaccion() as db:
+            db.execute("DELETE FROM quotes WHERE thread_id=?", (ID,))
+        self.assertIn("asunto", self.rechazo())
+
+    def test_una_solicitud_nueva_conserva_la_validacion_estricta(self):
+        # Cubre: T-58
+        with store.transaccion() as db:
+            db.execute("DELETE FROM quotes WHERE thread_id=?", (ID,))
+        self.gmail.mail_items[SEGUIMIENTO] = mensaje(ident=SEGUIMIENTO, asunto=f"Solicitud — {MARCA_SEGUIMIENTO}",
+                                                     cuerpo=NUEVO)
+        self.assertEqual(self.registrar_seguimiento()["resultado"], "registrado")
+
+    def test_remitente_destinatario_hilo_y_borrador_se_siguen_verificando(self):
+        # Cubre: T-58
+        self.assertIn("remitente", self.sin_escrituras(self.registrar_seguimiento, remitente_esperado="otra@example.com"))
+        self.gmail.mail_items[SEGUIMIENTO] = seguimiento(para="otra@gmail.com")
+        self.assertIn("destinataria", self.sin_escrituras(self.registrar_seguimiento))
+        self.gmail.mail_items[SEGUIMIENTO] = seguimiento(etiquetas=("DRAFT",))
+        self.assertIn("borrador", self.sin_escrituras(self.registrar_seguimiento))
+        self.gmail.mail_items[SEGUIMIENTO] = seguimiento()
+        self.assertIn("hilo", self.sin_escrituras(self.registrar_seguimiento, thread_id="otro-hilo"))
+
+    def test_la_separacion_ambigua_entre_lo_nuevo_y_lo_citado_se_rechaza(self):
+        # Cubre: T-58
+        citado = "\n".join("> " + linea for linea in CUERPO.splitlines())
+        casos = {
+            "cita sin atribución": f"{NUEVO}\n{citado}\n",
+            "atribución sin cita": f"{NUEVO}\n{ATRIBUCION}\n",
+            "historial de Outlook sin «>»": f"{NUEVO}\nDe: Andrés <91andresmunoz@gmail.com>\nEnviado: lunes\n{CUERPO}",
+            "reenvío": f"{NUEVO}\n---------- Forwarded message ---------\n{CUERPO}",
+            "respuesta intercalada": f"{ATRIBUCION}\n> {CUERPO.splitlines()[0]}\n{NUEVO}\n> {CUERPO.splitlines()[2]}\n",
+            "texto debajo de la cita": respuesta() + "\nGracias de antemano.\n",
+            "dos atribuciones": f"{ATRIBUCION}\n{NUEVO}\n{respuesta()}",
+        }
+        for nombre, cuerpo in casos.items():
+            with self.subTest(nombre):
+                self.assertIn("fiabilidad", self.rechazo(cuerpo))
+
+    def test_solo_se_toca_ese_mensaje_aunque_haya_otros_en_la_cola(self):
+        # Cubre: T-58
+        ajenas = [f for f in self.tabla("recepcion_mensajes", "message_id") if f["message_id"] != SEGUIMIENTO]
+        self.registrar_seguimiento()
+        self.assertEqual([f for f in self.tabla("recepcion_mensajes", "message_id") if f["message_id"] != SEGUIMIENTO],
+                         ajenas)
+        self.assertEqual({c[1] for c in self.gmail.calls if c[0] == "messages.get"}, {SEGUIMIENTO})
+
+
+class ContenidoNuevoTests(unittest.TestCase):
+    """Cubre: T-58"""
+
+    def test_una_respuesta_de_gmail_separa_lo_nuevo_de_lo_citado(self):
+        self.assertEqual(contenido_nuevo(respuesta()), NUEVO.strip())
+
+    def test_la_atribucion_en_dos_lineas_y_en_ingles(self):
+        partida = "El lun, 19 oct 2026 a las 10:10, Andrés <\n91andresmunoz@gmail.com> escribió:"
+        self.assertEqual(contenido_nuevo(respuesta(atribucion=partida)), NUEVO.strip())
+        self.assertEqual(contenido_nuevo(respuesta(atribucion="On Mon, Oct 19, 2026 at 10:10 AM Andres wrote:")),
+                         NUEVO.strip())
+
+    def test_un_mensaje_sin_historial_es_todo_nuevo_y_los_finales_de_linea_no_importan(self):
+        self.assertEqual(contenido_nuevo(NUEVO), NUEVO.strip())
+        self.assertEqual(contenido_nuevo(respuesta().replace("\n", "\r\n")), NUEVO.strip())
+
+    def test_lo_dudoso_devuelve_none(self):
+        for texto in (f"{NUEVO}\n> citado sin atribución\n", f"{NUEVO}\n{ATRIBUCION}\n", f"{NUEVO}\n-----Original Message-----\n",
+                      f"{NUEVO}\nFrom: a@b.com\nSent: lunes\n"):
+            with self.subTest(texto[-30:]):
+                self.assertIsNone(contenido_nuevo(texto))
 
 
 if __name__ == "__main__":

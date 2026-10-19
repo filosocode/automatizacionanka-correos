@@ -358,3 +358,46 @@ def reply_email(
         email["References"] = f"{previous} {message_id}".strip()
     email.set_content(body)
     return email
+
+
+# --- Contenido nuevo de una respuesta, separado del historial citado (T-58, D-165) ------
+
+_ATRIBUCION = re.compile(r"^(?:el|on)\s.+\s(?:escribi[oó]|wrote)\s*:$", re.IGNORECASE)
+_HISTORIAL_SIN_CITA = re.compile(
+    r"^(?:-{2,}\s*(?:original message|mensaje original|forwarded message|mensaje reenviado)|_{5,}$|"
+    r"(?:de|from):\s.*@|(?:enviado(?: el)?|sent):\s)", re.IGNORECASE)
+
+
+def contenido_nuevo(texto: str) -> str | None:
+    """Lo que escribió la persona en una respuesta, sin el historial citado; `None` si no se separa con fiabilidad.
+
+    Reconoce el formato de las respuestas de Gmail: el texto nuevo, una línea de atribución («El … escribió:», que
+    puede ocupar dos líneas) y el historial con cada línea precedida de «>». Se rechaza (`None`) todo lo demás que
+    sugiera historial: citas sin atribución, historial sin «>» (Outlook, reenvíos), atribuciones sueltas y respuestas
+    intercaladas con el texto citado.
+    """
+    lineas = texto.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    limpias = [linea.strip() for linea in lineas]
+    if any(_HISTORIAL_SIN_CITA.match(linea) for linea in limpias):
+        return None
+    atribuciones = {i for i, linea in enumerate(limpias) if _ATRIBUCION.match(linea)} | {
+        i for i in range(len(limpias) - 1)
+        if limpias[i].casefold().startswith(("el ", "on ")) and _ATRIBUCION.match(f"{limpias[i]} {limpias[i + 1]}")}
+    citadas = [i for i, linea in enumerate(lineas) if linea.lstrip().startswith(">")]
+    if not citadas:
+        return None if atribuciones else texto.strip()
+    previas = [i for i in range(citadas[0]) if limpias[i]]
+    if not previas:
+        return None
+    ultima = previas[-1]
+    if ultima in atribuciones and _ATRIBUCION.match(limpias[ultima]):
+        inicio = ultima
+    elif ultima - 1 in atribuciones:
+        inicio = ultima - 1
+    else:
+        return None
+    if atribuciones - {inicio}:
+        return None
+    if any(linea.strip() and not linea.lstrip().startswith(">") for linea in lineas[ultima + 1:]):
+        return None
+    return "\n".join(lineas[:inicio]).strip()

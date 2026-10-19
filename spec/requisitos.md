@@ -1914,6 +1914,15 @@ puente reintenta lo que falló) la concilia.
 7. **Salida sin contenido**: ids, estado y disposición; nunca asunto, cuerpo ni remitente.
 8. **Compatibilidad.** La fila registrada es la que `work_jobs elegibilidad` y `work_jobs crear` esperan. La orden no crea trabajos ni publica en Drive.
 9. **Uso.** Es una herramienta de laboratorio y de recuperación supervisada: la marca `PRUEBA-` limita hoy su uso a mensajes de prueba declarados.
+10. **Respuesta a un hilo con expediente (seguimiento de prueba).** Si el hilo ya tiene un expediente registrado, la marca y
+    la declaración «prueba ficticia» se buscan en el **contenido nuevo** del mensaje y no hace falta que la marca esté en el
+    asunto: basta una línea exacta «Identificador: <marca>» (sin distinguir mayúsculas, con punto final opcional). El contenido
+    nuevo se separa del historial con `correo.contenido_nuevo`, que solo reconoce la respuesta de Gmail (texto nuevo, línea
+    de atribución «El … escribió:» y el historial con «>»). Una marca o una declaración presentes solo en la cita no valen, y
+    se rechaza sin escribir todo lo que no se pueda separar con fiabilidad (cita sin atribución, atribución sin cita,
+    historial sin «>», reenvíos, respuestas intercaladas o texto debajo de la cita). Un hilo **sin** expediente conserva las
+    reglas de siempre (marca en el asunto y en el cuerpo). Cuenta, hilo, mensaje, remitente, destinatario, borrador o enviado,
+    idempotencia, aislamiento y cursor sin cambios.
 
 **Casos de aceptación**
 - C1 · Registro correcto: una fila pendiente de interpretación, eventos `detectado` y `pendiente_work`.
@@ -1922,6 +1931,11 @@ puente reintenta lo que falló) la concilia.
 - C4 · El cursor y el resto de la cola quedan idénticos; no se llama a History ni a búsquedas.
 - C5 · Sin `--confirmar` o con parámetros faltantes o combinados: rechazo sin Gmail.
 - C6 · `work_jobs crear` acepta la fila registrada.
+- C7 · Seguimiento válido (hilo con expediente, asunto con la marca anterior, marca nueva en el contenido nuevo): se registra
+  sin tocar cursor, expedientes ni trabajos; repetirlo no duplica.
+- C8 · Marca o declaración ficticia solo en la cita, línea que no es exacta, hilo sin expediente o remitente incorrecto: rechazo
+  sin escrituras.
+- C9 · Separación ambigua entre lo nuevo y lo citado: rechazo sin escrituras.
 
 ### T-59 · Ningún texto interno de Work llega al cliente (Fase A: protección de respuestas comerciales)
 El contenido interno de Work (el bloque `[ANKA_DASHBOARD_JSON_V1]`…`[/ANKA_DASHBOARD_JSON_V1]`, la sección «REVISAR ANTES
