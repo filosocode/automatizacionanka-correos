@@ -93,6 +93,9 @@ def _preguntas(analisis: Mapping[str, Any]) -> tuple[list[list[str]], bool]:
 
 
 def _motivos(analisis: Mapping[str, Any]) -> str:
+    pendiente = analisis.get("pending_model_activities")
+    if not (isinstance(pendiente, list) and pendiente):
+        return ""               # una propuesta ya resuelta (adoptada o dejada de lado) no deja motivos por revisar
     motivos = [f"{m.get('tipo')}: {m.get('actividad')}" for m in analisis.get("revision_de_tabla") or []
                if isinstance(m, Mapping)]
     return _texto("; ".join(motivos[:10]))

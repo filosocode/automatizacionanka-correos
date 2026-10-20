@@ -2028,6 +2028,25 @@ no enviada e interna; C18 pregunta respondida o sin respuesta demostrada; C19 ta
 pendiente; C20 contexto recortado y sin datos de otro expediente; C21 retornos de Work que cambian una magnitud, agregan una
 actividad, eliminan, contradicen o conservan nombres; C22 trabajo nuevo con versión del paquete y trabajo antiguo sin ella; C23 el paquete sale igual desde un árbol en LF,
 en CRLF y desde un checkout limpio.
+17. **Una propuesta pendiente sobrevive a los seguimientos (T-60).** Mientras el caso tenga `pending_model_activities`, la
+    propuesta no está resuelta: la adopta o la deja de lado una persona (`resolve_model_proposal`), que la quita de ahí.
+    Un seguimiento (`tabla_acumulada.conservar_propuesta`) vuelve a poner en la tabla propuesta y en `revision_de_tabla` lo
+    que el caso ya tenía propuesto: el cambio de un dato (con su valor anterior, el propuesto, la actividad, el campo, el
+    motivo y las fuentes), la fila de más, la fila que se pide quitar y la contradicción. Que el retorno no lo repita, o que
+    devuelva el valor vigente, no es rechazarlo. No aplica nada a la tabla vigente: un cambio de magnitud no se acepta
+    solo, y un dato con propuesta pendiente tampoco se reemplaza solo (`campos_protegidos`). Si el retorno propone otro
+    valor para el mismo dato, la tabla propuesta lleva el nuevo y la propuesta anterior sigue a la vista; si el valor
+    vuelve a aparecer, no se duplica. Lo que la tabla vigente ya adoptó se da por resuelto, y una propuesta adoptada o
+    dejada de lado no vuelve ni deja motivos de revisión para Work. `propuesta_descartada` se conserva para poder
+    recuperarla (U-57).
+18. **Decisiones históricas.** La ronda enviada (`rondas_de_preguntas`, `preguntas_enviadas`) y el evento `review_decision`
+    son el registro de «preguntar al cliente»; la decisión activa `manual_review`/`ultimas_preguntas` pertenece al
+    análisis que un retorno nuevo reemplaza y **no** se restaura (U-22): lo ya preguntado no se vuelve a pedir. La tabla
+    editada por una persona (`manual_edit`) tampoco se pisa. El reanálisis del mensaje original sigue reemplazando.
+Casos: C24 propuesta de 12 ha sobre 10 y un retorno que conserva las 10; C25 propuesta ratificada por otro mensaje; C26
+retorno vacío o que omite la actividad; C27 reanálisis repetido; C28 propuesta adoptada, y dejada de lado y recuperada; C29
+propuesta nueva y distinta; C30 filas duplicadas, contradicción y eliminación pedida pendientes; C31 tabla editada por una
+persona; C32 ronda enviada y `ask_client` histórico sin reactivar.
 
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 

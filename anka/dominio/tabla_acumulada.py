@@ -83,8 +83,11 @@ def _fuente_sumada(anterior: str, nueva: str) -> str:
     return f"{anterior}; {nueva}".strip("; ") if anterior.strip() else nueva
 
 
-def _pareja(anterior: Fila, nueva: Fila, revisar: list[dict[str, str]]) -> tuple[Fila, Fila, bool]:
-    """(fila vigente, fila propuesta, ¿cambió algo seguro?) para una actividad que está en las dos tablas."""
+def _pareja(anterior: Fila, nueva: Fila, revisar: list[dict[str, str]],
+            protegidos: frozenset[tuple[str, str]] = frozenset()) -> tuple[Fila, Fila, bool]:
+    """(fila vigente, fila propuesta, ¿cambió algo seguro?) para una actividad que está en las dos tablas.
+
+    Un dato con una propuesta pendiente de revisión humana (`protegidos`) nunca se reemplaza solo."""
     nombre = str(anterior.get("activity", ""))
     fuente = str(nueva.get("fuente") or "")
     confirma = _plano(nueva.get("estado")) == "confirmado" and _plano(anterior.get("estado")) != "confirmado"
@@ -96,7 +99,7 @@ def _pareja(anterior: Fila, nueva: Fila, revisar: list[dict[str, str]]) -> tuple
         antes, ahora = anterior.get(campo), nueva.get(campo)
         if _vacio(ahora) or _plano(antes) == _plano(ahora):
             continue
-        if _vacio(antes) or reemplaza:
+        if _vacio(antes) or (reemplaza and (_clave(anterior), campo) not in protegidos):
             seguros[campo] = str(ahora)
         else:
             conflictos[campo] = str(ahora)
@@ -121,7 +124,8 @@ def _pareja(anterior: Fila, nueva: Fila, revisar: list[dict[str, str]]) -> tuple
     return vigente, propuesta, cambio
 
 
-def integrar(anterior: list[Any], nueva: list[Any]) -> Integracion:
+def integrar(anterior: list[Any], nueva: list[Any],
+             protegidos: frozenset[tuple[str, str]] = frozenset()) -> Integracion:
     """Integra la tabla `nueva` (de un seguimiento) en la `anterior` sin perder nada que nadie quitó a propósito."""
     previas = [(i, f) for i, f in enumerate(anterior) if isinstance(f, dict)]
     candidatas = [f for f in nueva if isinstance(f, dict)]
@@ -145,7 +149,7 @@ def integrar(anterior: list[Any], nueva: list[Any]) -> Integracion:
                             "campo": "", "anterior": "", "propuesto": "", "fuente": str(fila.get("fuente") or "")})
             quitar.append(i)
             continue
-        nuevo_vigente, nuevo_propuesto, cambio = _pareja(anterior[i], fila, revisar)
+        nuevo_vigente, nuevo_propuesto, cambio = _pareja(anterior[i], fila, revisar, protegidos)
         vigente[i], propuesta[i] = nuevo_vigente, nuevo_propuesto
         if cambio:
             aplicado.append(f"se actualizó «{anterior[i].get('activity', '')}»")
@@ -188,6 +192,141 @@ def integrar(anterior: list[Any], nueva: list[Any]) -> Integracion:
     return Integracion(vigente, propuesta, revisar, aplicado)
 
 
+# --- Una propuesta pendiente sobrevive a los análisis posteriores (T-60) ----------------------------------------------
+#
+# Mientras el caso tenga `pending_model_activities`, la propuesta sigue sin resolver: quien la adopta o la deja de lado
+# la quita de ahí (`resolve_model_proposal`). Que un seguimiento no la repita no es rechazarla.
+
+_CAMBIA_FILAS = ("duplicada", "sustitucion_ambigua", "sin_nombre")
+
+
+def _emparejar(base: list[Fila], otra: list[Fila]) -> list[tuple[Fila, int | None]]:
+    """Cada fila de `base` con el índice de su pareja en `otra` (mismo nombre, una a una, en orden)."""
+    usadas: set[int] = set()
+    resultado: list[tuple[Fila, int | None]] = []
+    for fila in base:
+        indice = next((i for i, f in enumerate(otra) if i not in usadas and _clave(f) == _clave(fila) and _clave(f)),
+                      None)
+        if indice is not None:
+            usadas.add(indice)
+        resultado.append((fila, indice))
+    return resultado
+
+
+def _pendiente_de(anterior: Mapping[str, Any]) -> tuple[list[tuple[str, str, Fila, Any]], list[Fila], list[Fila]]:
+    """Lo que la propuesta pendiente de un caso cambia respecto de su tabla: (datos, filas de más, filas que quita)."""
+    pendiente = anterior.get("pending_model_activities")
+    if not (isinstance(pendiente, list) and pendiente):
+        return [], [], []
+    base = [f for f in anterior.get("activities") or [] if isinstance(f, dict)]
+    propuesta = [f for f in pendiente if isinstance(f, dict)]
+    parejas = _emparejar(base, propuesta)
+    datos = [(_clave(fila), campo, propuesta[i], propuesta[i].get(campo))
+             for fila, i in parejas if i is not None for campo in CAMPOS_DE_DATO
+             if not _vacio(propuesta[i].get(campo)) and _plano(propuesta[i].get(campo)) != _plano(fila.get(campo))]
+    emparejadas = {i for _, i in parejas if i is not None}
+    sobrantes = [f for i, f in enumerate(propuesta) if i not in emparejadas]
+    quitadas = [fila for fila, i in parejas if i is None]
+    return datos, sobrantes, quitadas
+
+
+def campos_protegidos(anterior: Mapping[str, Any]) -> frozenset[tuple[str, str]]:
+    """Los datos `(actividad, campo)` con un cambio propuesto sin resolver: un seguimiento no los reemplaza solo."""
+    return frozenset((clave, campo) for clave, campo, _, _ in _pendiente_de(anterior)[0])
+
+
+def _clave_de_entrada(entrada: Mapping[str, Any]) -> tuple[str, str, str, str]:
+    return (str(entrada.get("tipo")), _plano(entrada.get("actividad")), str(entrada.get("campo")),
+            _plano(entrada.get("propuesto")))
+
+
+def _mismos_datos(a: Fila, b: Fila) -> bool:
+    return all(_plano(a.get(campo)) == _plano(b.get(campo)) for campo in CAMPOS_DE_DATO)
+
+
+class _Suma:
+    """La tabla propuesta y los motivos de revisión mientras se les suma lo que el caso ya tenía propuesto."""
+
+    def __init__(self, res: Integracion, viejas: list[dict[str, Any]]) -> None:
+        self.vigente = res.vigente
+        self.propuesta: list[Any] = copy.deepcopy(res.propuesta)
+        self.revisar: list[dict[str, str]] = [dict(r) for r in res.revisar]
+        self.viejas = viejas
+        self._conocidas = {_clave_de_entrada(e) for e in self.revisar}
+
+    def anotar(self, entrada: dict[str, str]) -> None:
+        if _clave_de_entrada(entrada) not in self._conocidas:
+            self._conocidas.add(_clave_de_entrada(entrada))
+            self.revisar.append(entrada)
+
+    def anotar_viejas(self, tipos: tuple[str, ...], actividad: str | None = None) -> None:
+        for entrada in self.viejas:
+            if entrada.get("tipo") in tipos and (actividad is None or _plano(entrada.get("actividad")) == actividad):
+                self.anotar(dict(entrada))
+
+    def fila(self, tabla: list[Any], clave: str) -> Fila | None:
+        return next((f for f in tabla if isinstance(f, dict) and _clave(f) == clave), None)
+
+    def datos(self, datos: list[tuple[str, str, Fila, Any]]) -> None:
+        """Los cambios de un dato que seguían pendientes: se vuelven a proponer salvo que la vigente ya los adoptara."""
+        for clave, campo, fila_vieja, valor in datos:
+            vigente, nueva = self.fila(self.vigente, clave), self.fila(self.propuesta, clave)
+            if vigente is None or nueva is None or _plano(vigente.get(campo)) == _plano(valor):
+                continue                                                # la actividad ya no está, o ya se adoptó
+            entrada = next((e for e in self.viejas if e.get("tipo") == "dato_distinto" and e.get("campo") == campo
+                            and _plano(e.get("actividad")) == clave and _plano(e.get("propuesto")) == _plano(valor)),
+                           None)
+            self.anotar({**(entrada or {"tipo": "dato_distinto", "actividad": str(vigente.get("activity", "")),
+                                        "campo": campo, "propuesto": str(valor),
+                                        "fuente": str(fila_vieja.get("fuente") or "")}),
+                         "anterior": str(vigente.get(campo) or "")})
+            if _plano(nueva.get(campo)) == _plano(vigente.get(campo)):  # el análisis nuevo no propone otro valor
+                nueva[campo] = valor
+                nueva["fuente"] = str(fila_vieja.get("fuente") or nueva.get("fuente") or "")
+
+    def contradicciones(self) -> None:
+        for entrada in self.viejas:
+            fila = self.fila(self.vigente, _plano(entrada.get("actividad")))
+            if entrada.get("tipo") == "contradiccion" and fila is not None:
+                if _plano(fila.get("estado")) == "contradictorio":
+                    self.anotar(dict(entrada))
+        self.anotar_viejas(("eliminacion_sin_coincidencia",))
+
+    def filas(self, sobrantes: list[Fila], quitadas: list[Fila]) -> None:
+        """Las filas de más que se proponían y las que se pedía quitar."""
+        for fila in sobrantes:
+            if not any(_clave(f) == _clave(fila) and _mismos_datos(f, fila)
+                       for f in self.propuesta if isinstance(f, dict)):
+                self.propuesta.append(copy.deepcopy(fila))
+            self.anotar_viejas(_CAMBIA_FILAS, _clave(fila))
+        for fila in quitadas:
+            if self.fila(self.vigente, _clave(fila)) is None:
+                continue
+            indice = next((i for i, f in enumerate(self.propuesta)
+                           if isinstance(f, dict) and _clave(f) == _clave(fila)), None)
+            if indice is not None:
+                del self.propuesta[indice]
+            self.anotar_viejas(("eliminacion_pedida",), _clave(fila))
+
+
+def conservar_propuesta(anterior: Mapping[str, Any], res: Integracion) -> Integracion:
+    """Suma a lo que propone este seguimiento lo que el caso ya tenía propuesto y nadie resolvió.
+
+    No aplica nada a la tabla vigente y no duplica una propuesta que vuelve a aparecer. Si el nuevo análisis propone
+    otro valor para el mismo dato, la tabla propuesta lleva el nuevo y la propuesta anterior sigue a la vista en
+    `revision_de_tabla`. Lo que la tabla vigente ya adoptó se da por resuelto."""
+    datos, sobrantes, quitadas = _pendiente_de(anterior)
+    if not (datos or sobrantes or quitadas):
+        return res
+    suma = _Suma(res, [e for e in anterior.get("revision_de_tabla") or [] if isinstance(e, dict)])
+    suma.datos(datos)
+    suma.contradicciones()
+    suma.filas(sobrantes, quitadas)
+    if suma.revisar == res.revisar and suma.propuesta == res.propuesta:
+        return res
+    return Integracion(res.vigente, suma.propuesta, suma.revisar, res.aplicado)
+
+
 def es_seguimiento(primera_vez: str, llegada: str, id_anterior: str, id_nuevo: str) -> bool:
     """¿El análisis es de un mensaje posterior al primero del caso (un seguimiento) y no un reanálisis del original?"""
     desde, hasta = instante(primera_vez), instante(llegada)
@@ -207,7 +346,9 @@ def integrar_seguimiento(anterior: Mapping[str, Any], analysis: Any, primera_vez
     if not (isinstance(anteriores, list) and anteriores and isinstance(nuevas, list)
             and es_seguimiento(primera_vez, str(analysis.get("received_at") or ""), id_anterior, id_nuevo)):
         return None
-    resultado = integrar(anteriores, nuevas)
+    resultado = conservar_propuesta(anterior, integrar(anteriores, nuevas, campos_protegidos(anterior)))
+    if "propuesta_descartada" in anterior and "propuesta_descartada" not in analysis:
+        analysis["propuesta_descartada"] = anterior["propuesta_descartada"]     # para poder recuperarla (U-57)
     if bloqueada or anterior.get("manual_edit"):
         analysis["activities"] = anteriores
         if resultado.propuesta != anteriores:
