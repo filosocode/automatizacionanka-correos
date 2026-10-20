@@ -105,7 +105,7 @@ class ElPrompt(unittest.TestCase):
     def test_hace_obligatorio_el_campo_skill_version(self) -> None:
         # Cubre: T-44
         texto = PROMPT.read_text(encoding="utf-8")
-        regla = "skill_version es obligatorio y va exactamente como en el ejemplo: PRECISO_V6.1.2. Nunca lo omitas ni lo cambies."
+        regla = "skill_version es obligatorio y va exactamente como en el ejemplo: PRECISO_V6.1.3. Nunca lo omitas ni lo cambies."
         self.assertIn(regla, texto)
         self.assertGreater(texto.index(regla), texto.index("Reglas del JSON"))        # está en las reglas, no en el ejemplo
         self.assertLess(len(texto), 14500)

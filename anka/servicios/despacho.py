@@ -129,7 +129,8 @@ def _despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str
                     "motivo": rechazo.veredicto.motivo_id}
         except TrabajoRechazado:
             return {"resultado": "mensaje_no_pendiente"}
-    publicacion = trabajos_work.publicar_trabajo(drive, trabajo["job_id"], carpetas[NOMBRE_PENDIENTES], reloj)
+    publicacion = trabajos_work.publicar_trabajo(drive, trabajo["job_id"], carpetas[NOMBRE_PENDIENTES], reloj,
+                                                 paquete_version=paquete)
     return {**publicacion, "clasificacion": trabajo.get("clasificacion", "")}
 
 

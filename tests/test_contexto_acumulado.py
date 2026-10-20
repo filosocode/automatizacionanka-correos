@@ -252,9 +252,9 @@ class ElPrompt(unittest.TestCase):
             self.assertIn(frase, texto)
 
     def test_la_version_y_el_cierre_son_los_nuevos(self):
-        self.assertIn("PRECISO_V6.1.2", self.PROMPT)
+        self.assertIn("PRECISO_V6.1.3", self.PROMPT)
         self.assertNotIn("PRECISO_V6.1.1", self.PROMPT)
-        self.assertTrue(self.PROMPT.rstrip().endswith("FIN_PROMPT_ANKA_V6.1.2"))
+        self.assertTrue(self.PROMPT.rstrip().endswith("FIN_PROMPT_ANKA_V6.1.3"))
 
     def test_no_se_pierde_la_regla_de_la_revision_interna_sin_bloqueo(self):
         # Cubre: T-57
@@ -268,7 +268,7 @@ class ElPrompt(unittest.TestCase):
                          ["thread_id", "message_id", "client_email", "project_name", "status", "engine"])
         ejemplo = paquete_work.ejemplos(self.PROMPT)["SEGUIMIENTO"]
         self.assertEqual(validate(ejemplo), [])
-        self.assertEqual(ejemplo["skill_version"], "PRECISO_V6.1.2")
+        self.assertEqual(ejemplo["skill_version"], "PRECISO_V6.1.3")
 
     def test_el_paquete_nuevo_se_reconstruye_y_se_verifica(self):
         import tempfile
@@ -276,7 +276,7 @@ class ElPrompt(unittest.TestCase):
             carpeta = Path(temp)
             manifiesto = paquete_work.construir(carpeta)
             self.assertEqual(paquete_work.verificar_paquete(carpeta), [])
-            self.assertEqual(manifiesto["prompt"], {"file": "PRECISO_V6.1.2.txt", "version": "PRECISO_V6.1.2",
+            self.assertEqual(manifiesto["prompt"], {"file": "PRECISO_V6.1.3.txt", "version": "PRECISO_V6.1.3",
                                                     "sha256": manifiesto["prompt"]["sha256"]})
             self.assertIn("Seguimiento con contexto", (carpeta / "T-52_CLASIFICACION.md").read_text(encoding="utf-8"))
             self.assertNotIn("{{", (carpeta / "00_LEEME.md").read_text(encoding="utf-8"))

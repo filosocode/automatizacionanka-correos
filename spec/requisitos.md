@@ -2103,6 +2103,30 @@ Casos: C18 recepción y trabajos vacíos; C19 mensajes por_leer, procesados y re
 conciliados; C21 ambiguo y con error; C22 fechas presentes y ausentes; C23 expediente existente e inexistente; C24 texto hostil
 escapado; C25 consultar no escribe; C26 la portada y el resto de páginas siguen igual y el panel no ofrece acciones.
 
+### T-62 · El contrato de Work se ejecuta solo, sin depender de nada fuera del paquete
+**Defecto (ejecución programada del 2026-10-20).** La primera ejecución programada de Work leyó Drive y Gmail pero se detuvo: la
+línea 4 de `PRECISO_V6.1.2` decía «Usa la skill anka-cotizaciones-correo…», una skill instalada para ANKA 01 que la tarea
+programada no tiene, y «Si el modo no es chatgpt_work, detente». El paquete se declara autónomo y no lo era.
+1. **Sin skill.** El prompt declara que él, el esquema y la carpeta de referencia son autónomos, prohíbe depender de una skill o de
+   instrucciones externas y dice que lo que no está en ellos no se supone. No nombra `anka-cotizaciones-correo` ni ninguna skill
+   como requisito.
+2. **Sin comprobar un modo.** El motor es siempre `chatgpt_work`; el prompt no manda comprobar un «modo» que una tarea programada
+   no tiene.
+3. **Mensaje por hoja.** El mensaje que se analiza lo identifican las hojas `TRABAJO` y `VERIFICACION` del trabajo; una ejecución
+   programada no recibe un evento de Gmail.
+4. **Drive: leer sí, escribir no.** El prompt prohíbe escribir, mover, renombrar o borrar en Drive y permite leer `PENDIENTES` y
+   `REFERENCIA_ANKA_V1`, que es el flujo Python → Drive → Work; ya no contradice a `INSTRUCCIONES_UNA_EJECUCION.md` ni a `T-52`.
+5. **Sin cambio de comportamiento.** Se conservan la identidad del mensaje, la lectura y trazabilidad de adjuntos, la tabla con sus
+   fuentes, la auditoría de preguntas, el seguimiento con contexto acumulado, la revisión humana, la estructura
+   `ANKA_DASHBOARD_JSON_V1`, la idempotencia y la prohibición de enviar correos. El esquema no cambia.
+6. **Versión.** El texto distinto lleva etiqueta distinta: `PRECISO_V6.1.3` (`skill_version`, cierre `FIN_PROMPT_ANKA_V6.1.3`,
+   manifiesto, instrucciones, `T-52`, `FORMATO_DE_RETORNO` y `00_LEEME`). El importador la acepta como `PRECISO_V6…` sin cambios.
+   El paquete se reconstruye (nueva huella) y se publica en Drive solo con autorización; un trabajo publicado con la huella
+   anterior se migra con una nueva publicación, no a mano.
+Casos: C1 el prompt no exige una skill; C2 no manda comprobar un modo; C3 el mensaje sale de las hojas del trabajo; C4 leer Drive
+está permitido y escribirlo no, igual que en las instrucciones del paquete; C5 versión coherente en prompt, manifiesto, ejemplos y
+documentos; C6 cabe en el límite de longitud; C7 el importador acepta `PRECISO_V6.1.3`.
+
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 
 **Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.

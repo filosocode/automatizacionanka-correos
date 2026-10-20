@@ -106,7 +106,10 @@ def _publicar(args: argparse.Namespace) -> dict[str, Any]:
     from anka.infra.google_services import services     # solo aquí se toca Google
 
     _gmail, drive = services()
-    return trabajos_work.publicar_trabajo(drive, args.job_id, args.carpeta_id)
+    trabajo = trabajos_work.obtener(args.job_id)
+    return trabajos_work.publicar_trabajo(
+        drive, args.job_id, args.carpeta_id, paquete_version=paquete_work.version_del_paquete(),
+        solo_su_hoja=bool(trabajo and trabajo["state"] == "publicado"))
 
 
 def _elegibilidad(args: argparse.Namespace) -> dict[str, Any]:
@@ -147,7 +150,7 @@ def main(argv: Sequence[str] | None = None, salida: Callable[[str], object] = pr
         elif args.orden == "ver":
             resultado = _publico(trabajos_work.obtener(args.job_id))
         elif args.orden == "exportar":
-            args.salida.write_bytes(trabajos_work.libro_del_trabajo(args.job_id))
+            args.salida.write_bytes(trabajos_work.libro_del_trabajo(args.job_id, paquete_work.version_del_paquete()))
             resultado = {"job_id": args.job_id, "archivo": str(args.salida)}
         else:
             resultado = _publicar(args)

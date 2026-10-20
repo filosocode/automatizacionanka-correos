@@ -123,6 +123,9 @@ def construir_libro_del_trabajo(trabajo: Mapping[str, Any]) -> bytes:
     paquete = str(trabajo.get("paquete_version") or "")
     if paquete:                                  # solo los trabajos creados con versión de paquete (T-59, punto 14)
         filas.insert(6, ("version_del_paquete", paquete))
+        original = str(trabajo.get("paquete_version_de_creacion") or "")
+        if original and original != paquete:     # republicado con otro paquete (D-175): la de creación queda a la vista
+            filas.insert(7, ("version_del_paquete_al_crear", original))
     contexto = trabajo.get("contexto_previo")
     if isinstance(contexto, contexto_previo.Contexto):
         filas.append(("instruccion_de_seguimiento", contexto_previo.INSTRUCCION_DE_SEGUIMIENTO))

@@ -318,16 +318,20 @@ def anotar_evento(job_id: str, kind: str, detalle: dict[str, Any], ahora: str | 
     return True
 
 
-def libro_del_trabajo(job_id: str) -> bytes:
-    """El `.xlsx` que se publicaría para ese trabajo (no escribe nada)."""
+def libro_del_trabajo(job_id: str, paquete_version: str = "") -> bytes:
+    """El `.xlsx` que se publicaría para ese trabajo (no escribe nada); `paquete_version` es la efectiva (D-175)."""
     trabajo = obtener(job_id)
     if trabajo is None:
         raise TrabajoRechazado("No existe ese trabajo.")
-    return construir_libro_del_trabajo(_con_clasificacion(trabajo))
+    return construir_libro_del_trabajo(_con_clasificacion(trabajo, paquete_version))
 
 
-def _con_clasificacion(trabajo: dict[str, Any]) -> dict[str, Any]:
-    """El trabajo con la clasificación preliminar vigente del mensaje, para la hoja de Work (no cambia su huella)."""
+def _con_clasificacion(trabajo: dict[str, Any], paquete_efectivo: str = "") -> dict[str, Any]:
+    """El trabajo con la clasificación preliminar vigente del mensaje, para la hoja de Work (no cambia su huella).
+
+    `paquete_version` de la hoja es la efectiva (la del paquete con el que se publica, si se indica); la de creación
+    sigue en el evento `trabajo_creado` y se muestra aparte cuando difiere (D-175). Solo es lectura.
+    """
     with lectura() as db:
         fila = db.execute("SELECT * FROM recepcion_mensajes WHERE account=? AND thread_id=? AND message_id=?",
                           (CUENTA, trabajo["thread_id"], trabajo["message_id"])).fetchone()
@@ -345,8 +349,10 @@ def _con_clasificacion(trabajo: dict[str, Any]) -> dict[str, Any]:
             paquete = str(json.loads(creacion["detail_json"]).get("package_version") or "")
         except ValueError:
             paquete = ""
+    efectiva = paquete_efectivo.strip() if paquete else ""        # un trabajo sin versión de creación no gana fila
     return {**trabajo, "clasificacion_preliminar": clasificacion.clase, "motivo_preliminar": clasificacion.motivo,
-            "contexto_previo": contexto, "paquete_version": paquete}
+            "contexto_previo": contexto, "paquete_version": efectiva or paquete,
+            "paquete_version_de_creacion": paquete}
 
 
 def _contexto_previo(db: sqlite3.Connection, trabajo: dict[str, Any]) -> Contexto | None:
@@ -423,6 +429,21 @@ def _reclamar(job_id: str, ahora: float, when: str) -> tuple[str, dict[str, Any]
         return token, _como_dict(db.execute("SELECT * FROM trabajos_work WHERE job_id=?", (job_id,)).fetchone())
 
 
+def _evento_de_republicacion(db: sqlite3.Connection, trabajo: sqlite3.Row, when: str, detalle: dict[str, Any]) -> None:
+    """Deja huella de cada hoja actualizada con otra versión de paquete; repetir la misma versión no duplica (D-175)."""
+    existe = db.execute("SELECT 1 FROM recepcion_eventos WHERE account=? AND thread_id=? AND message_id=? "
+                        "AND event_kind='trabajo_republicado' AND json_extract(detail_json,'$.job_id')=? "
+                        "AND json_extract(detail_json,'$.package_version')=? LIMIT 1",
+                        (trabajo["account"], trabajo["thread_id"], trabajo["message_id"], trabajo["job_id"],
+                         detalle["package_version"])).fetchone()
+    if not existe:
+        db.execute("INSERT INTO recepcion_eventos(account,thread_id,message_id,event_kind,occurred_at,detail_json) "
+                   "VALUES(?,?,?,?,?,?)", (trabajo["account"], trabajo["thread_id"], trabajo["message_id"],
+                                           "trabajo_republicado", when,
+                                           json.dumps({"job_id": trabajo["job_id"], **detalle},
+                                                      separators=(",", ":"), sort_keys=True)))
+
+
 def _soltar(job_id: str, token: str, when: str, error: str, nuevo: str | None = None) -> None:
     """Devuelve el trabajo a su estado de antes de publicar (o a `ambiguo`) y anota el motivo, sin datos del correo."""
     with transaccion() as db:
@@ -437,8 +458,14 @@ def _soltar(job_id: str, token: str, when: str, error: str, nuevo: str | None = 
 
 
 def publicar_trabajo(drive: ClienteDrive, job_id: str, folder_id: str,
-                     reloj: Callable[[], float] = time.time) -> dict[str, Any]:
-    """Publica (o actualiza) la hoja del trabajo en la carpeta de laboratorio. Nunca elige entre archivos ambiguos."""
+                     reloj: Callable[[], float] = time.time, paquete_version: str = "",
+                     solo_su_hoja: bool = False) -> dict[str, Any]:
+    """Publica (o actualiza) la hoja del trabajo en la carpeta de laboratorio. Nunca elige entre archivos ambiguos.
+
+    `paquete_version`: versión efectiva con la que se publica (queda en el evento; la de creación no se toca).
+    `solo_su_hoja`: republicación de un trabajo ya publicado; solo actualiza su hoja guardada si sigue en Drive, fuera
+    de la papelera y con la marca de este trabajo. Si no, no escribe ni crea nada (D-175).
+    """
     if not str(folder_id or "").strip():
         raise TrabajoRechazado("Falta la carpeta de laboratorio de Drive.")
     when = ahora_iso("seconds")
@@ -450,7 +477,10 @@ def publicar_trabajo(drive: ClienteDrive, job_id: str, folder_id: str,
     if trabajo is None:
         return {"resultado": "no_reclamado", "job_id": job_id}
     try:
-        contenido = construir_libro_del_trabajo(_con_clasificacion(trabajo))
+        if solo_su_hoja and _archivo_guardado(drive, trabajo) is None:
+            _soltar(job_id, token, when, "republicacion_sin_su_hoja")
+            return {"resultado": "identidad_divergente", "job_id": job_id}
+        contenido = construir_libro_del_trabajo(_con_clasificacion(trabajo, paquete_version))
         resultado, archivo = _publicar_en_drive(drive, trabajo, folder_id, contenido)
     except Exception as exc:                       # Drive o red: no se sabe qué quedó hecho; se verifica al reintentar
         _soltar(job_id, token, when, f"error_de_drive:{type(exc).__name__}")
@@ -471,7 +501,12 @@ def publicar_trabajo(drive: ClienteDrive, job_id: str, folder_id: str,
             (PUBLICADO, archivo["id"], folder_id, when, when, job_id, PUBLICANDO, token))
         if cambio.rowcount != 1:
             return {"resultado": "reclamo_perdido", "job_id": job_id, "sheet_file_id": archivo["id"]}
-        _evento(db, fila, "trabajo_publicado", when, {"sheet_file_id": archivo["id"], "como": resultado})
+        detalle = {"sheet_file_id": archivo["id"], "como": resultado}
+        if paquete_version:
+            detalle["package_version"] = paquete_version
+        _evento(db, fila, "trabajo_publicado", when, detalle)
+        if resultado == "actualizado" and paquete_version:
+            _evento_de_republicacion(db, fila, when, detalle)
     return {"resultado": resultado, "job_id": job_id, "sheet_file_id": archivo["id"]}
 
 

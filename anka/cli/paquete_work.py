@@ -32,7 +32,7 @@ MARCA_DE_HUELLA = "anka_paquete_sha256"
 DE_PLANTILLA = ("00_LEEME.md", "T-52_CLASIFICACION.md", "FORMATO_DE_RETORNO.md", "INSTRUCCIONES_UNA_EJECUCION.md")
 # T-57: un ejemplo más, de SOLICITUD_NUEVA en revisión interna que conserva su tabla preliminar (no es una clase nueva)
 EN_REVISION = "SOLICITUD_NUEVA_REVISION_INTERNA"
-OBLIGATORIOS = ("manifest.json", "contrato_work.schema.json", "PRECISO_V6.1.2.txt", *DE_PLANTILLA,
+OBLIGATORIOS = ("manifest.json", "contrato_work.schema.json", "PRECISO_V6.1.3.txt", *DE_PLANTILLA,
                 *(f"ejemplo_{clase}.json" for clase in (*CLASIFICACIONES, EN_REVISION)))
 TIPOS = {".md": "text/markdown", ".json": "application/json", ".txt": "text/plain"}
 # Lo que un paquete autónomo no puede mencionar: nada del equipo de Anka ni archivos comprimidos.
@@ -54,15 +54,15 @@ def _sha(datos: bytes) -> str:
 
 
 def _ejemplo_oficial(prompt: str) -> dict[str, Any]:
-    """El ejemplo ficticio de PRECISO_V6.1.2: la base de los demás, para no inventar ni simplificar obligatorios."""
+    """El ejemplo ficticio de PRECISO_V6.1.3: la base de los demás, para no inventar ni simplificar obligatorios."""
     bloque = re.search(r"\[ANKA_DASHBOARD_JSON_V1\]\s*(.*?)\s*\[/ANKA_DASHBOARD_JSON_V1\]", prompt, re.S)
     if bloque is None:
-        raise ErrorDeAnka("El prompt PRECISO_V6.1.2 no trae su ejemplo del bloque JSON.")
+        raise ErrorDeAnka("El prompt PRECISO_V6.1.3 no trae su ejemplo del bloque JSON.")
     return dict(json.loads(bloque.group(1)))
 
 
 def ejemplos(prompt: str) -> dict[str, dict[str, Any]]:
-    """Un ejemplo ficticio válido por clasificación, derivado del ejemplo oficial de PRECISO_V6.1.2."""
+    """Un ejemplo ficticio válido por clasificación, derivado del ejemplo oficial de PRECISO_V6.1.3."""
     base = _ejemplo_oficial(prompt)
     nueva = {**copy.deepcopy(base), "classification": "SOLICITUD_NUEVA",
              "classification_reason": "El cliente pide un levantamiento topográfico de un predio, con TdR adjuntos."}
@@ -258,7 +258,7 @@ def _incoherencias_de_revision_interna(ejemplo: Mapping[str, Any], a_cliente: Se
 
 def _contenidos(esquema: bytes, prompt: bytes) -> dict[str, bytes]:
     """Todos los archivos del paquete (menos el manifiesto), por ruta relativa, sin la versión aún."""
-    archivos: dict[str, bytes] = {"contrato_work.schema.json": esquema, "PRECISO_V6.1.2.txt": prompt}
+    archivos: dict[str, bytes] = {"contrato_work.schema.json": esquema, "PRECISO_V6.1.3.txt": prompt}
     for nombre in DE_PLANTILLA:
         archivos[nombre] = leer(PLANTILLAS / nombre)
     for clase, datos in ejemplos(prompt.decode("utf-8")).items():
@@ -291,13 +291,13 @@ def construir(destino: Path) -> dict[str, Any]:
         "paquete": NOMBRE_DEL_PAQUETE, "paquete_version": version,
         "origen": {"repositorio": "Automatizacion_Correos",
                    "archivos": {"contrato_work.schema.json": "spec/contrato_work.schema.json",
-                                "PRECISO_V6.1.2.txt": "docs/PROMPT_WORK_ANKA_V6.txt",
+                                "PRECISO_V6.1.3.txt": "docs/PROMPT_WORK_ANKA_V6.txt",
                                 "documentos": "docs/paquete_work/", "requisitos": "T-52, T-53, T-54"}},
         "contract": {"name": CONTRATO, "schema_version": schema.get("version"),
                      "classification_enum": list(schema["properties"]["classification"]["enum"]),
                      "required": list(schema["required"])},
         "schema_sha256": _sha(esquema),
-        "prompt": {"file": "PRECISO_V6.1.2.txt", "version": ejemplo.get("skill_version"), "sha256": _sha(prompt)},
+        "prompt": {"file": "PRECISO_V6.1.3.txt", "version": ejemplo.get("skill_version"), "sha256": _sha(prompt)},
         "files": [{"path": n, "sha256": _sha(archivos[n]), "size_bytes": len(archivos[n])} for n in sorted(archivos)],
     }
     archivos["manifest.json"] = (json.dumps(manifiesto, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
@@ -325,7 +325,7 @@ def _problemas_de_archivos(carpeta: Path, manifiesto: Mapping[str, Any]) -> list
             problemas.append(f"El tamaño de {ruta} no coincide con el manifiesto.")
         elif _sha(datos) != ficha.get("sha256"):
             problemas.append(f"La huella SHA-256 de {ruta} no coincide con el manifiesto.")
-        if ruta.endswith((".md", ".txt")) and ruta != "PRECISO_V6.1.2.txt":
+        if ruta.endswith((".md", ".txt")) and ruta != "PRECISO_V6.1.3.txt":
             texto = datos.decode("utf-8", errors="replace")
             problemas += [f"{ruta} menciona «{x}», que Work no puede usar." for x in PROHIBIDO_EN_TEXTO if x in texto]
     return problemas
@@ -337,8 +337,8 @@ def _problemas_de_vigencia(carpeta: Path, manifiesto: Mapping[str, Any], version
     contrato = manifiesto.get("contract", {})
     if contrato.get("name") != version_del_contrato:
         problemas.append(f"El paquete es del contrato {contrato.get('name')}, no de {version_del_contrato}.")
-    if manifiesto.get("prompt", {}).get("version") != "PRECISO_V6.1.2":
-        problemas.append("El paquete no es de PRECISO_V6.1.2.")
+    if manifiesto.get("prompt", {}).get("version") != "PRECISO_V6.1.3":
+        problemas.append("El paquete no es de PRECISO_V6.1.3.")
     try:
         esquema = json.loads((carpeta / "contrato_work.schema.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):

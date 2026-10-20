@@ -105,7 +105,7 @@ class ElEjemploConservaLaTabla(unittest.TestCase):
             self.assertEqual(escrito, ejemplo_en_revision(PROMPT))
             self.assertEqual(verificar_paquete(carpeta), [])
             manifiesto = json.loads((carpeta / "manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifiesto["prompt"]["version"], "PRECISO_V6.1.2")
+            self.assertEqual(manifiesto["prompt"]["version"], "PRECISO_V6.1.3")
             self.assertEqual(len(manifiesto["files"]), len(OBLIGATORIOS) - 1)
             ruta = carpeta / f"ejemplo_{EN_REVISION}.json"
             vaciado = {**escrito, "activities": []}
@@ -193,7 +193,7 @@ class LaCompatibilidadSeMantiene(unittest.TestCase):
         datos = ejemplo_en_revision(PROMPT)
         self.assertTrue(usa_verificacion_por_adjuntos(datos))
         analisis = work_import._work_analysis(datos)
-        self.assertEqual(analisis["work_skill_version"], "PRECISO_V6.1.2")
+        self.assertEqual(analisis["work_skill_version"], "PRECISO_V6.1.3")
         self.assertEqual(len(analisis["activities"]), 2)
         self.assertEqual(analisis["question_quality_warnings"], [])
 
@@ -201,7 +201,7 @@ class LaCompatibilidadSeMantiene(unittest.TestCase):
         # Cubre: T-57
         esquema = json.loads(paquete_work.ESQUEMA.read_text(encoding="utf-8"))
         self.assertEqual(esquema["required"], ["thread_id", "message_id", "client_email", "project_name", "status", "engine"])
-        self.assertEqual(re.findall(r"PRECISO_V6.1.2", PROMPT).count("PRECISO_V6.1.2") >= 2, True)
+        self.assertEqual(re.findall(r"PRECISO_V6.1.3", PROMPT).count("PRECISO_V6.1.3") >= 2, True)
 
 
 if __name__ == "__main__":
