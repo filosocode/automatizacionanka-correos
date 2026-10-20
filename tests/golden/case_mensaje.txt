@@ -68,6 +68,9 @@ Casos borrados
 <a class="enlace-ajustes" href="/desempeno">
 Desempeño del análisis
 </a>
+<a class="enlace-ajustes" href="/operacion">
+Recepción y trabajos de Work
+</a>
 <div class="google-settings">
 <strong>
 Cuenta de Google

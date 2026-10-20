@@ -131,6 +131,7 @@ La descripción es la primera frase de su docstring.
 | `evaluacion` | Evaluar el análisis con solicitudes reales del histórico: muestrear, guardar fichas, validarlas y medir (T-34). |
 | `drive_layout` | Estructura de carpetas de Drive: Año / Cliente / Solicitud. |
 | `ediciones` | Edición de la tabla de actividades por una persona: motivos, diferencias entre versiones y guardado. |
+| `estado_operativo` | Lo registrado sobre la recepción de mensajes y los trabajos Work para el panel de solo lectura `/operacion` (T-61). |
 | `estado_de_revision` | Estado de la revisión de Gmail: cuándo fue la última, cuánto tardó, qué cambió y cómo se cuenta a la persona. |
 | `followup_reminders` | Seguimiento cuando el cliente tarda en responder (R13). |
 | `gmail_followup` | Seguimiento del hilo en Gmail (solo lectura): registra lo enviado y lo recibido, venga de donde venga. |

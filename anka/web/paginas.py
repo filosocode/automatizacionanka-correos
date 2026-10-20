@@ -28,6 +28,7 @@ from anka.infra.work_heartbeat import rejected_drafts
 from anka.web.templating import render
 
 from anka.servicios.estado_de_revision import sync_status_text
+from anka.servicios.estado_operativo import estado_operativo
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
     code_label, required_messages,
@@ -173,6 +174,11 @@ def render_desempeno(message: str = "") -> str:
                                     for clave, valor in g["resumen"].items() if isinstance(valor, float)}}
               for g in desempeno_por_grupo()]
     return page("Desempeño del análisis", render("desempeno.html", grupos=grupos, minimo=MINIMO_DE_CASOS), message)
+
+
+def render_operacion(message: str = "") -> str:
+    """Lo registrado sobre la recepción de mensajes y los trabajos Work, solo lectura (T-61)."""
+    return page("Recepción y trabajos de Work", render("operacion.html", datos=estado_operativo()), message)
 
 
 MAX_BUSQUEDA = 200      # largo máximo de lo que se busca (U-49)

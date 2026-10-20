@@ -179,6 +179,9 @@ OPERACIONES: tuple[Operacion, ...] = (
     Operacion("get", "/desempeno", "Páginas", "Desempeño del análisis",
               "Qué tan bien trabaja el análisis (Work o modelo local), medido con las correcciones de las personas "
               "en el uso real, por versión del prompt y modelo.", campos=(_MENSAJE,)),
+    Operacion("get", "/operacion", "Páginas", "Recepción y trabajos de Work",
+              "Panel de solo lectura: mensajes recibidos y trabajos para Work por estado registrado, con acceso al "
+              "expediente. No consulta Gmail ni Drive y no ofrece acciones.", campos=(_MENSAJE,)),
     Operacion("get", "/acta", "Páginas", "Registro de cambios (imprimible)",
               "Historial con fecha, autor y huella de cada hecho del caso, apto para imprimir.", campos=(_ID,)),
     Operacion("get", "/export.xlsx", "Páginas", "Exportar actividades a Excel",

@@ -827,3 +827,13 @@ ol.preguntas-enviadas { margin: 0; padding-left: 1.25rem; font-size: .875rem; }
 .estado-pregunta.abierta { background: var(--caution-bg); color: var(--caution-ink); }
 .estado-pregunta.sin-confirmar { background: var(--warn-bg); color: var(--warn-ink); }
 .estado-pregunta.desconocido { background: var(--surface-3); color: var(--ink); }
+.servicios-operacion, .conteos-operacion { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.conteos-operacion { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.conteos-operacion li { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 8px 12px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.estado-op { display: inline-block; font-size: .875rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--surface-3); color: var(--ink); }
+.estado-op.ok { background: var(--ok-bg); color: var(--ok-ink); }
+.estado-op.pendiente { background: var(--info-bg); color: var(--info-ink); }
+.estado-op.error { background: var(--bad-bg); color: var(--bad-ink); }
+.estado-op.desconocido { background: var(--warn-bg); color: var(--warn-ink); }
+.tabla-ancha { overflow-x: auto; }
+.tabla-ancha td, .tabla-ancha th { overflow-wrap: anywhere; }

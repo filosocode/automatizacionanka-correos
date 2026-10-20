@@ -58,6 +58,7 @@ GET_ROUTES: dict[str, str] = {
     "/state": "_get_state",
     "/eventos": "_get_eventos",
     "/desempeno": "_get_desempeno",
+    "/operacion": "_get_operacion",
     "/api/casos": "_get_api_cases",
     "/api/salud": "_get_api_health",
     "/api/autorizacion": "_get_api_authorization",
@@ -283,6 +284,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
     def _get_desempeno(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.render_desempeno(field(query, "message")))
+
+    def _get_operacion(self, query: dict[str, list[str]]) -> None:
+        self._send_html(paginas.render_operacion(field(query, "message")))
 
     def _get_discarded(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.render_discarded(_mensaje(query)))

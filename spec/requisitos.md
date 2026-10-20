@@ -2084,6 +2084,25 @@ desconocido; C8 texto hostil escapado; C9 aceptar y dejar de lado sin regresión
 C12 varias rondas en orden; C13 `sigue_abierta` y `sin_confirmar`; C14 datos incompletos e históricos; C15 identificadores
 ausentes o incorrectos; C16 texto hostil escapado; C17 ver la sección no escribe.
 
+11. **Panel «Recepción y trabajos de Work» (Mejora 3).** La página `/operacion` (enlace en Ajustes) muestra, solo con lo que
+    SQLite ya tiene (`recepcion_mensajes`, `recepcion_control`, `trabajos_work`, `quotes`; `estado_operativo.estado_operativo`):
+    mensajes por estado real (`por_leer`, `requiere_reintento`, `revision_manual`, `procesado`; uno desconocido se muestra con
+    su código), cómo se clasificaron los procesados, fecha del último mensaje detectado y procesado, trabajos por estado
+    (pendiente de publicar, publicándose, publicado, conciliado, ambiguo, cancelado), los trabajos sin cerrar con un error
+    anotado, y listas cortas (25) de mensajes no listos y de trabajos con su estado, fecha relevante, intentos, error
+    anotado y enlace al expediente (o «Sin expediente en Anka»). Los conteos son exactos; las listas, un vistazo.
+12. **Registrado no es funcionando.** El panel separa lo registrado, lo comprobado y lo no comprobado: el único servicio con
+    señal de vida propia es el puente (su latido local, `bridge_state`); la recepción de Gmail y la publicación/análisis de
+    Work se rotulan «Estado no comprobado» y el último intento anotado se presenta como lo que quedó escrito, no como una
+    comprobación actual. «Pendiente» (falta un paso) se distingue de «error» (ambiguo, reintento, revisión manual, error
+    anotado). Sin mensajes ni trabajos se explica por qué está vacío.
+13. **Solo lectura.** Consultas acotadas de lectura; no consulta Gmail ni Drive, no inicia servicios, no ofrece botones de
+    procesar, enviar, importar, despachar o archivar, y no muestra cuerpos, remitentes, asuntos ni credenciales. Todo texto
+    se escapa.
+Casos: C18 recepción y trabajos vacíos; C19 mensajes por_leer, procesados y rechazados; C20 trabajos creados, publicados y
+conciliados; C21 ambiguo y con error; C22 fechas presentes y ausentes; C23 expediente existente e inexistente; C24 texto hostil
+escapado; C25 consultar no escribe; C26 la portada y el resto de páginas siguen igual y el panel no ofrece acciones.
+
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 
 **Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.
