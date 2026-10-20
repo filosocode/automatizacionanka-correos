@@ -391,8 +391,26 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .link-bulk-item input[type="checkbox"] { flex: 0 0 18px; }
 .proposal { border: 1px dashed var(--proposal-line); background: var(--proposal-bg); border-radius: var(--radius-card); padding: 14px 16px; margin-bottom: 14px; }
 .proposal ul { margin: 8px 0 12px; padding-left: 18px; }
+.motivos-actividad { margin: 12px 0; }
+.motivos-actividad h3 { font-size: 1rem; margin: 0 0 6px; overflow-wrap: anywhere; }
+.proposal .lista-motivos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cambio { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 10px 12px; }
+.cambio p { margin: 6px 0; overflow-wrap: anywhere; }
+.etiqueta-motivo { display: inline-block; font-size: .875rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--info-bg); color: var(--info-ink); }
+.cambio.distinto .etiqueta-motivo { background: var(--caution-bg); color: var(--caution-ink); }
+.cambio.contradiccion .etiqueta-motivo { background: var(--bad-bg); color: var(--bad-ink); }
+.cambio.eliminacion .etiqueta-motivo { background: var(--warn-bg); color: var(--warn-ink); }
+.cambio.nueva .etiqueta-motivo { background: var(--ok-bg); color: var(--ok-ink); }
+.antes-despues { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.antes-despues div { background: var(--surface-2); border-radius: var(--radius-card); padding: 6px 10px; min-width: 0; }
+.antes-despues dt { font-size: .875rem; color: var(--muted); }
+.antes-despues dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.dato-original { font-size: .875rem; color: var(--muted); }
+.dato-original code { overflow-wrap: anywhere; }
+@media (max-width: 640px) { .antes-despues { grid-template-columns: 1fr; } }
 .chip { font-size: .875rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--info-bg); }
 .chip.nueva { background: var(--ok-bg); color: var(--ok-ink); }
+.chip.quitar { background: var(--warn-bg); color: var(--warn-ink); }
 .chip.distinta { background: var(--caution-bg); color: var(--caution-ink); }
 .people { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: .875rem; }
 .people th, .people td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -800,3 +818,12 @@ ol.preguntas-enviadas { margin: 0; padding-left: 1.25rem; font-size: .875rem; }
   /* Lo que está bien no ocupa sitio en la barra (sigue en el texto para lectores); lo que pide atención baja a una segunda fila. */
   header .bridge-chip[data-state="ok"] { position: absolute; width: 1px; height: 1px; overflow: clip; clip-path: inset(50%); white-space: nowrap; padding: 0; }
 }
+.rondas { margin-bottom: 14px; }
+.ronda { border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--panel); padding: 10px 12px; margin: 8px 0; }
+.ronda h3 { font-size: 1rem; margin: 0 0 4px; }
+.preguntas-ronda { margin: 6px 0; padding-left: 20px; }
+.preguntas-ronda li { margin: 6px 0; overflow-wrap: anywhere; }
+.estado-pregunta { display: inline-block; font-size: .875rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--info-bg); color: var(--info-ink); }
+.estado-pregunta.abierta { background: var(--caution-bg); color: var(--caution-ink); }
+.estado-pregunta.sin-confirmar { background: var(--warn-bg); color: var(--warn-ink); }
+.estado-pregunta.desconocido { background: var(--surface-3); color: var(--ink); }

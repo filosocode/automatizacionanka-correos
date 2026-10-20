@@ -1,10 +1,30 @@
+{% set grupos = explicar_propuesta(analysis) %}
 <div class="proposal" id="proposal">
   <strong>Work propone {{ changes | length }} cambio(s) a tu tabla</strong>
-  <p class="meta">Llegó información nueva. Tu tabla no se cambió. ¿Qué prefieres?</p>
-  <ul>
-    {% for change in changes %}<li><span class="chip {{ change.kind }}">{{ 'Nueva' if change.kind == 'nueva' else 'Distinta' }}</span> {{ change.activity }}{% if change.detail %} · {{ change.detail }}{% endif %}</li>
+  <p class="meta">Llegó información nueva. Tu tabla no se cambió. Revisa abajo qué cambia y por qué; la decisión es sobre toda la propuesta, no sobre cada cambio.</p>
+  <ul class="resumen-propuesta">
+    {% for change in changes %}<li><span class="chip {{ change.kind }}">{{ {'nueva': 'Nueva', 'quitar': 'Se quitaría'}.get(change.kind, 'Distinta') }}</span> {{ change.activity }}{% if change.detail %} · {{ change.detail }}{% endif %}</li>
     {% endfor %}
   </ul>
+  {% if grupos %}<div class="motivos-propuesta" aria-label="Por qué Work propone estos cambios">
+    {% for grupo in grupos %}<section class="motivos-actividad">
+      <h3>{{ grupo.actividad or 'Actividad sin nombre' }}</h3>
+      <ul class="lista-motivos">
+        {% for cambio in grupo.cambios %}<li class="cambio {{ cambio.clase }}">
+          <span class="etiqueta-motivo">{{ cambio.titulo }}</span>
+          <p>{{ cambio.texto }}</p>
+          {% if cambio.con_valores %}<dl class="antes-despues">
+            <div><dt>{{ cambio.campo }} hoy</dt><dd>{{ cambio.vigente or 'sin dato' }}</dd></div>
+            <div><dt>Work propone</dt><dd>{{ cambio.propuesto or 'sin dato' }}</dd></div>
+          </dl>{% endif %}
+          <p class="meta">{% if cambio.fuente %}Respaldo: {{ cambio.fuente }}{% else %}Sin respaldo registrado.{% endif %}{% for correo in cambio.correos %} <a href="https://mail.google.com/mail/u/0/#all/{{ correo | urlquote }}" target="_blank" rel="noopener">Ver el correo {{ correo[:8] }}</a>{% endfor %}</p>
+          {% if cambio.codigo %}<details class="dato-original"><summary>Dato original</summary><code>{{ cambio.codigo }}{% if cambio.campo_original %} · {{ cambio.campo_original }}{% endif %}</code></details>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endfor %}
+  </div>{% endif %}
   <form method="post" action="/proposal">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <div class="toolbar">

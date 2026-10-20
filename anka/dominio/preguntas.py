@@ -344,3 +344,61 @@ def conservar_rondas(anterior: Mapping[str, Any], nuevo: Any, mensaje_id: str) -
             for pregunta in ronda.get("preguntas") or []:
                 pregunta["estado"] = ABIERTA if huella_de_pregunta(pregunta["texto"]) in abiertas else SIN_CONFIRMAR
     nuevo["rondas_de_preguntas"] = rondas[-MAX_RONDAS:]
+
+
+# --- El historial de rondas tal como lo ve la persona (T-61) ---------------------------------------------------
+
+_ID_DE_GMAIL = re.compile(r"[0-9a-f]{10,32}")
+_ESTADOS_DE_PREGUNTA = {
+    ENVIADA: ("enviada", "Enviada", "Se envió y todavía no hay una respuesta registrada en esta ronda."),
+    ABIERTA: ("abierta", "Sigue abierta",
+              "Llegó una respuesta y el análisis nuevo vuelve a pedir este dato."),
+    SIN_CONFIRMAR: ("sin-confirmar", "Sin confirmar",
+                    "Llegó una respuesta, pero no se verificó que conteste esta: no es lo mismo que resuelta.")}
+
+
+def _id_verificado(valor: object) -> str:
+    """El identificador de un mensaje de Gmail solo si tiene la forma de uno (hexadecimal); si no, vacío."""
+    texto = str(valor or "").strip()
+    return texto if _ID_DE_GMAIL.fullmatch(texto) else ""
+
+
+def _fecha_visible(valor: object) -> str:
+    return str(valor or "").strip()[:16].replace("T", " ")
+
+
+def historial_de_rondas(analysis: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Cada correo con preguntas que salió al cliente, en orden cronológico, tal como lo guarda el expediente.
+
+    No une preguntas con partes de la respuesta: solo dice, por pregunta, el estado que ya guardó el análisis. Un
+    expediente anterior a las rondas (solo `preguntas_enviadas`) se muestra como una ronda marcada `historica`.
+    Función pura: no escribe nada y no inventa un dato que falte.
+    """
+    rondas = [r for r in analysis.get("rondas_de_preguntas") or [] if isinstance(r, Mapping)]
+    historica = False
+    enviadas = analysis.get("preguntas_enviadas")
+    if not rondas and isinstance(enviadas, Mapping) and enviadas.get("preguntas"):
+        historica = True
+        rondas = [{"en": enviadas.get("en"), "mensaje": enviadas.get("mensaje"), "respuesta": None,
+                   "preguntas": [{"texto": t, "estado": ENVIADA} for t in enviadas["preguntas"]]}]
+    vistas = sorted(enumerate(rondas), key=lambda par: (instante(str(par[1].get("en") or "")) or 0, par[0]))
+    return [_ronda_visible(n, ronda, historica) for n, (_, ronda) in enumerate(vistas, 1)]
+
+
+def _ronda_visible(numero: int, ronda: Mapping[str, Any], historica: bool) -> dict[str, Any]:
+    respuesta = ronda.get("respuesta") if isinstance(ronda.get("respuesta"), Mapping) else None
+    preguntas = []
+    for pregunta in ronda.get("preguntas") or []:
+        texto = str(pregunta.get("texto") if isinstance(pregunta, Mapping) else pregunta or "").strip()
+        estado = str(pregunta.get("estado") or "") if isinstance(pregunta, Mapping) else ""
+        clase, titulo, ayuda = _ESTADOS_DE_PREGUNTA.get(
+            estado, ("desconocido", estado or "Sin estado", "El expediente no dice en qué quedó esta pregunta."))
+        preguntas.append({"texto": texto, "clase": clase, "titulo": titulo, "ayuda": ayuda})
+    return {
+        "numero": numero, "historica": historica, "preguntas": preguntas,
+        "enviada_en": _fecha_visible(ronda.get("en")), "mensaje": str(ronda.get("mensaje") or "").strip(),
+        "mensaje_id": _id_verificado(ronda.get("mensaje")),
+        "con_respuesta": respuesta is not None,
+        "respuesta_en": _fecha_visible(respuesta.get("en")) if respuesta else "",
+        "respuesta_mensaje": str(respuesta.get("mensaje") or "").strip() if respuesta else "",
+        "respuesta_id": _id_verificado(respuesta.get("mensaje")) if respuesta else ""}

@@ -2048,6 +2048,42 @@ retorno vacío o que omite la actividad; C27 reanálisis repetido; C28 propuesta
 propuesta nueva y distinta; C30 filas duplicadas, contradicción y eliminación pedida pendientes; C31 tabla editada por una
 persona; C32 ronda enviada y `ask_client` histórico sin reactivar.
 
+### T-61 · El panel de la propuesta de Work explica cada cambio
+Antes de decidir, la persona ve **qué cambia y por qué**: el panel «Work propone N cambio(s) a tu tabla» deja de ser una lista de
+nombres y cantidades.
+1. **Fuente única.** Las explicaciones salen de `revision_de_tabla` (T-59) y de las tablas `activities` y
+   `pending_model_activities` del caso (`caso.explicar_propuesta`, función pura). No hay otra fuente ni otro modelo, y ver el
+   panel no escribe nada.
+2. **Qué se muestra por cambio**, agrupado por actividad: un título comprensible (Dato distinto, Contradicción, Eliminación
+   propuesta, Posible sustitución, Actividad repetida, Fila sin nombre), una frase que lo explica, el campo con el valor
+   **vigente** (el de la tabla de hoy) y el **propuesto**, el respaldo (la fuente tal como se guardó) con un enlace a cada
+   correo de Gmail que cite, y, plegado, el dato original (`tipo · campo`).
+3. **Sin inventar.** Si falta un dato se dice («sin dato», «Sin respaldo registrado»); un motivo desconocido se muestra con su
+   código y sin valores. Una propuesta sin motivos estructurados (R11, correos unidos o anterior a T-59) se explica solo por lo
+   que difiere entre las dos tablas y dice que no dejó un motivo registrado.
+4. **También lo que se quitaría.** Una actividad de la tabla que la propuesta no trae cuenta como cambio «Se quitaría»
+   (`model_proposal`; `VERSION_DEL_RESUMEN` pasa a 2): antes una propuesta que solo quitaba una actividad no mostraba panel.
+5. **La decisión no cambia.** Siguen «Aceptar la propuesta» (con su confirmación) y «Dejar mi tabla», sobre toda la propuesta;
+   no hay aceptación parcial.
+6. **Seguridad y pantallas.** Todo texto de Work o de Gmail se escapa; solo un identificador hexadecimal de Gmail se vuelve
+   enlace. Con los colores de siempre (contraste de `U-36`), en columna única en pantallas estrechas.
+7. **Rondas de preguntas visibles (Mejora 2).** La pantalla del caso muestra, bajo «Preguntas enviadas al cliente», cada
+   ronda de `rondas_de_preguntas` en orden cronológico (todas, no solo la última): fecha y hora de envío, enlace al correo
+   enviado, las preguntas con su estado y, si el expediente la guarda, la respuesta vinculada con su fecha y su enlace
+   (`preguntas.historial_de_rondas`, función pura; `rondas.html`). No hay otro historial ni otra fuente.
+8. **Estados sin inventar.** `enviada` (sin respuesta en la ronda), `sigue_abierta` (el análisis nuevo vuelve a pedirla) y
+   `sin_confirmar` (llegó una respuesta pero no se verificó que conteste esa pregunta; **nunca** se muestra como respondida o
+   resuelta). No se relaciona cada pregunta con una parte de la respuesta: el expediente no lo guarda.
+9. **Identificadores verificados.** Solo un identificador hexadecimal de Gmail se vuelve enlace; otro texto se muestra
+   escapado y sin enlace; si falta, se dice.
+10. **Históricos.** Un expediente con solo `preguntas_enviadas` se muestra como una ronda «Registro anterior» que dice que no
+    se sabe si el cliente respondió; sin preguntas enviadas no aparece la sección y la vista de siempre no cambia.
+Casos: C1 cambio de área con valor vigente, propuesto, motivo y correo; C2 cambio de entregable y contradicción; C3 eliminación
+propuesta, sola y con otros cambios; C4 varios cambios agrupados; C5 sin fuente; C6 sin motivos estructurados; C7 motivo
+desconocido; C8 texto hostil escapado; C9 aceptar y dejar de lado sin regresión y ver el panel no cambia el caso; C10 sin rondas; C11 una ronda sin y con respuesta;
+C12 varias rondas en orden; C13 `sigue_abierta` y `sin_confirmar`; C14 datos incompletos e históricos; C15 identificadores
+ausentes o incorrectos; C16 texto hostil escapado; C17 ver la sección no escribe.
+
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 
 **Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.

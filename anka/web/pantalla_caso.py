@@ -31,7 +31,8 @@ from anka.dominio.status import (
 from anka.dominio.correo import (
     normalized_address, reply_body_without_quoted_history, split_quoted_reply, valid_email_address,
 )
-from anka.dominio.preguntas import candidatas, como_peticion, con_decisiones, elegida, en_el_correo, separar
+from anka.dominio.preguntas import (
+    candidatas, como_peticion, con_decisiones, elegida, en_el_correo, historial_de_rondas, separar)
 from anka.dominio.reception import (
     correo_con_preguntas, reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
 )
@@ -617,6 +618,12 @@ def _ronda(review: Caso, analysis: Analisis, mensajes: Sequence[Mapping[str, Any
     return (max(2, enviados + 1), True) if contesto else (max(1, enviados), False)
 
 
+def _rondas_panel(analysis: Analisis) -> Markup:
+    """Las preguntas enviadas al cliente por ronda y su respuesta (T-61). Vacío si no se preguntó."""
+    rondas = historial_de_rondas(analysis)
+    return render("rondas.html", rondas=rondas) if rondas else Markup("")
+
+
 def _puede_volver_atras(review: Caso, analysis: Analisis) -> bool:
     """¿Sigue sin salir el correo de la decisión de preguntar? Entonces se puede cambiar de idea (U-27)."""
     decision = analysis.get("manual_review") or {}
@@ -863,7 +870,8 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "next_step": avisos[0], "avisos_extra": avisos[1],
         "project_panel": Markup("") if reading_blocked else _project_panel(thread_id),
         "proposal_panel": (Markup("") if reading_blocked or not proposal
-                           else render("proposal.html", changes=proposal, thread_id=thread_id)),
+                           else render("proposal.html", changes=proposal, thread_id=thread_id, analysis=analysis)),
+        "rondas_panel": _rondas_panel(analysis),
         "timeline": _timeline_panel(thread_id, review, analysis, events, integrity_ok, event_count),
     }
 
