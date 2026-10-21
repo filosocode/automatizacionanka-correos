@@ -2127,6 +2127,82 @@ Casos: C1 el prompt no exige una skill; C2 no manda comprobar un modo; C3 el men
 está permitido y escribirlo no, igual que en las instrucciones del paquete; C5 versión coherente en prompt, manifiesto, ejemplos y
 documentos; C6 cabe en el límite de longitud; C7 el importador acepta `PRECISO_V6.1.3`.
 
+### T-66 · Verificación contextual de cantidades y unidades (modo sombra; «T-65.2» en la auditoría)
+**Problema (T-65 y T-65.1).** `comprobar_tabla` daba por comprobada una cantidad si su número aparecía en cualquier parte del
+expediente: no miraba la unidad, no distinguía actividades y `numeros_del_texto` además separaba `4,5` en 4, 5 y 4,5. Un dato
+de otra fila, otra página u otra actividad pasaba por bueno.
+1. **Capa nueva y aparte.** `anka/dominio/contexto_de_cantidad.py` (puro) calcula una observación por actividad con cifra y
+   `comprobar_tabla` la deja en `evidence_check["observaciones"]`. Las claves `comprobadas`, `diferencias`, `no_comprobables` y
+   `estado` y su semántica no cambian; `numeros_del_texto` y `valores` antiguos no se tocan.
+2. **Modo sombra.** `avisos_de` no muestra las observaciones, el dashboard no las lee y ningún estado rechaza, cambia
+   `analysis_complete`, impide una conciliación o altera un estado comercial. Si el cálculo falla se registra y `observaciones`
+   queda vacío.
+3. **Números.** Se leen con `Decimal` sin separar cifras: `4,5` es 4,5; `1.250` es ambiguo (1250 o 1,25) y un valor ambiguo
+   nunca prueba una contradicción; con varios separadores iguales son miles y con ambos el último es el decimal.
+4. **Unidades.** Equivalencias solo por una tabla explícita (`ha`/hectárea, `m2`/metros cuadrados, `km`, `m`, días…); nunca se
+   convierte ha en m² ni km en m. Una unidad que no está en la tabla es «contable» y solo se compara por su raíz.
+5. **Ubicación primero.** La cita de `fuente` se resuelve a página (`[Página N]`), diapositiva, hoja y celda/fila de Excel, o
+   tabla y fila de Word, según los marcadores reales de los lectores; un localizador que no se resuelve baja al archivo, y sin
+   cita utilizable se busca en todo el expediente. Se informa el nivel (`celda`, `fila`, `pagina`, `archivo`, `correo`,
+   `expediente`).
+6. **Asociación.** Una cifra solo se liga a la actividad si su línea (o el encabezado anterior sin cifras) nombra una raíz
+   específica de la actividad o todo el concepto de la cantidad; las palabras genéricas (levantamiento, área, plano…) no bastan.
+   En Excel y Word la unidad puede venir del encabezado de la columna.
+7. **No son cantidades** fechas, páginas e índices, escalas, coordenadas, años sueltos, códigos, teléfonos, porcentajes ni precios.
+8. **Estados.** `VERIFICADA`, `VERIFICADA_SIN_UNIDAD`, `ASOCIACION_DUDOSA`, `NO_ENCONTRADA`, `NO_COMPROBABLE`,
+   `NO_COMPROBABLE_OCR`, `CONTRADICTORIA_UNIDAD` y `CONTRADICTORIA_VALOR`. Una cifra ausente solo es `NO_ENCONTRADA`; la
+   contradicción de valor exige un valor distinto, único, del mismo concepto y de la misma unidad en una lectura completa y
+   nativa. Con OCR, lectura parcial, página sin texto o expediente incompleto nunca hay contradicción.
+9. **Severidad informativa.** `critico_futuro` marca lo que una futura aprobación humana debería tratar como crítico
+   (`CONTRADICTORIA_*`); `aviso` y `info` el resto. Ninguna severidad bloquea hoy nada.
+10. **Cada observación** conserva actividad, nombre, cantidad citada, estado, severidad, nivel, ubicación, fragmento literal
+    de la fuente, unidades de la cita y de la fuente, si venía de OCR y el motivo.
+11. **Cita explícita que no se puede leer (T-68).** Si `fuente` cita un archivo que no está entre las fuentes leídas, el
+    resultado es `NO_COMPROBABLE` con motivo `fuente_inexistente` y no se busca en otros documentos; si la cita puede nombrar a
+    más de un archivo, `referencia_ambigua` (un nombre idéntico gana a los equivalentes); si el archivo existe pero la página,
+    hoja o celda no se localiza, `ubicacion_no_resuelta`: se puede seguir verificando un valor hallado en el archivo, pero nunca
+    se declara `CONTRADICTORIA_*` con evidencia de otra ubicación. Sin cita de archivo se conserva la búsqueda en el expediente.
+Casos: C1 4,5 ha correcto; C2 45 ha contradictoria por valor; C3 4,5 m² contradictoria por unidad; C4 cifra de otra actividad;
+C5 cifra solo en otra página; C6 varias cantidades en una tabla; C7 fecha o código; C8 separadores; C9 sin unidad; C10 fuente
+inexistente; C11 OCR dudoso; C12 Excel con hojas, celdas y unidad en el encabezado; C13 evidencia insuficiente; C14 actividad y
+cantidad correctas; C15 5 no se verifica con 4,5; C16 sin palabras para asociar; más ausencia sin alternativa, palabras genéricas
+compartidas, OCR parcial, expediente incompleto, compatibilidad estructural y modo sombra.
+
+### T-69 · Detección de cambios de magnitud entre mensajes del cliente (modo sombra)
+**Problema (S01 de T-67).** Si el cliente corrige una cantidad en un seguimiento («el área correcta es 6 ha, no 4 ha») y la
+tabla de Work conserva 4 ha, la verificación contextual (T-66) ve 4 ha en el primer mensaje y no avisa. Nada compara lo que
+dijo el cliente en mensajes distintos, y el correo del hilo se leía concatenado, sin saber quién dijo qué.
+1. **Relación con T-59, T-66 y C07.** T-59 (`integrar_seguimiento`) decide qué entra en la tabla: no se toca. T-66 comprueba una
+   cantidad de la tabla contra la fuente: no se toca. C07 (D-177) impide afirmar contradicciones con fuentes que no se
+   pueden leer: aquí el equivalente es no afirmar nada si falta identidad, remitente, fecha o texto completo. T-69 solo
+   describe qué cambió entre mensajes; no corrige la tabla ni resuelve la discrepancia.
+2. **Procedencia por mensaje.** Durante la lectura del hilo se conserva cada mensaje recibido por separado en
+   `<hilo>.textos.json` (clave `mensajes`: `message_id`, `fecha` de Gmail en ISO, `remitente`, `direccion`, `texto`,
+   `truncado`). No cambia SQLite ni el contrato con Work. `case_messages` no sirve: recorta a 8000 caracteres y no guarda la
+   fecha de Gmail; `table_versions` no lleva `message_id`. Un archivo guardado antes de T-69 no trae `mensajes`: no hay
+   observaciones hasta que llegue un mensaje nuevo (la huella del hilo cambia y el texto se vuelve a guardar).
+3. **Quién cuenta.** Solo los mensajes con `direccion = received`; lo enviado por Anka o por una dirección propia nunca prueba
+   lo que el cliente dijo. El texto citado de correos anteriores («>», «El … escribió:», «De: … Enviado:») no es una
+   declaración nueva. Los adjuntos no se usan porque no se asocian a un mensaje de forma inequívoca.
+4. **Clasificación.** `RECTIFICACION_EXPLICITA`: una frase de corrección («el área correcta es 6 ha, no 4 ha», «corrección: son
+   6 ha», «en lugar de 4 ha, considerar 6 ha», «no son 4 ha sino 6 ha») ligada a la actividad por su nombre o concepto, o por
+   un valor anterior que solo coincide con esa actividad. `CAMBIO_POSIBLE`: dos mensajes dan valores distintos para el mismo
+   concepto y unidad sin que ninguno corrija al otro, o hay una frase de corrección sin poder ligarla con certeza.
+   `NO_COMPROBABLE`: falta identidad, remitente verificable, fecha, texto completo o contexto suficiente, o varias actividades
+   semejantes impiden atribuir la cifra. Una frase con «además», «también», «otro lote»… se trata como actividad adicional y
+   no como cambio.
+5. **Cada observación** conserva `thread_id`, `message_id_origen`, `message_id_posterior`, fechas, `valor_anterior`,
+   `valor_posterior`, unidades, concepto, fragmentos literales, `motivo`, `evidencia` (alta, media, baja o ninguno) y
+   `clasificacion`. `vigencia` es siempre `no_determinada`: un valor más reciente no es por eso el vigente, y `tabla` solo
+   dice si el valor de la tabla coincide con el anterior, con el posterior o no es decidible.
+6. **Modo sombra.** Las observaciones van en `evidence_check["cambios_de_magnitud"]`. Las claves `comprobadas`, `diferencias`,
+   `no_comprobables`, `estado` y `observaciones` no cambian; `avisos_de` no las muestra; no crean preguntas, no cambian
+   `analysis_complete`, conciliaciones, borradores ni estados; un fallo se registra y deja la lista vacía.
+Casos: seguimiento sin cambio; 4 ha corregidas a 6 ha (explícita); cambio sin confirmación; actividad nueva con otra magnitud;
+dos actividades semejantes; cifra dentro de texto citado; mensaje de Anka con otra magnitud; cambio solo de unidad;
+mensaje con varias magnitudes; texto truncado; remitente no verificable; fecha ausente; mensaje repetido; adjunto sin
+procedencia; idempotencia.
+
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 
 **Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.

@@ -45,6 +45,8 @@ La descripción es la primera frase de su docstring.
 | `activities` | Edicion y exportacion de la tabla de actividades (sin acceso a Gmail ni Drive). |
 | `reloj` | El reloj de Anka: una sola hora «de ahora» con zona horaria y una forma de ordenar fechas por instante (U-62). |
 | `caso_minimo` | El caso mínimo para un borrador de Work sin análisis válido, con solo lo verificable en Gmail (T-36). |
+| `cambios_de_magnitud` | Detección de posibles cambios de cantidad entre mensajes del cliente de un hilo, con la procedencia de cada mensaje; solo observaciones, en modo sombra (T-69). |
+| `contexto_de_cantidad` | Verificación contextual de cantidades y unidades de la tabla de Work: ubicación citada, unidad, asociación con la actividad; solo observaciones, en modo sombra (T-66). |
 | `verificacion_de_evidencia` | Comprobación mecánica de que lo que Work puso en la tabla está en los textos del expediente (T-38). |
 | `analisis` | La forma del análisis de una solicitud: lo que el modelo (o Work) devuelve y el dashboard guarda como JSON. |
 | `attachments` | Límites y evidencia de adjuntos en memoria. |

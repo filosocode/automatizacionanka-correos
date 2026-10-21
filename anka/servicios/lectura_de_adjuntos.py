@@ -5,11 +5,13 @@ from anka.infra.clientes_google import ClienteGmail
 
 import hashlib
 import json
+from datetime import UTC, datetime
+from email.utils import parseaddr
 from pathlib import Path
 
 from anka.dominio.attachments import MAX_ATTACHMENT_BYTES, hermanos_de_shapefile
 from anka.dominio.correo import (
-    adjuntos_recibidos, decode_websafe, imagenes_incrustadas, inbound_messages, message_text,
+    adjuntos_recibidos, decode_websafe, header, imagenes_incrustadas, inbound_messages, message_text,
 )
 from anka.dominio.verificacion_de_evidencia import avisos_de, comprobar_tabla
 from anka.dominio.work_contract import verificar_adjuntos
@@ -27,6 +29,22 @@ def _huella_del_hilo(mensajes: list[dict], adjuntos: list[dict]) -> str:
     contenido = {"v": VERSION_DE_TEXTOS, "mensajes": [m["id"] for m in mensajes],
                  "adjuntos": sorted((a["message_id"], a["filename"], a["size"]) for a in adjuntos)}
     return hashlib.sha256(json.dumps(contenido, sort_keys=True).encode()).hexdigest()
+
+
+def _registro_de_mensaje(mensaje: dict) -> dict:
+    """Quién escribió qué y cuándo, mensaje por mensaje (T-69): el texto del cliente con su procedencia verificable.
+
+    `inbound_messages` ya dejó fuera lo enviado por Anka, por eso todos son `received`. Un dato que Gmail no da queda
+    vacío, y el detector de cambios lo trata como no comprobable en vez de suponerlo.
+    """
+    try:
+        milisegundos = int(str(mensaje.get("internalDate")))
+        fecha = datetime.fromtimestamp(milisegundos / 1000, UTC).isoformat(timespec="seconds")
+    except (ValueError, OverflowError, OSError):
+        fecha = ""
+    return {"message_id": str(mensaje.get("id") or ""), "fecha": fecha,
+            "remitente": parseaddr(header(mensaje, "From"))[1].casefold(), "direccion": "received",
+            "texto": message_text(mensaje.get("payload", {})), "truncado": False}
 
 
 def _contenido(gmail: ClienteGmail, adjunto: dict) -> bytes:
@@ -79,10 +97,12 @@ def _textos_del_hilo(gmail: ClienteGmail, thread: dict, adjuntos: list[dict], pr
         leidos.append({"filename": adjunto["filename"], "source_id": huella_del_archivo,
                        "coverage": "no_legible" if not texto else "parcial" if motivo else "completa", "text": texto})
     correo = "\n\n".join(message_text(m.get("payload", {})) for m in mensajes)
+    registros = [_registro_de_mensaje(m) for m in mensajes]
     if completo:
-        instantaneas_de_manifiesto.guardar_textos(directorio, thread["id"], huella, correo, leidos)
+        instantaneas_de_manifiesto.guardar_textos(directorio, thread["id"], huella, correo, leidos, registros)
         return instantaneas_de_manifiesto.cargar_textos(directorio, thread["id"], huella)
-    return {"thread_id": thread["id"], "revision": huella, "correo": correo, "adjuntos": leidos, "incompleto": True}
+    return {"thread_id": thread["id"], "revision": huella, "correo": correo, "adjuntos": leidos, "incompleto": True,
+            "mensajes": registros}
 
 
 def verificar_lectura(

@@ -7,9 +7,13 @@ se comparan («7 de noviembre» y «2026-11-07» no se pueden igualar sin adivin
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
+from anka.dominio import cambios_de_magnitud, contexto_de_cantidad
+
+log = logging.getLogger(__name__)
 NUMERO = re.compile(r"\d(?:[\d.,]*\d)?")
 ARCHIVO = re.compile(r"[\w\-. ()áéíóúñÁÉÍÓÚÑ]+?\.(?:pdf|docx?|xlsx?|xlsm|csv|tsv|txt|kml|kmz|gpx|geojson|zip|dwg|dxf|"
                      r"odt|ods|"
@@ -200,9 +204,38 @@ def comprobar_tabla(payload: dict, textos: dict | None) -> dict | None:
             etiqueta = f"campo {indice} («{str(campo.get('name') or '')[:40]}»)"
             _comprobar_citas(etiqueta, str(campo.get("source") or ""), exp, res)
     _comprobar_extractos(payload, exp, res)
+    res["observaciones"] = _observaciones_contextuales(payload, exp)
+    res["cambios_de_magnitud"] = _cambios_de_magnitud(payload, textos)
     res["estado"] = ("con_diferencias" if res["diferencias"] else
                      "verificada" if res["comprobadas"] and not res["no_comprobables"] else "no_comprobable")
     return res
+
+
+def _observaciones_contextuales(payload: dict, exp: _Expediente) -> list[dict]:
+    """Verificación contextual de cantidades y unidades (T-66): modo sombra, solo observaciones.
+
+    No altera `comprobadas`, `diferencias` ni `no_comprobables`, `avisos_de` no la muestra y un fallo aquí nunca frena
+    la comprobación existente ni la importación.
+    """
+    try:
+        return contexto_de_cantidad.observar(payload.get("activities") or [], exp.correo, exp.adjuntos, exp.incompleto)
+    except Exception:
+        log.warning("No se pudo calcular la verificación contextual de cantidades", exc_info=True)
+        return []
+
+
+def _cambios_de_magnitud(payload: dict, textos: dict) -> list[dict]:
+    """Posibles cambios de cantidad entre los mensajes del cliente (T-69): modo sombra, solo observaciones.
+
+    Igual que la verificación contextual: no toca los cubos de siempre, `avisos_de` no la muestra, no cambia la tabla ni
+    elige un valor vigente, y un fallo aquí nunca frena la comprobación existente ni la importación.
+    """
+    try:
+        return cambios_de_magnitud.detectar(payload.get("activities") or [], textos.get("mensajes"),
+                                            str(textos.get("thread_id") or payload.get("thread_id") or ""))
+    except Exception:
+        log.warning("No se pudo calcular la detección de cambios de magnitud", exc_info=True)
+        return []
 
 
 def avisos_de(resultado: dict | None) -> list[str]:

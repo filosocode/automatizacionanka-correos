@@ -6,10 +6,12 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from anka.infra.logging_setup import get_logger
 
 log = get_logger(__name__)
+MAX_TEXTO_POR_MENSAJE = 200_000   # caracteres de un mensaje guardado aparte (T-69); más allá se marca `truncado`
 MAX_TEXTO_LOCAL = 8_000_000   # caracteres por hilo; más allá la comprobación de fuentes queda como «no comprobable»
 
 
@@ -63,11 +65,14 @@ def _ruta_textos(directorio: Path, thread_id: str) -> Path:
     return directorio / (re.sub(r"[^\w-]", "_", thread_id) + ".textos.json")
 
 
-def guardar_textos(directorio: Path, thread_id: str, revision: str, correo: str, adjuntos: list[dict]) -> None:
+def guardar_textos(directorio: Path, thread_id: str, revision: str, correo: str, adjuntos: list[dict],
+                   mensajes: list[dict] | None = None) -> None:
     """Guarda en este equipo el texto extraído del expediente (correo y adjuntos) para comprobar la tabla (T-38).
 
     Cada adjunto lleva `filename`, `source_id`, `coverage` y `text` (vacío si no hay texto). Si el total supera el
     tope se recorta y se marca `incompleto`: la comprobación lo trata como no concluyente, nunca como diferencia.
+    `mensajes` (T-69) conserva por separado cada mensaje recibido (`message_id`, `fecha`, `remitente`, `direccion`,
+    `texto`, `truncado`) para saber quién dijo qué y cuándo; si se omite, el hilo se guarda como antes.
     """
     restante = MAX_TEXTO_LOCAL
     recortado = False
@@ -84,12 +89,24 @@ def guardar_textos(directorio: Path, thread_id: str, revision: str, correo: str,
         directorio.mkdir(parents=True, exist_ok=True)
         destino = _ruta_textos(directorio, thread_id)
         temporal = destino.with_suffix(".tmp")
-        temporal.write_text(json.dumps({"thread_id": thread_id, "revision": revision, "correo": texto_correo,
-                                        "adjuntos": guardados, "incompleto": recortado}, ensure_ascii=False),
-                            encoding="utf-8")
+        contenido: dict[str, Any] = {"thread_id": thread_id, "revision": revision, "correo": texto_correo,
+                                     "adjuntos": guardados, "incompleto": recortado}
+        if mensajes is not None:
+            contenido["mensajes"] = _mensajes_acotados(mensajes)
+        temporal.write_text(json.dumps(contenido, ensure_ascii=False), encoding="utf-8")
         temporal.replace(destino)
     except OSError:
         log.warning("No se pudo guardar el texto extraído de %s", thread_id, exc_info=True)
+
+
+def _mensajes_acotados(mensajes: list[dict]) -> list[dict]:
+    """Cada mensaje con su texto recortado al tope por mensaje; el recorte queda marcado (`truncado`)."""
+    salida = []
+    for mensaje in mensajes:
+        texto = str(mensaje.get("texto") or "")
+        salida.append({**mensaje, "texto": texto[:MAX_TEXTO_POR_MENSAJE],
+                       "truncado": bool(mensaje.get("truncado")) or len(texto) > MAX_TEXTO_POR_MENSAJE})
+    return salida
 
 
 def cargar_textos(directorio: Path, thread_id: str, revision: str | None = None) -> dict | None:
