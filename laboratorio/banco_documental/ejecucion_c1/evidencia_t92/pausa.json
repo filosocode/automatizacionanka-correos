@@ -1,0 +1,9 @@
+{
+ "inicio": "2026-10-22T04:48:32-05:00",
+ "inicio_epoch": 1792662512.0383923,
+ "vence_epoch": 1792663412.0383923,
+ "vence": "2026-10-22T05:03:32-05:00",
+ "sha_original": "73b6f4ec0773b641a34f7abc2de291e48e565800911fc7dd3eecbf26aa9dca38",
+ "sha_pausada": "664a07f86e0c715f812d0b28573af24ef01356420f914817d4315f39200ab9e2",
+ "restaurada": "2026-10-22T04:51:20-05:00"
+}
