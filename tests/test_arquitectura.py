@@ -226,7 +226,7 @@ class Organization(unittest.TestCase):
 
     def test_the_root_stays_tidy(self):
         allowed_folders = {"anka", "tests", "docs", "spec", "tools", "skills", "evaluacion", "archivo_local",
-                           "simulaciones", "__pycache__", ".github", ".claude", ".venv", ".git", ".uv-cache",
+                           "simulaciones", "laboratorio", "__pycache__", ".github", ".claude", ".venv", ".git", ".uv-cache",
                            ".ruff_cache", ".mypy_cache", "htmlcov"}
         for path in ROOT.iterdir():
             if path.is_dir():

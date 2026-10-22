@@ -2203,6 +2203,102 @@ dos actividades semejantes; cifra dentro de texto citado; mensaje de Anka con ot
 mensaje con varias magnitudes; texto truncado; remitente no verificable; fecha ausente; mensaje repetido; adjunto sin
 procedencia; idempotencia.
 
+### T-71 · Banco de evaluación documental con referencia correcta (laboratorio)
+**Problema.** No había forma reproducible de medir si la lectura de documentos (PDF digital, PDF escaneado, Excel) conserva
+cifras, unidades y su origen, ni si distingue una pregunta al cliente de una revisión técnica interna.
+1. **Aislamiento.** El banco vive en `laboratorio/banco_documental/`; nada de `anka/` lo importa y no toca Gmail, Drive,
+   SQLite ni Work. Es fase de preparación: no ejecuta Work ni la automatización comercial.
+2. **Tres casos ficticios** (entidades, predios y cifras inventados): C1 PDF digital con tabla de actividades; C2 PDF
+   escaneado (sin capa de texto) con tabla, tachadura manuscrita y croquis; C3 Excel de cuatro hojas (una oculta) con
+   fórmulas y su valor guardado.
+3. **Datos primero.** `datos.py` es la fuente única: de ahí salen los documentos y, aparte, las referencias. Cada valor y
+   unidad se conserva literal; no hay conversión implícita. Cada actividad lleva su origen (documento, página, tabla, fila,
+   hoja, celda).
+4. **Separación.** `documentos/` (lo que ve el sistema evaluado, con nombres neutros y manifiesto con SHA-256) y
+   `referencias/` (con manifiesto propio que enlaza cada referencia con el SHA-256 de su documento). La entrega copia solo
+   `documentos/` a una carpeta fuera del banco y rechaza cualquier rastro de referencias.
+5. **Reproducible.** Generar dos veces produce los mismos bytes (PDF sin fechas, ruido con semilla, zip normalizado).
+   `construir --verificar` lo comprueba; el escaneado depende de las fuentes TrueType, cuya huella queda en el manifiesto.
+6. **Comparación.** `comparador.py` clasifica en crítico, no crítico y no evaluable. Que la extracción cumpla un esquema no
+   prueba exactitud: cada cifra y unidad se contrasta con la referencia; la interpretación visual queda para una persona.
+Casos: banco legible; referencias ↔ documentos (cifras, unidades, localizadores); escaneado sin texto que requiere OCR;
+Excel con hojas, fórmulas y unidades; sin datos reales; reproducibilidad; extracción perfecta sin críticos; unidad cambiada,
+cifra trampa, faltante bloqueante omitido y referencia filtrada detectados; la entrega no contiene referencias.
+
+### T-75 · Validación estructural de la respuesta de Work y propuesta v2 del banco (laboratorio)
+**Problema.** Las pruebas T-72 a T-74 mostraron que una respuesta de Work puede ser técnicamente buena y a la vez JSON inválido
+(C3, comillas sin escapar), y que parte de los errores que marcaba el comparador eran defectos de la referencia o de su criterio.
+1. **Alcance.** Todo vive en `laboratorio/banco_documental/`; no se conecta al importador operativo ni cambia `PRECISO_V6.1.3`,
+   el contrato, SQLite, Gmail, Drive ni tareas. Las referencias v1, los documentos y las respuestas originales no se tocan.
+2. **Validador por capas** (`validador.py`): sintaxis (UTF-8, JSON estricto sin claves repetidas, sin NaN ni BOM; error exacto con
+   línea, columna y posición), esquema (campos obligatorios y tipos; la cantidad es texto literal; lo opcional con otro tipo
+   solo advierte) y contenido (duplicados, lista de limitaciones vacía y, con el documento, fuentes inexistentes o valores que no
+   coinciden con la celda citada). Nunca repara.
+3. **Cuarentena.** `procesar` conserva siempre los bytes originales, guarda el informe y copia a `validadas/` solo lo
+   estructuralmente aceptado; lo demás queda en `cuarentena/` con su motivo. Aceptar no equivale a aprobar la lectura: la
+   verificación técnico-documental sigue siendo aparte.
+4. **Propuesta v2** (`referencias_v2.py`, `comparador_v2.py`, `CAMBIOS_V2.md`): derivada de las v1 con cada cambio, su motivo y su
+   efecto registrados; coincidencias de texto por grupos (nunca una palabra suelta); lo no verificable automáticamente se separa
+   como revisión humana; una respuesta inválida no se compara. Se diseñó tras ver las respuestas, por lo que reevaluarlas no es una
+   prueba ciega.
+5. **Prueba integrada** (`PLAN_PRUEBA_INTEGRADA.md`): solo diseñada, sin ejecutar ni IDs inventados.
+Casos: evidencias con hash; C3 rechazado por sintaxis con su error exacto; C1 y C2 aceptados; esquema y tipos; claves repetidas,
+BOM y UTF-8; fuentes en Excel y PDF; cuarentena idempotente sin pisar archivos; v2 reproducible y trazable a la v1; coma o punto;
+una palabra no basta; efecto de la v2; respuesta inválida no comparada; cifra equivocada válida en estructura pero crítica.
+
+### T-76 · Mapeador documental al contrato operativo (laboratorio)
+**Problema.** La extracción del banco (T-71/T-75) y el retorno de Work (`spec/contrato_work.schema.json`, PRECISO_V6.1.3) son
+formatos distintos; sin equivalencias comprobables no se puede medir con el esquema real lo que Work debe devolver.
+1. **Alcance.** Solo `laboratorio/banco_documental/mapeador.py` (función pura sin red, sin SQLite, sin Gmail ni Drive). No se
+   conecta al importador, no crea casos ni borradores y no modifica PRECISO_V6.1.3, la tarea de Work, las respuestas ni las referencias.
+2. **Literalidad.** Nombre, cantidad, unidad, entregable y fuente pasan tal cual; no se convierte ni recalcula; no se inventan
+   `servicio_tecnica`, `ubicacion`, `plazo_restriccion` ni la identidad del correo (la aporta quien llama; si falta, el mapeo no es posible).
+3. **Honestidad de estado.** Con contradicciones, lectura visual sin validar, limitaciones, valores históricos o actividades
+   descartadas, ninguna fila queda `confirmado`; las contradicciones se copian `pendiente` sin resolverlas; el resultado nunca declara
+   `analysis_complete` verdadero.
+4. **Lo no vigente.** Una actividad de una hoja oculta, de una hoja no declarada o marcada no vigente no entra en la tabla; los
+   valores históricos y auxiliares quedan en `no_mapeado` con su motivo y su contenido literal.
+5. **Validación previa.** Una respuesta que no pasa el validador de T-75 (sintaxis o esquema) no se mapea.
+6. **Comprobación en seco.** `comprobar_contra_contrato` aplica esquema, identidad, tolerancia y normalización de cantidades del
+   contrato real sobre una copia e informa los cambios que haría el importador (p. ej. `m2` → `m²`).
+Casos: C1 y C2 literales; C3 original rechazada antes del mapeo; esquema inválido no se mapea; contradicciones pendientes;
+visual pendiente; hojas ocultas y no vigentes excluidas; sin equivalente declarado; identidad faltante; esquema real; diferencias
+del importador; aislamiento de producción.
+
+### T-77 · Evaluador inverso del contrato Work (laboratorio)
+**Problema.** T-76 convierte la extracción del banco al contrato, pero un retorno real de Work llega en el formato del contrato y no se
+podía comparar con el banco.
+1. **Alcance.** Solo `laboratorio/banco_documental/evaluador_inverso.py`: función pura, sin Gmail, Drive ni SQLite, que no altera el
+   retorno ni genera datos contractuales ni campos nuevos. No modifica `anka/`, el contrato, PRECISO_V6.1.3 ni la tarea de Work.
+2. **Orden y detención.** Sintaxis estricta (T-75, sin reparar), aceptación por el contrato real (esquema y tolerancia, sobre una copia),
+   identidad del retorno, identificadores AUTORIZADOS para la ejecución (`thread_id` y `message_id` iguales) y clasificación que avanza.
+   Si falla cualquiera, la evaluación se detiene sin analizar actividades.
+3. **Conversión literal.** `activity`, `quantity`, `unit` y `fuente` pasan tal cual; el localizador se estructura sin inventar claves
+   y se conserva la fuente literal; no se convierten unidades ni se recalcula; solo se quita la unidad repetida al final de la
+   cantidad y se registra.
+4. **Vigencia.** Una actividad retirada («ya no se requiere»), de otro archivo, del correo, de una hoja declarada no vigente, o escrita
+   como texto, no entra como vigente (se informa); los duplicados exactos se cuentan.
+5. **Pendientes.** Las contradicciones se conservan; el estado de cada fila no se modifica; la evidencia visual sigue «no certificada»;
+   los campos sin equivalente y las pérdidas se registran; una omisión que aparece en un campo sin equivalente se señala a una persona
+   sin cambiar el resultado automático.
+6. **Origen.** El informe dice de dónde viene el retorno; si no es `work_real` aclara que NO describe el desempeño de Work.
+Casos: retornos sintéticos C1/C2/C3 comparables y literales; contradicciones; cantidades, unidades y fuentes incorrectas; identidad
+incorrecta; respuestas corruptas; históricos y duplicados; visual; pérdidas; aislamiento.
+
+### T-103 · Preguntas internas de un caso ficticio en el evaluador (laboratorio)
+**Problema.** PRECISO_V6.1.3 manda que, en un caso ficticio, lo que se preguntaría al cliente va en `internal_review` y `ask_client` solo se usa si el caso es real. El comparador v2 exigía esas preguntas en `ask_client`, de modo que todo caso ficticio daba un `faltante_sin_reconocer` falso (C1, T-96).
+1. **Reconocimiento.** En el comparador v2, si la referencia declara `ficticio: true`, un faltante que se espera como `preguntas_cliente` se reconoce también con una pregunta de `internal_review` que contenga los términos del faltante (los mismos grupos de la referencia).
+2. **Sin conversión.** `internal_review` no se convierte en `ask_client`: `preguntas_cliente` no cambia. El reconocimiento genera el hallazgo `faltante_reconocido_solo_en_revision_interna` (revisión humana: una persona confirma que la pregunta es pertinente), que no cuenta como error.
+3. **Límites.** No aplica a casos no ficticios, a faltantes que la referencia no espera como pregunta al cliente ni a preguntas internas que no toquen el faltante; un faltante sin pregunta de ningún tipo sigue siendo error (crítico si es bloqueante).
+4. **Alcance.** Solo `laboratorio/banco_documental/comparador_v2.py` y su prueba `tests/test_internal_review_ficticio.py`; no cambia `anka/`, el contrato ni PRECISO_V6.1.3.
+
+### T-105 · Tres correcciones del evaluador de laboratorio (números en letras, rangos de celdas, restricciones en fields)
+**Problema.** La evaluación real de C3 (T-104) mostró falsos positivos: «siete predios» no coincidía con el dígito 7, una fuente `Resumen!B4:E4` no se aceptaba como localizador de `C4` y las restricciones de `fields` no contaban.
+1. **Números en letras.** Al comparar textos, los números de 2 a 20 escritos con letras equivalen a sus cifras, igual en el texto y en los términos de la referencia (límite de palabra; «uno» y «cero» no se tocan).
+2. **Rangos de celdas.** `Hoja!Celda` es un localizador exacto; `Hoja!Rango` (también varios, separados por «;») se acepta si la hoja es la esperada y el rango contiene la celda esperada; un rango de más de 50 celdas no localiza nada. Una actividad cuya fuente cita solo hojas declaradas no vigentes se descarta como antes.
+3. **Restricciones en `fields`.** Un campo con nombre, valor y fuente que cita el documento evaluado también se consulta como restricción registrada, solo para reconocer las de la referencia (mismos términos). Sin fuente, con fuente de otro archivo, con otro valor o sin dato, no cuenta; no crea actividades.
+4. **Alcance.** `laboratorio/banco_documental/` (`comparador.py`, `comparador_v2.py`, `evaluador_inverso.py`) y `tests/test_evaluador_t105.py`; no cambia `anka/`, el contrato ni PRECISO_V6.1.3. Una omisión verdadera sigue siendo omisión.
+
 ### T-79 · Aislamiento de una prueba ficticia frente a la coordinación automática (diseño y simulación)
 **Problema.** Con `work_coordination_enabled=true` y sin alcance de laboratorio, un correo ficticio elegible que llega al buzón productivo se
 crea y se publica en Drive sin autorizaciones separadas (T-78).
@@ -2229,6 +2325,19 @@ actual no tiene orden de descarte y, al restaurar la coordinación, el ficticio 
    acumulados se publican de uno en uno por orden de llegada; restaurar repetidamente no duplica; cinco fallos de Drive agotan el
    trabajo y piden a una persona; el consumidor ya respeta el estado `cancelado`, pero nada lo escribe.
 3. **Fuera de alcance.** Una orden de descarte (opción B) es un cambio de producción y solo se describe; no se implementa.
+
+### T-81 · Cancelación segura de mensajes y trabajos ficticios (referencia de laboratorio)
+**Problema.** T-80 mostró que el código actual no puede cancelar un trabajo ni excluir un mensaje: el estado `cancelado` existe y se
+respeta, pero nada lo escribe.
+1. **Alcance.** `laboratorio/banco_documental/cancelacion.py` implementa la operación sobre una conexión a una base TEMPORAL; no se
+   importa desde `anka/`, no cambia el importador, el coordinador, el contrato ni la configuración. La integración productiva queda como requisitos.
+2. **Operación.** Una «lápida» persistente: una fila de `trabajos_work` en estado `cancelado` con el `job_id` determinista del mensaje.
+   Identidad literal (`thread_id` + `message_id`), asunto con la etiqueta de prueba autorizada, solo lo pendiente, una transacción
+   `BEGIN IMMEDIATE` con comparar-y-cambiar, idempotente, con evento `trabajo_cancelado` (operador, motivo, fecha, identidad) y sin borrar nada.
+3. **Rechazos.** Identidad no literal, mensaje no registrado (salvo cancelación preventiva explícita), asunto sin la etiqueta, mensaje no
+   pendiente, trabajo publicando, publicado, ambiguo o con hoja guardada (intervención humana) y conciliado (intocable).
+4. **Huecos que siguen abiertos.** El importador actual no respeta la lápida si recibe un borrador por una vía directa; el mensaje
+   cancelado sigue apareciendo como pendiente en la recepción.
 
 ### T-82 · Preparación de la integración segura de la cancelación (sin tocar `anka/`)
 **Problema.** La lápida de T-81 solo existe en el laboratorio; antes de integrarla hay que saber qué caminos del código productivo

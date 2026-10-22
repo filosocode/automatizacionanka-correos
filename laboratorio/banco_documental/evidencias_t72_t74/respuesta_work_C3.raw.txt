@@ -1,0 +1,393 @@
+{
+  "caso": "C3",
+  "hojas": [
+    {
+      "nombre": "Resumen",
+      "visibilidad": "visible",
+      "inspeccionada_completa": true,
+      "observaciones": "Inspeccionado todo el contenido de A1:E9, incluidas cuatro fórmulas con sus valores almacenados y la nota de C9."
+    },
+    {
+      "nombre": "Detalle",
+      "visibilidad": "visible",
+      "inspeccionada_completa": true,
+      "observaciones": "Inspeccionado todo el contenido de A1:G8, incluidas ocho fórmulas con sus valores almacenados. Contiene los lotes L-01 a L-06 y los tramos V-01 a V-03. Cantidades auxiliares del Resumen; no son actividades adicionales."
+    },
+    {
+      "nombre": "Supuestos",
+      "visibilidad": "visible",
+      "inspeccionada_completa": true,
+      "observaciones": "Inspeccionado todo el contenido de A1:C4. Contiene parámetros técnicos y el supuesto de puntos por lote; no contiene fórmulas ni comentarios."
+    },
+    {
+      "nombre": "Borrador_anterior",
+      "visibilidad": "oculta",
+      "inspeccionada_completa": true,
+      "observaciones": "Estado interno hidden. Inspeccionado todo el contenido de A1:D4. Se interpreta como histórico por su nombre y su relación con las actividades del Resumen; no contiene una declaración explícita de aprobación o de obsolescencia."
+    }
+  ],
+  "actividades": [
+    {
+      "nombre": "Levantamiento topográfico de lotes",
+      "cantidad": "33.7",
+      "unidad": "ha",
+      "entregable": "no especificado",
+      "origen": {
+        "hoja": "Resumen",
+        "celda": "C4"
+      },
+      "tipo_de_dato": "formula",
+      "formula": "=Detalle!D8",
+      "valor_almacenado": "33.7",
+      "celdas_de_soporte": [
+        "Resumen!A4:B4",
+        "Resumen!D4:E4",
+        "Detalle!A1:D8",
+        "Supuestos!A3:C4"
+      ],
+      "vigente": true
+    },
+    {
+      "nombre": "Levantamiento de ejes viales",
+      "cantidad": "3.625",
+      "unidad": "km",
+      "entregable": "no especificado",
+      "origen": {
+        "hoja": "Resumen",
+        "celda": "C5"
+      },
+      "tipo_de_dato": "formula",
+      "formula": "=SUM(Detalle!G2:G4)/1000",
+      "valor_almacenado": "3.625",
+      "celdas_de_soporte": [
+        "Resumen!A5:B5",
+        "Resumen!D5:E5",
+        "Detalle!F1:G4"
+      ],
+      "vigente": true
+    },
+    {
+      "nombre": "Puntos de control",
+      "cantidad": "24",
+      "unidad": "puntos",
+      "entregable": "no especificado",
+      "origen": {
+        "hoja": "Resumen",
+        "celda": "C6"
+      },
+      "tipo_de_dato": "formula",
+      "formula": "=Supuestos!B2*COUNTA(Detalle!A2:A7)",
+      "valor_almacenado": "24",
+      "celdas_de_soporte": [
+        "Resumen!A6:B6",
+        "Resumen!D6:E6",
+        "Supuestos!A2:C2",
+        "Detalle!A2:A7",
+        "Resumen!C9:E9"
+      ],
+      "vigente": true
+    },
+    {
+      "nombre": "Perfiles de eje",
+      "cantidad": "3",
+      "unidad": "perfiles",
+      "entregable": "Perfiles de eje; un perfil por tramo, según Resumen!E7.",
+      "origen": {
+        "hoja": "Resumen",
+        "celda": "C7"
+      },
+      "tipo_de_dato": "formula",
+      "formula": "=COUNTA(Detalle!F2:F4)",
+      "valor_almacenado": "3",
+      "celdas_de_soporte": [
+        "Resumen!A7:B7",
+        "Resumen!D7:E7",
+        "Detalle!F2:F4"
+      ],
+      "vigente": true
+    }
+  ],
+  "entregables": [
+    {
+      "descripcion": "Perfiles de eje",
+      "cantidad": "3",
+      "unidad": "perfiles",
+      "fuente": "Resumen!B7:E7",
+      "observacion": "Un perfil por tramo. No se especifica formato de entrega."
+    },
+    {
+      "descripcion": "Curvas de nivel: entregable implícito en el parámetro Equidistancia de curvas, sin una lista explícita de productos.",
+      "fuente": "Supuestos!A3:C3",
+      "observacion": "Equidistancia indicada: 0.5 m. Requiere confirmar su inclusión y formato."
+    },
+    {
+      "descripcion": "No se especifican productos ni formatos de entrega para el levantamiento de lotes, el levantamiento de ejes o los puntos de control.",
+      "fuente": "Resumen!B4:E6"
+    }
+  ],
+  "restricciones": [
+    {
+      "descripcion": "Puntos de control por lote",
+      "valor": "4",
+      "unidad": "puntos",
+      "fuente": "Supuestos!A2:C2",
+      "estado": "Supuesto utilizado por Resumen!C6; condicionado a resolver el número de lotes."
+    },
+    {
+      "descripcion": "Equidistancia de curvas",
+      "valor": "0.5",
+      "unidad": "m",
+      "fuente": "Supuestos!A3:C3",
+      "estado": "Parámetro consignado en Supuestos; aprobación del cliente no acreditada."
+    },
+    {
+      "descripcion": "Precisión horizontal",
+      "valor": "0.02",
+      "unidad": "m",
+      "fuente": "Supuestos!A4:C4",
+      "estado": "Parámetro consignado en Supuestos; no se especifica criterio de comprobación."
+    },
+    {
+      "descripcion": "El número de predios requiere confirmación.",
+      "fuente": "Resumen!C9",
+      "nota_literal": "Pendiente de confirmar con el cliente.",
+      "autor": "Autor Ejemplo"
+    }
+  ],
+  "contradicciones": [
+    {
+      "descripcion": "Resumen declara 7 lotes, mientras Detalle identifica únicamente L-01, L-02, L-03, L-04, L-05 y L-06. La nota de C9 deja la cantidad pendiente de confirmación.",
+      "fuentes": [
+        "Resumen!B9:E9",
+        "Detalle!A2:A7",
+        "Comentario de Resumen!C9"
+      ],
+      "impacto": "No se puede confirmar que el área almacenada de 33.7 ha cubra todos los predios solicitados. Los 24 puntos almacenados en Resumen!C6 dependen del listado de Detalle, no de Resumen!C9."
+    },
+    {
+      "descripcion": "Diferencia entre versiones para levantamiento topográfico de lotes: Resumen!C4 almacena 33.7 ha; Borrador_anterior!C2 contiene 31.2 ha.",
+      "fuentes": [
+        "Resumen!B4:E4",
+        "Borrador_anterior!B2:D2"
+      ],
+      "tratamiento": "Conservar 31.2 ha como histórico, sin sumarlo ni sustituir la cantidad del Resumen."
+    },
+    {
+      "descripcion": "Diferencia entre versiones para levantamiento de ejes viales: Resumen!C5 almacena 3.625 km; Borrador_anterior!C3 contiene 3.1 km.",
+      "fuentes": [
+        "Resumen!B5:E5",
+        "Borrador_anterior!B3:D3"
+      ],
+      "tratamiento": "Conservar 3.1 km como histórico."
+    },
+    {
+      "descripcion": "Diferencia entre versiones para puntos de control: Resumen!C6 almacena 24 puntos; Borrador_anterior!C4 contiene 20 puntos.",
+      "fuentes": [
+        "Resumen!B6:E6",
+        "Borrador_anterior!B4:D4"
+      ],
+      "tratamiento": "Conservar 20 puntos como histórico."
+    }
+  ],
+  "valores_historicos_u_obsoletos": [
+    {
+      "hoja": "Borrador_anterior",
+      "celda": "C2",
+      "valor": "31.2",
+      "unidad": "ha",
+      "motivo": "Levantamiento topográfico de lotes. Histórico por pertenecer a Borrador_anterior; Resumen!C4 contiene 33.7 ha. No existe marca explícita de obsolescencia."
+    },
+    {
+      "hoja": "Borrador_anterior",
+      "celda": "C3",
+      "valor": "3.1",
+      "unidad": "km",
+      "motivo": "Levantamiento de ejes viales. Histórico por pertenecer a Borrador_anterior; Resumen!C5 contiene 3.625 km. No existe marca explícita de obsolescencia."
+    },
+    {
+      "hoja": "Borrador_anterior",
+      "celda": "C4",
+      "valor": "20",
+      "unidad": "puntos",
+      "motivo": "Puntos de control. Histórico por pertenecer a Borrador_anterior; Resumen!C6 contiene 24 puntos. No existe marca explícita de obsolescencia."
+    }
+  ],
+  "otros_datos_numericos": [
+    {
+      "concepto": "Predios intervenidos; contexto de alcance, no actividad adicional. Nota: Pendiente de confirmar con el cliente.",
+      "valor": "7",
+      "unidad": "lotes",
+      "hoja": "Resumen",
+      "celda": "C9"
+    },
+    {
+      "concepto": "Área auxiliar L-01, La Esperanza",
+      "valor": "48250",
+      "unidad": "m2",
+      "hoja": "Detalle",
+      "celda": "C2"
+    },
+    {
+      "concepto": "Área auxiliar L-01; fórmula =C2/10000; valor almacenado",
+      "valor": "4.825",
+      "unidad": "ha",
+      "hoja": "Detalle",
+      "celda": "D2"
+    },
+    {
+      "concepto": "Área auxiliar L-02, La Esperanza",
+      "valor": "61800",
+      "unidad": "m2",
+      "hoja": "Detalle",
+      "celda": "C3"
+    },
+    {
+      "concepto": "Área auxiliar L-02; fórmula =C3/10000; valor almacenado",
+      "valor": "6.18",
+      "unidad": "ha",
+      "hoja": "Detalle",
+      "celda": "D3"
+    },
+    {
+      "concepto": "Área auxiliar L-03, El Mirador",
+      "valor": "37400",
+      "unidad": "m2",
+      "hoja": "Detalle",
+      "celda": "C4"
+    },
+    {
+      "concepto": "Área auxiliar L-03; fórmula =C4/10000; valor almacenado",
+      "valor": "3.74",
+      "unidad": "ha",
+      "hoja": "Detalle",
+      "celda": "D4"
+    },
+    {
+      "concepto": "Área auxiliar L-04, El Mirador",
+      "valor": "55120",
+      "unidad": "m2",
+      "hoja": "Detalle",
+      "celda": "C5"
+    },
+    {
+      "concepto": "Área auxiliar L-04; fórmula =C5/10000; valor almacenado",
+      "valor": "5.512",
+      "unidad": "ha",
+      "hoja": "Detalle",
+      "celda": "D5"
+    },
+    {
+      "concepto": "Área auxiliar L-05, La Esperanza",
+      "valor": "72930",
+      "unidad": "m2",
+      "hoja": "Detalle",
+      "celda": "C6"
+    },
+    {
+      "concepto": "Área auxiliar L-05; fórmula =C6/10000; valor almacenado",
+      "valor": "7.293",
+      "unidad": "ha",
+      "hoja": "Detalle",
+      "celda": "D6"
+    },
+    {
+      "concepto": "Área auxiliar L-06, El Mirador",
+      "valor": "61500",
+      "unidad": "m2",
+      "hoja": "Detalle",
+      "celda": "C7"
+    },
+    {
+      "concepto": "Área auxiliar L-06; fórmula =C7/10000; valor almacenado",
+      "valor": "6.15",
+      "unidad": "ha",
+      "hoja": "Detalle",
+      "celda": "D7"
+    },
+    {
+      "concepto": "Área total auxiliar; fórmula =SUM(C2:C7); valor almacenado",
+      "valor": "337000",
+      "unidad": "m2",
+      "hoja": "Detalle",
+      "celda": "C8"
+    },
+    {
+      "concepto": "Área total de soporte de Resumen!C4; fórmula =SUM(D2:D7); valor almacenado",
+      "valor": "33.7",
+      "unidad": "ha",
+      "hoja": "Detalle",
+      "celda": "D8"
+    },
+    {
+      "concepto": "Longitud auxiliar del tramo V-01",
+      "valor": "1240",
+      "unidad": "m",
+      "hoja": "Detalle",
+      "celda": "G2"
+    },
+    {
+      "concepto": "Longitud auxiliar del tramo V-02",
+      "valor": "865",
+      "unidad": "m",
+      "hoja": "Detalle",
+      "celda": "G3"
+    },
+    {
+      "concepto": "Longitud auxiliar del tramo V-03",
+      "valor": "1520",
+      "unidad": "m",
+      "hoja": "Detalle",
+      "celda": "G4"
+    },
+    {
+      "concepto": "Puntos de control por lote",
+      "valor": "4",
+      "unidad": "puntos",
+      "hoja": "Supuestos",
+      "celda": "B2"
+    },
+    {
+      "concepto": "Equidistancia de curvas",
+      "valor": "0.5",
+      "unidad": "m",
+      "hoja": "Supuestos",
+      "celda": "B3"
+    },
+    {
+      "concepto": "Precisión horizontal",
+      "valor": "0.02",
+      "unidad": "m",
+      "hoja": "Supuestos",
+      "celda": "B4"
+    }
+  ],
+  "preguntas_cliente": [
+    "¿El alcance comprende los 7 lotes de Resumen!C9 o únicamente los lotes L-01 a L-06 de Detalle!A2:A7? Si falta un predio, suministrar su identificación, delimitación y área.",
+    "¿En qué municipio y departamento están los lotes y tramos de las veredas La Esperanza y El Mirador? Suministrar su ubicación y delimitación.",
+    "¿Se aprueban los parámetros de Supuestos!A2:C4: 4 puntos por lote, equidistancia de curvas de 0.5 m y precisión horizontal de 0.02 m? Precisar el criterio de aceptación y la precisión vertical requerida.",
+    "¿Cuáles son los productos y formatos de entrega exigidos para los levantamientos, los puntos de control y los perfiles? Confirmar si se requieren curvas de nivel.",
+    "¿Cuál es el sistema de coordenadas, datum horizontal y referencia vertical exigidos?",
+    "¿Qué ancho o delimitación debe cubrir el levantamiento de ejes viales y qué contenido deben tener los perfiles?",
+    "¿Existen restricciones de acceso, permisos o condiciones de ejecución que afecten la cotización?"
+  ],
+  "revisiones_internas": [
+    "Resolver la diferencia entre Resumen!C9 y Detalle!A2:A7 antes de cerrar cantidades de área y puntos. No inventar el área de un predio faltante ni recalcular una cantidad alternativa de puntos.",
+    "Usar las cantidades de Resumen como versión actual del libro, sujetas a la discrepancia de predios. La aprobación formal de versión no está documentada.",
+    "Mantener Borrador_anterior como histórico y evitar duplicar las superficies de Detalle expresadas en m2 y ha o las longitudes de soporte expresadas en m respecto al Resumen en km.",
+    "Se inspeccionaron las 12 fórmulas y sus respectivos valores almacenados directamente en el archivo; no se recalcularon resultados.",
+    "El libro tiene fullCalcOnLoad="1". Los valores almacenados se transcriben como tales; esa propiedad no acredita su actualización.",
+    "Los campos formula y valor_almacenado no existen en las actividades literales porque todas las actividades técnicas identificadas usan fórmulas. Predios intervenidos se conserva como dato de alcance, no como un servicio cotizable independiente."
+  ],
+  "elementos_visuales": [
+    "Cuatro hojas organizadas como tablas de celdas; Resumen contiene el título Resumen de cantidades – Proyecto vial Ejemplo (ficticio).",
+    "Resumen!C9 tiene una nota de Autor Ejemplo: Pendiente de confirmar con el cliente. Su cuadro VML está configurado como oculto; el texto y su asociación con C9 fueron inspeccionados.",
+    "Resumen!C4 usa formato 0.0; Resumen!C5 y Detalle!D2:D8 usan formato 0.000; Resumen!C6:C7 usan formato entero 0. Se conservaron los valores almacenados sin añadir ceros de presentación.",
+    "No hay imágenes ni gráficos incrustados en el paquete del libro."
+  ],
+  "limitaciones_de_lectura": [
+    "No quedaron hojas, celdas con contenido, fórmulas, valores almacenados, comentarios ni notas sin inspeccionar en el archivo. La inspección fue estructural del contenido y formato del libro; no se realizó un renderizado visual en Excel.",
+    "No existe un registro explícito de aprobación de la versión vigente ni una marca explícita de obsolescencia del borrador. La distinción entre actual e histórico se basa en los nombres y relaciones de las hojas.",
+    "Sistema de coordenadas, datum y referencia vertical: no especificados. No se pueden comprobar la ubicación completa, los límites del alcance ni los requisitos de entrega ausentes.",
+    "No se comprobó mediante recálculo la correspondencia aritmética entre fórmulas y valores almacenados; se leyeron ambos directamente sin sustituirlos."
+  ]
+}

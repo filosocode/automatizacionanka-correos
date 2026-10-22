@@ -1,0 +1,13 @@
+[
+  {
+    "origen": "T-91B (autorizada por el operador el 2026-10-22)",
+    "job_id": "ANKAJOB-765f88a6cd32d661",
+    "thread_id": "1a162bea8208dce5",
+    "message_id": "1a162bea8208dce5",
+    "etiqueta": "[PI-C1-T89-001]",
+    "operador": "OPERADOR",
+    "motivo": "Adjunto diferente del PDF original del banco documental C1",
+    "cancelado_at": "2026-10-22T03:36:17-05:00",
+    "estado_previo": "sin_trabajo"
+  }
+]
