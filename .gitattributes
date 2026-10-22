@@ -7,3 +7,6 @@ docs/paquete_work/*.md text eol=lf
 laboratorio/banco_documental/documentos/*.pdf binary
 laboratorio/banco_documental/documentos/*.xlsx binary
 laboratorio/**/*.pdf binary
+laboratorio/banco_documental/**/*.json text eol=lf
+laboratorio/banco_documental/**/*.md text eol=lf
+laboratorio/banco_documental/**/*.txt text eol=lf
