@@ -2,3 +2,8 @@
 spec/contrato_work.schema.json text eol=lf
 docs/PROMPT_WORK_ANKA_V6.txt text eol=lf
 docs/paquete_work/*.md text eol=lf
+
+# Documentos binarios del banco de laboratorio: sin conversion de fin de linea (T-113); un PDF tratado como texto cambia su huella al clonar en Windows.
+laboratorio/banco_documental/documentos/*.pdf binary
+laboratorio/banco_documental/documentos/*.xlsx binary
+laboratorio/**/*.pdf binary
