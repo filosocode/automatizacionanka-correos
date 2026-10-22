@@ -10,3 +10,9 @@ laboratorio/**/*.pdf binary
 laboratorio/banco_documental/**/*.json text eol=lf
 laboratorio/banco_documental/**/*.md text eol=lf
 laboratorio/banco_documental/**/*.txt text eol=lf
+# Evidencias congeladas: se guardan byte a byte, sin ninguna conversion (sus huellas estan registradas en manifiestos)
+laboratorio/banco_documental/evidencias_t72_t74/** -text
+laboratorio/banco_documental/respaldo_t83/** -text
+laboratorio/banco_documental/respaldo_t84/** -text
+laboratorio/banco_documental/parche_t82/** -text
+laboratorio/banco_documental/ejecucion_c1/evidencia_*/** -text
