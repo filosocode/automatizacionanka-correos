@@ -2,6 +2,7 @@
 
 | Documento | Para quién | Qué contiene |
 |---|---|---|
+| [ENTREGA_V1_0.md](ENTREGA_V1_0.md) | Quien recibe y opera la V1.0 | Estado, matriz de aceptación, limitaciones, operación y revisión humana de la entrega supervisada |
 | [WORK_DRIVE_OCR.md](WORK_DRIVE_OCR.md) | Quien configura Work | Preparación automática de adjuntos de Gmail y extracción OCR en Drive |
 | `INVESTIGACION_MEJORAS.md` (borrador local, si existe) | Quien desarrolla | Investigación local previa; no forma parte de esta implementación |
 | [INVENTARIO_FORMATOS_HISTORICO_TE.md](INVENTARIO_FORMATOS_HISTORICO_TE.md) | Quien mantiene los lectores | Formatos y límites de extracción |
