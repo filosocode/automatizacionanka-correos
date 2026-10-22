@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime
+from typing import Any
 
-from anka.infra import rechazos_de_work, settings
+from anka.dominio.coordinacion_work import puente_general_habilitado
+from anka.infra import rechazos_de_work, settings, store
 from anka.infra.logging_setup import get_logger
 
 HEARTBEAT_FILE = "work_sync_heartbeat.json"
@@ -103,8 +106,88 @@ def _alerta() -> str:
     return " " + texto if texto else ""
 
 
+def _config_de_la_revision() -> Mapping[str, Any] | None:
+    """La configuración vigente, o `None` si no se puede leer (entonces manda el latido, como antes)."""
+    try:
+        return settings.load_config()
+    except Exception as exc:     # sin config legible no se adivina: el indicador clásico sigue siendo válido
+        log.debug("Sin configuración para el indicador de la revisión (%s)", type(exc).__name__)
+        return None
+
+
+def _revisa_la_recepcion(config: Mapping[str, Any] | None) -> bool:
+    """¿Quién revisa los correos es el receptor Gmail del lanzador y no el puente general (D-161, D-163)?
+
+    Lo es cuando el modo es Work, la recepción está habilitada y el puente general no corre: apagado, o desplazado
+    por la coordinación. Con el puente general en marcha manda su latido."""
+    if not config or config.get("active_mode") != "chatgpt_work" or config.get("gmail_reception_enabled") is not True:
+        return False
+    puente_corre = puente_general_habilitado(config) and config.get("work_coordination_enabled") is not True
+    return not puente_corre
+
+
+def _intervalo_de_recepcion(config: Mapping[str, Any]) -> int:
+    valor = config.get("gmail_reception_interval_seconds", 60)
+    return valor if isinstance(valor, int) and not isinstance(valor, bool) and 30 <= valor <= 3600 else 60
+
+
+def _edad(marca: object) -> float | None:
+    """Segundos desde una marca ISO, o `None` si falta o está dañada."""
+    try:
+        return (_now() - datetime.fromisoformat(str(marca))).total_seconds() if marca else None
+    except ValueError:
+        return None
+
+
+def _control_de_recepcion() -> Mapping[str, Any] | None:
+    """La fila de `recepcion_control` más reciente (solo lectura); `None` si no hay base, tabla o fila."""
+    if not (settings.DATA_DIR / "quotes.sqlite3").exists():
+        return None                                   # leer no debe crear una base vacía
+    try:
+        with store.lectura() as db:
+            fila = db.execute("SELECT last_success_at,last_attempt_at,consecutive_errors,last_error_kind,"
+                              "last_error_type FROM recepcion_control ORDER BY updated_at DESC LIMIT 1").fetchone()
+    except sqlite3.Error as exc:
+        log.debug("No se pudo leer el estado de la recepción (%s)", type(exc).__name__)
+        return None
+    return dict(fila) if fila else None
+
+
+def _estado_de_la_recepcion(config: Mapping[str, Any]) -> tuple[str, str]:
+    """El estado de la revisión de correos según el receptor Gmail (`recepcion_control`), no según el puente."""
+    control = _control_de_recepcion()
+    intento = _edad(control.get("last_attempt_at")) if control else None
+    exito = _edad(control.get("last_success_at")) if control else None
+    if control is None or (intento is None and exito is None):
+        return "never", (
+            "La revisión de correos aún no ha empezado: el receptor de Gmail no ha hecho ninguna revisión. "
+            "Abre «Iniciar Anka.bat» y espera un minuto.")
+    limite = max(3 * _intervalo_de_recepcion(config), 180)
+    errores = int(control.get("consecutive_errors") or 0)
+    ultimo = control.get("last_success_at") or ""
+    cuando = str(ultimo)[11:19]
+    if errores > 0 and intento is not None and intento <= limite:
+        causa = control.get("last_error_kind") or control.get("last_error_type") or "error sin detallar"
+        return "error", (f"La revisión de correos sigue intentándolo, pero falló {errores} vez/veces seguidas "
+                         f"({causa}). Último éxito: {cuando or 'ninguno'}.")
+    if exito is None:
+        return "never", ("La revisión de correos aún no ha tenido un éxito: el receptor de Gmail ya lo intentó. "
+                         "Revisa el registro de Anka si sigue así.")
+    if exito > limite:
+        return "stopped", (
+            f"La revisión de correos está detenida: el receptor de Gmail no revisa desde las {cuando} ({_ago(exito)}). "
+            "Comprueba que «Iniciar Anka.bat» siga abierto; si lo está, busca el aviso en el registro de Anka.")
+    return "ok", f"La revisión de correos está activa: Gmail revisado a las {cuando} ({_ago(exito)})." + _alerta()
+
+
 def bridge_state() -> tuple[str, str]:
-    """(estado, texto): estado es 'ok', 'attention', 'error', 'stopped' o 'never'."""
+    """(estado, texto): estado es 'ok', 'attention', 'error', 'stopped' o 'never'.
+
+    Con el receptor Gmail como revisor (recepción habilitada y puente general sin usar) el estado sale de
+    `recepcion_control`; si no, del latido del puente general."""
+    config = _config_de_la_revision()
+    if config is not None and _revisa_la_recepcion(config):
+        return _estado_de_la_recepcion(config)
     beat = read_heartbeat()
     if not beat:
         return "never", (

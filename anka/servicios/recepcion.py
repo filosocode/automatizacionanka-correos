@@ -602,12 +602,19 @@ def conciliar_con_work(db: sqlite3.Connection, thread_id: str, message_id: str, 
     Se ejecuta con la conexión y dentro de la transacción del importador: el cambio y el análisis se confirman juntos.
     Concilia solo la fila `(thread_id, message_id)` exacta y solo desde `pendiente_de_procesar`; no inventa filas ni
     toca el cursor. No juzga el análisis: uno incompleto también se concilia. Devuelve qué pasó: `conciliado`,
-    `ya_conciliado`, `sin_registro`, `diferida`, `omitida` o `sin_identidad`.
+    `ya_conciliado`, `sin_registro`, `diferida`, `omitida`, `sin_identidad` o `cancelado` (T-83).
     """
     thread_id, message_id = str(thread_id or "").strip(), str(message_id or "").strip()
     if not thread_id or not message_id:
         return "sin_identidad"
     when = ahora or ahora_iso("seconds")
+    try:
+        hay_lapida = db.execute("SELECT 1 FROM trabajos_work WHERE account=? AND thread_id=? AND message_id=? "
+                                "AND state='cancelado' LIMIT 1", (CUENTA, thread_id, message_id)).fetchone() is not None
+    except sqlite3.OperationalError:          # una base sin la tabla de trabajos no tiene lápidas
+        hay_lapida = False
+    if hay_lapida:
+        return "cancelado"                    # T-83: una lápida impide cerrar el mensaje como interpretado
     fila = db.execute("SELECT state,disposition,evidence_json FROM recepcion_mensajes "
                       "WHERE account=? AND thread_id=? AND message_id=?", (CUENTA, thread_id, message_id)).fetchone()
     if fila is None:

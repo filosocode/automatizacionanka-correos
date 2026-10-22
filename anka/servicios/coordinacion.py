@@ -38,7 +38,7 @@ EVENTO_DE_IMPORTACION = "coordinacion_importacion"            # el primer fallo 
 EVENTO_REQUIERE_PERSONA = "coordinacion_requiere_persona"     # el quinto fallo consecutivo, o demasiadas recuperaciones
 EVENTO_SIN_RESPUESTA = "coordinacion_sin_respuesta"           # Work no respondió en el plazo (una sola vez)
 EVENTO_HOJA_AUSENTE = "coordinacion_hoja_ausente"             # la hoja del trabajo publicado desapareció (una sola vez)
-IMPORTACIONES_SIN_FALLO = ("importado", "sin_borrador")
+IMPORTACIONES_SIN_FALLO = ("importado", "sin_borrador", "mensaje_cancelado")
 MAXIMO_DE_RECUPERACIONES = 3                                  # por trabajo y por proceso
 
 Importar = Callable[[str, str], dict[str, Any]]    # (thread_id, message_id) -> resultado de `importar_aislado`

@@ -252,7 +252,19 @@ def restore(archive_path: Path) -> Path:
         _comprobar_base(stage / 'quotes.sqlite3')
         names = _resolver_configuracion(stage, names)
         _install_restore(stage, names)
+    _reaplicar_lapidas()
     return settings.DATA_DIR / 'quotes.sqlite3'
+
+
+def _reaplicar_lapidas() -> None:
+    """Devuelve a la base restaurada las lápidas de cancelación del diario (T-83); un choque lo decide una persona."""
+    from anka.infra import lapidas
+    informe = lapidas.reaplicar_en_archivo(settings.DATA_DIR / 'quotes.sqlite3', ahora_iso('seconds'))
+    if informe.get('omitido'):
+        log.warning('Copia sin tabla de trabajos: las lápidas se reaplican con work_jobs reaplicar-lapidas tras migrar')
+    elif informe['chocan'] or informe['lineas_rotas']:
+        log.warning('Lápidas de cancelación que requieren a una persona tras restaurar: %s choques, %s líneas rotas',
+                    len(informe['chocan']), informe['lineas_rotas'])
 
 
 def _resolver_configuracion(stage: Path, names: list[str]) -> list[str]:

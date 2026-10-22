@@ -2203,6 +2203,68 @@ dos actividades semejantes; cifra dentro de texto citado; mensaje de Anka con ot
 mensaje con varias magnitudes; texto truncado; remitente no verificable; fecha ausente; mensaje repetido; adjunto sin
 procedencia; idempotencia.
 
+### T-79 · Aislamiento de una prueba ficticia frente a la coordinación automática (diseño y simulación)
+**Problema.** Con `work_coordination_enabled=true` y sin alcance de laboratorio, un correo ficticio elegible que llega al buzón productivo se
+crea y se publica en Drive sin autorizaciones separadas (T-78).
+1. **Alcance.** Análisis de código, simulación local y un protocolo; no se ejecuta la prueba ni se cambia código, configuración,
+   Gmail, Drive ni SQLite operativos. El informe vive en `laboratorio/banco_documental/DISENO_AISLAMIENTO_T79.md`.
+2. **Hechos demostrados con el código actual** (SQLite temporal y Drive simulado): sin alcance, el ciclo publica solo el correo
+   ficticio; un remitente humano siempre es elegible, así que una etiqueta en el asunto no aísla; con la coordinación apagada no hay
+   plan ni hilo de ciclo y no arranca el puente general; el receptor no depende de la coordinación; el despacho manual de un mensaje
+   concreto no necesita `work_dispatch_enabled` y no duplica; los ids reales se recuperan en solo lectura por la etiqueta; el candado de
+   instancia única detiene los ciclos sin tocar la configuración (pero falla hacia lo abierto); con ids en el plan el ciclo solo toca ese
+   mensaje; lo que llega durante la pausa se procesa después, una sola vez y sin duplicados.
+3. **Fuera de alcance demostrado.** Una cuenta de Gmail aparte exige cambios de código (`CUENTA` fija en la recepción) y no se puede
+   verificar la lectura de Work; el estado real de la tarea de Work sigue siendo NO_VERIFICABLE.
+Casos: interferencia, pausa, despacho manual, recuperación de ids, candado, alcance de laboratorio y restauración.
+
+### T-80 · Recuperación segura de una prueba ficticia cancelada (simulación)
+**Problema.** T-79 dejó abierto qué hacer si la prueba se cancela tras recibir el correo ficticio y antes de crear su trabajo: el código
+actual no tiene orden de descarte y, al restaurar la coordinación, el ficticio se publicaría solo.
+1. **Alcance.** Simulación local (SQLite temporal, Drive y Gmail simulados) de la cancelación en cada etapa, de una solicitud real durante
+   la pausa, de la restauración sin duplicados y de fallos de Gmail y Drive. No cambia `anka/`, el importador, el contrato ni la configuración.
+2. **Hechos caracterizados.** No existe orden para cancelar un trabajo ni para excluir un mensaje; un trabajo pendiente se publica antes
+   que los mensajes nuevos y sin mirar el corte; borrar la hoja publicada no cancela (Python la recrea); adelantar el corte excluye al
+   ficticio solo si aún no tiene trabajo y también a los reales anteriores (que siguen pendientes y se despachan a mano); los reales
+   acumulados se publican de uno en uno por orden de llegada; restaurar repetidamente no duplica; cinco fallos de Drive agotan el
+   trabajo y piden a una persona; el consumidor ya respeta el estado `cancelado`, pero nada lo escribe.
+3. **Fuera de alcance.** Una orden de descarte (opción B) es un cambio de producción y solo se describe; no se implementa.
+
+### T-82 · Preparación de la integración segura de la cancelación (sin tocar `anka/`)
+**Problema.** La lápida de T-81 solo existe en el laboratorio; antes de integrarla hay que saber qué caminos del código productivo
+ya la respetan y cuáles todavía aceptarían un mensaje cancelado.
+1. **Alcance.** Pruebas contra las funciones productivas actuales (SQLite temporal, Drive y Gmail simulados) que separan lo
+   seguro hoy de lo abierto hoy; un parche propuesto en `laboratorio/banco_documental/parche_t82/` que se ha aplicado y probado solo en
+   una copia fuera del repositorio. No cambia `anka/`, el importador, el contrato, PRECISO_V6.1.3 ni la configuración.
+2. **Seguro hoy.** La recepción, el coordinador, `crear_trabajo`, el despacho manual, `publicar` y el archivado no reactivan una lápida;
+   `marcar_conciliado` no la toca.
+3. **Abierto hoy.** La importación directa (`dashboard_upsert`, también por `app.py dashboard-upsert`), la importación aislada y
+   `conciliar_con_work` aceptan un mensaje cancelado; restaurar una copia anterior pierde la lápida; el panel lo muestra como
+   pendiente; no existe la orden `cancelar` ni el diario de lápidas.
+
+### T-83 · Cancelación de un mensaje de prueba con una lápida que nada reactiva
+**Problema.** Sin una orden de cancelación, un mensaje de prueba ya registrado se publica solo al restaurar la coordinación, y una
+importación directa de un borrador podía cerrarlo como interpretado (T-80, T-82).
+1. **Orden.** `work_jobs cancelar --thread-id --message-id --etiqueta --operador --motivo [--preventiva] --confirmar` escribe, en una
+   transacción, una lápida (trabajo `cancelado` con el `job_id` determinista del mensaje), un evento `trabajo_cancelado` con operador,
+   motivo, fecha e identidad, y una línea del diario `cancelaciones.jsonl`. Es idempotente y no borra nada.
+2. **Seguridad.** Identidad literal; el asunto del mensaje registrado lleva la etiqueta `[PI-…]` autorizada; solo se cancela lo
+   pendiente. Publicando, publicado, ambiguo o con hoja guardado exigen a una persona; conciliado no se toca.
+3. **Cierre de caminos.** Con una lápida no se crea, no se publica, no se concilia (`conciliar_con_work` responde `cancelado`) ni se
+   importa un borrador (`dashboard_upsert` lanza `MensajeCancelado`; la importación aislada responde `mensaje_cancelado` y no cuenta como fallo).
+4. **Copias de seguridad.** El diario no forma parte de las copias; tras `restore` se reaplican las lápidas que falten y
+   `work_jobs verificar-lapidas` informa lo que falte o choque.
+5. **Vistas.** Lo cancelado no pide atención en el panel y la clasificación de recepción lo marca.
+
+### T-84 · El indicador «Revisión de correos» mide al receptor Gmail, no al puente apagado
+**Problema.** Con la coordinación activa el puente general no corre (D-161, D-163), pero el chip del dashboard seguía leyendo su latido
+y decía «detenida» aunque el receptor Gmail revisaba cada minuto.
+1. **Quién manda.** Con modo Work, `gmail_reception_enabled` verdadero y el puente general sin usar (apagado, o desplazado por la
+   coordinación), el estado sale de `recepcion_control`; con el puente general en marcha manda su latido, como antes.
+2. **Estados.** `ok`: último éxito dentro de `max(3 × intervalo, 180 s)` y sin errores; `error`: errores consecutivos con un intento
+   reciente (con su causa); `stopped`: último éxito vencido; `never`: sin base, sin fila o sin ninguna revisión. Leer no crea la base.
+3. **Texto.** La indicación para reactivar es «Iniciar Anka.bat», no el puente apagado. No cambia la frecuencia ni lanza ciclos.
+
 ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
 
 **Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.

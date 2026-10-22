@@ -14,8 +14,9 @@ from pathlib import Path
 from typing import Any
 
 from anka.cli import paquete_work
+from anka.dominio.cancelacion_work import Autorizacion
 from anka.dominio.errores import ErrorDeAnka
-from anka.servicios import trabajos_work
+from anka.servicios import cancelaciones, trabajos_work
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -53,6 +54,17 @@ def build_parser() -> argparse.ArgumentParser:
     coordinar.add_argument("--message-id", default="", help="laboratorio: y a este mensaje")
     coordinar.add_argument("--confirmar", action="store_true", help="autoriza leer Gmail y escribir en Drive y SQLite")
     sub.add_parser("verificar-piloto", help="solo lectura: qué está habilitado y en marcha antes de activar T-55")
+    cancelar = sub.add_parser("cancelar", help="cancela de forma persistente un mensaje de prueba autorizado (T-83)")
+    cancelar.add_argument("--thread-id", required=True)
+    cancelar.add_argument("--message-id", required=True)
+    cancelar.add_argument("--etiqueta", required=True, help="etiqueta de prueba autorizada, p. ej. [PI-T79-PRUEBA-01]")
+    cancelar.add_argument("--operador", required=True)
+    cancelar.add_argument("--motivo", required=True)
+    cancelar.add_argument("--preventiva", action="store_true", help="antes de que el receptor registre el mensaje")
+    cancelar.add_argument("--confirmar", action="store_true", help="autoriza escribir la lápida en SQLite")
+    sub.add_parser("verificar-lapidas", help="solo lectura: ¿el diario de cancelaciones y la base coinciden?")
+    reaplicar = sub.add_parser("reaplicar-lapidas", help="devuelve a la base las lápidas del diario que falten (T-83)")
+    reaplicar.add_argument("--confirmar", action="store_true", help="autoriza escribir en SQLite")
     return parser
 
 
@@ -124,6 +136,13 @@ def _elegibilidad(args: argparse.Namespace) -> dict[str, Any]:
     return {"pendientes": filas}
 
 
+def _cancelar(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.confirmar:
+        raise ErrorDeAnka("Cancelar escribe en SQLite: agrega --confirmar cuando esté autorizado.")
+    return cancelaciones.cancelar_mensaje(Autorizacion(args.thread_id, args.message_id, args.operador, args.motivo,
+                                                       args.etiqueta, args.preventiva))
+
+
 def _publico(trabajo: dict[str, Any] | None) -> dict[str, Any]:
     if trabajo is None:
         raise ErrorDeAnka("No existe ese trabajo.")
@@ -147,6 +166,14 @@ def main(argv: Sequence[str] | None = None, salida: Callable[[str], object] = pr
             resultado = _coordinar(args)
         elif args.orden == "verificar-piloto":
             resultado = _verificar_piloto()
+        elif args.orden == "cancelar":
+            resultado = _cancelar(args)
+        elif args.orden == "verificar-lapidas":
+            resultado = cancelaciones.verificar_lapidas()
+        elif args.orden == "reaplicar-lapidas":
+            if not args.confirmar:
+                raise ErrorDeAnka("Reaplicar escribe en SQLite: agrega --confirmar cuando esté autorizado.")
+            resultado = cancelaciones.reaplicar_lapidas()
         elif args.orden == "ver":
             resultado = _publico(trabajos_work.obtener(args.job_id))
         elif args.orden == "exportar":

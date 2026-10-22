@@ -231,9 +231,13 @@ def clasificar_pendientes() -> list[dict[str, Any]]:
             veredicto = veredicto_del_mensaje(db, fila)
             tiene = db.execute("SELECT 1 FROM trabajos_work WHERE account=? AND thread_id=? AND message_id=? LIMIT 1",
                                (CUENTA, fila["thread_id"], fila["message_id"])).fetchone() is not None
+            cancelado = db.execute("SELECT 1 FROM trabajos_work WHERE account=? AND thread_id=? AND message_id=? "
+                                   "AND state=? LIMIT 1", (CUENTA, fila["thread_id"], fila["message_id"],
+                                                           "cancelado")).fetchone() is not None
             clasificacion = clasificacion_del_mensaje(db, fila)
             resultado.append({"thread_id": fila["thread_id"], "message_id": fila["message_id"],
                               "veredicto": veredicto.estado, "motivo": veredicto.motivo_id, "tiene_trabajo": tiene,
+                              "cancelado": cancelado,
                               "clasificacion": clasificacion.clase, "motivo_de_clasificacion": clasificacion.motivo})
     return resultado
 

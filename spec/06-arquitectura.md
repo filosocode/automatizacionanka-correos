@@ -43,6 +43,7 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `activities` | Edicion y exportacion de la tabla de actividades (sin acceso a Gmail ni Drive). |
+| `cancelacion_work` | Cancelación de un mensaje de prueba: quién la autoriza, qué se rechaza y los errores que explican por qué (T-83). |
 | `reloj` | El reloj de Anka: una sola hora «de ahora» con zona horaria y una forma de ordenar fechas por instante (U-62). |
 | `caso_minimo` | El caso mínimo para un borrador de Work sin análisis válido, con solo lo verificable en Gmail (T-36). |
 | `cambios_de_magnitud` | Detección de posibles cambios de cantidad entre mensajes del cliente de un hilo, con la procedencia de cada mensaje; solo observaciones, en modo sombra (T-69). |
@@ -101,6 +102,7 @@ La descripción es la primera frase de su docstring.
 | `recepcion_store` | Migración SQLite del cursor, la cola y la auditoría del trigger Gmail (U-81). |
 | `trabajos_work_store` | Migración SQLite de `trabajos_work`, la cola de trabajos Python → Work (T-49, D-153). |
 | `gmail_reception_auth` | Autorización y cliente Gmail de solo lectura del receptor, con token propio y alcance verificado (U-81). |
+| `lapidas` | Diario de lápidas de cancelación, fuera de SQLite, para que una copia de seguridad restaurada no las pierda (T-83). |
 | `instancia_unica` | Candado de instancia única entre procesos, con el candado del sistema operativo y sin depender de un PID; lo usa el receptor aislado (U-81, D-151). |
 | `drive_exchange` | Intercambio de archivos propios en Drive con claves estables, paginación y bloqueo local. |
 | `llm` | Análisis del correo con el motor elegido (Ollama u OpenAI). |
@@ -150,6 +152,7 @@ La descripción es la primera frase de su docstring.
 | `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
 | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
 | `work_import` | Importación del borrador de ChatGPT Work al dashboard (`dashboard_upsert`). |
+| `cancelaciones` | Cancela un mensaje de prueba con una lápida persistente que nada reactiva (T-83, D-179). |
 | `trabajos_work` | Crea el trabajo de un mensaje pendiente, publica su hoja en Drive sin duplicar (reclamo en SQLite, marca `appProperties`, adopta antes de crear, verifica después) y cierra el trabajo al importar (T-49, D-153). |
 | `despacho` | Despacho a Work (T-53): una pasada que asegura `PENDIENTES`/`CERRADOS`, crea y publica el trabajo elegible del mensaje del piloto, reintenta y archiva los conciliados. |
 | `coordinacion` | Coordinación automática (T-55): un ciclo acotado que archiva lo conciliado, importa los borradores de Work con T-47 y despacha los mensajes elegibles nuevos, con límites, retroceso por trabajo, auditoría y candado de instancia única. |

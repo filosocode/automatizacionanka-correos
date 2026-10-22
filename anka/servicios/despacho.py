@@ -12,7 +12,8 @@ from typing import Any, NamedTuple
 
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.trabajo_work import (
-    AMBIGUO, CLAVE_DE_MARCA, CONCILIADO, EXCLUIDO, PENDIENTE_DE_PUBLICAR, TIPO_ANALIZAR, VERSION_DEL_CONTRATO,
+    AMBIGUO, CANCELADO, CLAVE_DE_MARCA, CONCILIADO, EXCLUIDO, PENDIENTE_DE_PUBLICAR, TIPO_ANALIZAR,
+    VERSION_DEL_CONTRATO,
 )
 from anka.infra.clientes_google import ClienteDrive
 from anka.infra.logging_setup import get_logger
@@ -114,6 +115,8 @@ def _despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str
     if trabajo is not None:
         if trabajo["state"] == CONCILIADO:
             return {"resultado": "ya_conciliado", "job_id": trabajo["job_id"]}
+        if trabajo["state"] == CANCELADO:
+            return {"resultado": "cancelado", "job_id": trabajo["job_id"]}
         if trabajo["state"] == AMBIGUO:
             return {"resultado": "ambiguo", "job_id": trabajo["job_id"]}
         if trabajo["state"] == PENDIENTE_DE_PUBLICAR and trabajo["attempts"] >= MAXIMO_DE_INTENTOS:
@@ -129,8 +132,16 @@ def _despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str
                     "motivo": rechazo.veredicto.motivo_id}
         except TrabajoRechazado:
             return {"resultado": "mensaje_no_pendiente"}
-    publicacion = trabajos_work.publicar_trabajo(drive, trabajo["job_id"], carpetas[NOMBRE_PENDIENTES], reloj,
-                                                 paquete_version=paquete)
+        if trabajo["state"] == CANCELADO:             # una lápida escrita entre la consulta y la creación
+            return {"resultado": "cancelado", "job_id": trabajo["job_id"]}
+    try:
+        publicacion = trabajos_work.publicar_trabajo(drive, trabajo["job_id"], carpetas[NOMBRE_PENDIENTES], reloj,
+                                                     paquete_version=paquete)
+    except TrabajoRechazado:
+        actual = trabajos_work.obtener(trabajo["job_id"])
+        if actual is not None and actual["state"] == CANCELADO:    # se canceló entre crear y publicar: no es un error
+            return {"resultado": "cancelado", "job_id": trabajo["job_id"]}
+        raise
     return {**publicacion, "clasificacion": trabajo.get("clasificacion", "")}
 
 

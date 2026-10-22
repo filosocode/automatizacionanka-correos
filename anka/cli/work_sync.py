@@ -34,6 +34,7 @@ from anka.infra.google_services import services
 from anka.infra.settings import load_config
 from anka.infra.work_heartbeat import other_bridge_running, wait_for_next_cycle, write_heartbeat
 from anka.servicios.lectura_de_adjuntos import verificar_lectura
+from anka.dominio.cancelacion_work import MensajeCancelado
 from anka.servicios.work_import import dashboard_upsert
 
 MOTIVO_MAX = 300
@@ -464,6 +465,8 @@ def importar_aislado(gmail: ClienteGmail, upsert: Callable[[str], None], instant
     draft_id, stamp, (payload, raw) = candidatos[0]
     try:
         upsert(_codificar_para_importar(payload, raw, stamp))
+    except MensajeCancelado:
+        return {**resultado, "resultado": "mensaje_cancelado"}      # T-83: la lápida del mensaje manda
     except (Exception, SystemExit) as exc:
         log.warning("Importación aislada fallida (%s)", type(exc).__name__, exc_info=True)
         return {**resultado, "resultado": "fallo_de_importacion", "error": type(exc).__name__}
@@ -512,6 +515,8 @@ def sync_once(gmail: ClienteGmail, upsert: Callable[[str], None], checkpoint: Pa
             _guardar_estado(checkpoint, state)
             updated += 1
             print(f"Dashboard actualizado: {thread}", flush=True)
+        except MensajeCancelado:
+            log.info("Hilo %s: su mensaje está cancelado (T-83); no se importa", thread)
         except (Exception, SystemExit) as exc:
             failures += 1
             log.warning("Hilo %s: importación fallida (%s); se reintentará", thread, type(exc).__name__, exc_info=True)

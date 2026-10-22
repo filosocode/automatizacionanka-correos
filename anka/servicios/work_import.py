@@ -24,6 +24,8 @@ from anka.dominio.tolerancia_work import Rechazo, comprobar_identidad, normaliza
 from anka.infra.logging_setup import get_logger
 from anka.infra import rechazos_de_work
 from anka.infra.store import begin_immediate, record_event, save, transaccion
+from anka.dominio.cancelacion_work import MensajeCancelado
+from anka.servicios.cancelaciones import mensaje_cancelado
 from anka.servicios.change_control import apply_guard
 from anka.servicios.estados import verificar_transicion
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
@@ -309,6 +311,8 @@ def _store_work_analysis(db: sqlite3.Connection, raw: str, payload: dict, analys
     message_id = payload.get("message_id") or thread_id
     status = _internal_status(payload, analysis)
     begin_immediate(db)   # el estado se lee y se escribe bajo el mismo candado: no se pisa al dashboard (U-42)
+    if mensaje_cancelado(db, thread_id, payload.get("message_id")):
+        raise MensajeCancelado("Ese mensaje fue cancelado (T-83): el análisis de Work no se importa.")
     apply_guard(
         db, thread_id, analysis, str(payload.get("requested_by_email") or ""),
         str(payload.get("requested_by_name") or ""),

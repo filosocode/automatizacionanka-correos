@@ -83,7 +83,9 @@ def estado_operativo() -> dict[str, Any]:
                             "FROM recepcion_mensajes").fetchone()
         atencion = [dict(r) for r in db.execute(
             "SELECT thread_id, message_id, state, disposition, error_kind, attempts, detected_at, processed_at "
-            "FROM recepcion_mensajes WHERE state != 'procesado' ORDER BY detected_at DESC LIMIT ?", (LIMITE_DE_FILAS,))]
+            "FROM recepcion_mensajes r WHERE state != 'procesado' AND NOT EXISTS (SELECT 1 FROM trabajos_work t "
+            "WHERE t.account=r.account AND t.thread_id=r.thread_id AND t.message_id=r.message_id AND t.state=?) "
+            "ORDER BY detected_at DESC LIMIT ?", (tw.CANCELADO, LIMITE_DE_FILAS))]     # T-83: lo cancelado no pide
         trabajos = _conteos(db.execute("SELECT state AS estado, COUNT(*) AS n FROM trabajos_work "
                                        "GROUP BY state").fetchall(), ESTADOS_DE_TRABAJO)
         con_error = db.execute("SELECT COUNT(*) FROM trabajos_work WHERE last_error != '' "

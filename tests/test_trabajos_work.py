@@ -23,6 +23,7 @@ from openpyxl import load_workbook
 from anka.cli import work_jobs
 from anka.cli import work_sync as sync
 from anka.dominio import trabajo_work as dominio
+from anka.dominio.cancelacion_work import MensajeCancelado
 from anka.infra import settings, store
 from anka.servicios import trabajos_work, work_import
 from anka.servicios.recepcion import CUENTA
@@ -481,7 +482,8 @@ class RetornoTests(Base):
             db.execute("UPDATE trabajos_work SET state='ambiguo' WHERE job_id=?", (ambiguo,))
             db.execute("UPDATE trabajos_work SET state='cancelado' WHERE job_id=?", (cancelado,))
         self.importar("T1", "m1")
-        self.importar("T2", "m2")
+        with self.assertRaises(MensajeCancelado):        # T-83: la lápida impide importar el análisis de su mensaje
+            self.importar("T2", "m2")
         self.assertEqual([self.estado(ambiguo), self.estado(cancelado)], ["ambiguo", "cancelado"])
 
     def test_un_caso_minimo_no_cierra_el_trabajo(self):
