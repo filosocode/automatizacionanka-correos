@@ -2319,6 +2319,16 @@ Casos: C1 C2 sin revisión → rechazo y sin cambios; C2 petición directa con c
 rechazo; C4 con revisión y cantidad → avanza; C5 análisis nuevo → vuelve a pedirse; C6 C1/C3 → avanzan; C7 texto de control → ni guardado, ni
 precargado, ni novedad; C8 correo legítimo con frases comunes → pasa.
 
+### T-112 · La pantalla «Desempeño del análisis» no falla cuando una tasa no tiene datos
+**Problema.** `/desempeno` respondía HTTP 500 («'dict object' has no attribute 'filas_conservadas'») con los casos reales: un grupo cuyo análisis
+no tenía filas iniciales (por ejemplo, el de C2, con una sola fila que Work no pudo completar) da una tasa sin nada que medir (`None`).
+1. **Contrato servicio ↔ plantilla.** `desempeno.resumir_grupo` entrega tres tasas (`sin_correcciones`, `filas_conservadas`, `cantidades_intactas`)
+   que son un número entre 0 y 1 o `None` si no hay nada que medir. La plantilla lee `porcentajes.<tasa>` y muestra «—» cuando es `None`.
+2. **Corrección.** `render_desempeno` conserva en `porcentajes` las tasas que son `None` (antes las omitía porque solo copiaba los `float`) y las
+   convierte en porcentaje solo cuando tienen valor. No inventa cifras: una tasa sin datos se ve como «—», nunca como 0 %.
+3. **No cambia** el cálculo de las tasas, el contrato con Work ni el procesamiento de los casos; la pantalla es de solo lectura.
+Casos: C1 grupo sin filas iniciales → página con «—»; C2 las tasas con datos siguen en porcentaje; C3 la ruta sigue registrada y documentada.
+
 ### T-79 · Aislamiento de una prueba ficticia frente a la coordinación automática (diseño y simulación)
 **Problema.** Con `work_coordination_enabled=true` y sin alcance de laboratorio, un correo ficticio elegible que llega al buzón productivo se
 crea y se publica en Drive sin autorizaciones separadas (T-78).

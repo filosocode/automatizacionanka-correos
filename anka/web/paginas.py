@@ -170,8 +170,11 @@ def _work_rejected_panel() -> Markup:
 
 def render_desempeno(message: str = "") -> str:
     """Desempeño del análisis medido con las correcciones del uso real, por versión del prompt y modelo (T-35)."""
+    # Una tasa sin nada que medir es None y la plantilla la lee como «—»: debe quedar en el diccionario (T-112); si se
+    # omitiera, la plantilla fallaba con HTTP 500. Lo que no es tasa (casos, pocos) no pasa a porcentaje.
     grupos = [{**g, "porcentajes": {clave: (None if valor is None else round(valor * 100))
-                                    for clave, valor in g["resumen"].items() if isinstance(valor, float)}}
+                                    for clave, valor in g["resumen"].items()
+                                    if valor is None or isinstance(valor, float)}}
               for g in desempeno_por_grupo()]
     return page("Desempeño del análisis", render("desempeno.html", grupos=grupos, minimo=MINIMO_DE_CASOS), message)
 
