@@ -34,7 +34,12 @@ from anka.dominio.clasificacion import AVANZAN, NO_SOLICITUD, REVISION_MANUAL
 from anka.servicios.recepcion import conciliar_con_work
 from anka.servicios.trabajos_work import marcar_conciliado
 from anka.dominio.caso import CLIENT_TYPES, SECTORS
-from anka.dominio.work_contract import attachment_coverage_warnings, question_evidence_warnings, reading_summary
+from anka.dominio.work_contract import (
+    attachment_coverage_warnings,
+    question_evidence_warnings,
+    reading_summary,
+    respuesta_utilizable,
+)
 
 log = get_logger(__name__)
 
@@ -161,7 +166,7 @@ def _work_analysis(payload: dict) -> Analisis:
     """El análisis interno (el mismo formato que produce el piloto de Python) a partir del borrador de Work."""
     source = payload.get("source", "")
     # El historial citado se quita aquí, del borrador de Work y de nadie más (U-39).
-    reply_text = reply_body_without_quoted_history(str(payload.get("draft_reply") or "")).strip()
+    reply_text = respuesta_utilizable(reply_body_without_quoted_history(str(payload.get("draft_reply") or "")).strip())
     if payload.get("analysis_complete") is False:
         reply_text = ""  # un registro interno bloqueado no propone un correo para enviar al cliente
     modelo = _declarado(payload.get("model"), MAX_MODELO)

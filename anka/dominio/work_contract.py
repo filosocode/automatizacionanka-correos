@@ -561,6 +561,30 @@ def reconciliar_lectura(payload: dict, instantanea: dict | None) -> list[str]:
     return avisos
 
 
+# El estado y la cobertura con que Work declara un adjunto cuyo contenido no pudo leer.
+_ESTADOS_SIN_LEER = {"bloqueado", "no_legible", "ilegible"}
+_COBERTURAS_SIN_LEER = {"no_legible", "ninguna"}
+
+
+def archivos_ilegibles(analysis: Analisis) -> list[str]:
+    """Los adjuntos cuyo contenido Work declaró que no pudo leer (estado «bloqueado» o cobertura «no_legible»), T-110.
+
+    Es distinto de la cobertura «parcial» (leyó, pero falta interpretación visual): esa solo avisa. Un adjunto ignorado
+    (por ejemplo el logo de una firma) no cuenta.
+    """
+    if analysis.get("engine") != "chatgpt_work":
+        return []
+    nombres = []
+    for adjunto in analysis.get("attachments") or []:
+        if not isinstance(adjunto, dict):
+            continue
+        estado = _forma_simple(str(adjunto.get("status") or ""))
+        cobertura = _forma_simple(str(adjunto.get("coverage") or ""))
+        if estado in _ESTADOS_SIN_LEER or cobertura in _COBERTURAS_SIN_LEER:
+            nombres.append(str(adjunto.get("filename") or "adjunto sin nombre"))
+    return nombres
+
+
 def lectura_sin_verificar(analysis: Analisis) -> bool:
     """¿La lectura que Work declaró no se pudo verificar? (T-41; en V5 y antes, el preflight del expediente en Drive).
 
@@ -570,6 +594,8 @@ def lectura_sin_verificar(analysis: Analisis) -> bool:
     """
     if analysis.get("engine") != "chatgpt_work":
         return False
+    if archivos_ilegibles(analysis):          # T-110: un adjunto que Work no pudo leer no es una lectura verificada
+        return True
     audit = analysis.get("reading_audit") or {}
     if audit.get("verification"):
         return bool(audit["verification"] == "incompleta")
@@ -601,7 +627,32 @@ def archivos_sin_verificar(analysis: Analisis) -> list[str]:
     """Los archivos que quedaron sin leer o que Work nombró y Gmail no tiene (vacío si no se sabe cuáles)."""
     audit = analysis.get("reading_audit") or {}
     archivos = audit.get("attachment_files_pending") or audit.get("attachment_files_unknown") or []
-    return [str(a) for a in archivos] if isinstance(archivos, list) else []
+    nombres = [str(a) for a in archivos] if isinstance(archivos, list) else []
+    return nombres or archivos_ilegibles(analysis)
+
+
+def motivo_de_insuficiencia_documental(analysis: Analisis) -> str:
+    """Por qué NO se puede dar la información por suficiente (vacío si se puede), T-110.
+
+    Si la lectura no está verificada (U-29) o hay un adjunto que Work no pudo leer, hace falta que una persona
+    declare haber revisado los archivos (`reading_review`, solo lo escribe el dashboard); con un adjunto ilegible,
+    además, que la tabla tenga al menos una actividad con cantidad: una fila genérica sin cantidad no basta.
+    """
+    ilegibles = archivos_ilegibles(analysis)
+    cuales = ", ".join(ilegibles)
+    if not analysis.get("reading_review") and lectura_sin_verificar(analysis):
+        if ilegibles:
+            return (f"Work no pudo leer {cuales}, así que todavía no se puede confirmar que alcanza. Abre el "
+                    "archivo tú y, si ya lo revisaste, pulsa «Ya revisé estos archivos yo»; o pregúntale al cliente.")
+        return ("No se pudo comprobar que Work leyó todos los archivos, así que todavía no se puede confirmar que "
+                "alcanza. Pide un análisis nuevo o, si ya los revisaste tú, pulsa «Ya revisé estos archivos yo».")
+    if not ilegibles:
+        return ""
+    actividades = [a for a in analysis.get("activities") or [] if isinstance(a, dict)]
+    if not any(str(a.get("quantity") or "").strip() for a in actividades):
+        return (f"Revisaste {cuales}, pero la tabla no tiene ninguna actividad con cantidad. Corrige la tabla con "
+                "lo que leíste antes de confirmar que alcanza.")
+    return ""
 
 
 ENCABEZADO_INTERNO = "[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]"
@@ -620,6 +671,8 @@ def _forma_simple(texto: str) -> str:
 _MARCADORES_DEL_CONTRATO = re.compile(r"\[/?ANKA_DASHBOARD_JSON_V\w*\]", re.IGNORECASE)
 _SECCION_INTERNA = re.compile(r"REVISAR ANTES DE ENVIAR|BORRAR ESTA SECCI[OÓ]N")
 _BORRADOR_INTERNO = re.compile(r"BORRADOR INTERNO\s*[-‐-―−]+\s*NO ENVIAR")
+# T-110: la despedida del borrador interno de Work («Fin del borrador interno. No enviar.») también es de control.
+_FIN_DEL_BORRADOR = re.compile(r"fin del borrador interno|borrador interno\W{0,4}no enviar", re.IGNORECASE)
 
 
 def marcadores_internos(texto: str, permitir_seccion_interna: bool = False) -> list[str]:
@@ -635,9 +688,18 @@ def marcadores_internos(texto: str, permitir_seccion_interna: bool = False) -> l
     if not permitir_seccion_interna:
         if _SECCION_INTERNA.search(texto) or empieza_con_el_encabezado_interno(texto):
             encontrados.append("sección interna «REVISAR ANTES DE ENVIAR»")
-        if _BORRADOR_INTERNO.search(texto):
+        if _BORRADOR_INTERNO.search(texto) or _FIN_DEL_BORRADOR.search(texto):
             encontrados.append("rótulo «BORRADOR INTERNO — NO ENVIAR»")
     return encontrados
+
+
+def respuesta_utilizable(texto: str) -> str:
+    """El texto que Work propone como respuesta al cliente, o vacío si es material interno o de control (T-110).
+
+    «Fin del borrador interno. No enviar.» no es una respuesta comercial: nunca se ofrece como tal, ni al importar ni al
+    mostrar, aunque haya quedado guardado así por una versión anterior.
+    """
+    return "" if marcadores_internos(texto or "") else str(texto or "")
 
 
 def empieza_con_el_encabezado_interno(texto: str) -> bool:

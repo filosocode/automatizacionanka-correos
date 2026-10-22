@@ -2299,6 +2299,26 @@ incorrecta; respuestas corruptas; históricos y duplicados; visual; pérdidas; a
 3. **Restricciones en `fields`.** Un campo con nombre, valor y fuente que cita el documento evaluado también se consulta como restricción registrada, solo para reconocer las de la referencia (mismos términos). Sin fuente, con fuente de otro archivo, con otro valor o sin dato, no cuenta; no crea actividades.
 4. **Alcance.** `laboratorio/banco_documental/` (`comparador.py`, `comparador_v2.py`, `evaluador_inverso.py`) y `tests/test_evaluador_t105.py`; no cambia `anka/`, el contrato ni PRECISO_V6.1.3. Una omisión verdadera sigue siendo omisión.
 
+### T-110 · Un documento ilegible no se confirma como suficiente; un texto interno no es una respuesta comercial
+**Problema.** En C2 (PDF escaneado) Work no pudo leer el adjunto y dejó una fila genérica sin cantidad. El caso quedó «Por decidir» con el botón
+«Con esto alcanza» activo, y la novedad anunciaba como «respuesta sugerida» el texto «Fin del borrador interno. No enviar.».
+1. **Adjunto ilegible.** `archivos_ilegibles` lista los adjuntos con estado «bloqueado»/«no_legible» o cobertura «no_legible»/«ninguna» (no la
+   «parcial», que solo avisa; tampoco los ignorados). Con motor Work, un caso con alguno cuenta como `lectura_sin_verificar`: la pantalla
+   queda en «Lectura pendiente» y explica qué archivo no se leyó, por qué no se puede confirmar «Con esto alcanza» y qué hacer (abrirlo, pulsar
+   «Ya revisé estos archivos yo», o pedir al cliente un archivo legible).
+2. **Protección en el servidor.** `resolve_technical_review("sufficient")` y `volver_a_decidir("suficiente")` rechazan el caso mientras
+   `motivo_de_insuficiencia_documental` devuelva un motivo: lectura sin verificar y sin `reading_review`; o adjunto ilegible y ninguna actividad
+   con cantidad. `reading_review` solo lo escribe `aceptar_lectura_revisada` (ruta con token CSRF), nunca el formulario ni el borrador de Work, y un
+   análisis nuevo la reemplaza. Preguntarle al cliente sigue permitido.
+3. **Respuesta interna.** `marcadores_internos` reconoce también «Fin del borrador interno» y «borrador interno … no enviar» (sin distinguir
+   mayúsculas). `respuesta_utilizable` devuelve vacío para esos textos: el importador no los guarda como `work_reply`, la pantalla no los precarga
+   y la novedad «Respuesta sugerida» no se muestra si el texto es de control o la lectura está frenada. Guardar o enviar ese texto sigue rechazado
+   por T-59.
+4. **No cambia** C1 ni C3, la aprobación humana (R8), la recepción, la publicación ni el archivado.
+Casos: C1 C2 sin revisión → rechazo y sin cambios; C2 petición directa con campos falsos → rechazo; C3 con revisión pero fila sin cantidad →
+rechazo; C4 con revisión y cantidad → avanza; C5 análisis nuevo → vuelve a pedirse; C6 C1/C3 → avanzan; C7 texto de control → ni guardado, ni
+precargado, ni novedad; C8 correo legítimo con frases comunes → pasa.
+
 ### T-79 · Aislamiento de una prueba ficticia frente a la coordinación automática (diseño y simulación)
 **Problema.** Con `work_coordination_enabled=true` y sin alcance de laboratorio, un correo ficticio elegible que llega al buzón productivo se
 crea y se publica en Drive sin autorizaciones separadas (T-78).

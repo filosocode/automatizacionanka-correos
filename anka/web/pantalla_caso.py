@@ -20,7 +20,7 @@ from anka.dominio.caso import Caso, timestamp
 from anka.dominio.analisis import Analisis, RevisionManual
 from anka.dominio.activities import huella_de_tabla, normalize_estado, parse_activities_form
 from anka.web import formularios_pendientes as pendientes
-from anka.dominio.work_contract import lectura_sin_verificar
+from anka.dominio.work_contract import archivos_ilegibles, lectura_sin_verificar, respuesta_utilizable
 from anka.web.views import (
     adjunto_no_se_pudo_leer, adjunto_requiere_atencion, attachments_panel, reception_assessment_panel,
     activities_editor, question_audit_panel, question_quality_panel, review_tasks_panel,
@@ -700,6 +700,7 @@ def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, temp
     accepted = (review["status"] in (QuoteStatus.READY_REVIEW, QuoteStatus.READY)
                 or bool(review.get("quote_code")) or manual.get("decision") == "sufficient")
     work_reply = analysis.get("work_reply") or {}
+    work_reply = {**work_reply, "text": respuesta_utilizable(work_reply.get("text") or "")}     # T-110
     blank = (not review["draft_body"] and not work_reply.get("text")
              and (accepted or not has_questions) and template != "acuse")
     if blank:
@@ -803,6 +804,13 @@ def _texto_de_lectura_pendiente(analysis: Analisis) -> str:
     archivos = audit.get("attachment_files_pending") or audit.get("attachment_files_unknown") or []
     falta = f" Falta leer: {', '.join(str(a) for a in archivos)}." if audit.get("attachment_files_pending") else (
         f" Work reportó adjuntos que Gmail no tiene: {', '.join(str(a) for a in archivos)}." if archivos else "")
+    ilegibles = archivos_ilegibles(analysis)
+    if ilegibles:        # T-110: qué archivo, qué falta, por qué está frenado y qué puede hacer la persona
+        return (f"Work no pudo leer {', '.join(ilegibles)}: sin su contenido no hay cantidades ni alcance "
+                "confiables, por eso no se puede confirmar «Con esto alcanza» ni crear la carpeta. Qué puedes hacer: "
+                "abre el archivo tú y, si ya lo revisaste, pulsa «Ya revisé estos archivos yo» y completa la tabla con "
+                "lo que leíste; o pídele al cliente un archivo legible (por ejemplo, un PDF con texto) o a Work un "
+                "análisis nuevo.")
     que = ("los archivos contra Gmail" if audit.get("verification") else "la lista de archivos y todas sus partes")
     return (f"No mostramos resultados ni se puede decidir hasta comprobar {que}." + falta
             + " Pide a Work que analice de nuevo (el nuevo análisis reemplaza a este)"

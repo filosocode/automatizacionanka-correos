@@ -17,7 +17,7 @@ from anka.dominio.errores import ErrorDeValidacion
 from anka.dominio.preguntas import DESCARTAR, candidatas, con_decisiones, decidir, internas, para_el_cliente
 from anka.dominio.reception import reception_assessment
 from anka.dominio.status import QuoteStatus
-from anka.dominio.work_contract import archivos_sin_verificar, lectura_sin_verificar
+from anka.dominio.work_contract import archivos_sin_verificar, lectura_sin_verificar, motivo_de_insuficiencia_documental
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import add_table_version, record_event, transaccion
 from anka.servicios.estados import cambiar_estado
@@ -122,6 +122,8 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
         if not row:
             raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
         analysis = load_analysis(row["analysis_json"])
+        if accion == "suficiente" and (motivo := motivo_de_insuficiencia_documental(analysis)):
+            raise ErrorDeValidacion(motivo)          # T-110: la misma protección que en la decisión técnica
         decision = analysis.get("manual_review") or {}
         enviado = bool(row["sent_at"]) and str(row["sent_at"]) >= str(decision.get("at") or "")
         if (row["status"] not in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED)
@@ -198,6 +200,8 @@ def resolve_technical_review(
             raise ErrorDeValidacion("Este caso ya no espera una decisión tuya.")
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         analysis = load_analysis(row["analysis_json"])
+        if decision == "sufficient" and (motivo := motivo_de_insuficiencia_documental(analysis)):
+            raise ErrorDeValidacion(motivo)          # T-110: validado aquí, en el servidor, no solo en los botones
         if decision == "sufficient" and not analysis.get("activities"):
             raise ErrorDeValidacion("Todavía no hay actividades en la tabla. Agrega al menos una antes de confirmar "
                                     "que alcanza.")

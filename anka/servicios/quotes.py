@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from anka.dominio.analisis import Analisis
 from anka.dominio.caso import CLIENT_TYPES, SECTORS, Caso, load_analysis, timestamp
 from anka.dominio.errores import ErrorDeValidacion
 from anka.dominio.novedades import REQUIEREN_ACCION
 from anka.dominio.registros import Cambio, Evento
+from anka.dominio.work_contract import lectura_sin_verificar, respuesta_utilizable
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import connect, lectura, transaccion  # noqa: F401  (connect se reexporta: lo importan las pruebas)
 from anka.servicios.cola_del_piloto import (  # noqa: F401  (se reexportan: quien ya los importaba de aquí no cambia)
@@ -48,6 +50,13 @@ def unread_thread_count() -> int:
                 WHERE n.read_at IS NULL AND n.kind IN ({_TIPOS_QUE_CUENTAN})""").fetchone()[0])
 
 
+def _respuesta_no_ofrecible(analysis: Analisis) -> bool:
+    """¿La «respuesta sugerida» de este caso es un texto de control de Work o su lectura está frenada? (T-110)."""
+    texto = (analysis.get("work_reply") or {}).get("text") or ""
+    return bool(texto and not respuesta_utilizable(texto)) or (
+        lectura_sin_verificar(analysis) and not analysis.get("reading_review"))
+
+
 def unread_notifications(limit: int = 20) -> list[dict]:
     """Novedades del dashboard sin leer, las más recientes primero."""
     with lectura() as db:
@@ -60,6 +69,8 @@ def unread_notifications(limit: int = 20) -> list[dict]:
     result = []
     for row in rows:
         analysis = load_analysis(row["analysis_json"])
+        if row["kind"] == "draft_suggested" and _respuesta_no_ofrecible(analysis):
+            continue      # T-110: ni un texto interno de Work ni una lectura sin verificar son una «respuesta sugerida»
         result.append({
             "id": row["id"], "thread_id": row["thread_id"],
             "kind": row["kind"], "title": row["title"],
