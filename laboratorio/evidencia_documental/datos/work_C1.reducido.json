@@ -1,0 +1,132 @@
+{
+  "activities": [
+    {
+      "activity": "Levantamiento topográfico planimétrico y altimétrico del área de intervención",
+      "fuente": "solicitud_01.pdf, p. 1, Tabla 1, ítem 1; ubicación: p. 1, §1; condiciones y notas: p. 2, §4–5",
+      "quantity": "18,5 ha",
+      "unit": "ha"
+    },
+    {
+      "activity": "Levantamiento de ejes de vías internas existentes",
+      "fuente": "solicitud_01.pdf, p. 1, Tabla 1, ítem 2; ubicación: p. 1, §1; condiciones y notas: p. 2, §4–5",
+      "quantity": "2,350 km",
+      "unit": "km"
+    },
+    {
+      "activity": "Localización y monumentación de puntos de control",
+      "fuente": "solicitud_01.pdf, p. 1, Tabla 1, ítem 3; ubicación: p. 1, §1; condiciones y notas: p. 2, §4–5",
+      "quantity": "12 puntos",
+      "unit": "puntos"
+    },
+    {
+      "activity": "Levantamiento de construcciones existentes",
+      "fuente": "solicitud_01.pdf, p. 1, Tabla 1, ítem 4; ubicación: p. 1, §1; condiciones y notas: p. 2, §4–5",
+      "quantity": "7 construcciones",
+      "unit": "construcciones"
+    },
+    {
+      "activity": "Localización de quebradas y drenajes",
+      "fuente": "solicitud_01.pdf, p. 1, Tabla 1, ítem 5; ubicación: p. 1, §1; condiciones y notas: p. 2, §4–5",
+      "quantity": "3 quebradas",
+      "unit": "quebradas"
+    }
+  ],
+  "analysis_complete": false,
+  "attachments": [
+    {
+      "coverage": "completa",
+      "evidence": [
+        {
+          "excerpt": "Área total del predio según escritura: 21,0 ha.",
+          "location": "p. 1, §2",
+          "topic": "Área total",
+          "value": "21,0 ha"
+        },
+        {
+          "excerpt": "18,5",
+          "location": "p. 1, Tabla 1, ítem 1",
+          "topic": "Área de intervención",
+          "value": "18,5 ha"
+        },
+        {
+          "excerpt": "2,350",
+          "location": "p. 1, Tabla 1, ítem 2",
+          "topic": "Ejes viales",
+          "value": "2,350 km"
+        },
+        {
+          "excerpt": "Localización y monumentación de puntos de control",
+          "location": "p. 1, Tabla 1, ítem 3",
+          "topic": "Control",
+          "value": "12 puntos"
+        },
+        {
+          "excerpt": "Levantamiento de construcciones existentes",
+          "location": "p. 1, Tabla 1, ítem 4",
+          "topic": "Construcciones",
+          "value": "7 construcciones"
+        },
+        {
+          "excerpt": "Localización de quebradas y drenajes",
+          "location": "p. 1, Tabla 1, ítem 5",
+          "topic": "Quebradas",
+          "value": "3 quebradas"
+        },
+        {
+          "excerpt": "Se estima un total de 10 puntos de control para el proyecto; el paquete de reseñas debe incluir 12\nfotografías por punto de control.",
+          "location": "p. 2, 4.e",
+          "topic": "Control estimado y fotografías",
+          "value": "10 puntos; 12 fotografías por punto"
+        },
+        {
+          "excerpt": "El sistema de coordenadas se definirá en la reunión de inicio.",
+          "location": "p. 2, Nota 6",
+          "topic": "Sistema de coordenadas",
+          "value": "Por definir"
+        },
+        {
+          "excerpt": "Las construcciones del sector sur se levantarán solo por fachada principal.",
+          "location": "p. 2, Nota 7",
+          "topic": "Excepción construcciones",
+          "value": "Fachada principal en sector sur"
+        },
+        {
+          "excerpt": "El polígono del predio se enviará por separado en archivo KMZ.",
+          "location": "p. 1, §2",
+          "topic": "Polígono",
+          "value": "KMZ pendiente"
+        },
+        {
+          "excerpt": "Plazo de entrega: 25 días calendario contados desde la orden de inicio.",
+          "location": "p. 2, 4.a",
+          "topic": "Plazo",
+          "value": "25 días calendario desde orden de inicio"
+        },
+        {
+          "excerpt": "Precisión horizontal requerida: ±2 cm (posicionamiento GNSS).",
+          "location": "p. 2, 4.d",
+          "topic": "Precisión",
+          "value": "±2 cm horizontal (posicionamiento GNSS)"
+        }
+      ],
+      "filename": "solicitud_01.pdf",
+      "reason": "",
+      "size_bytes": 4913,
+      "status": "extraido"
+    }
+  ],
+  "contradictions": [
+    {
+      "sources": [
+        "solicitud_01.pdf, p. 1, Tabla 1, ítem 3",
+        "solicitud_01.pdf, p. 2, 4.e"
+      ],
+      "topic": "Cantidad de puntos de control"
+    }
+  ],
+  "origen": {
+    "archivo_original": "retorno_c1.json",
+    "nota": "Reducido: solo los campos que el modelo de evidencia usa. Sin correos, nombres ni texto del borrador.",
+    "sha256_del_retorno_completo": "0be9c574de6c9ba32d2d76e568e480e0521c0731b0c5859c0c4dd2cf7ce06f33"
+  }
+}
