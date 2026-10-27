@@ -23,6 +23,7 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.caso_minimo import caso_minimo
 from anka.dominio.correo import header, inbound_messages, normalized_address
 from anka.dominio.areas_declaradas import pistas_de_area
+from anka.dominio.cifras_de_pdf import pistas_de_cifras
 from anka.dominio.filas_de_hoja import pistas_de_hoja
 from anka.infra.logging_setup import configure_logging, get_logger
 from anka.dominio.tolerancia_work import Rechazo, comprobar_identidad, leer_json, normalizar_analisis
@@ -206,6 +207,7 @@ def _verificar_con_el_expediente(payload: dict, instantaneas: Path) -> list[str]
     resultado = comprobar_tabla(payload, textos if manifiesto else None)
     pistas = pistas_de_area((textos or {}).get("correo") or "", (textos or {}).get("adjuntos") or [])
     pistas.update(pistas_de_hoja((textos or {}).get("adjuntos") or [], payload.get("activities") or []))
+    pistas.update(pistas_de_cifras((textos or {}).get("adjuntos") or [], payload.get("activities") or []))
     payload.update({clave: valor for clave, valor in pistas.items() if valor})   # T-125, T-126: no entran en la tabla
     if resultado:
         payload["evidence_check"] = resultado

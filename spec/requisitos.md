@@ -2329,6 +2329,20 @@ no tenía filas iniciales (por ejemplo, el de C2, con una sola fila que Work no 
 3. **No cambia** el cálculo de las tasas, el contrato con Work ni el procesamiento de los casos; la pantalla es de solo lectura.
 Casos: C1 grupo sin filas iniciales → página con «—»; C2 las tasas con datos siguen en porcentaje; C3 la ruta sigue registrada y documentada.
 
+### T-131 · Pista: las cifras de alcance de un PDF que la tabla no menciona
+**Problema.** Un PDF (términos de referencia, cotización, oficio) trae áreas, longitudes y plazos que la tabla puede omitir, y hoy nada los contrasta. Las tablas de un PDF no se pueden leer con reglas fijas (D-188),
+pero un número con unidad sí se puede buscar en el texto que el programa ya extrajo (nativo y OCR).
+1. **Qué se busca.** En cada adjunto `.pdf` (no en una impresión de correo «Gmail - …»), números con una unidad de alcance: `ha`, `km²`, `m²`, `km`, `m`, `ml`, `puntos` (puntos, estaciones, sondeos, apiques,
+   perforaciones, vértices, hitos, mojones, secciones), `horas` y `días`. Una cifra ambigua («10,015») cuenta con sus dos lecturas y la misma cifra no se repite entre archivos.
+2. **Qué se descarta.** Lo que está cerca de «página», norma, ISO, resolución, decreto, ley, garantía, mm, cm, km/h, certificado, expedición o cámara de comercio; las cantidades cero; las horas del reloj («Hora: 13:48»).
+3. **Cuándo se señala.** Cuando ningún campo de ninguna actividad contiene ese número (`ha` y `m²` se consideran equivalentes: 10.015 m² es 1,0015 ha). Se guardan hasta 10 por hilo, las áreas primero, con la frase
+   donde aparecen. La pantalla las vuelve a contrastar con la tabla de ahora, así que una cifra que una persona escribe en la tabla deja de salir.
+4. **Qué no hace.** No se agrega a la tabla ni lleva botón: una cifra suelta no dice a qué servicio pertenece y muchas son datos de contexto (plazo, espaciamiento, área total) que van en las notas. Lo calculan los
+   tres modos en los mismos puntos que T-125 a T-127 y se guarda en `cifras_de_pdf_sin_mencionar`. No cambia el prompt de Work, el contrato ni los estados.
+Casos: área y plazo de un PDF → se señalan; la misma cifra ya en una nota → no; 10.015 m² con 1,0015 ha en la tabla → no; km/h, garantía, certificado y reloj → no; 10,015 y 10.015 → una; otro archivo con la misma
+cifra → una; más de 10 → 10, áreas primero; xlsx o impresión de correo → nada. Medido en los 20 casos con las tablas esperadas: 30 cifras en 9 casos (53 antes del filtro); de las 30, cerca de 8 son ruido (fichas de equipos,
+plantillas de oferta, un dibujo con OCR malo) y el resto es contexto real, entre ellas el 160 ha del PDF del caso 13 frente a las 527 ha de su Word.
+
 ### T-130 · Una persona pone un área calculada de un KML/KMZ como cantidad de una actividad sin cantidad
 **Problema.** T-125 calcula el área de los polígonos de un KML/KMZ, pero solo como pista: cuando el cliente manda el lote y no escribe la cantidad, una persona tiene que copiarla a mano.
 Un polígono no dice qué servicio es, así que no se crean filas: se completa una que ya existe.

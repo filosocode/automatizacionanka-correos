@@ -22,8 +22,8 @@ from anka.dominio.activities import huella_de_tabla, normalize_estado, parse_act
 from anka.web import formularios_pendientes as pendientes
 from anka.dominio.work_contract import archivos_ilegibles, lectura_sin_verificar, respuesta_utilizable
 from anka.web.views import (
-    adjunto_no_se_pudo_leer, adjunto_requiere_atencion, areas_calculadas_panel, attachments_panel, filas_de_hoja_panel,
-    reception_assessment_panel,
+    adjunto_no_se_pudo_leer, adjunto_requiere_atencion, areas_calculadas_panel, attachments_panel, cifras_de_pdf_panel,
+    filas_de_hoja_panel, reception_assessment_panel,
     activities_editor, question_audit_panel, question_quality_panel, review_tasks_panel,
 )
 from anka.dominio.status import (
@@ -849,6 +849,8 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
         "areas_panel": areas_calculadas_panel(
             analysis.get("areas_calculadas") or [], analysis.get("diferencias_de_area") or [], thread_id,
             huella_de_tabla(analysis.get("activities", [])), analysis.get("activities") or []),
+        "cifras_pdf_panel": cifras_de_pdf_panel(
+            analysis.get("cifras_de_pdf_sin_mencionar") or [], analysis.get("activities") or []),
         "filas_hoja_panel": filas_de_hoja_panel(
             analysis.get("filas_de_hoja_sin_cubrir") or [], thread_id, huella_de_tabla(analysis.get("activities", [])),
             analysis.get("activities") or []),

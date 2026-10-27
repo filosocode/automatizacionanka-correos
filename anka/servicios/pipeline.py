@@ -14,6 +14,7 @@ from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka, ModoNoPermitido
 from anka.dominio.areas_declaradas import pistas_de_area
+from anka.dominio.cifras_de_pdf import cifras_sin_mencionar
 from anka.dominio.filas_de_hoja import filas_sin_cubrir
 from anka.dominio.status import (
     QuoteStatus, estado_tras_un_analisis,
@@ -212,6 +213,8 @@ class RevisorDeHilos:
             analysis["areas_calculadas"] = pistas["areas_calculadas"]   # T-125, T-126: pistas, no entran en la tabla
             analysis["diferencias_de_area"] = pistas["diferencias_de_area"]
             analysis["filas_de_hoja_sin_cubrir"] = filas_sin_cubrir(   # T-127: pista, no entra en la tabla
+                attachments, analysis.get("activities") or [])
+            analysis["cifras_de_pdf_sin_mencionar"] = cifras_sin_mencionar(   # T-131: pista, no entra en la tabla
                 attachments, analysis.get("activities") or [])
             for row in analysis.get("activities", []):
                 if isinstance(row, dict):

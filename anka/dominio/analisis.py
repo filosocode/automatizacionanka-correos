@@ -68,6 +68,16 @@ class FilaDeHoja(TypedDict):
     unidad: str
 
 
+class CifraDePdf(TypedDict):
+    """Una cifra de alcance de un PDF adjunto que ninguna actividad de la tabla menciona (T-131)."""
+
+    archivo: str
+    cifra: str   # como está escrita, con su unidad
+    contexto: str
+    lecturas: list[float]   # lo que puede valer: «10,015» es 10,015 o 10 015
+    unidad: str
+
+
 class DiferenciaDeArea(TypedDict):
     """Un área escrita en el correo que ningún polígono respalda, con el polígono más cercano (T-126)."""
 
@@ -188,6 +198,7 @@ class Analisis(TypedDict, total=False):
     reading_audit: dict[str, Any]
     reading_review: RevisionDeLectura   # U-29: la lectura la revisó una persona; solo lo escribe el dashboard
     reading_summary: dict[str, Any]
+    cifras_de_pdf_sin_mencionar: list[CifraDePdf]   # T-131: pista; cifras de un PDF que la tabla no menciona
     filas_de_hoja_sin_cubrir: list[FilaDeHoja]   # T-127: pista; filas de una hoja de cálculo que la tabla no recoge
     diferencias_de_area: list[DiferenciaDeArea]   # T-126: pista; el correo dice un área que ningún polígono respalda
     areas_calculadas: list[AreaCalculada]   # T-125: pista para la persona, nunca entra en una cantidad ni en la tabla

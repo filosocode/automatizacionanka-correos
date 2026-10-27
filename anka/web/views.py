@@ -13,6 +13,7 @@ from anka.dominio.preguntas import INTERNA, identificador, limpiar
 from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS, MAX_CELL, huella_de_tabla, normalize_estado
 from anka.dominio.attachments import compactar_paginas
 from anka.dominio.areas_calculadas import clave_de_area, clave_del_total, sin_cantidad, totales_por_archivo
+from anka.dominio.cifras_de_pdf import MAX_CIFRAS, cifras_aun_sin_mencionar
 from anka.dominio.filas_de_hoja import clave_de_fila, filas_aun_sin_cubrir
 from anka.web.templating import render
 
@@ -188,6 +189,14 @@ def filas_de_hoja_panel(filas: Sequence[Mapping[str, Any]], thread_id: str = "",
     resto = len(validas) - len(visibles)
     return (render("filas_de_hoja.html", filas=visibles, resto=resto, thread_id=thread_id, base_version=base_version)
             if visibles else Markup(""))
+
+
+def cifras_de_pdf_panel(cifras: Sequence[Mapping[str, Any]], actividades: Sequence[Mapping[str, Any]] = ()) -> Markup:
+    """Las cifras de alcance de los PDF que la tabla no menciona, solo para revisar (T-131): no se agregan a nada."""
+    visibles = [{"archivo": str(c.get("archivo") or ""), "cifra": str(c.get("cifra") or ""),
+                 "contexto": str(c.get("contexto") or "")}
+                for c in cifras_aun_sin_mencionar(cifras, actividades)[:MAX_CIFRAS]]
+    return render("cifras_de_pdf.html", cifras=visibles) if visibles else Markup("")
 
 
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:

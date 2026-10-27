@@ -1,0 +1,5 @@
+<h3 class="subhead">Cifras de los PDF que la tabla no menciona</h3>
+<p class="meta">El programa las encontró en el texto de un PDF y ninguna actividad de la tabla las nombra. Muchas son datos de contexto (áreas, longitudes, plazos) que van en las notas o en el plazo, y otras no tienen que ver con el servicio. Revísalas: no se agregan solas a la tabla.</p>
+<div class="scroll-x"><table class="act-resumen"><thead><tr><th scope="col">Archivo</th><th scope="col">Cifra</th><th scope="col">Dónde dice</th></tr></thead>
+<tbody>{% for c in cifras %}<tr class="fila-resumen"><td>{{ c.archivo }}</td><td>{{ c.cifra }}</td><td>…{{ c.contexto }}…</td></tr>
+{% endfor %}</tbody></table></div>

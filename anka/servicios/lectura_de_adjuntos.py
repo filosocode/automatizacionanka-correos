@@ -14,6 +14,7 @@ from anka.dominio.correo import (
     adjuntos_recibidos, decode_websafe, header, imagenes_incrustadas, inbound_messages, message_text,
 )
 from anka.dominio.areas_declaradas import pistas_de_area
+from anka.dominio.cifras_de_pdf import pistas_de_cifras
 from anka.dominio.filas_de_hoja import pistas_de_hoja
 from anka.dominio.verificacion_de_evidencia import avisos_de, comprobar_tabla
 from anka.dominio.work_contract import verificar_adjuntos
@@ -129,6 +130,7 @@ def verificar_lectura(
         resultado = comprobar_tabla(payload, textos)
         pistas = pistas_de_area((textos or {}).get("correo") or "", (textos or {}).get("adjuntos") or [])
         pistas.update(pistas_de_hoja((textos or {}).get("adjuntos") or [], payload.get("activities") or []))
+        pistas.update(pistas_de_cifras((textos or {}).get("adjuntos") or [], payload.get("activities") or []))
         payload.update({clave: valor for clave, valor in pistas.items() if valor})   # T-125, T-126: pistas, no tabla
     except Exception:   # la comprobación de la tabla es un apoyo: nunca debe frenar la importación
         log.warning("No se pudo comprobar la tabla de %s contra sus textos", payload.get("thread_id"), exc_info=True)
