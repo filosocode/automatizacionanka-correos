@@ -12,6 +12,7 @@ from markupsafe import Markup
 from anka.dominio.preguntas import INTERNA, identificador, limpiar
 from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS, MAX_CELL, huella_de_tabla, normalize_estado
 from anka.dominio.attachments import compactar_paginas
+from anka.dominio.filas_de_hoja import clave_de_fila, filas_aun_sin_cubrir
 from anka.web.templating import render
 
 MODE_LABELS = {
@@ -156,19 +157,22 @@ def areas_calculadas_panel(areas: Sequence[Mapping[str, Any]], diferencias: Sequ
     return render("areas_calculadas.html", filas=filas, resto=resumen_del_resto, avisos=avisos) if filas else Markup("")
 
 
-def filas_de_hoja_panel(filas: Sequence[Mapping[str, Any]]) -> Markup:
-    """Las filas con cantidad de las hojas de cálculo adjuntas que la tabla no recoge, como pista a revisar (T-127)."""
-    validas = [f for f in filas if isinstance(f, Mapping)]
+def filas_de_hoja_panel(filas: Sequence[Mapping[str, Any]], thread_id: str = "", base_version: str = "",
+                        actividades: Sequence[Mapping[str, Any]] = ()) -> Markup:
+    """Las filas con cantidad de las hojas de cálculo que la tabla no recoge, para revisar y agregar (T-127, T-128)."""
+    validas = filas_aun_sin_cubrir(filas, actividades)
     def cantidad(fila: Mapping[str, Any]) -> str:
         veces = float(fila.get("veces") or 1)
         return f"{float(fila.get('cantidad') or 0):g}" + (f" × {veces:g}" if veces != 1 else "")
 
     visibles = [{"archivo": str(f.get("archivo") or ""), "hoja": str(f.get("hoja") or ""),
                  "fila": int(f.get("fila") or 0), "descripcion": str(f.get("descripcion") or ""),
-                 "unidad": str(f.get("unidad") or ""), "cantidad": cantidad(f)}
+                 "unidad": str(f.get("unidad") or ""), "cantidad": cantidad(f),
+                 "clave": clave_de_fila(f)}
                 for f in validas[:MAX_FILAS_DE_HOJA_EN_PANTALLA]]
     resto = len(validas) - len(visibles)
-    return render("filas_de_hoja.html", filas=visibles, resto=resto) if visibles else Markup("")
+    return (render("filas_de_hoja.html", filas=visibles, resto=resto, thread_id=thread_id, base_version=base_version)
+            if visibles else Markup(""))
 
 
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:

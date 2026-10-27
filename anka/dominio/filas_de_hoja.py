@@ -11,7 +11,7 @@ import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
-from anka.dominio.analisis import FilaDeHoja
+from anka.dominio.analisis import Actividad, FilaDeHoja
 
 MAX_FILAS_GUARDADAS = 100
 MAX_FILAS_POR_ARCHIVO = 60   # una hoja con cientos de filas es una base de datos, no una plantilla de cantidades
@@ -108,7 +108,7 @@ def _raices(texto: str) -> set[str]:
     return {p[:_LARGO_DE_RAIZ] for p in palabras if p not in _PALABRAS_SIN_PESO and not p.isdigit()}
 
 
-def _recoge(fila: FilaDeHoja, actividades: Sequence[Mapping[str, Any]]) -> bool:
+def _recoge(fila: Mapping[str, Any], actividades: Sequence[Mapping[str, Any]]) -> bool:
     """Si alguna actividad habla de lo mismo que la fila: comparten raíces, o una raíz y la misma cantidad."""
     de_la_fila = _raices(fila["descripcion"])
     for actividad in actividades:
@@ -133,6 +133,31 @@ def filas_sin_cubrir(
             continue
         sin_cubrir.extend(f for f in filas_de_hoja(nombre, texto) if not _recoge(f, actividades))
     return sin_cubrir[:MAX_FILAS_GUARDADAS]
+
+
+def filas_aun_sin_cubrir(
+    filas: Iterable[Mapping[str, Any]], actividades: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    """Las filas guardadas como pista que la tabla de ahora todavía no recoge (la persona pudo agregar algunas)."""
+    actuales = [a for a in actividades if isinstance(a, Mapping)]
+    return [f for f in filas if isinstance(f, Mapping) and not _recoge(f, actuales)]
+
+
+def clave_de_fila(fila: Mapping[str, Any]) -> str:
+    """Identifica una fila de hoja de cálculo en un formulario: archivo, hoja y número de fila."""
+    return f"{fila.get('archivo')}|{fila.get('hoja')}|{fila.get('fila')}"
+
+
+def actividad_de_fila(fila: Mapping[str, Any]) -> Actividad:
+    """La actividad que una persona agrega desde una fila de hoja: lo que dice la hoja, `pendiente` y con su fuente."""
+    cantidad, veces = float(fila.get("cantidad") or 0), float(fila.get("veces") or 1)
+    nota = "Agregada por una persona desde una hoja de cálculo del cliente; completa ubicación, entregable y plazo."
+    if veces != 1:
+        nota += f" La hoja dice {cantidad:g} × {veces:g} veces."
+    return {"activity": str(fila.get("descripcion") or ""), "quantity": f"{cantidad:g}".replace(".", ","),
+            "unit": str(fila.get("unidad") or ""),
+            "fuente": f"{fila.get('archivo')} · hoja «{fila.get('hoja')}» · fila {fila.get('fila')}",
+            "estado": "pendiente", "notes": nota}
 
 
 def pistas_de_hoja(adjuntos: Iterable[Mapping[str, Any]], actividades: Sequence[Mapping[str, Any]]) -> dict[str, Any]:

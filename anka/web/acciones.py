@@ -39,7 +39,7 @@ from anka.servicios.quotes import (
     aceptar_lectura_revisada, merge_project_thread, recuperar_propuesta, resolve_link, resolve_model_proposal,
     resolve_technical_review, save_quote_metadata, separate_project_thread, seguir_sin_respuesta,
 )
-from anka.servicios.ediciones import save_activities
+from anka.servicios.ediciones import agregar_filas_de_hoja, save_activities
 from anka.servicios.work_import import dejar_para_despues_el_rechazo
 
 
@@ -155,6 +155,15 @@ def _post_activities(form: Form) -> str:
     message = _guidance(lambda: save_activities(
         thread_id, parse_activities_form(form), field(form, "reason"), field(form, "base_version"),
         int_field(form, "row_count")))
+    return _to_case(thread_id, message)
+
+
+def _post_sheet_rows(form: Form) -> str:
+    """Agrega a la tabla las filas de hojas de cálculo que la persona marcó (T-128)."""
+    thread_id = field(form, "thread_id")
+    message = _guidance(lambda: agregar_filas_de_hoja(
+        thread_id, [c for c in form.get("fila", []) if c.strip()], field(form, "todas") == "1",
+        field(form, "base_version")))
     return _to_case(thread_id, message)
 
 
@@ -340,6 +349,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/send": _post_send,
     "/mark-sent": _post_mark_sent,
     "/activities": _post_activities,
+    "/activities-add-sheet-rows": _post_sheet_rows,
     "/mode": _post_mode,
     "/rescue": _post_rescue,
     "/review-decision": _post_review_decision,

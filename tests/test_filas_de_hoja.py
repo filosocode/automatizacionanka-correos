@@ -138,7 +138,8 @@ class PanelDeFilasTests(unittest.TestCase):
         html = str(filas_de_hoja_panel([self.FILA]))
         self.assertIn("Filas de hojas de cálculo que la tabla no recoge", html)
         self.assertIn("3 × 55", html)
-        self.assertIn("No se agregaron a la tabla", html)
+        self.assertIn("Nada se agrega solo", html)
+        self.assertIn("Agregar las filas marcadas a la tabla", html)
 
     def test_sin_filas_no_hay_panel(self) -> None:
         self.assertEqual(str(filas_de_hoja_panel([])), "")

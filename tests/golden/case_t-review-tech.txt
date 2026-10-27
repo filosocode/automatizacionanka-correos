@@ -498,6 +498,9 @@ Corrección mía
 <option value="cliente">
 El cliente lo pidió
 </option>
+<option value="archivo">
+Viene de un archivo adjunto
+</option>
 <option value="otro">
 Otro
 </option>

@@ -1,6 +1,14 @@
 <h3 class="subhead">Filas de hojas de cálculo que la tabla no recoge</h3>
-<p class="meta">El programa las encontró con cantidad en un archivo adjunto y ninguna actividad de la tabla habla de lo mismo. Pueden ser ítems que faltan o cálculos internos de Anka: revísalas antes de cotizar. No se agregaron a la tabla.</p>
-<div class="scroll-x"><table class="act-resumen"><thead><tr><th scope="col">Archivo</th><th scope="col">Hoja</th><th scope="col">Fila</th><th scope="col">Descripción</th><th scope="col">Cantidad</th><th scope="col">Unidad</th></tr></thead>
-<tbody>{% for fila in filas %}<tr class="fila-resumen"><td>{{ fila.archivo }}</td><td>{{ fila.hoja }}</td><td>{{ fila.fila }}</td><td>{{ fila.descripcion }}</td><td>{{ fila.cantidad }}</td><td>{{ fila.unidad }}</td></tr>
+<p class="meta">El programa las encontró con cantidad en un archivo adjunto y ninguna actividad de la tabla habla de lo mismo. Pueden ser ítems que faltan o cálculos internos de Anka. Marca las que sí pidió el cliente y pulsa «Agregar»: entran a la tabla como «pendiente», con su archivo, hoja y fila como fuente, y puedes editarlas después. Nada se agrega solo.</p>
+<form method="post" action="/activities-add-sheet-rows">
+<input type="hidden" name="thread_id" value="{{ thread_id }}">
+<input type="hidden" name="base_version" value="{{ base_version }}">
+<div class="scroll-x"><table class="act-resumen"><thead><tr><th scope="col">Agregar</th><th scope="col">Archivo</th><th scope="col">Hoja</th><th scope="col">Fila</th><th scope="col">Descripción</th><th scope="col">Cantidad</th><th scope="col">Unidad</th></tr></thead>
+<tbody>{% for fila in filas %}<tr class="fila-resumen"><td><input type="checkbox" name="fila" value="{{ fila.clave }}" aria-label="Agregar la fila {{ fila.fila }} de {{ fila.archivo }}"></td><td>{{ fila.archivo }}</td><td>{{ fila.hoja }}</td><td>{{ fila.fila }}</td><td>{{ fila.descripcion }}</td><td>{{ fila.cantidad }}</td><td>{{ fila.unidad }}</td></tr>
 {% endfor %}</tbody></table></div>
 {% if resto %}<p class="meta">y {{ resto }} fila{{ '' if resto == 1 else 's' }} más.</p>{% endif %}
+<div class="toolbar spaced-sm">
+<button type="submit">Agregar las filas marcadas a la tabla</button>
+<button type="submit" name="todas" value="1" class="secondary" data-confirm="Se agregarán a la tabla todas las filas de esta lista, también las que no se ven, como «pendiente». Si alguna es un cálculo interno de Anka, tendrás que borrarla. ¿Seguimos?">Agregar todas</button>
+</div>
+</form>

@@ -243,6 +243,17 @@ OPERACIONES: tuple[Operacion, ...] = (
                Campo("a0_unit", "Unidad de la fila 0.", ejemplo="ha"),
                Campo("a0_estado", "Estado de la fila 0.", opciones=("confirmado", "pendiente", "contradictorio"))),
               "redirect"),
+    Operacion("post", "/activities-add-sheet-rows", "Acciones del caso", "Agregar a la tabla filas de hojas de cálculo",
+              "Agrega a la tabla las filas con cantidad de las hojas de cálculo adjuntas que la tabla no recogía y que "
+              "la persona marcó (o todas). Entran como `pendiente`, con archivo, hoja y fila como fuente, y se guardan "
+              "como cualquier edición a mano (versión, huella y protección frente a un reproceso). Rechaza si no hay "
+              "filas marcadas o si la tabla cambió desde que se abrió.",
+              "guarda",
+              (_ID, Campo("fila", "Clave de una fila marcada: `archivo|hoja|fila` (repetible).",
+                          ejemplo="plantilla.xlsx|PR35|6"),
+               Campo("todas", "`1` para agregar todas las filas que la tabla aún no recoge.", ejemplo="1"),
+               Campo("base_version", "Huella de la tabla que se abrió; si cambió, no se guarda (opcional).")),
+              "redirect"),
     Operacion("post", "/review-decision", "Acciones del caso", "Resolver la revisión técnica",
               "Una persona cierra la revisión técnica: información suficiente, preguntar al cliente o guardar sus "
               "decisiones por pregunta. No envía nada.",

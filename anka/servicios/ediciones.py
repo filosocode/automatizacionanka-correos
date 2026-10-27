@@ -11,11 +11,13 @@ from anka.servicios.repositorio import actualizar_caso
 import json
 import re
 from datetime import datetime
+from collections.abc import Sequence
 from typing import Any
 from uuid import uuid4
 
 from anka.dominio.activities import ACTIVITY_COLUMNS, huella_de_tabla
 from anka.dominio.analisis import Actividad
+from anka.dominio.filas_de_hoja import actividad_de_fila, clave_de_fila, filas_aun_sin_cubrir
 from anka.infra.logging_setup import get_logger
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.repositorio import RepositorioDeCasos
@@ -33,6 +35,7 @@ EDIT_REASONS = {
     "modelo": "El modelo se lo inventó",
     "correccion": "Corrección mía",
     "cliente": "El cliente lo pidió",
+    "archivo": "Viene de un archivo adjunto",
     "otro": "Otro",
 }
 
@@ -163,3 +166,26 @@ def save_activities(thread_id: str, activities: list[Actividad], reason: str = "
             updated_at=now)
     programar_actualizacion_de_hoja(thread_id)   # la hoja de Google se actualiza sola
     return f"Tabla guardada. {summary}."
+
+
+def agregar_filas_de_hoja(thread_id: str, claves: Sequence[str], todas: bool = False, base_version: str = "") -> str:
+    """Agrega a la tabla, a pedido de una persona, filas de hojas de cálculo que la tabla no recogía (T-128).
+
+    Las filas entran como `pendiente`, con su archivo, hoja y fila como fuente, y se guardan como cualquier edición a
+    mano: con versión, con huella y protegidas de un reproceso. `claves` son las que marcó (`clave_de_fila`); `todas`
+    agrega todas las que la tabla aún no recoge.
+    """
+    with lectura() as db:
+        row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+    if not row:
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
+    analysis = load_analysis(row["analysis_json"])
+    actuales = analysis.get("activities") or []
+    marcadas = set(claves)
+    elegidas = [f for f in filas_aun_sin_cubrir(analysis.get("filas_de_hoja_sin_cubrir") or [], actuales)
+                if todas or clave_de_fila(f) in marcadas]
+    if not elegidas:
+        raise ErrorDeValidacion("No marcaste ninguna fila, o la tabla ya recoge las que marcaste.")
+    mensaje = save_activities(thread_id, [*actuales, *(actividad_de_fila(f) for f in elegidas)], "archivo",
+                              base_version or huella_de_tabla(actuales))
+    return f"{mensaje} Agregaste {len(elegidas)} fila{'' if len(elegidas) == 1 else 's'} de hojas de cálculo."
