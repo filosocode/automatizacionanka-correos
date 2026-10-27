@@ -1,3 +1,7 @@
+{% if avisos %}<div class="next-step warn" role="note"><strong>El correo y los archivos no coinciden en el área.</strong>
+<ul>{% for aviso in avisos %}<li>El correo menciona «{{ aviso.escrita }}», pero ningún polígono mide eso, ni sumados. El más cercano es «{{ aviso.poligono }}» ({{ aviso.archivo }}) con {{ aviso.calculada }} ha.</li>
+{% endfor %}</ul>
+<p class="meta">No sé cuál de las dos cifras es la correcta: confírmalo con el cliente antes de llenar la tabla.</p></div>{% endif %}
 <h3 class="subhead">Áreas calculadas de los archivos geográficos</h3>
 <p class="meta">Las calculó el programa con la geometría del archivo: son aproximadas y no las declaró el cliente. Confírmalas con el cliente antes de usarlas en la tabla.</p>
 <div class="scroll-x"><table class="act-resumen"><thead><tr><th scope="col">Archivo</th><th scope="col">Polígono</th><th scope="col">Hectáreas</th><th scope="col">Metros cuadrados</th><th scope="col">Perímetro (m)</th></tr></thead>

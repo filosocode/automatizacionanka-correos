@@ -13,7 +13,7 @@ from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka, ModoNoPermitido
-from anka.dominio.areas_calculadas import areas_de_los_adjuntos
+from anka.dominio.areas_declaradas import pistas_de_area
 from anka.dominio.status import (
     QuoteStatus, estado_tras_un_analisis,
 )
@@ -207,7 +207,9 @@ class RevisorDeHilos:
             analysis["routing"] = routing
             analysis["email"] = email
             analysis["attachments"] = attachment_report(attachments, analysis, required)
-            analysis["areas_calculadas"] = areas_de_los_adjuntos(attachments)   # T-125: pista, no entra en la tabla
+            pistas = pistas_de_area("\n\n".join(message_text(m.get("payload", {})) for m in inbound), attachments)
+            analysis["areas_calculadas"] = pistas["areas_calculadas"]   # T-125, T-126: pistas, no entran en la tabla
+            analysis["diferencias_de_area"] = pistas["diferencias_de_area"]
             for row in analysis.get("activities", []):
                 if isinstance(row, dict):
                     limpiar_cantidad_y_unidad(row)

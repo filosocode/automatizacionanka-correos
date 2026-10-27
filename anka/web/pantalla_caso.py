@@ -846,7 +846,8 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
             ultima=last_manual_version(thread_id))),
         "attachments_panel": attachments_panel(analysis.get("attachments", [])),
-        "areas_panel": areas_calculadas_panel(analysis.get("areas_calculadas") or []),
+        "areas_panel": areas_calculadas_panel(
+            analysis.get("areas_calculadas") or [], analysis.get("diferencias_de_area") or []),
         "reading_panel": render("reading_audit.html", reading=analysis.get("reading_summary") or {},
                                 preflight=analysis.get("DRIVE_PREFLIGHT") or {},
                                 audit=analysis.get("reading_audit") or {},

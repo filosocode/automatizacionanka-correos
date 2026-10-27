@@ -234,6 +234,7 @@ def _work_analysis(payload: dict) -> Analisis:
         "reading_summary": reading,
         "evidence_check": payload.get("evidence_check") or {},
         "areas_calculadas": payload.get("areas_calculadas") or [],
+        "diferencias_de_area": payload.get("diferencias_de_area") or [],
         "related_threads": payload.get("related_threads") or [],
         "applicability": payload.get("applicability") or {},
         **({"analysis_complete": payload["analysis_complete"]} if "analysis_complete" in payload else {}),

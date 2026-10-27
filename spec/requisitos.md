@@ -2329,6 +2329,28 @@ no tenía filas iniciales (por ejemplo, el de C2, con una sola fila que Work no 
 3. **No cambia** el cálculo de las tasas, el contrato con Work ni el procesamiento de los casos; la pantalla es de solo lectura.
 Casos: C1 grupo sin filas iniciales → página con «—»; C2 las tasas con datos siguen en porcentaje; C3 la ruta sigue registrada y documentada.
 
+### T-126 · Cuando el correo dice un área que ningún polígono de los archivos respalda, se avisa a la persona
+**Problema.** El cliente escribe un área en el correo y adjunta el polígono, y las dos cifras no siempre coinciden. En el caso 14 del histórico el
+correo decía «0,8 ha» para el tercer polígono y el KMZ mide 4,8 ha; la oferta de Anka cotizó con 5 ha. T-125 calcula el área pero no la contrasta:
+la persona tenía que notar la diferencia leyendo (F1-03).
+1. **Qué se compara.** Las áreas escritas en el **correo** (hectáreas, m², km²; se leen «0,8», «0.8», «1.376,04»; un número con un solo separador y
+   tres cifras, como «2.677», guarda las dos lecturas) contra las áreas calculadas de los polígonos (T-125). Las densidades («200 puntos por m²»), las longitudes
+   y los volúmenes no cuentan como áreas.
+2. **Cuándo se señala.** Una cifra del correo se señala solo si **ningún** polígono ni la **suma** de todos la respalda dentro del 5 %. Lo medido contra
+   ofertas reales difiere hasta ~2 %, así que 5 % deja margen sin esconder un 0,8 frente a un 4,8. Sin polígonos, o con más de 200 (casi cualquier cifra
+   coincidiría con alguno por azar), no se compara. Se señalan como máximo diez.
+3. **Pista.** `analisis["diferencias_de_area"]` guarda, por cifra, `escrita`, `declarada_ha`, `poligono`, `archivo` y `calculada_ha` del polígono más
+   cercano. **Nunca** corrige la cantidad, elige entre las dos cifras, cambia un estado ni sale al cliente. Se calcula en los tres modos, en los mismos
+   puntos que T-125.
+4. **Pantalla.** Sobre las áreas calculadas de la pestaña «Archivos» aparece «El correo y los archivos no coinciden en el área», con la cifra del
+   correo, el polígono más cercano y la frase «No sé cuál de las dos cifras es la correcta: confírmalo con el cliente».
+5. **No cambia** el prompt de Work, el contrato ni los estados. Solo se leen las áreas del cuerpo del correo; las de los adjuntos de texto quedan fuera.
+Casos: «0,8 ha» frente a un polígono de 4,82 ha y otros de 540 y 121 (el 125 del correo está a 3 % de 121) → una diferencia; 16 ha frente a 16,34 → ninguna; el total
+«1.851,08 ha» como suma de dos polígonos → ninguna; «2.677 ha» frente a 2,677 o a 2677 → ninguna; sin polígonos o con 201 → ninguna; densidades y
+volúmenes → no son áreas; el texto del correo no se inyecta como HTML.
+**Validación (2026-10-27).** Con los 20 casos históricos (solicitud y adjuntos de `I:\T&E`) se señaló una sola diferencia, la real del caso 14, y ninguna
+falsa alarma. Solo el caso 14 trae a la vez áreas escritas y polígonos comparables, así que la ausencia de falsas alarmas se ha medido en una muestra pequeña.
+
 ### T-125 · Área y perímetro calculados de los polígonos de un KML/KMZ, como pista para la persona
 **Problema.** Las cantidades de una oferta (las hectáreas de cada predio) salen casi siempre de los polígonos del KMZ adjunto y no del correo
 (casos 11, 15, 17 y 18 del histórico). El lector calculaba la longitud de las líneas pero no el área de los polígonos: la persona tenía que abrirlos
