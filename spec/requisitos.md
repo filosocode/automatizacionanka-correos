@@ -2329,12 +2329,25 @@ no tenía filas iniciales (por ejemplo, el de C2, con una sola fila que Work no 
 3. **No cambia** el cálculo de las tasas, el contrato con Work ni el procesamiento de los casos; la pantalla es de solo lectura.
 Casos: C1 grupo sin filas iniciales → página con «—»; C2 las tasas con datos siguen en porcentaje; C3 la ruta sigue registrada y documentada.
 
+### T-132 · Herramienta de cobertura del piloto: cuántas cifras de los adjuntos llegan a la tabla de Work
+**Problema.** Se sabe que lo que Work escribe es fiel al texto del programa (`evidence_check`, T-38), pero no cuánto de lo que dicen el correo y los adjuntos llega a su tabla. Sin esa cobertura no se puede decidir si
+hay que cambiar la forma de leer (`docs/PLAN_PILOTO_LECTURA.md`).
+1. **Qué lee.** Solo la base de ANKA, en una copia en memoria hecha con una conexión de solo lectura, y los textos que el flujo ya guarda de cada hilo (`manifiestos/<hilo>.textos.json`, T-38). **No abre Gmail**, no escribe en la
+   base y no modifica ningún caso. Un hilo sin tabla, sin textos guardados o con textos incompletos se omite y se dice por qué.
+2. **Qué calcula.** Por hilo: las cifras con unidad de alcance del correo y de cada adjunto (las de T-131, sin repetir entre archivos y sin las líneas que calculó el programa de un KML), cuántas menciona la tabla de Work
+   en cualquiera de sus campos, la cobertura (cifras mencionadas ÷ cifras), los adjuntos no legibles y parciales y la fidelidad de T-38 (comprobadas, diferencias, no comprobables).
+3. **Qué entrega.** En pantalla solo conteos, nunca texto de un cliente. El detalle va a una hoja de Excel (`cobertura_piloto.xlsx`, por omisión en `AnkaCorreos_piloto`, junto a la carpeta de datos y fuera del repositorio) con una pestaña de
+   resumen y otra de cifras con una columna para que una persona clasifique cada cifra que falta como `real`, `contexto` o `ruido`. Con `--clasificadas HOJA` cuenta lo clasificado y da la precisión (reales ÷ clasificadas).
+4. **Cómo se usa.** `python -m laboratorio.piloto.cobertura [--datos CARPETA] [--salida CARPETA] [hilo ...]`.
+Casos: hilo con tabla y textos → medido; sin tabla, sin textos o incompletos → omitido con motivo; hilo pedido que no existe → omitido; leer la base no cambia su contenido; la copia no deja escribir en la original; el resumen no trae texto del cliente;
+una hoja llena se cuenta sin dejar el archivo abierto. Medido hoy sobre la base real: 2 de 14 casos tienen a la vez tabla de Work y textos guardados (sin adjuntos): la cobertura todavía no se puede medir hasta el piloto.
+
 ### T-131 · Pista: las cifras de alcance de un PDF que la tabla no menciona
 **Problema.** Un PDF (términos de referencia, cotización, oficio) trae áreas, longitudes y plazos que la tabla puede omitir, y hoy nada los contrasta. Las tablas de un PDF no se pueden leer con reglas fijas (D-188),
 pero un número con unidad sí se puede buscar en el texto que el programa ya extrajo (nativo y OCR).
 1. **Qué se busca.** En cada adjunto `.pdf` (no en una impresión de correo «Gmail - …»), números con una unidad de alcance: `ha`, `km²`, `m²`, `km`, `m`, `ml`, `puntos` (puntos, estaciones, sondeos, apiques,
    perforaciones, vértices, hitos, mojones, secciones), `horas` y `días`. Una cifra ambigua («10,015») cuenta con sus dos lecturas y la misma cifra no se repite entre archivos.
-2. **Qué se descarta.** Lo que está cerca de «página», norma, ISO, resolución, decreto, ley, garantía, mm, cm, km/h, certificado, expedición o cámara de comercio; las cantidades cero; las horas del reloj («Hora: 13:48»).
+2. **Qué se descarta.** Lo que está a menos de unos 80 caracteres de «página», norma, ISO, resolución, decreto, ley, garantía, mm, cm o km/h; lo que está a menos de unos 240 caracteres (antes) o 100 (después) de «certificado», «expedición» o «cámara de comercio», que marcan todo un documento; las cantidades cero; las horas del reloj («Hora: 13:48»). Una ventana ancha para todo descartaba cifras reales («cada 50 metros», «un tramo de 7 Km»): se midió en los 20 casos y por eso solo es ancha para los certificados.
 3. **Cuándo se señala.** Cuando ningún campo de ninguna actividad contiene ese número (`ha` y `m²` se consideran equivalentes: 10.015 m² es 1,0015 ha). Se guardan hasta 10 por hilo, las áreas primero, con la frase
    donde aparecen. La pantalla las vuelve a contrastar con la tabla de ahora, así que una cifra que una persona escribe en la tabla deja de salir.
 4. **Qué no hace.** No se agrega a la tabla ni lleva botón: una cifra suelta no dice a qué servicio pertenece y muchas son datos de contexto (plazo, espaciamiento, área total) que van en las notas. Lo calculan los

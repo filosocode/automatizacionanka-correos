@@ -40,6 +40,11 @@ class LecturaDeCifrasTests(unittest.TestCase):
                  "Resolución 330 de 2017. Certificado expedido a los 6 días del mes de enero. Hora: 13:48 horas.")
         self.assertEqual(self.cifras(ruido), [])
 
+    def test_una_palabra_de_ruido_lejana_no_descarta_una_cifra_pero_la_de_un_certificado_si(self) -> None:
+        relleno = "Texto de relleno del documento. " * 6   # unos 190 caracteres
+        self.assertEqual(self.cifras(f"Garantía de la obra. {relleno}Levantamiento de 7 km de cauce."), ["7 km"])
+        self.assertEqual(self.cifras(f"Certificado de existencia. {relleno}Plazo de 60 días."), [])
+
     def test_descarta_lo_que_no_es_de_alcance_y_las_cantidades_cero(self) -> None:
         self.assertEqual(self.cifras("16 GB de memoria, 5 baterías, 0 ha de afectación."), [])
 

@@ -25,10 +25,12 @@ _UNIDADES = {
 _CIFRA = re.compile(
     r"(?<![\w.,/-])(?P<n>\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d{1,3}(?: \d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)\s*"
     r"(?P<u>metros\s+cuadrados|[a-zA-ZáéíóúÁÉÍÓÚ²]+)(?![\w²/:])", re.IGNORECASE)
-_RUIDO = re.compile(
-    r"p\s*á\s*g\s*i\s*n\s*a|\bnorma\b|\biso \d|resoluci[oó]n \d|decreto|\bley \d|garant[ií]a|\bmm\b|\bcm\b|km/h"
-    r"|certificad|expedici|expide|c[aá]mara de comercio",
-    re.IGNORECASE)
+_RUIDO_CERCANO = re.compile(   # lo que descarta la cifra de al lado: una página, una norma, una garantía, una velocidad
+    r"p\s*á\s*g\s*i\s*n\s*a|\bnorma\b|\biso \d|resoluci[oó]n \d|decreto|\bley \d|garant[ií]a|\bmm\b|\bcm\b"
+    r"|km/h", re.IGNORECASE)
+_RUIDO_DEL_DOCUMENTO = re.compile(   # lo que marca todo un documento (un certificado): se busca más lejos
+    r"certificad|expedici|expide|c[aá]mara de comercio", re.IGNORECASE)
+_ANTES_DEL_DOCUMENTO, _DESPUES_DEL_DOCUMENTO = 240, 100
 
 
 def _sin_tildes(texto: str) -> str:
@@ -78,10 +80,12 @@ def cifras_de_alcance(
     cifras: list[CifraDePdf] = []
     for m in _CIFRA.finditer(texto):
         unidad = _unidad(m["u"])
-        contexto = " ".join(texto[max(0, m.start() - _ANCHO_DE_CONTEXTO):m.end() + 50].split())
-        alrededor = texto[max(0, m.start() - 3 * _ANCHO_DE_CONTEXTO):m.end() + 100]   # el ruido se reconoce más lejos
+        cerca = texto[max(0, m.start() - _ANCHO_DE_CONTEXTO):m.end() + 50]
+        contexto = " ".join(cerca.split())
+        lejos = texto[max(0, m.start() - _ANTES_DEL_DOCUMENTO):m.end() + _DESPUES_DEL_DOCUMENTO]
         lecturas = _lecturas(m["n"])
-        if not unidad or not lecturas or min(lecturas) <= 0 or _RUIDO.search(alrededor):
+        if (not unidad or not lecturas or min(lecturas) <= 0 or _RUIDO_CERCANO.search(cerca)
+                or _RUIDO_DEL_DOCUMENTO.search(lejos)):
             continue
         if not any(u == unidad and lecturas & otras for otras, u in vistas):
             vistas.append((lecturas, unidad))
