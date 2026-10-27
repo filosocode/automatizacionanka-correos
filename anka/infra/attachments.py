@@ -205,6 +205,8 @@ _MARCAS_DE_LECTURA_PARCIAL = (
     "CONTENIDO DE GRÁFICOS NO EXTRAÍDO",
     "COBERTURA PARCIAL:",
     "CAMBIOS RASTREADOS:",
+    "TABLA EN IMAGEN",
+    "LIGADURAS RECUPERADAS",
 )
 
 
@@ -216,6 +218,10 @@ def _motivos_de_lectura_parcial(text: str) -> list[str]:
         reasons.append("páginas sin texto extraíble (posible escaneo u hoja vacía): " + ", ".join(blank_pages))
     if any(marker in text for marker in _MARCAS_DE_LECTURA_PARCIAL):
         reasons.append("hay imágenes, gráficos, comentarios o secciones que requieren inspección visual/manual")
+    if "TABLA EN IMAGEN" in text:
+        reasons.append("tabla en imagen: las cifras vienen del OCR; confirmar filas, columnas y celdas en la imagen")
+    if "LIGADURAS RECUPERADAS" in text:
+        reasons.append("se repararon sílabas «ti» perdidas (heurística); confirmar las palabras clave en el original")
     if "LECTURA PARCIAL DEL ZIP" in text:
         reasons.append("uno o más archivos dentro del ZIP no se pudieron extraer por completo")
     if "REQUIERE VISIÓN" in text:

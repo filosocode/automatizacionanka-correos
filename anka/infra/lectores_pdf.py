@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from io import BytesIO
 from typing import Any
 
@@ -10,9 +9,16 @@ from anka.dominio.attachments import (
     FRACCION_DE_PDF_ESCANEADO, MAX_OCR_PAGES, MAX_OCR_PIXELS, MAX_PDF_PAGINAS_LEIDAS, MIN_CARACTERES_POR_PAGINA,
     rangos_de_paginas,
 )
-from anka.dominio.lectores_texto import Unreadable
+from anka.dominio.lectores_texto import (
+    Unreadable, hay_tabla_en_imagen, lineas_nuevas_del_ocr, reparar_ligaduras_perdidas,
+)
 from anka.infra.lectores_imagen import ocr_pil_image
 from anka.infra.presupuesto_ocr import OcrOmitidoPorTiempo, presupuesto_actual, presupuesto_de_archivo
+
+AVISO_TABLA_EN_IMAGEN = (
+    "TABLA EN IMAGEN: las cifras vienen del OCR; el orden puede no corresponder a sus filas y columnas y pueden "
+    "faltar celdas. Compruébalas en la imagen antes de usarlas"
+)
 
 
 def _paginas_en_texto(paginas: list[int]) -> str:
@@ -31,13 +37,11 @@ def _ocr_de_la_pagina(pdf_page: Any, texto: str, tiene_contenido_visual: bool) -
     finally:
         image.close()
         bitmap.close()
-    nativo = re.sub(r"\W+", "", texto.casefold())
-    unico = [
-        linea for linea in ocr.splitlines()
-        if re.sub(r"\W+", "", linea.casefold()) and re.sub(r"\W+", "", linea.casefold()) not in nativo
-    ]
+    unico = lineas_nuevas_del_ocr(ocr, texto)
     if unico:
         texto = (texto.rstrip() + "\n[OCR visual adicional]\n" + "\n".join(unico)).strip()
+    if hay_tabla_en_imagen(unico):
+        texto += f"\n{AVISO_TABLA_EN_IMAGEN}"
     if tiene_contenido_visual:
         texto += (
             "\nCOBERTURA VISUAL PARCIAL: OCR de la página ejecutado; "
@@ -79,6 +83,28 @@ def pdf_text(content: bytes) -> str:
         return _texto_del_pdf(content)
 
 
+def _textos_nativos(reader: Any, leidas: int) -> tuple[list[str], dict[int, int]]:
+    """El texto nativo de cada página con las sílabas «ti» reparadas, y cuántas se repararon por página (T-124).
+
+    El aviso no se añade aquí: no debe contar como texto al decidir si una página parece escaneada.
+    """
+    nativos = []
+    ligaduras: dict[int, int] = {}
+    for numero in range(leidas):
+        texto, recuperadas = reparar_ligaduras_perdidas(reader.pages[numero].extract_text() or "")
+        nativos.append(texto)
+        if recuperadas:
+            ligaduras[numero + 1] = recuperadas
+    return nativos, ligaduras
+
+
+def _con_aviso_de_ligaduras(texto: str, recuperadas: int) -> str:
+    if not recuperadas:
+        return texto
+    return texto + (f"\nLIGADURAS RECUPERADAS: {recuperadas} «ti» restauradas de caracteres no legibles "
+                    "(reparación por heurística)")
+
+
 def _texto_del_pdf(content: bytes) -> str:
     """Texto de un PDF por página; usa OCR en las páginas escaneadas o con contenido visual.
 
@@ -100,7 +126,7 @@ def _texto_del_pdf(content: bytes) -> str:
     except ImportError:
         pdfium = None
         pdf_document = None
-    nativos = [reader.pages[numero].extract_text() or "" for numero in range(leidas)]
+    nativos, ligaduras = _textos_nativos(reader, leidas)
     escaneadas = [n for n, texto in enumerate(nativos, 1) if len(texto.strip()) < MIN_CARACTERES_POR_PAGINA]
     omitir_todo = (presupuesto_actual().omitir_escaneados and bool(escaneadas)
                    and len(escaneadas) / leidas >= FRACCION_DE_PDF_ESCANEADO)
@@ -134,7 +160,7 @@ def _texto_del_pdf(content: bytes) -> str:
             has_visual_content = True
         if pdf_page is not None:
             pdf_page.close()
-        page_texts.append((text, has_visual_content))
+        page_texts.append((_con_aviso_de_ligaduras(text, ligaduras.get(page_number, 0)), has_visual_content))
     if pdf_document is not None:
         pdf_document.close()
     avisos = _avisos_de_cobertura(total, leidas, sin_ocr, len(escaneadas))

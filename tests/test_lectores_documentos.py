@@ -12,8 +12,8 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-from anka.dominio.lectores_texto import Unreadable
-from anka.infra import lectores_imagen, lectores_office, lectores_pdf, lectores_zip
+from anka.dominio.lectores_texto import Unreadable, hay_tabla_en_imagen, lineas_nuevas_del_ocr, reparar_ligaduras_perdidas
+from anka.infra import attachments, lectores_imagen, lectores_office, lectores_pdf, lectores_zip
 from tests import _documentos as doc
 
 OCR = "anka.infra.lectores_zip.ocr_image"
@@ -279,6 +279,101 @@ class PdfTests(unittest.TestCase):
         with patch.dict(sys.modules, {"pypdf": None}), self.assertRaises(Unreadable) as caught:
             lectores_pdf.pdf_text(doc.pdf_con_texto(["x"]))
         self.assertIn("pypdf", str(caught.exception))
+
+
+class LecturaDePdfT124Tests(unittest.TestCase):
+    """T-124: el OCR no descarta cifras cortas de una tabla en imagen y las sílabas «ti» perdidas se recuperan."""
+
+    CELDAS = "Guavio\n120\n17\nQuimbo\n150\n1\n35\nBetania\n60"
+
+    def test_ocr_lines_equal_to_the_native_text_except_for_accents_are_not_new(self):
+        # Cubre: T-124 (el OCR repite el texto nativo sin tildes: «Declaracion» por «Declaración»)
+        nativo = "Declaración de Renta y Complementario\nPágina 1 de 3"
+        ocr = "Declaracion de Renta y Complementario\nPagina 1 de 3\nTotal a pagar 1.250.000"
+        self.assertEqual(lineas_nuevas_del_ocr(ocr, nativo), ["Total a pagar 1.250.000"])
+
+    def test_ocr_lines_that_differ_in_more_than_accents_are_kept(self):
+        # Cubre: T-124 (quitar tildes no hace iguales dos palabras distintas)
+        nativo = "Cotización para el embalse"
+        self.assertEqual(lineas_nuevas_del_ocr("Cotizacion para el vaso del embalse", nativo),
+                         ["Cotizacion para el vaso del embalse"])
+
+    def test_short_table_cells_contained_in_the_native_text_are_kept(self):
+        # Cubre: T-124 (las celdas «Quimbo», «1» y «150» se tiraban por estar dentro de «embalse de Quimbo… 1500»)
+        nativo = "Para el embalse de Quimbo, de unas 1500 hectáreas, quedo pendiente"
+        nuevas = lineas_nuevas_del_ocr(self.CELDAS, nativo)
+        self.assertEqual(nuevas, self.CELDAS.splitlines())
+
+    def test_a_long_line_already_in_the_native_text_is_not_repeated(self):
+        # Cubre: T-124
+        nativo = "Solicito la cotizacion de los trabajos de campo con las plantillas adjuntas"
+        ocr = "Solicito la cotizacion de los trabajos de campo con las plantillas adjuntas\nTotal 5 ha"
+        self.assertEqual(lineas_nuevas_del_ocr(ocr, nativo), ["Total 5 ha"])
+
+    def test_a_short_line_equal_to_a_whole_native_line_is_not_repeated(self):
+        # Cubre: T-124
+        self.assertEqual(lineas_nuevas_del_ocr("Gmail\nTotal 1 ha", "Gmail\nCuerpo del mensaje"), ["Total 1 ha"])
+
+    def test_five_loose_figures_are_a_table_in_an_image_but_a_phone_number_is_not(self):
+        # Cubre: T-124
+        self.assertTrue(hay_tabla_en_imagen(["120", "17", "60", "23", "2,3"]))
+        self.assertFalse(hay_tabla_en_imagen(["120", "17", "60", "23"]))
+        self.assertFalse(hay_tabla_en_imagen(["3144861040", "3017242613", "3219560403", "3103283569", "3227671944"]))
+
+    def test_a_null_next_to_a_letter_becomes_ti_and_an_isolated_one_is_removed(self):
+        # Cubre: T-124
+        self.assertEqual(reparar_ligaduras_perdidas("la co\x00zación de sep\x00embre"),
+                         ("la cotización de septiembre", 2))
+        self.assertEqual(reparar_ligaduras_perdidas("que \x00enen más y Mar\x00nez"), ("que tienen más y Martinez", 2))
+        self.assertEqual(reparar_ligaduras_perdidas("uno \x00 dos"), ("uno  dos", 0))
+        self.assertEqual(reparar_ligaduras_perdidas("sin nulos"), ("sin nulos", 0))
+
+    def test_a_table_in_an_image_keeps_every_cell_and_is_flagged(self):
+        # Cubre: T-124
+        nativo = "Para el embalse de Quimbo, de unas 1500 hectareas"
+        with patch.object(lectores_pdf, "ocr_pil_image", return_value=self.CELDAS):
+            texto = lectores_pdf.pdf_text(doc.pdf_con_texto([nativo]))
+        for celda in ("Quimbo", "150", "35"):
+            self.assertIn(f"\n{celda}\n", texto)
+        self.assertIn("TABLA EN IMAGEN", texto)
+
+    def test_fewer_than_five_loose_figures_raise_no_table_warning(self):
+        # Cubre: T-124
+        with patch.object(lectores_pdf, "ocr_pil_image", return_value="Total\n12\n34"):
+            texto = lectores_pdf.pdf_text(doc.pdf_con_texto(["Cuadro de áreas"]))
+        self.assertNotIn("TABLA EN IMAGEN", texto)
+
+    def test_a_pdf_with_lost_ti_ligatures_is_repaired_and_says_so(self):
+        # Cubre: T-124
+        pagina = MagicMock()
+        pagina.extract_text.return_value = ("Solicito la co\x00zación de los trabajos de campo para el parque solar, "
+                                            "con los estudios de sep\x00embre y las plantillas adjuntas.")
+        lector = MagicMock()
+        lector.pages = [pagina]
+        with patch("pypdf.PdfReader", return_value=lector):
+            texto = lectores_pdf.pdf_text(doc.pdf_con_texto(["x"]))
+        self.assertIn("cotización de los trabajos", texto)
+        self.assertIn("septiembre", texto)
+        self.assertNotIn("\x00", texto)
+        self.assertIn("LIGADURAS RECUPERADAS: 2", texto)
+
+    def test_a_repair_note_does_not_make_a_nearly_empty_page_look_like_it_has_text(self):
+        # Cubre: T-124 (el aviso no cuenta como texto nativo: una página casi vacía sigue pasando por OCR)
+        pagina = MagicMock()
+        pagina.extract_text.return_value = "Plano\x00s"
+        lector = MagicMock()
+        lector.pages = [pagina]
+        with patch("pypdf.PdfReader", return_value=lector), \
+                patch.object(lectores_pdf, "ocr_pil_image", return_value="Cuadro de áreas") as ocr:
+            lectores_pdf.pdf_text(doc.pdf_con_texto(["x"]))
+        ocr.assert_called_once()
+
+    def test_the_new_notes_make_the_file_a_partial_reading_with_their_own_reason(self):
+        # Cubre: T-124
+        motivos = attachments._motivos_de_lectura_parcial(
+            "[Página 1]\nTABLA EN IMAGEN: x\nLIGADURAS RECUPERADAS: 1 «ti» restauradas")
+        self.assertTrue(any("tabla en imagen" in motivo for motivo in motivos))
+        self.assertTrue(any("sílabas «ti»" in motivo for motivo in motivos))
 
 
 class ImagenTests(unittest.TestCase):

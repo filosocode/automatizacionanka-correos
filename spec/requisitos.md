@@ -2329,6 +2329,26 @@ no tenía filas iniciales (por ejemplo, el de C2, con una sola fila que Work no 
 3. **No cambia** el cálculo de las tasas, el contrato con Work ni el procesamiento de los casos; la pantalla es de solo lectura.
 Casos: C1 grupo sin filas iniciales → página con «—»; C2 las tasas con datos siguen en porcentaje; C3 la ruta sigue registrada y documentada.
 
+### T-124 · El OCR de un PDF no descarta las cifras de una tabla en imagen, y las sílabas «ti» perdidas se recuperan
+**Problema.** Dos defectos de lectura (F1-03) verificados contra la imagen de la página en casos reales del histórico:
+(a) El OCR de una página añade solo las líneas que no están ya en el texto nativo, pero lo decidía por subcadena sobre **todo** el texto de la
+página: en un correo con una tabla de embalses como imagen, las celdas «Quimbo», «1» y «150» se tiraron por estar contenidas en «embalse de
+Quimbo, de unas 1500 hectáreas». La tabla quedó incompleta y con aspecto de texto razonable.
+(b) Algunos PDF con fuente Calibri entregan la ligadura «ti» como carácter nulo (`\x00`): «co\x00zación», «Mar\x00nez». Una búsqueda de «cotización» no la encuentra.
+1. **Repetidas.** Una línea del OCR se descarta como repetida solo si coincide completa con una línea del texto nativo, o si tiene al menos
+   20 caracteres alfanuméricos y está contenida en él. Una línea corta o numérica nunca se descarta por estar contenida en otra.
+   La comparación ignora mayúsculas, espacios, signos y **tildes**: el OCR suele repetir el texto nativo sin acentos («Declaracion» por
+   «Declaración») y esa línea no es información nueva.
+2. **Ligaduras.** Un carácter nulo pegado a una letra del texto nativo de un PDF se reemplaza por «ti»; uno aislado se elimina. Es una
+   reparación por heurística (en los 9 casos observados era «ti»): la página lo declara con «LIGADURAS RECUPERADAS: n» y cuenta como lectura parcial.
+3. **Tabla en imagen.** Si el OCR de una página aporta cinco o más líneas que son solo una cifra corta (la huella de una tabla), la página añade
+   «TABLA EN IMAGEN: las cifras vienen del OCR; el orden puede no corresponder a sus filas y columnas y pueden faltar celdas. Compruébalas en
+   la imagen antes de usarlas» y el archivo cuenta como lectura parcial con ese motivo. El OCR no reconstruye la tabla ni la interpreta
+   (en el caso real que lo motivó, con las celdas conservadas el OCR las entregó en orden de fila; no se puede contar con ello).
+4. **No cambia** el OCR de imágenes sueltas, los límites y presupuestos de OCR, el contrato con Work ni los estados del caso.
+Casos (el real: la tabla de embalses del caso 4 del histórico, con Quimbo 150 / 35 / 3 de nuevo presente): tabla con celdas contenidas en el texto → todas se conservan y se avisa; línea larga ya presente → no se repite; «co\x00zación» → «cotización»
+con aviso; nulo aislado → se elimina; menos de cinco cifras sueltas (un teléfono en la firma) → sin aviso de tabla.
+
 ### T-79 · Aislamiento de una prueba ficticia frente a la coordinación automática (diseño y simulación)
 **Problema.** Con `work_coordination_enabled=true` y sin alcance de laboratorio, un correo ficticio elegible que llega al buzón productivo se
 crea y se publica en Drive sin autorizaciones separadas (T-78).
