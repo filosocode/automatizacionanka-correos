@@ -56,6 +56,18 @@ class AreaCalculada(TypedDict):
     anillos_interiores: int
 
 
+class FilaDeHoja(TypedDict):
+    """Una fila con cantidad de una hoja de cálculo adjunta que la tabla de actividades no recoge (T-127)."""
+
+    archivo: str
+    hoja: str
+    fila: int
+    descripcion: str
+    cantidad: float
+    veces: float
+    unidad: str
+
+
 class DiferenciaDeArea(TypedDict):
     """Un área escrita en el correo que ningún polígono respalda, con el polígono más cercano (T-126)."""
 
@@ -176,6 +188,7 @@ class Analisis(TypedDict, total=False):
     reading_audit: dict[str, Any]
     reading_review: RevisionDeLectura   # U-29: la lectura la revisó una persona; solo lo escribe el dashboard
     reading_summary: dict[str, Any]
+    filas_de_hoja_sin_cubrir: list[FilaDeHoja]   # T-127: pista; filas de una hoja de cálculo que la tabla no recoge
     diferencias_de_area: list[DiferenciaDeArea]   # T-126: pista; el correo dice un área que ningún polígono respalda
     areas_calculadas: list[AreaCalculada]   # T-125: pista para la persona, nunca entra en una cantidad ni en la tabla
     evidence_check: dict[str, Any]   # T-38: lo que se comprobó de la tabla de Work contra los textos del expediente

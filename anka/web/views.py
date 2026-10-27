@@ -133,6 +133,7 @@ def attachments_panel(attachments: Sequence[Mapping[str, Any]]) -> Markup:
                   detalle=attachments_table(atencion + leidos) if items else Markup(""))
 
 
+MAX_FILAS_DE_HOJA_EN_PANTALLA = 25
 MAX_AREAS_EN_PANTALLA = 25   # un corredor trae más de mil polígonos: se muestran los de mayor área y se resume el resto
 
 
@@ -153,6 +154,21 @@ def areas_calculadas_panel(areas: Sequence[Mapping[str, Any]], diferencias: Sequ
                "archivo": str(d.get("archivo") or ""), "calculada": numero(d.get("calculada_ha") or 0, 4)}
               for d in diferencias if isinstance(d, Mapping)]
     return render("areas_calculadas.html", filas=filas, resto=resumen_del_resto, avisos=avisos) if filas else Markup("")
+
+
+def filas_de_hoja_panel(filas: Sequence[Mapping[str, Any]]) -> Markup:
+    """Las filas con cantidad de las hojas de cálculo adjuntas que la tabla no recoge, como pista a revisar (T-127)."""
+    validas = [f for f in filas if isinstance(f, Mapping)]
+    def cantidad(fila: Mapping[str, Any]) -> str:
+        veces = float(fila.get("veces") or 1)
+        return f"{float(fila.get('cantidad') or 0):g}" + (f" × {veces:g}" if veces != 1 else "")
+
+    visibles = [{"archivo": str(f.get("archivo") or ""), "hoja": str(f.get("hoja") or ""),
+                 "fila": int(f.get("fila") or 0), "descripcion": str(f.get("descripcion") or ""),
+                 "unidad": str(f.get("unidad") or ""), "cantidad": cantidad(f)}
+                for f in validas[:MAX_FILAS_DE_HOJA_EN_PANTALLA]]
+    resto = len(validas) - len(visibles)
+    return render("filas_de_hoja.html", filas=visibles, resto=resto) if visibles else Markup("")
 
 
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:

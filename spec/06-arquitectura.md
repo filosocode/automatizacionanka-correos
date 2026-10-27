@@ -64,6 +64,7 @@ La descripción es la primera frase de su docstring.
 | `evaluacion` | Medir el análisis contra lo esperado (T-34): comparar un caso, resumir varios y reconocer de qué habla una pregunta. |
 | `reintentos` | Espera creciente entre intentos de un hilo que falla y el caso que lo muestra (T-26). |
 | `areas_calculadas` | Las áreas calculadas de los polígonos de un KML/KMZ: cómo se escriben en el texto del archivo y cómo se leen de vuelta (T-125). |
+| `filas_de_hoja` | Las filas con cantidad de una hoja de cálculo adjunta que la tabla de actividades no recoge: lectura del texto de la hoja y contraste con la tabla (T-127). |
 | `areas_declaradas` | Las áreas que el cliente escribe en el correo, contrastadas con las calculadas del KML/KMZ: aviso de diferencia, sin corregir nada (T-126). |
 | `geometria` | Longitudes, áreas y perímetros geodésicos sobre WGS84 a partir de coordenadas, sin leer ningún archivo (T-125). |
 | `lectores_geograficos` | Geometrías, misiones y tablas geográficas en memoria. |

@@ -2329,6 +2329,29 @@ no tenía filas iniciales (por ejemplo, el de C2, con una sola fila que Work no 
 3. **No cambia** el cálculo de las tasas, el contrato con Work ni el procesamiento de los casos; la pantalla es de solo lectura.
 Casos: C1 grupo sin filas iniciales → página con «—»; C2 las tasas con datos siguen en porcentaje; C3 la ruta sigue registrada y documentada.
 
+### T-127 · Las filas con cantidad de una hoja de cálculo que la tabla no recoge se muestran a la persona
+**Problema.** Una plantilla o formulario de Excel que el cliente adjunta (caso 17: 17 ítems con cantidad, de «240 ml de sondeos» a «4 líneas de
+refracción») es la lista de lo que se pide. El análisis puede dejar la tabla con dos filas, o vacía, y hoy nadie lo avisa: T-38 comprueba que lo que
+está en la tabla aparece en los textos, pero no que lo que está en la hoja aparezca en la tabla (F1-03).
+1. **Qué se lee.** De cada `.xlsx`/`.xlsm` adjunto, en las hojas visibles: una fila con descripción y una cantidad mayor que cero bajo un
+   encabezado «Cantidad» (con su «Unidad» y, si la hay, su columna «Veces»). La descripción es el texto más largo a la izquierda de la cantidad; el valor de una
+   fórmula es el valor guardado. Los totales, IVA, AIU, valores, administración e imprevistos no son actividades. Una hoja sin encabezado «Cantidad»
+   (una lista de predios, un formato de procesamiento) no aporta filas. Hasta 60 filas por archivo y 100 en total.
+2. **Cuándo se señala.** Una fila se señala si **ninguna** actividad de la tabla habla de lo mismo: comparten al menos dos raíces de palabra (seis letras:
+   «sondeo»/«sondeos»), o una raíz y la misma cantidad, o una raíz si la descripción de la fila es corta. Con la tabla vacía se señalan todas.
+3. **Pista.** `analisis["filas_de_hoja_sin_cubrir"]` guarda, por fila, `archivo`, `hoja`, `fila`, `descripcion`, `cantidad`, `veces` y `unidad`. **Nunca**
+   agrega una actividad, cambia una cantidad, un estado o la tabla, ni sale al cliente. No distingue si la hoja es del cliente o un cálculo interno de Anka
+   (hay hojas de costos de Anka en las carpetas de los casos): por eso es una pista y no una fila. Se calcula en los tres modos, en los mismos puntos que T-125 y T-126.
+4. **Pantalla.** La pestaña «Archivos» muestra «Filas de hojas de cálculo que la tabla no recoge» (archivo, hoja, fila, descripción, cantidad —«3 × 55» si hay
+   veces— y unidad), con las primeras 25 y un resumen del resto. Sin filas, no aparece.
+5. **No cambia** el prompt de Work, el contrato ni los estados. Los precios y valores de la hoja se ignoran (la Fase 1 no cotiza).
+Casos: plantilla con seis ítems y una tabla con uno → cinco filas; tabla que dice «Sondeos mecánicos» → la fila de sondeos no se señala; el mismo texto con otra
+cantidad y una sola raíz común → se señala; totales, IVA y AIU → no son filas; hoja oculta o sin «Cantidad» → ninguna; «3 × 55 día»; fórmula con valor guardado; HTML del
+archivo no se inyecta.
+**Validación (2026-10-27).** De las 10 hojas de cálculo de los 20 casos históricos, 6 no tienen encabezado «Cantidad» y no aportan filas; las otras 4 aportan 17
+filas (la plantilla del caso 17, dos veces), 3 (caso 7), 4 (caso 16) y 4 (caso 2). Con la tabla del caso 17 vacía se señalan sus 17 filas; es el único caso donde la hoja es del cliente y la tabla
+quedaba sin cubrir. Falta medir cuántas filas internas de Anka se señalan de más cuando la tabla sí está completa.
+
 ### T-126 · Cuando el correo dice un área que ningún polígono de los archivos respalda, se avisa a la persona
 **Problema.** El cliente escribe un área en el correo y adjunta el polígono, y las dos cifras no siempre coinciden. En el caso 14 del histórico el
 correo decía «0,8 ha» para el tercer polígono y el KMZ mide 4,8 ha; la oferta de Anka cotizó con 5 ha. T-125 calcula el área pero no la contrasta:
