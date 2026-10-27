@@ -19,7 +19,7 @@ de un caso). No cambia el comportamiento de ANKA. Los umbrales de §6 son propue
 
 ## 3. Antes de empezar (todo marcado)
 - [ ] **Rama revisada y subida** (push y PR; lo decide el dueño). El piloto corre sobre código revisado, no sobre commits locales.
-- [ ] **Prueba manual de Work con el prompt V6 completa (T-41):** faltan un hilo con KMZ, uno con ZIP y uno con adjunto grande.
+- [ ] **Prueba manual de Work con el prompt V6 completa (T-41):** faltan un hilo con KMZ, uno con ZIP y uno con adjunto grande (pasos en [`PRUEBA_MANUAL_T41.md`](PRUEBA_MANUAL_T41.md)).
 - [ ] **Anka revisó los 20 casos esperados** (`hoja_de_revision_esperados.xlsx`, hoy «revisado por Claude, pendiente de Anka»), y confirmó los valores del caso 04.
 - [ ] **Operación:** equipo encendido y sesión de Windows iniciada, copia del intérprete fuera de `Temp` (ENTREGA_V1_0 §3.4), respaldo reciente, dashboard reiniciado
   y páginas recargadas (el lanzador reinicia dashboard y puente al cambiar el código).
