@@ -110,6 +110,16 @@ class FilasSinCubrirTests(unittest.TestCase):
         self.assertEqual(filas_sin_cubrir([], []), [])
         self.assertEqual(filas_sin_cubrir([None, "x", {"filename": None}], []), [])   # type: ignore[list-item]
 
+    def test_el_mismo_item_en_otra_hoja_u_otra_copia_del_archivo_sale_una_sola_vez(self) -> None:
+        copia = [{"filename": "copia.xlsx", "text": PLANTILLA}]
+        doble = filas_sin_cubrir([*self.ADJUNTOS, *copia], [])
+        self.assertEqual(len(doble), 4)
+        cuerpo = "B4=ITEM | C4=CANTIDAD\nB5=Disponibilidad stand by | C5={}"
+        mismas = _hoja("A", cuerpo.format(1)) + _hoja("V2", cuerpo.format(1))
+        otra_cantidad = _hoja("A", cuerpo.format(1)) + _hoja("V2", cuerpo.format(2))
+        self.assertEqual(len(filas_sin_cubrir([{"filename": "f.xlsx", "text": mismas}], [])), 1)
+        self.assertEqual(len(filas_sin_cubrir([{"filename": "f.xlsx", "text": otra_cantidad}], [])), 2)
+
     def test_pistas_de_hoja_devuelve_la_clave_del_analisis(self) -> None:
         self.assertEqual(len(pistas_de_hoja(self.ADJUNTOS, [])["filas_de_hoja_sin_cubrir"]), 4)
 

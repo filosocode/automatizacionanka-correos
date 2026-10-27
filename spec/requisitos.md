@@ -2371,7 +2371,7 @@ está en la tabla aparece en los textos, pero no que lo que está en la hoja apa
    «sondeo»/«sondeos»), o una raíz y la misma cantidad, o una raíz si la descripción de la fila es corta. Con la tabla vacía se señalan todas.
 3. **Pista.** `analisis["filas_de_hoja_sin_cubrir"]` guarda, por fila, `archivo`, `hoja`, `fila`, `descripcion`, `cantidad`, `veces` y `unidad`. **Nunca**
    agrega una actividad, cambia una cantidad, un estado o la tabla, ni sale al cliente. No distingue si la hoja es del cliente o un cálculo interno de Anka
-   (hay hojas de costos de Anka en las carpetas de los casos): por eso es una pista y no una fila; una persona puede agregarlas con T-128. Se calcula en los tres modos, en los mismos puntos que T-125 y T-126.
+   (hay hojas de costos de Anka en las carpetas de los casos): por eso es una pista y no una fila; una persona puede agregarlas con T-128. La misma fila (descripción, cantidad y unidad iguales) en otra hoja u otra copia del archivo se muestra una sola vez. Se calcula en los tres modos, en los mismos puntos que T-125 y T-126.
 4. **Pantalla.** La pestaña «Archivos» muestra «Filas de hojas de cálculo que la tabla no recoge» (archivo, hoja, fila, descripción, cantidad —«3 × 55» si hay
    veces— y unidad), con las primeras 25 y un resumen del resto. Sin filas, no aparece.
 5. **No cambia** el prompt de Work, el contrato ni los estados. Los precios y valores de la hoja se ignoran (la Fase 1 no cotiza).

@@ -171,6 +171,7 @@ def filas_sin_cubrir(
     """Las filas con cantidad de las hojas de cálculo adjuntas que ninguna actividad de la tabla recoge."""
     actividades = [a for a in actividades if isinstance(a, Mapping)]
     sin_cubrir: list[FilaDeHoja] = []
+    vistas: set[tuple[str, float, str]] = set()   # el mismo ítem en otra hoja u otra copia del archivo no se repite
     for adjunto in adjuntos:
         texto = str(adjunto.get("text") or "") if isinstance(adjunto, Mapping) else ""
         nombre = str(adjunto.get("filename") or "") if isinstance(adjunto, Mapping) else ""
@@ -180,7 +181,11 @@ def filas_sin_cubrir(
             leidas = filas_de_tablas_de_word(nombre, texto)
         else:
             continue
-        sin_cubrir.extend(f for f in leidas if not _recoge(f, actividades))
+        for fila in leidas:
+            clave = (" ".join(_sin_tildes(fila["descripcion"]).split()), fila["cantidad"], fila["unidad"].casefold())
+            if clave not in vistas and not _recoge(fila, actividades):
+                vistas.add(clave)
+                sin_cubrir.append(fila)
     return sin_cubrir[:MAX_FILAS_GUARDADAS]
 
 
