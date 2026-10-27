@@ -5,6 +5,7 @@ from tests import _isolate  # noqa: F401  (debe ir primero)
 import unittest
 
 from anka.dominio.filas_de_hoja import actividad_de_fila, filas_de_tablas_de_word, filas_sin_cubrir
+from anka.web.views import filas_de_hoja_panel
 
 TABLA = """# invitacion.docx
 Párrafo 1: Se invita a cotizar.
@@ -74,6 +75,15 @@ class FilasDeWordSinCubrirTests(unittest.TestCase):
     def test_solo_lee_docx_con_tablas(self) -> None:
         self.assertEqual(filas_sin_cubrir([{"filename": "carta.docx", "text": "Párrafo 1: hola"}], []), [])
         self.assertEqual(filas_sin_cubrir([{"filename": "invitacion.pdf", "text": TABLA}], []), [])
+
+    def test_la_pantalla_acorta_la_descripcion_pero_la_actividad_agregada_la_conserva_entera(self) -> None:
+        texto = ("Tabla 1, fila 1: columna 1=ITEM | columna 2=DESCRIPCION | columna 3=CANTIDAD\n"
+                 f"Tabla 1, fila 2: columna 1=1 | columna 2={'condiciones del servicio ' * 20} | columna 3=2\n")
+        fila = filas_de_tablas_de_word("a.docx", texto)[0]
+        html = str(filas_de_hoja_panel([fila]))
+        self.assertIn("…</td>", html)
+        self.assertIn(f'title="{fila["descripcion"]}"', html)
+        self.assertEqual(actividad_de_fila(fila)["activity"], fila["descripcion"])
 
     def test_agregar_una_fila_de_word_la_deja_pendiente_con_su_fuente(self) -> None:
         fila = filas_sin_cubrir(self.ADJUNTOS, [])[1]

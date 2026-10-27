@@ -137,6 +137,7 @@ def attachments_panel(attachments: Sequence[Mapping[str, Any]]) -> Markup:
 
 
 MAX_FILAS_DE_HOJA_EN_PANTALLA = 25
+MAX_DESCRIPCION_EN_PANTALLA = 160   # una celda de Word trae párrafos: se ve el comienzo y el resto con el cursor
 MAX_AREAS_EN_PANTALLA = 25   # un corredor trae más de mil polígonos: se muestran los de mayor área y se resume el resto
 
 
@@ -181,8 +182,14 @@ def filas_de_hoja_panel(filas: Sequence[Mapping[str, Any]], thread_id: str = "",
         veces = float(fila.get("veces") or 1)
         return f"{float(fila.get('cantidad') or 0):g}" + (f" × {veces:g}" if veces != 1 else "")
 
+    def corta(texto: str) -> str:
+        if len(texto) <= MAX_DESCRIPCION_EN_PANTALLA:
+            return texto
+        return texto[:MAX_DESCRIPCION_EN_PANTALLA].rstrip() + "…"
+
     visibles = [{"archivo": str(f.get("archivo") or ""), "hoja": str(f.get("hoja") or ""),
-                 "fila": int(f.get("fila") or 0), "descripcion": str(f.get("descripcion") or ""),
+                 "fila": int(f.get("fila") or 0), "descripcion": corta(str(f.get("descripcion") or "")),
+                 "completa": str(f.get("descripcion") or ""),
                  "unidad": str(f.get("unidad") or ""), "cantidad": cantidad(f),
                  "clave": clave_de_fila(f)}
                 for f in validas[:MAX_FILAS_DE_HOJA_EN_PANTALLA]]

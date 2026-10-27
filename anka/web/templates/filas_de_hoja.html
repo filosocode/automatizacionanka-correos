@@ -4,7 +4,7 @@
 <input type="hidden" name="thread_id" value="{{ thread_id }}">
 <input type="hidden" name="base_version" value="{{ base_version }}">
 <div class="scroll-x"><table class="act-resumen"><thead><tr><th scope="col">Agregar</th><th scope="col">Archivo</th><th scope="col">Hoja</th><th scope="col">Fila</th><th scope="col">Descripción</th><th scope="col">Cantidad</th><th scope="col">Unidad</th></tr></thead>
-<tbody>{% for fila in filas %}<tr class="fila-resumen"><td><input type="checkbox" name="fila" value="{{ fila.clave }}" aria-label="Agregar la fila {{ fila.fila }} de {{ fila.archivo }}"></td><td>{{ fila.archivo }}</td><td>{{ fila.hoja }}</td><td>{{ fila.fila }}</td><td>{{ fila.descripcion }}</td><td>{{ fila.cantidad }}</td><td>{{ fila.unidad }}</td></tr>
+<tbody>{% for fila in filas %}<tr class="fila-resumen"><td><input type="checkbox" name="fila" value="{{ fila.clave }}" aria-label="Agregar la fila {{ fila.fila }} de {{ fila.archivo }}"></td><td>{{ fila.archivo }}</td><td>{{ fila.hoja }}</td><td>{{ fila.fila }}</td><td title="{{ fila.completa }}">{{ fila.descripcion }}</td><td>{{ fila.cantidad }}</td><td>{{ fila.unidad }}</td></tr>
 {% endfor %}</tbody></table></div>
 {% if resto %}<p class="meta">y {{ resto }} fila{{ '' if resto == 1 else 's' }} más.</p>{% endif %}
 <div class="toolbar spaced-sm">

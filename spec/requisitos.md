@@ -2363,7 +2363,7 @@ Casos: elegir un polígono y una actividad sin cantidad → cantidad en ha, `pen
 `Tabla N, fila M: columna 1=… | columna 4=50`, pero T-127 y T-128 solo miraban hojas de cálculo.
 1. **Qué se lee.** De un `.docx`, las filas de una tabla cuyo encabezado tiene una columna «Cantidad» (con «Unidad» y «Veces» si las hay): descripción = el texto más largo a la izquierda de la
    cantidad sin contar la unidad, cantidad positiva, sin totales, IVA, AIU ni valores. Una celda con varias líneas es una sola celda; una descripción de más de 600 caracteres se recorta con «…» (el
-   archivo conserva el texto entero). El encabezado vale solo para su tabla. Las tablas sin ese encabezado (especificaciones, historial de revisiones, fechas) no aportan filas.
+   archivo conserva el texto entero). La pantalla muestra los primeros 160 caracteres de la descripción y el texto completo al pasar el cursor. El encabezado vale solo para su tabla. Las tablas sin ese encabezado (especificaciones, historial de revisiones, fechas) no aportan filas.
 2. **Cómo se muestra y se agrega.** Igual que T-127 y T-128: las filas que la tabla no recoge salen en el mismo panel, con «Tabla N» en la columna Hoja, y una persona las agrega con
    los mismos botones, como `pendiente` y con «archivo · hoja «Tabla N» · fila M» de fuente.
 3. **Tres modos.** Se calcula en los mismos puntos y en los tres modos que T-125 a T-127.
