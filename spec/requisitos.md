@@ -2329,6 +2329,21 @@ no tenía filas iniciales (por ejemplo, el de C2, con una sola fila que Work no 
 3. **No cambia** el cálculo de las tasas, el contrato con Work ni el procesamiento de los casos; la pantalla es de solo lectura.
 Casos: C1 grupo sin filas iniciales → página con «—»; C2 las tasas con datos siguen en porcentaje; C3 la ruta sigue registrada y documentada.
 
+### T-130 · Una persona pone un área calculada de un KML/KMZ como cantidad de una actividad sin cantidad
+**Problema.** T-125 calcula el área de los polígonos de un KML/KMZ, pero solo como pista: cuando el cliente manda el lote y no escribe la cantidad, una persona tiene que copiarla a mano.
+Un polígono no dice qué servicio es, así que no se crean filas: se completa una que ya existe.
+1. **El formulario.** En el panel «Áreas calculadas de los archivos geográficos» cada polígono tiene un botón de opción (y la suma de los polígonos de cada archivo con más de uno);
+   se elige una actividad de un desplegable y «Poner el área elegida como cantidad» la aplica. El desplegable solo trae actividades **sin cantidad** (vacía o «no indicado»): una cifra escrita nunca se cambia.
+   Si todas tienen cantidad, el panel lo dice y no ofrece el formulario.
+2. **Qué cambia.** `quantity` = el área en hectáreas con coma decimal (hasta 4 decimales, sin ceros de sobra), `unit` = `ha`, `estado` = `pendiente` (R12: la cifra la calculó el programa, no la declaró el cliente)
+   y una nota que dice de qué polígono o suma viene y que es aproximada. El valor lo toma el servidor de los datos del caso, no del formulario; la clave del formulario lleva la posición y las hectáreas, y si
+   los archivos se leyeron de nuevo y ya no coinciden, se rechaza.
+3. **Cómo se guarda.** Como cualquier edición a mano (`save_activities`): versión con el motivo «Viene de un archivo adjunto», huella, evento en el historial, rechazo si la tabla cambió y protección frente a un reproceso.
+4. **Ruta.** `POST /activities-set-area` (`thread_id`, `area`, `actividad`, `base_version`), con token de seguridad y descrita en Swagger.
+5. **No cambia** el prompt de Work, el contrato ni los estados del caso. T-126 sigue avisando si el correo dice otra área.
+Casos: elegir un polígono y una actividad sin cantidad → cantidad en ha, `pendiente` y con nota; la suma del archivo → la suma; actividad con cantidad → rechazo y nada cambia; sin área o sin actividad → rechazo;
+área que ya no coincide → rechazo; tabla editada mientras tanto → rechazo; sin token → 403; todas con cantidad → sin formulario.
+
 ### T-129 · Las tablas con cantidades de un Word entran a la misma pista y al mismo botón que las hojas de Excel
 **Problema.** Un cliente puede pedir lo que quiere cotizar en una tabla de Word (ítem, descripción, unidad, cantidad). El lector ya la deja como
 `Tabla N, fila M: columna 1=… | columna 4=50`, pero T-127 y T-128 solo miraban hojas de cálculo.

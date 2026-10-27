@@ -254,6 +254,18 @@ OPERACIONES: tuple[Operacion, ...] = (
                Campo("todas", "`1` para agregar todas las filas que la tabla aún no recoge.", ejemplo="1"),
                Campo("base_version", "Huella de la tabla que se abrió; si cambió, no se guarda (opcional).")),
               "redirect"),
+    Operacion("post", "/activities-set-area", "Acciones del caso", "Poner un área calculada como cantidad",
+              "Pone el área que el programa calculó de un polígono (o la suma de los de un archivo) KML/KMZ como "
+              "cantidad en hectáreas de una actividad que **no tiene cantidad**. La actividad queda `pendiente` con "
+              "una nota que dice que el área es aproximada y no la declaró el cliente. Rechaza una actividad que ya "
+              "tiene cantidad, un área que ya no está y una tabla que cambió desde que se abrió.",
+              "guarda",
+              (_ID, Campo("area", "Clave del área elegida: `archivo|posición|hectáreas` (`*` en lugar de la posición "
+                                  "para la suma del archivo).", requerido=True, ejemplo="lote.kmz|0|4.8231"),
+               Campo("actividad", "Posición (desde 0) de la actividad de la tabla.", "integer", requerido=True,
+                     ejemplo=0),
+               Campo("base_version", "Huella de la tabla que se abrió; si cambió, no se guarda (opcional).")),
+              "redirect"),
     Operacion("post", "/review-decision", "Acciones del caso", "Resolver la revisión técnica",
               "Una persona cierra la revisión técnica: información suficiente, preguntar al cliente o guardar sus "
               "decisiones por pregunta. No envía nada.",

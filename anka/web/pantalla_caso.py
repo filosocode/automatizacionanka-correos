@@ -847,7 +847,8 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             ultima=last_manual_version(thread_id))),
         "attachments_panel": attachments_panel(analysis.get("attachments", [])),
         "areas_panel": areas_calculadas_panel(
-            analysis.get("areas_calculadas") or [], analysis.get("diferencias_de_area") or []),
+            analysis.get("areas_calculadas") or [], analysis.get("diferencias_de_area") or [], thread_id,
+            huella_de_tabla(analysis.get("activities", [])), analysis.get("activities") or []),
         "filas_hoja_panel": filas_de_hoja_panel(
             analysis.get("filas_de_hoja_sin_cubrir") or [], thread_id, huella_de_tabla(analysis.get("activities", [])),
             analysis.get("activities") or []),

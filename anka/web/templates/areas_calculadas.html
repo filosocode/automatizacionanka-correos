@@ -4,7 +4,15 @@
 <p class="meta">No sé cuál de las dos cifras es la correcta: confírmalo con el cliente antes de llenar la tabla.</p></div>{% endif %}
 <h3 class="subhead">Áreas calculadas de los archivos geográficos</h3>
 <p class="meta">Las calculó el programa con la geometría del archivo: son aproximadas y no las declaró el cliente. Confírmalas con el cliente antes de usarlas en la tabla.</p>
-<div class="scroll-x"><table class="act-resumen"><thead><tr><th scope="col">Archivo</th><th scope="col">Polígono</th><th scope="col">Hectáreas</th><th scope="col">Metros cuadrados</th><th scope="col">Perímetro (m)</th></tr></thead>
-<tbody>{% for fila in filas %}<tr class="fila-resumen"><td>{{ fila.archivo }}</td><td>{{ fila.poligono }}{% if fila.interiores %} <span class="motivo">(con {{ fila.interiores }} anillo{{ '' if fila.interiores == 1 else 's' }} interior{{ '' if fila.interiores == 1 else 'es' }} restado{{ '' if fila.interiores == 1 else 's' }})</span>{% endif %}</td><td>{{ fila.hectareas }}</td><td>{{ fila.metros }}</td><td>{{ fila.perimetro }}</td></tr>
+{% if con_formulario and destinos %}<form method="post" action="/activities-set-area">
+<input type="hidden" name="thread_id" value="{{ thread_id }}">
+<input type="hidden" name="base_version" value="{{ base_version }}">{% endif %}
+<div class="scroll-x"><table class="act-resumen"><thead><tr>{% if con_formulario and destinos %}<th scope="col">Usar</th>{% endif %}<th scope="col">Archivo</th><th scope="col">Polígono</th><th scope="col">Hectáreas</th><th scope="col">Metros cuadrados</th><th scope="col">Perímetro (m)</th></tr></thead>
+<tbody>{% for total in totales %}<tr class="fila-resumen">{% if con_formulario and destinos %}<td><input type="radio" name="area" value="{{ total.clave }}" aria-label="Usar la suma de {{ total.cuantos }} polígonos de {{ total.archivo }}"></td>{% endif %}<td>{{ total.archivo }}</td><td><b>Suma de {{ total.cuantos }} polígonos</b></td><td>{{ total.hectareas }}</td><td></td><td></td></tr>
+{% endfor %}{% for fila in filas %}<tr class="fila-resumen">{% if con_formulario and destinos %}<td><input type="radio" name="area" value="{{ fila.clave }}" aria-label="Usar el polígono {{ fila.poligono }} de {{ fila.archivo }}"></td>{% endif %}<td>{{ fila.archivo }}</td><td>{{ fila.poligono }}{% if fila.interiores %} <span class="motivo">(con {{ fila.interiores }} anillo{{ '' if fila.interiores == 1 else 's' }} interior{{ '' if fila.interiores == 1 else 'es' }} restado{{ '' if fila.interiores == 1 else 's' }})</span>{% endif %}</td><td>{{ fila.hectareas }}</td><td>{{ fila.metros }}</td><td>{{ fila.perimetro }}</td></tr>
 {% endfor %}</tbody></table></div>
 {% if resto %}<p class="meta">{{ resto }}.</p>{% endif %}
+{% if con_formulario and destinos %}<p class="meta">Si el cliente no dio la cantidad pero el área le sirve a una actividad, elige el área y la actividad. Entra en hectáreas, como «pendiente» y con una nota que dice que es aproximada. Solo aparecen las actividades sin cantidad: nunca se cambia una cifra escrita.</p>
+<div class="toolbar spaced-sm"><label>Actividad <select name="actividad">{% for destino in destinos %}<option value="{{ destino.indice }}">{{ destino.nombre }}</option>{% endfor %}</select></label>
+<button type="submit" class="secondary">Poner el área elegida como cantidad</button></div>
+</form>{% elif con_formulario %}<p class="meta">Todas las actividades de la tabla ya tienen cantidad, así que no hay dónde poner un área. Una cifra escrita no se cambia sola.</p>{% endif %}

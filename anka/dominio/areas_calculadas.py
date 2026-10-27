@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
-from anka.dominio.analisis import AreaCalculada
+from anka.dominio.analisis import Actividad, AreaCalculada
 
 AVISO_DE_DATO = "Dato calculado por el programa, no declarado por el cliente"
 _LINEA_DE_AREA = re.compile(
@@ -51,3 +51,61 @@ def areas_de_los_adjuntos(adjuntos: Iterable[Mapping[str, Any]]) -> list[AreaCal
         if isinstance(adjunto, Mapping) and "Polígono «" in str(adjunto.get("text") or ""):
             areas.extend(areas_calculadas_del_texto(str(adjunto.get("filename") or ""), str(adjunto["text"])))
     return areas
+
+
+_SIN_CANTIDAD = frozenset({"", "no indicado", "no indicada", "n/a", "na", "-", "—", "pendiente", "desconocido",
+                           "desconocida", "por definir", "por completar"})
+
+
+def sin_cantidad(valor: Any) -> bool:
+    """Si una actividad no trae cantidad (vacía o «no indicado»): solo a esas se les puede poner un área calculada."""
+    return str(valor or "").strip().casefold() in _SIN_CANTIDAD
+
+
+def clave_de_area(indice: int, archivo: str, hectareas: float) -> str:
+    """Identifica en un formulario un polígono (su posición en la lista) y comprueba que sigue siendo el mismo."""
+    return f"{archivo}|{indice}|{hectareas:.4f}"
+
+
+def clave_del_total(archivo: str, hectareas: float) -> str:
+    """Identifica la suma de los polígonos de un archivo."""
+    return f"{archivo}|*|{hectareas:.4f}"
+
+
+def totales_por_archivo(areas: Sequence[Mapping[str, Any]]) -> list[tuple[str, int, float]]:
+    """Por cada archivo con más de un polígono: (archivo, cuántos, hectáreas sumadas)."""
+    cuentas: dict[str, list[float]] = {}
+    for area in areas:
+        if isinstance(area, Mapping):
+            cuentas.setdefault(str(area.get("archivo") or ""), []).append(float(area.get("area_ha") or 0))
+    return [(archivo, len(valores), sum(valores)) for archivo, valores in cuentas.items() if len(valores) > 1]
+
+
+def area_elegida(areas: Sequence[Mapping[str, Any]], clave: str) -> tuple[str, float] | None:
+    """El `(descripción, hectáreas)` que una clave del formulario señala hoy, o `None` si la lista ya cambió."""
+    try:
+        archivo, posicion, ha = clave.rsplit("|", 2)
+        esperado = float(ha)
+    except ValueError:
+        return None
+    if posicion == "*":
+        for nombre, cuantos, total in totales_por_archivo(areas):
+            if nombre == archivo and abs(total - esperado) < 0.00006:
+                return f"suma de {cuantos} polígonos de {archivo}", total
+        return None
+    if not posicion.isdigit() or int(posicion) >= len(areas):
+        return None
+    area = areas[int(posicion)]
+    if str(area.get("archivo") or "") != archivo or abs(float(area.get("area_ha") or 0) - esperado) >= 0.00006:
+        return None
+    return f"polígono «{area.get('poligono')}» de {archivo}", float(area["area_ha"])
+
+
+def actividad_con_area(actividad: Mapping[str, Any], descripcion: str, hectareas: float) -> Actividad:
+    """La actividad con el área calculada como cantidad (ha), `pendiente` y con una nota que dice de dónde viene."""
+    texto = f"{hectareas:.4f}".rstrip("0").rstrip(".").replace(".", ",")
+    nota = (f"Cantidad = área aproximada calculada por el programa del {descripcion}; no la declaró el cliente. "
+            "Confírmala con el cliente.")
+    previa = str(actividad.get("notes") or "").strip()
+    return {**actividad, "quantity": texto, "unit": "ha", "estado": "pendiente",   # type: ignore[typeddict-item]
+            "notes": f"{previa} {nota}".strip()}

@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from anka.dominio.activities import ACTIVITY_COLUMNS, huella_de_tabla
 from anka.dominio.analisis import Actividad
+from anka.dominio.areas_calculadas import actividad_con_area, area_elegida, sin_cantidad
 from anka.dominio.filas_de_hoja import actividad_de_fila, clave_de_fila, filas_aun_sin_cubrir
 from anka.infra.logging_setup import get_logger
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
@@ -189,3 +190,31 @@ def agregar_filas_de_hoja(thread_id: str, claves: Sequence[str], todas: bool = F
     mensaje = save_activities(thread_id, [*actuales, *(actividad_de_fila(f) for f in elegidas)], "archivo",
                               base_version or huella_de_tabla(actuales))
     return f"{mensaje} Agregaste {len(elegidas)} fila{'' if len(elegidas) == 1 else 's'} de archivos adjuntos."
+
+
+def poner_area_en_actividad(thread_id: str, clave_de_area: str, indice: str, base_version: str = "") -> str:
+    """Pone, a pedido de una persona, un área calculada de un KML/KMZ como cantidad de una actividad (T-130).
+
+    Solo a actividades que no traen cantidad: nunca cambia una cifra escrita. La actividad queda `pendiente` y con una
+    nota que dice que el área es aproximada y la calculó el programa. Se guarda como cualquier edición a mano.
+    """
+    with lectura() as db:
+        row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+    if not row:
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
+    analysis = load_analysis(row["analysis_json"])
+    actuales = analysis.get("activities") or []
+    elegida = area_elegida(analysis.get("areas_calculadas") or [], clave_de_area)
+    if not elegida:
+        raise ErrorDeValidacion("No elegiste un área, o los archivos se leyeron de nuevo y esa área ya no está. "
+                                "Recarga el caso y vuelve a elegir.")
+    if not indice.isdigit() or int(indice) >= len(actuales):
+        raise ErrorDeValidacion("No elegiste una actividad de la tabla. Elige una y vuelve a intentarlo.")
+    destino = actuales[int(indice)]
+    if not sin_cantidad(destino.get("quantity")):
+        raise ErrorDeValidacion("Esa actividad ya tiene cantidad y no la cambio por un área calculada. "
+                                "Si quieres cambiarla, edítala en la tabla.")
+    nuevas = [dict(a) for a in actuales]
+    nuevas[int(indice)] = dict(actividad_con_area(destino, elegida[0], elegida[1]))
+    mensaje = save_activities(thread_id, nuevas, "archivo", base_version or huella_de_tabla(actuales))   # type: ignore[arg-type]
+    return f"{mensaje} Pusiste el {elegida[0]} ({elegida[1]:.4f} ha) en «{destino.get('activity')}»."

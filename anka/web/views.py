@@ -12,6 +12,7 @@ from markupsafe import Markup
 from anka.dominio.preguntas import INTERNA, identificador, limpiar
 from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS, MAX_CELL, huella_de_tabla, normalize_estado
 from anka.dominio.attachments import compactar_paginas
+from anka.dominio.areas_calculadas import clave_de_area, clave_del_total, sin_cantidad, totales_por_archivo
 from anka.dominio.filas_de_hoja import clave_de_fila, filas_aun_sin_cubrir
 from anka.web.templating import render
 
@@ -138,23 +139,37 @@ MAX_FILAS_DE_HOJA_EN_PANTALLA = 25
 MAX_AREAS_EN_PANTALLA = 25   # un corredor trae más de mil polígonos: se muestran los de mayor área y se resume el resto
 
 
-def areas_calculadas_panel(areas: Sequence[Mapping[str, Any]], diferencias: Sequence[Mapping[str, Any]] = ()) -> Markup:
-    """Las áreas calculadas de los KML/KMZ, como pista a confirmar (T-125), y lo que el correo dice distinto (T-126)."""
+def areas_calculadas_panel(areas: Sequence[Mapping[str, Any]], diferencias: Sequence[Mapping[str, Any]] = (),
+                           thread_id: str = "", base_version: str = "",
+                           actividades: Sequence[Mapping[str, Any]] = ()) -> Markup:
+    """Las áreas calculadas de los KML/KMZ, como pista (T-125), lo que el correo dice distinto (T-126) y, para quien
+    quiera usarlas, el formulario que pone un área en una actividad sin cantidad (T-130)."""
     def numero(valor: Any, decimales: int) -> str:
         return f"{float(valor):,.{decimales}f}".replace(",", " ")   # el separador de miles es un espacio fino
 
-    validas = sorted((a for a in areas if isinstance(a, Mapping)), key=lambda a: -float(a.get("area_m2") or 0))
+    posiciones = [(n, a) for n, a in enumerate(areas) if isinstance(a, Mapping)]
+    validas = sorted(posiciones, key=lambda p: -float(p[1].get("area_m2") or 0))
     filas = [{"archivo": str(a.get("archivo") or ""), "poligono": str(a.get("poligono") or ""),
               "hectareas": numero(a.get("area_ha") or 0, 4), "metros": numero(a.get("area_m2") or 0, 1),
-              "perimetro": numero(a.get("perimetro_m") or 0, 1), "interiores": int(a.get("anillos_interiores") or 0)}
-             for a in validas[:MAX_AREAS_EN_PANTALLA]]
-    resto = validas[MAX_AREAS_EN_PANTALLA:]
+              "perimetro": numero(a.get("perimetro_m") or 0, 1), "interiores": int(a.get("anillos_interiores") or 0),
+              "clave": clave_de_area(n, str(a.get("archivo") or ""), float(a.get("area_ha") or 0))}
+             for n, a in validas[:MAX_AREAS_EN_PANTALLA]]
+    totales = [{"archivo": archivo, "cuantos": cuantos, "hectareas": numero(total, 4),
+                "clave": clave_del_total(archivo, total)} for archivo, cuantos, total in totales_por_archivo(areas)]
+    destinos = [{"indice": n, "nombre": str(a.get("activity") or "(sin nombre)")}
+                for n, a in enumerate(actividades) if isinstance(a, Mapping) and sin_cantidad(a.get("quantity"))]
+    if not (thread_id and destinos):
+        totales = []   # la suma solo sirve para elegirla en el formulario: sin él el panel es solo la pista de T-125
+    resto = [a for _, a in validas[MAX_AREAS_EN_PANTALLA:]]
     hectareas_del_resto = numero(sum(float(a.get("area_ha") or 0) for a in resto), 2)
     resumen_del_resto = f"y {len(resto)} polígonos más, que suman {hectareas_del_resto} ha" if resto else ""
     avisos = [{"escrita": str(d.get("escrita") or ""), "poligono": str(d.get("poligono") or ""),
                "archivo": str(d.get("archivo") or ""), "calculada": numero(d.get("calculada_ha") or 0, 4)}
               for d in diferencias if isinstance(d, Mapping)]
-    return render("areas_calculadas.html", filas=filas, resto=resumen_del_resto, avisos=avisos) if filas else Markup("")
+    return (render("areas_calculadas.html", filas=filas, resto=resumen_del_resto, avisos=avisos, totales=totales,
+                   destinos=destinos, thread_id=thread_id, base_version=base_version,
+                   con_formulario=bool(thread_id))
+            if filas else Markup(""))
 
 
 def filas_de_hoja_panel(filas: Sequence[Mapping[str, Any]], thread_id: str = "", base_version: str = "",
