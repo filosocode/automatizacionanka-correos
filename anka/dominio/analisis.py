@@ -45,6 +45,18 @@ class EvidenciaAdjunto(TypedDict, total=False):
     excerpt: str
 
 
+class AreaCalculada(TypedDict):
+    """Área y perímetro que el programa calculó de un polígono de un KML/KMZ: una pista, nunca una cantidad (T-125)."""
+
+    archivo: str
+    poligono: str
+    area_m2: float
+    area_ha: float
+    perimetro_m: float
+    anillos_interiores: int
+
+
+
 class Dependencia(TypedDict, total=False):
     """Algo de lo que depende el alcance (p. ej. un archivo por validar); pendiente manda el caso a revisión técnica."""
 
@@ -155,6 +167,7 @@ class Analisis(TypedDict, total=False):
     reading_audit: dict[str, Any]
     reading_review: RevisionDeLectura   # U-29: la lectura la revisó una persona; solo lo escribe el dashboard
     reading_summary: dict[str, Any]
+    areas_calculadas: list[AreaCalculada]   # T-125: pista para la persona, nunca entra en una cantidad ni en la tabla
     evidence_check: dict[str, Any]   # T-38: lo que se comprobó de la tabla de Work contra los textos del expediente
     related_threads: list[dict[str, Any]]
     applicability: dict[str, Any]

@@ -1,0 +1,6 @@
+<h3 class="subhead">Áreas calculadas de los archivos geográficos</h3>
+<p class="meta">Las calculó el programa con la geometría del archivo: son aproximadas y no las declaró el cliente. Confírmalas con el cliente antes de usarlas en la tabla.</p>
+<div class="scroll-x"><table class="act-resumen"><thead><tr><th scope="col">Archivo</th><th scope="col">Polígono</th><th scope="col">Hectáreas</th><th scope="col">Metros cuadrados</th><th scope="col">Perímetro (m)</th></tr></thead>
+<tbody>{% for fila in filas %}<tr class="fila-resumen"><td>{{ fila.archivo }}</td><td>{{ fila.poligono }}{% if fila.interiores %} <span class="motivo">(con {{ fila.interiores }} anillo{{ '' if fila.interiores == 1 else 's' }} interior{{ '' if fila.interiores == 1 else 'es' }} restado{{ '' if fila.interiores == 1 else 's' }})</span>{% endif %}</td><td>{{ fila.hectareas }}</td><td>{{ fila.metros }}</td><td>{{ fila.perimetro }}</td></tr>
+{% endfor %}</tbody></table></div>
+{% if resto %}<p class="meta">{{ resto }}.</p>{% endif %}

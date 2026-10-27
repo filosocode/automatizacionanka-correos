@@ -22,6 +22,7 @@ from anka.dominio.configuracion import es_modo_work
 from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.caso_minimo import caso_minimo
 from anka.dominio.correo import header, inbound_messages, normalized_address
+from anka.dominio.areas_calculadas import areas_de_los_adjuntos
 from anka.infra.logging_setup import configure_logging, get_logger
 from anka.dominio.tolerancia_work import Rechazo, comprobar_identidad, leer_json, normalizar_analisis
 from anka.dominio.verificacion_de_evidencia import avisos_de, comprobar_tabla
@@ -202,6 +203,8 @@ def _verificar_con_el_expediente(payload: dict, instantaneas: Path) -> list[str]
     textos = instantaneas_de_manifiesto.cargar_textos(
         instantaneas, payload["thread_id"], (manifiesto or {}).get("revision"))
     resultado = comprobar_tabla(payload, textos if manifiesto else None)
+    if areas := areas_de_los_adjuntos((textos or {}).get("adjuntos") or []):
+        payload["areas_calculadas"] = areas   # T-125: pista para la persona, no entra en la tabla
     if resultado:
         payload["evidence_check"] = resultado
     return [*avisos, *avisos_de(resultado)]

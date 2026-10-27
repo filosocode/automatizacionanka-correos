@@ -2329,6 +2329,44 @@ no tenía filas iniciales (por ejemplo, el de C2, con una sola fila que Work no 
 3. **No cambia** el cálculo de las tasas, el contrato con Work ni el procesamiento de los casos; la pantalla es de solo lectura.
 Casos: C1 grupo sin filas iniciales → página con «—»; C2 las tasas con datos siguen en porcentaje; C3 la ruta sigue registrada y documentada.
 
+### T-125 · Área y perímetro calculados de los polígonos de un KML/KMZ, como pista para la persona
+**Problema.** Las cantidades de una oferta (las hectáreas de cada predio) salen casi siempre de los polígonos del KMZ adjunto y no del correo
+(casos 11, 15, 17 y 18 del histórico). El lector calculaba la longitud de las líneas pero no el área de los polígonos: la persona tenía que abrirlos
+en un SIG para saber cuántas hectáreas pedía el cliente (F1-03).
+1. **Cálculo.** Para cada `Polygon` de un KML/KMZ: área del anillo exterior menos la de los interiores, geodésica sobre el elipsoide WGS84 (esfera
+   unitaria multiplicada por M·N a la latitud media; sin elevación), y perímetro del anillo exterior. Un polígono con menos de tres vértices
+   distintos, con coordenadas fuera de longitud/latitud o con un anillo que se cruza a sí mismo **no tiene área**: el texto lo dice y da la razón.
+   El cruce se comprueba hasta 5.000 vértices por anillo (un barrido por X, casi lineal); con más, el área se calcula y el texto advierte que no
+   se comprobó. Un roce en un vértice no es un cruce. El cálculo vive en `anka/dominio/geometria.py`, sin leer ningún archivo.
+2. **Texto del archivo.** Cada polígono con área añade «Área geodésica aproximada calculada del polígono: X m² (Y ha); perímetro Z m; anillos
+   interiores: n. Dato calculado por el programa, no declarado por el cliente»; con más de un polígono, el total del archivo.
+3. **Pista.** `analisis["areas_calculadas"]` guarda, por polígono, `archivo`, `poligono`, `area_m2`, `area_ha`, `perimetro_m` y
+   `anillos_interiores`. Se calcula al importar un análisis de Work (prompt V6 y anteriores) y en el pipeline local y API: los tres modos hacen lo
+   mismo. **Nunca** entra en una cantidad, un campo ni la tabla de actividades, no cambia estados y no sale al cliente.
+4. **Pantalla.** La pestaña «Archivos» del caso muestra «Áreas calculadas de los archivos geográficos» (aproximadas; a confirmar con el cliente),
+   con archivo, polígono, hectáreas, m² y perímetro. Sin polígonos, no aparece. Muestra los 25 de mayor área; si hay más, una línea dice
+   cuántos faltan y cuántas hectáreas suman (un corredor puede traer más de mil polígonos).
+4b. **Línea cerrada.** Un `LineString` de cuatro o más puntos cuyo primer y último punto coinciden se trata como contorno: es como llegan muchos
+   predios dibujados en CAD («Predio para levantamiento», 11 puntos, 34,3 ha; la oferta decía 34 ha). Se rotula «(línea cerrada)» y, a diferencia
+   de un polígono, si no tiene área (se cruza, tiene menos de tres vértices distintos) **no deja línea**: una ruta que vuelve al inicio es común y
+   «sin área» sería ruido.
+5. **Textos guardados.** `VERSION_DE_TEXTOS` sube a `gmail-v4`: los textos de adjuntos guardados antes no traen el área y se extraen otra vez.
+6. **No cambia** el prompt del modelo (sigue sin afirmar áreas calculadas por él mismo), el contrato con Work ni los estados. GeoJSON y shapefile
+   quedan fuera de este requisito.
+Casos: cuadrado de 100 m × 100 m → 1,0000 ha (±0,1 %); polígono con isla → área menos la isla; dos polígonos → total; anillo cruzado → sin área
+y con razón; coordenadas fuera de rango → sin área; análisis sin KMZ → `areas_calculadas` vacío; una celda de 1° en el ecuador mide 12 308,8 km² (el valor
+del elipsoide, no el de una esfera).
+**Validación (2026-10-26).** Con 64 KML/KMZ reales y simulados del equipo (66 en total, 64 con polígonos) el cálculo no falló en ninguno y tardó 8 s en
+conjunto. En tres archivos el resultado coincide a dos decimales con un método independiente (plano local con los radios de curvatura de WGS84):
+75,74, 286,40 y 25,99 ha. Cinco archivos traen algún contorno que se cruza a sí mismo y quedan «sin área» con su razón. Los KMZ simulados cuyo nombre
+dice «82ha», «310ha» y «95ha» miden 75,74, 286,40 y 87,77 ha: el número del nombre es el de un cuadrado circunscrito, no el del polígono, así que un nombre
+de archivo nunca es la verdad. **Contra las ofertas históricas (`I:\T&E`, mismo día).** De los 20 casos de prueba, 12 traen KML/KMZ y 6 tienen cifras comparables: caso 15, 1,20 y
+0,16 ha calculadas contra 1,2 y 0,16 de la oferta; caso 3, 2,65 y 1,29 contra 2,7 y 1,3; caso 6, 16,34 contra 16; caso 14 (3 polígonos), 666,2 en total
+contra 671; caso 20, 104,8 y 2.584 contra 106 y 2.596; caso 19, 34,31 contra 34 (un «predio» dibujado como línea cerrada, de ahí el punto 4b). Todas
+quedan dentro de ~1,2 %; las diferencias son compatibles con otro sistema de coordenadas, redondeos o una versión distinta del polígono, y por eso el
+valor sigue siendo «aproximado, a confirmar». El caso 17, un corredor de 1.006 polígonos (167.097 ha), motivó el tope de filas del punto 4. Sin
+comparar: los casos 9 y 16, cuyos documentos citan cifras de otro alcance (tarifas, otro plano).
+
 ### T-124 · El OCR de un PDF no descarta las cifras de una tabla en imagen, y las sílabas «ti» perdidas se recuperan
 **Problema.** Dos defectos de lectura (F1-03) verificados contra la imagen de la página en casos reales del histórico:
 (a) El OCR de una página añade solo las líneas que no están ya en el texto nativo, pero lo decidía por subcadena sobre **todo** el texto de la

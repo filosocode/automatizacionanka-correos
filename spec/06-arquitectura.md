@@ -63,6 +63,8 @@ La descripción es la primera frase de su docstring.
 | `desempeno` | Desempeño del análisis medido con las correcciones del uso real (T-35). |
 | `evaluacion` | Medir el análisis contra lo esperado (T-34): comparar un caso, resumir varios y reconocer de qué habla una pregunta. |
 | `reintentos` | Espera creciente entre intentos de un hilo que falla y el caso que lo muestra (T-26). |
+| `areas_calculadas` | Las áreas calculadas de los polígonos de un KML/KMZ: cómo se escriben en el texto del archivo y cómo se leen de vuelta (T-125). |
+| `geometria` | Longitudes, áreas y perímetros geodésicos sobre WGS84 a partir de coordenadas, sin leer ningún archivo (T-125). |
 | `lectores_geograficos` | Geometrías, misiones y tablas geográficas en memoria. |
 | `caso` | `Caso`: la vista de una solicitud de cotización tal como la ven el dashboard y las acciones. |
 | `configuracion` | La forma de `config.json` (vive fuera del repositorio, en la carpeta de datos): sus claves y sus tipos. |

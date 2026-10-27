@@ -133,6 +133,25 @@ def attachments_panel(attachments: Sequence[Mapping[str, Any]]) -> Markup:
                   detalle=attachments_table(atencion + leidos) if items else Markup(""))
 
 
+MAX_AREAS_EN_PANTALLA = 25   # un corredor trae más de mil polígonos: se muestran los de mayor área y se resume el resto
+
+
+def areas_calculadas_panel(areas: Sequence[Mapping[str, Any]]) -> Markup:
+    """Las áreas que el programa calculó de los polígonos de los KML/KMZ, como pista a confirmar (T-125)."""
+    def numero(valor: Any, decimales: int) -> str:
+        return f"{float(valor):,.{decimales}f}".replace(",", " ")   # el separador de miles es un espacio fino
+
+    validas = sorted((a for a in areas if isinstance(a, Mapping)), key=lambda a: -float(a.get("area_m2") or 0))
+    filas = [{"archivo": str(a.get("archivo") or ""), "poligono": str(a.get("poligono") or ""),
+              "hectareas": numero(a.get("area_ha") or 0, 4), "metros": numero(a.get("area_m2") or 0, 1),
+              "perimetro": numero(a.get("perimetro_m") or 0, 1), "interiores": int(a.get("anillos_interiores") or 0)}
+             for a in validas[:MAX_AREAS_EN_PANTALLA]]
+    resto = validas[MAX_AREAS_EN_PANTALLA:]
+    hectareas_del_resto = numero(sum(float(a.get("area_ha") or 0) for a in resto), 2)
+    resumen_del_resto = f"y {len(resto)} polígonos más, que suman {hectareas_del_resto} ha" if resto else ""
+    return render("areas_calculadas.html", filas=filas, resto=resumen_del_resto) if filas else Markup("")
+
+
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
     """Tabla de adjuntos con estado, datos bloqueados y citas verificables."""
     rows = []

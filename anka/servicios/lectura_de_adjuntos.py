@@ -13,6 +13,7 @@ from anka.dominio.attachments import MAX_ATTACHMENT_BYTES, hermanos_de_shapefile
 from anka.dominio.correo import (
     adjuntos_recibidos, decode_websafe, header, imagenes_incrustadas, inbound_messages, message_text,
 )
+from anka.dominio.areas_calculadas import areas_de_los_adjuntos
 from anka.dominio.verificacion_de_evidencia import avisos_de, comprobar_tabla
 from anka.dominio.work_contract import verificar_adjuntos
 from anka.infra import instantaneas_de_manifiesto
@@ -21,7 +22,7 @@ from anka.infra.logging_setup import get_logger
 from anka.infra.presupuesto_ocr import presupuesto_de_caso
 
 log = get_logger(__name__)
-VERSION_DE_TEXTOS = "gmail-v3"   # sube cuando cambia cómo se extrae el texto: invalida los textos guardados
+VERSION_DE_TEXTOS = "gmail-v4"   # sube cuando cambia cómo se extrae el texto: invalida los textos guardados
 
 
 def _huella_del_hilo(mensajes: list[dict], adjuntos: list[dict]) -> str:
@@ -123,7 +124,10 @@ def verificar_lectura(
     # una imagen pegada en el cuerpo no se exige, pero si Work la reporta no es un adjunto «que Gmail no tiene»
     avisos = verificar_adjuntos(payload, adjuntos, imagenes_incrustadas(thread, propias))
     try:
-        resultado = comprobar_tabla(payload, _textos_del_hilo(gmail, thread, adjuntos, propias, directorio))
+        textos = _textos_del_hilo(gmail, thread, adjuntos, propias, directorio)
+        resultado = comprobar_tabla(payload, textos)
+        if areas := areas_de_los_adjuntos((textos or {}).get("adjuntos") or []):
+            payload["areas_calculadas"] = areas   # T-125: pista para la persona, no entra en la tabla
     except Exception:   # la comprobación de la tabla es un apoyo: nunca debe frenar la importación
         log.warning("No se pudo comprobar la tabla de %s contra sus textos", payload.get("thread_id"), exc_info=True)
         resultado = None
