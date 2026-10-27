@@ -2329,6 +2329,20 @@ no tenía filas iniciales (por ejemplo, el de C2, con una sola fila que Work no 
 3. **No cambia** el cálculo de las tasas, el contrato con Work ni el procesamiento de los casos; la pantalla es de solo lectura.
 Casos: C1 grupo sin filas iniciales → página con «—»; C2 las tasas con datos siguen en porcentaje; C3 la ruta sigue registrada y documentada.
 
+### T-129 · Las tablas con cantidades de un Word entran a la misma pista y al mismo botón que las hojas de Excel
+**Problema.** Un cliente puede pedir lo que quiere cotizar en una tabla de Word (ítem, descripción, unidad, cantidad). El lector ya la deja como
+`Tabla N, fila M: columna 1=… | columna 4=50`, pero T-127 y T-128 solo miraban hojas de cálculo.
+1. **Qué se lee.** De un `.docx`, las filas de una tabla cuyo encabezado tiene una columna «Cantidad» (con «Unidad» y «Veces» si las hay): descripción = el texto más largo a la izquierda de la
+   cantidad sin contar la unidad, cantidad positiva, sin totales, IVA, AIU ni valores. Una celda con varias líneas es una sola celda; una descripción de más de 600 caracteres se recorta con «…» (el
+   archivo conserva el texto entero). El encabezado vale solo para su tabla. Las tablas sin ese encabezado (especificaciones, historial de revisiones, fechas) no aportan filas.
+2. **Cómo se muestra y se agrega.** Igual que T-127 y T-128: las filas que la tabla no recoge salen en el mismo panel, con «Tabla N» en la columna Hoja, y una persona las agrega con
+   los mismos botones, como `pendiente` y con «archivo · hoja «Tabla N» · fila M» de fuente.
+3. **Tres modos.** Se calcula en los mismos puntos y en los tres modos que T-125 a T-127.
+4. **No se lee** un PDF: el texto de sus tablas sale como texto corrido con una forma distinta en cada documento («Global 1», o el encabezado y las filas en líneas separadas) y leerlo con reglas fijas
+   inventaría filas. Un PDF escaneado o con tablas depende de Work y de la hoja de OCR auxiliar (T-45).
+Casos: Word con tabla de cantidades → filas con su unidad; cantidad cero, subtotal e IVA → no; tabla de revisiones → no; «Cantidades de obra» no es encabezado; descripción larga → recortada;
+el encabezado de una tabla no vale para otra; agregar una fila → `pendiente` con su fuente y deja de ser pista. Validado en 9 Word reales de 20 casos: 5 filas del caso 13 y 0 en los demás.
+
 ### T-128 · Una persona agrega a la tabla las filas de hojas de cálculo que la tabla no recogía
 **Problema.** T-127 muestra las filas con cantidad de una hoja adjunta que la tabla no recoge, pero la tabla debe quedar lo más completa y fiel posible a lo que el
 cliente adjuntó. Agregarlas solas mezclaría ítems del cliente con cálculos internos de Anka; dejarlas como pista obliga a copiarlas a mano (F1-03).

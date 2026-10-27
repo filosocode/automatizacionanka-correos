@@ -136,7 +136,7 @@ class PanelDeFilasTests(unittest.TestCase):
 
     def test_muestra_la_fila_con_veces_y_sin_agregarla_a_la_tabla(self) -> None:
         html = str(filas_de_hoja_panel([self.FILA]))
-        self.assertIn("Filas de hojas de cálculo que la tabla no recoge", html)
+        self.assertIn("Filas con cantidad de los archivos que la tabla no recoge", html)
         self.assertIn("3 × 55", html)
         self.assertIn("Nada se agrega solo", html)
         self.assertIn("Agregar las filas marcadas a la tabla", html)

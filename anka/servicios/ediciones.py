@@ -188,4 +188,4 @@ def agregar_filas_de_hoja(thread_id: str, claves: Sequence[str], todas: bool = F
         raise ErrorDeValidacion("No marcaste ninguna fila, o la tabla ya recoge las que marcaste.")
     mensaje = save_activities(thread_id, [*actuales, *(actividad_de_fila(f) for f in elegidas)], "archivo",
                               base_version or huella_de_tabla(actuales))
-    return f"{mensaje} Agregaste {len(elegidas)} fila{'' if len(elegidas) == 1 else 's'} de hojas de cálculo."
+    return f"{mensaje} Agregaste {len(elegidas)} fila{'' if len(elegidas) == 1 else 's'} de archivos adjuntos."

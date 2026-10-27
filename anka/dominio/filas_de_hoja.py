@@ -1,7 +1,8 @@
-"""Las filas con cantidad de una hoja de cálculo que la tabla de actividades no recoge (T-127).
+"""Las filas con cantidad de una hoja de cálculo o una tabla de Word que la tabla no recoge (T-127, T-129).
 
-Lee el texto que el lector de hojas dejó (`Hoja: …` y una línea por fila, con `B6=…| C6=240 | …`) y lo contrasta con las
-actividades. Solo señala: no agrega filas a la tabla ni decide si una fila es del cliente o un cálculo interno.
+Lee el texto que el lector dejó (`Hoja: …` con `B6=…| C6=240 | …`, o `Tabla 1, fila 4: columna 1=… | columna 4=50`)
+y lo contrasta con las actividades. Solo señala: no agrega filas a la tabla ni decide si una fila es del cliente o un
+cálculo interno.
 """
 
 from __future__ import annotations
@@ -14,9 +15,12 @@ from typing import Any
 from anka.dominio.analisis import Actividad, FilaDeHoja
 
 MAX_FILAS_GUARDADAS = 100
+MAX_LARGO_DE_DESCRIPCION = 600   # la celda de una tabla de Word puede traer párrafos enteros de condiciones
 MAX_FILAS_POR_ARCHIVO = 60   # una hoja con cientos de filas es una base de datos, no una plantilla de cantidades
 _CELDA = re.compile(r"(?:^| \| )(?P<col>[A-Z]{1,3})(?P<fila>\d+)=", re.MULTILINE)
 _HOJA = re.compile(r"^Hoja: (?P<nombre>.*?) ?; visibilidad: (?P<visibilidad>[^;]*);", re.MULTILINE)
+_FILA_DE_TABLA = re.compile(r"^Tabla (?P<tabla>\d+), fila (?P<fila>\d+): ", re.MULTILINE)
+_CELDA_DE_TABLA = re.compile(r"(?:^|\s\|\s)columna (?P<col>\d+)=")
 _VALOR_GUARDADO = re.compile(r"\[valor guardado: ([^\]]+)\]")
 _NO_ES_ACTIVIDAD = re.compile(
     r"^(sub)?total|^iva\b|^aiu\b|^valor\b|^administraci|^imprevisto|^utilidad|^descuento|^resumen|^costos? directos?$")
@@ -103,6 +107,47 @@ def filas_de_hoja(archivo: str, texto: str) -> list[FilaDeHoja]:
     return resultado[:MAX_FILAS_POR_ARCHIVO]
 
 
+def _celdas_de_la_fila_de_tabla(texto: str) -> dict[int, str]:
+    """Las celdas de una fila de tabla de Word (`columna 2=…`); lo que sigue en otra línea es parte de su celda."""
+    marcas = list(_CELDA_DE_TABLA.finditer(texto))
+    return {int(m["col"]): texto[m.end():(marcas[n + 1].start() if n + 1 < len(marcas) else len(texto))].strip()
+            for n, m in enumerate(marcas)}
+
+
+def filas_de_tablas_de_word(archivo: str, texto: str) -> list[FilaDeHoja]:
+    """Las filas con descripción y cantidad positiva de las tablas de un Word, bajo un encabezado «Cantidad»."""
+    filas = list(_FILA_DE_TABLA.finditer(texto))
+    resultado: list[FilaDeHoja] = []
+    cabeceras: dict[str, dict[str, int]] = {}
+    for n, fila in enumerate(filas):
+        fin = filas[n + 1].start() if n + 1 < len(filas) else len(texto)
+        celdas = _celdas_de_la_fila_de_tabla(texto[fila.end():fin])
+        encabezado: dict[str, int] = {}
+        for col, celda in celdas.items():
+            for clave in ("cantidad", "unidad", "veces"):
+                if re.match(rf"^{clave}\b", _sin_tildes(celda).strip()) and clave not in encabezado:
+                    encabezado[clave] = col
+        if "cantidad" in encabezado:
+            cabeceras[fila["tabla"]] = encabezado
+            continue
+        cabecera = cabeceras.get(fila["tabla"])
+        if not cabecera or "cantidad" not in cabecera:
+            continue
+        cantidad = _numero(celdas.get(cabecera["cantidad"], ""))
+        candidatos = [t for c, t in celdas.items() if c < cabecera["cantidad"] and c != cabecera.get("unidad")
+                      and _numero(t) is None and re.search(r"[^\W\d_]{3}", t)]
+        descripcion = " ".join(max(candidatos, key=len).split()) if candidatos else ""
+        if not cantidad or cantidad <= 0 or not descripcion or _NO_ES_ACTIVIDAD.match(_sin_tildes(descripcion)):
+            continue
+        if len(descripcion) > MAX_LARGO_DE_DESCRIPCION:
+            descripcion = descripcion[:MAX_LARGO_DE_DESCRIPCION].rstrip() + "…"
+        resultado.append({"archivo": archivo, "hoja": f"Tabla {fila['tabla']}", "fila": int(fila["fila"]),
+                          "descripcion": descripcion, "cantidad": cantidad,
+                          "veces": _numero(celdas.get(cabecera.get("veces", 0), "")) or 1.0,
+                          "unidad": celdas.get(cabecera.get("unidad", 0), "").strip()})
+    return resultado[:MAX_FILAS_POR_ARCHIVO]
+
+
 def _raices(texto: str) -> set[str]:
     palabras = re.findall(r"[a-z0-9]{4,}", _sin_tildes(texto))
     return {p[:_LARGO_DE_RAIZ] for p in palabras if p not in _PALABRAS_SIN_PESO and not p.isdigit()}
@@ -129,9 +174,13 @@ def filas_sin_cubrir(
     for adjunto in adjuntos:
         texto = str(adjunto.get("text") or "") if isinstance(adjunto, Mapping) else ""
         nombre = str(adjunto.get("filename") or "") if isinstance(adjunto, Mapping) else ""
-        if not nombre.lower().endswith((".xlsx", ".xlsm")) or "Hoja: " not in texto:
+        if nombre.lower().endswith((".xlsx", ".xlsm")) and "Hoja: " in texto:
+            leidas = filas_de_hoja(nombre, texto)
+        elif nombre.lower().endswith(".docx") and "Tabla " in texto:
+            leidas = filas_de_tablas_de_word(nombre, texto)
+        else:
             continue
-        sin_cubrir.extend(f for f in filas_de_hoja(nombre, texto) if not _recoge(f, actividades))
+        sin_cubrir.extend(f for f in leidas if not _recoge(f, actividades))
     return sin_cubrir[:MAX_FILAS_GUARDADAS]
 
 
@@ -151,9 +200,9 @@ def clave_de_fila(fila: Mapping[str, Any]) -> str:
 def actividad_de_fila(fila: Mapping[str, Any]) -> Actividad:
     """La actividad que una persona agrega desde una fila de hoja: lo que dice la hoja, `pendiente` y con su fuente."""
     cantidad, veces = float(fila.get("cantidad") or 0), float(fila.get("veces") or 1)
-    nota = "Agregada por una persona desde una hoja de cálculo del cliente; completa ubicación, entregable y plazo."
+    nota = "Agregada por una persona desde un archivo adjunto; completa ubicación, entregable y plazo."
     if veces != 1:
-        nota += f" La hoja dice {cantidad:g} × {veces:g} veces."
+        nota += f" El archivo dice {cantidad:g} × {veces:g} veces."
     return {"activity": str(fila.get("descripcion") or ""), "quantity": f"{cantidad:g}".replace(".", ","),
             "unit": str(fila.get("unidad") or ""),
             "fuente": f"{fila.get('archivo')} · hoja «{fila.get('hoja')}» · fila {fila.get('fila')}",
