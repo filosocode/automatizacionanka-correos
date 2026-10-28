@@ -1,28 +1,35 @@
 <div class="page-head">
-  <div><h1>Qué hacer hoy</h1><p>{% if todo %}Atiende primero el 1. Tienes {{ action_count }} caso(s) por atender, del más urgente al menos.{% else %}No hay nada pendiente de tu parte.{% endif %}</p></div>
-  <a class="button secondary" href="/requests">Ver todas las solicitudes</a>
+  <div><h1 class="titulo-principal">Mis casos</h1><p>{% if total %}{{ total }} caso{{ '' if total == 1 else 's' }}{% if action_count %} · {{ action_count }} esperan algo de ti. El primero es el más urgente{% else %} · nada pendiente de tu parte{% endif %}.{% else %}Todavía no hay casos.{% endif %}</p></div>
 </div>
-{{ work_rejected }}
 {{ notifications }}
-<section>
-  {% if todo %}<ol class="queue">{% for row in todo %}{{ row }}{% endfor %}</ol>
-  {% if hidden_count %}<p class="meta">Hay {{ hidden_count }} caso(s) más que esperan una acción tuya.</p>
-  <a class="button secondary" href="/requests">Ver los {{ hidden_count }} en Solicitudes</a>{% endif %}
-  {% else %}<div class='empty'>Todo al día. Los casos que esperan al cliente o están cotizando no requieren acción por ahora.</div>{% endif %}
-</section>
-<div class="grid kpis" style="margin-top:24px">
-  <div class="kpi"><div class="kpi-label">Requieren acción</div><div class="kpi-value">{{ action_count }}</div><div class="kpi-note">Lo de arriba</div></div>
-  <div class="kpi"><div class="kpi-label">Esperando al cliente</div><div class="kpi-value">{{ waiting }}</div><div class="kpi-note">Ya les escribiste</div></div>
-  <div class="kpi"><div class="kpi-label">Cotizando (con T)</div><div class="kpi-value">{{ quoting }}</div><div class="kpi-note">T emitida, aún sin aprobar</div></div>
-  <div class="kpi"><div class="kpi-label">Aprobadas (T&amp;E)</div><div class="kpi-value">{{ approved }}</div><div class="kpi-note">Oferta aprobada</div></div>
-</div>
+{% if total %}
+<form class="filtro-casos" method="get" action="/" role="search" data-filtro-etapas>
+  <div class="buscar-casos"><label for="buscar-casos">Buscar un caso</label>
+    <div class="buscar-fila"><input id="buscar-casos" name="q" type="search" value="{{ busqueda }}" placeholder="Buscar por proyecto, cliente o servicio"><button type="submit" name="etapa" value="{{ etapa_actual or 'todos' }}" class="secondary">Buscar</button></div></div>
+  <p id="n-visibles" class="solo-lectores" role="status">{% if coinciden %}{{ coinciden }} caso{{ '' if coinciden == 1 else 's' }} a la vista{% else %}Ningún caso coincide{% endif %}</p>
+  <div class="chips" role="group" aria-label="Filtrar por etapa">
+    {% for key, label, count in etapas %}<button type="submit" name="etapa" value="{{ key }}" class="chip-filter" data-etapa="{{ key }}" aria-pressed="{{ 'true' if etapa_actual == key else 'false' }}">{{ label }} <b>{{ count }}</b></button>
+    {% endfor %}<button type="submit" name="etapa" value="todos" class="chip-filter" data-etapa="" aria-pressed="{{ 'true' if not etapa_actual else 'false' }}">Todos <b>{{ total }}</b></button>
+  </div>
+</form>
+<ol class="queue" id="casos">{% for row in todo %}{{ row }}{% endfor %}</ol>
+{{ ver_mas }}
+<div id="sin-casos" class="empty"{% if coinciden %} hidden{% endif %}>No hay casos con esos filtros.</div>
+{% else %}<div class='empty'>Todavía no hay casos. Cuando llegue una solicitud por correo aparecerá aquí.</div>{% endif %}
+{{ work_rejected }}
 <details class="more">
-  <summary>Ver estadísticas ({{ total }} solicitudes)</summary>
+  <summary>Ver números y resumen ({{ total }} casos)</summary>
+  <div class="grid kpis">
+    <div class="kpi"><div class="kpi-label">Esperan algo de ti</div><div class="kpi-value">{{ action_count }}</div></div>
+    <div class="kpi"><div class="kpi-label">Esperando al cliente</div><div class="kpi-value">{{ waiting }}</div></div>
+    <div class="kpi"><div class="kpi-label">Con código de oferta (T)</div><div class="kpi-value">{{ quoting }}</div></div>
+    <div class="kpi"><div class="kpi-label">Aprobadas por el cliente (T&amp;E)</div><div class="kpi-value">{{ approved }}</div></div>
+  </div>
   <div class="grid dashboard-grid">
-    <section class="section"><div class="section-head"><h2>Servicios solicitados</h2><span class="meta">Top 6</span></div>{{ services }}</section>
-    <section class="section"><div class="section-head"><h2>Etapa de las solicitudes</h2><span class="meta">Actual</span></div>{{ statuses }}</section>
-    <section class="section"><div class="section-head"><h2>Tipos de cliente</h2><span class="meta">Clasificación comercial</span></div>{{ client_types }}</section>
-    <section class="section"><div class="section-head"><h2>Lectura rápida</h2></div>{{ insights }}</section>
+    <section class="section"><div class="section-head"><h2>Servicios solicitados</h2><span class="meta">Los 6 más pedidos</span></div>{{ services }}</section>
+    <section class="section"><div class="section-head"><h2>Etapa de los casos</h2><span class="meta">Ahora</span></div>{{ statuses }}</section>
+    <section class="section"><div class="section-head"><h2>Tipos de cliente</h2><span class="meta">Según quién escribe</span></div>{{ client_types }}</section>
+    <section class="section"><div class="section-head"><h2>Lo que se nota</h2></div>{{ insights }}</section>
   </div>
   <p class="meta">{{ sync_text }}</p>
 </details>

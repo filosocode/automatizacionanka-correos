@@ -13,7 +13,7 @@ Solo uno de los tres puede estar activo sobre la misma cuenta de Gmail (ver `MOD
 ## Qué se comparte y qué no
 
 - **`local` y `api` son el mismo programa.** El flujo, las reglas, la estructura de Drive y el prompt son idénticos; lo único que cambia es qué función analiza el correo. Por eso un cambio en el código Python vale para los dos automáticamente, y `tests/test_paridad_modos.py` comprueba que con el mismo correo dejan el mismo estado, el mismo borrador y el mismo prompt.
-- **`chatgpt_work` es otro orquestador.** No ejecuta el código Python: interpreta la skill. Todo cambio de reglas hay que escribirlo también en `SKILL.md`; ninguna prueba automática puede garantizar cómo lo interpreta ChatGPT, por eso hay una prueba manual (abajo).
+- **`chatgpt_work` es otro orquestador.** Interpreta la skill. Con el prompt V6 (T-41) Work abre los adjuntos directamente en Gmail y el puente los verifica por nombre y tamaño. El preparador optativo T-45 (prompt V5 y anteriores) ejecuta lectores Python y publica sus resultados en Drive para que Work los consulte; no analiza ni envía. Todo cambio de reglas debe escribirse también en `SKILL.md`; ninguna prueba automática garantiza cómo lo interpreta ChatGPT, por eso hay una prueba manual (abajo).
 - **`config.json` solo lo lee Python.** Work no lo ve. Si un ajuste de configuración cambia el comportamiento (por ejemplo `required_fields`), anótalo en la skill; hoy esa sincronización es manual.
 
 ## Fuente única de las reglas
@@ -46,3 +46,21 @@ No prueban:
 - que ChatGPT Work **interprete bien** la skill (de ahí la prueba manual del paso 6);
 - que el modelo clasifique bien un correo concreto (eso lo mide la muestra etiquetada, `evaluacion/`);
 - la sincronización de `config.json` con la skill.
+
+## Auditar dependencias (pip-audit)
+
+El CI corre `pip-audit` sobre `requirements.lock` y `requirements-dev.lock` cada lunes y en cada subida (trabajo `auditoria` de `.github/workflows/ci.yml`). No es una dependencia del proyecto y no se instala en la máquina de desarrollo. Si quieres correrlo a mano en un entorno aparte:
+
+```
+python -m venv %TEMP%\auditoria && %TEMP%\auditoria\Scripts\python -m pip install pip-audit==2.9.0
+%TEMP%\auditoria\Scripts\python -m pip_audit --require-hashes --disable-pip -r requirements.lock
+%TEMP%\auditoria\Scripts\python -m pip_audit --require-hashes --disable-pip -r requirements-dev.lock
+```
+
+Se ejecutan por separado porque ambos archivos fijan los mismos paquetes y `pip-audit` rechaza un paquete repetido en una sola pasada.
+
+Un hallazgo no rompe nada solo: se actualiza el rango en `requirements*.txt`, se regeneran los `.lock` (ver README) y se corre `check.bat`.
+
+## Verificación rápida mientras trabajas
+
+`check.bat quick` corre ruff, mypy, `check_spec.py` y las pruebas sin los módulos lentos (`tools/pruebas_rapidas.py --rapido`; `--medir` muestra los más lentos y `LENTOS` se ajusta ahí). No sustituye a `check.bat`: no mide cobertura y salta lo lento. En una terminal sin `.bat`: `python tools/pruebas_rapidas.py --rapido` después de `python -m ruff check .`, `python -m mypy` y `python check_spec.py`.

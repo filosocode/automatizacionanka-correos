@@ -66,7 +66,7 @@ Puede haber varias respuestas parciales y varias versiones de la tabla. Los env�
 - ~~El prefiltro por palabras clave puede descartar solicitudes válidas~~ **Resuelto (octubre de 2026):** solo se descarta sin analizar el ruido evidente (remitente no-reply, listas de correo con `List-Unsubscribe`, mensajes automáticos, spam de Gmail) y solo si **todos** los mensajes del cliente lo son. Todo lo demás pasa al modelo. Cada descarte guarda su motivo y se puede revisar y rescatar en el dashboard (Descartadas). `commercial_filter_terms` ahora solo rescata del descarte un aviso automático que mencione una cotización. Sigue pendiente medir con la muestra etiquetada cuántas solicitudes pierde el modelo.
 - **Las reglas obligatorias por servicio** siguen siendo un único `required_fields` global, no reglas por familia de servicio aprobadas por Anka.
 - **La evidencia por celda** se guarda como campo `fuente`, sin validación automática contra el texto original.
-- El envío automático (`run --apply` sin `--review-only`/`--gmail-drafts`) no debe activarse hasta medir el piloto con correos reales.
+- ~~El envío automático (`run --apply` sin `--review-only`/`--gmail-drafts`)~~ **Eliminado (U-77, D-144):** la línea de comandos nunca envía al cliente; el envío es solo desde el dashboard, con revisión (R8).
 
 ## Decisiones pendientes de Anka
 

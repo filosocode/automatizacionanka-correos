@@ -26,7 +26,6 @@ from anka.dominio.reception import (
 class Action(StrEnum):
     """Efecto externo que exige una decisión, además de guardar el estado."""
     NONE = "none"
-    SEND = "send"          # enviar las preguntas al cliente y esperar respuesta
     GMAIL_DRAFT = "draft"  # crear borrador en Gmail
     QUEUE = "queue"        # dejar la respuesta propuesta en la cola de revisión
     FOLDER = "folder"      # crear la carpeta del proyecto en Drive
@@ -86,8 +85,8 @@ def _decide_not_a_request(thread_id: str, analysis: Analisis, blocked: list[Adju
 
 
 def _decide_ask_client(thread_id: str, analysis: Analisis, logs: list[Note], questions: list[str], recipient: str,
-                       is_forwarded: bool, *, review_only: bool, gmail_drafts: bool) -> Decision:
-    """Faltan datos: se propone pedirlos al cliente (borrador de Gmail, cola de revisión o envío directo)."""
+                       is_forwarded: bool, *, gmail_drafts: bool) -> Decision:
+    """Faltan datos: se propone pedirlos al cliente (borrador o cola de revisión); nunca se envían (R8, U-77)."""
     body = question_email(questions, is_forwarded)
     logs.append(Note(f"{thread_id}: faltan datos; se propone pedirlos al cliente"))
     logs.append(Note(f"{thread_id}: Borrador para {recipient}:\n{body}", sensitive=True))
@@ -96,12 +95,10 @@ def _decide_ask_client(thread_id: str, analysis: Analisis, logs: list[Note], que
             QuoteStatus.DRAFT_CREATED, analysis, logs, Action.GMAIL_DRAFT,
             packet=True, questions=questions, body=body,
         )
-    if review_only:
-        return Decision(
-            QuoteStatus.REVIEW_PENDING, analysis, logs, Action.QUEUE,
-            packet=True, questions=questions, body=body,
-        )
-    return Decision(QuoteStatus.WAITING, analysis, logs, Action.SEND, body=body)
+    return Decision(
+        QuoteStatus.REVIEW_PENDING, analysis, logs, Action.QUEUE,
+        packet=True, questions=questions, body=body,
+    )
 
 
 def _decide_complete_scope(thread_id: str, analysis: Analisis, logs: list[Note], config: Configuracion,
@@ -164,5 +161,5 @@ def decide_analysis(
     questions = reception_questions(analysis, required)
     if questions:
         return _decide_ask_client(thread_id, analysis, logs, questions, recipient, is_forwarded,
-                                  review_only=review_only, gmail_drafts=gmail_drafts)
+                                  gmail_drafts=gmail_drafts)
     return _decide_complete_scope(thread_id, analysis, logs, config, review_only=review_only)

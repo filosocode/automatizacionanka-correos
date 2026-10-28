@@ -45,6 +45,49 @@ class EvidenciaAdjunto(TypedDict, total=False):
     excerpt: str
 
 
+class AreaCalculada(TypedDict):
+    """Área y perímetro que el programa calculó de un polígono de un KML/KMZ: una pista, nunca una cantidad (T-125)."""
+
+    archivo: str
+    poligono: str
+    area_m2: float
+    area_ha: float
+    perimetro_m: float
+    anillos_interiores: int
+
+
+class FilaDeHoja(TypedDict):
+    """Una fila con cantidad de una hoja de cálculo adjunta que la tabla de actividades no recoge (T-127)."""
+
+    archivo: str
+    hoja: str
+    fila: int
+    descripcion: str
+    cantidad: float
+    veces: float
+    unidad: str
+
+
+class CifraDePdf(TypedDict):
+    """Una cifra de alcance de un PDF adjunto que ninguna actividad de la tabla menciona (T-131)."""
+
+    archivo: str
+    cifra: str   # como está escrita, con su unidad
+    contexto: str
+    lecturas: list[float]   # lo que puede valer: «10,015» es 10,015 o 10 015
+    unidad: str
+
+
+class DiferenciaDeArea(TypedDict):
+    """Un área escrita en el correo que ningún polígono respalda, con el polígono más cercano (T-126)."""
+
+    escrita: str
+    declarada_ha: float
+    poligono: str
+    archivo: str
+    calculada_ha: float
+
+
 class Dependencia(TypedDict, total=False):
     """Algo de lo que depende el alcance (p. ej. un archivo por validar); pendiente manda el caso a revisión técnica."""
 
@@ -105,6 +148,13 @@ class RevisionManual(TypedDict, total=False):
     sin_respuesta: bool  # se siguió con la T sin esperar la respuesta del cliente (U-28)
 
 
+class RevisionDeLectura(TypedDict, total=False):
+    """Una persona revisó por su cuenta los archivos que Anka no pudo verificar (U-29)."""
+
+    at: str
+    files: list[str]     # los archivos que seguían sin verificar cuando la persona asumió la revisión
+
+
 class EdicionManual(TypedDict, total=False):
     """Marca de que una persona editó la tabla: un reproceso del modelo no la pisa."""
 
@@ -124,24 +174,45 @@ class Analisis(TypedDict, total=False):
     question_audit: list[dict[str, object]]
     evidence_register: list[dict[str, object]]
     question_quality_warnings: list[str]
+    correcciones_de_work: list[str]      # T-28: lo que Work escribió distinto de lo esperado y se corrigió solo
+    sin_analisis_de_work: dict[str, Any]   # T-36: {motivo, campos, fecha} del caso mínimo (sin análisis legible)
     scope_dependencies: list[Dependencia]
     contradictions: list[Contradiccion]
     attachments: list[Adjunto]
     routing: Enrutamiento
     work_reply: RespuestaWork
     work_model: str           # T-32: el modelo que declaró Work (solo interno)
+    work_message_id: str      # el mensaje del cliente que analizó Work (puente, T-46)
     work_skill_version: str   # T-32: la versión del prompt que declaró Work (solo interno)
     manual_review: RevisionManual
+    ultimas_preguntas: list[str]   # lo último que la persona dejó en el cuadro de preguntas para el cliente (U-31)
     manual_edit: EdicionManual
     pending_model_activities: list[Actividad]
+    propuesta_descartada: list[Actividad]   # U-57: la propuesta de Work que se dejó de lado
     drive: dict[str, str]
     email: dict[str, str]
     received_at: str
     gmail_url: str
     engine: str
+    DRIVE_PREFLIGHT: dict[str, Any]
+    reading_audit: dict[str, Any]
+    reading_review: RevisionDeLectura   # U-29: la lectura la revisó una persona; solo lo escribe el dashboard
+    reading_summary: dict[str, Any]
+    cifras_de_pdf_sin_mencionar: list[CifraDePdf]   # T-131: pista; cifras de un PDF que la tabla no menciona
+    filas_de_hoja_sin_cubrir: list[FilaDeHoja]   # T-127: pista; filas de una hoja de cálculo que la tabla no recoge
+    diferencias_de_area: list[DiferenciaDeArea]   # T-126: pista; el correo dice un área que ningún polígono respalda
+    areas_calculadas: list[AreaCalculada]   # T-125: pista para la persona, nunca entra en una cantidad ni en la tabla
+    evidence_check: dict[str, Any]   # T-38: lo que se comprobó de la tabla de Work contra los textos del expediente
+    related_threads: list[dict[str, Any]]
+    applicability: dict[str, Any]
+    classification: str                  # T-52: una de las cuatro clases (de Work)
+    classification_reason: str
+    analysis_complete: bool
     force_analysis: bool
     preguntas: list[Any]                 # preguntas del caso con la decisión de una persona (U-22)
-    preguntas_enviadas: dict[str, Any]   # {en, preguntas}: las preguntas que llevaba el último correo enviado (U-22)
+    preguntas_enviadas: dict[str, Any]   # {en, mensaje, preguntas}: las preguntas que llevaba el último correo enviado
+    rondas_de_preguntas: list[dict[str, Any]]   # cada correo enviado, sus preguntas y la respuesta que siguió (T-59)
+    revision_de_tabla: list[dict[str, str]]     # lo que un seguimiento propone y requiere revisión humana (T-59)
     analysis_failure: dict[str, Any]     # {motivo, intentos, proximo_intento}: el hilo no se pudo analizar (T-26)
     lectura_por_tramos: dict[str, Any]   # {adjuntos: [{adjunto, tramos, hallazgos}], niveles}: leídos por tramos
     ignored_reason: str

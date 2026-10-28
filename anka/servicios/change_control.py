@@ -7,6 +7,8 @@ seguimiento del caso. Los correos que resultan son siempre borradores que revisa
 """
 
 from __future__ import annotations
+from anka.dominio.errores import ErrorDeValidacion
+from anka.dominio.reloj import ahora, ahora_iso
 from anka.servicios.repositorio import actualizar_caso
 
 import json
@@ -17,7 +19,7 @@ from uuid import uuid4
 
 from anka.dominio.analisis import Analisis
 from anka.infra.logging_setup import get_logger
-from anka.infra.store import connect, record_event, register_change
+from anka.infra.store import connect, lectura, record_event, register_change, transaccion
 
 log = get_logger(__name__)
 
@@ -114,7 +116,7 @@ def required_messages(has_code: bool, is_contact: bool) -> list[tuple[str, str]]
 
 def apply_guard(db: sqlite3.Connection, thread_id: str, analysis: Analisis, requested_by_email: str,
                 requested_by_name: str, cited_codes: list[str], message_id: str, subject: str,
-                snippet: str, source: str) -> bool:
+                snippet: str, source: str, confirmar: bool = True) -> bool:
     """Aplica R11 a un análisis nuevo (de Work o de Python) antes de guardarlo.
 
     Si el caso ya tiene T y el mensaje no cumple, la tabla actual se conserva, lo que propone el
@@ -139,7 +141,7 @@ def apply_guard(db: sqlite3.Connection, thread_id: str, analysis: Analisis, requ
     proposed = analysis.get("activities") or []
     if sender:
         register_change(db, thread_id, message_id or f"{source}-{when}", sender, requested_by_name,
-                        subject, snippet, when or datetime.now().astimezone().isoformat(timespec="seconds"),
+                        subject, snippet, when or ahora_iso("seconds"),
                         has_code, is_contact, same_company)
     if proposed != previous:
         analysis["pending_model_activities"] = proposed
@@ -151,7 +153,8 @@ def apply_guard(db: sqlite3.Connection, thread_id: str, analysis: Analisis, requ
                      f"lock-{message_id or when}",
                      f"El análisis propuso cambios en la tabla, pero no se aplicaron (R11): {reason}. "
                      "Quedan como propuesta pendiente.", when)
-    db.commit()
+    if confirmar:
+        db.commit()
     return proposed != previous
 
 
@@ -160,19 +163,16 @@ def suggest_number(year: int | None = None) -> str:
 
     Es una sugerencia: el consecutivo oficial puede ir más adelante, por eso se confirma a mano.
     """
-    prefix = f"{(year or datetime.now().year) % 100:02d}"
-    db = connect()
-    try:
+    prefix = f"{(year or ahora().year) % 100:02d}"
+    with lectura() as db:
         used = [int(row["quote_code"][2:]) for row in db.execute(
             "SELECT quote_code FROM quotes WHERE quote_code LIKE ? AND length(quote_code)=5",
             (prefix + "%",)) if row["quote_code"][2:].isdigit()]
-    finally:
-        db.close()
     return f"{prefix}{(max(used) + 1 if used else 1):03d}"
 
 
 def _action_ref() -> str:
-    return f"{datetime.now().astimezone().isoformat(timespec='seconds')}-{uuid4().hex[:6]}"
+    return f"{ahora_iso('seconds')}-{uuid4().hex[:6]}"
 
 
 def normalize_number(number: str) -> str:
@@ -180,22 +180,35 @@ def normalize_number(number: str) -> str:
     return number.strip().upper().removeprefix("T&E").removeprefix("TE").removeprefix("T").strip()
 
 
+def _validar_numero(db: sqlite3.Connection, thread_id: str, number: str) -> None:
+    """Las condiciones para asignar la T: número bien formado, caso existente, sin código y sin repetir."""
+    if not NUMBER_PATTERN.match(number):
+        raise ErrorDeValidacion("Escribe 5 números: 2 del año y 3 del consecutivo (por ejemplo 26145).")
+    row = db.execute("SELECT quote_code FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+    if not row:
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
+    if row["quote_code"]:
+        raise ErrorDeValidacion(f"Este caso ya tiene el código {row['quote_code']}.")
+    if db.execute("SELECT 1 FROM quotes WHERE quote_code=?", (number,)).fetchone():
+        raise ErrorDeValidacion(f"El código {number} ya está asignado a otro caso.")
+
+
+def comprobar_numero(thread_id: str, number: str) -> str:
+    """Comprueba, sin asignar nada, que la T se puede asignar; devuelve el número normalizado (U-34.2).
+
+    Sirve para fallar antes de hacer algo irreversible: la T no se puede deshacer (D-08)."""
+    number = normalize_number(number)
+    with lectura() as db:
+        _validar_numero(db, thread_id, number)
+    return number
+
+
 def assign_code(thread_id: str, number: str) -> str:
     """Acepta el proyecto: le asigna su T. Desde aquí cualquier cambio debe citarla."""
     number = normalize_number(number)
-    if not NUMBER_PATTERN.match(number):
-        raise ValueError("El número debe tener 5 dígitos: año de 2 cifras y consecutivo de 3 (p. ej. 26145).")
-    db = connect()
-    try:
-        row = db.execute("SELECT quote_code FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
-        if not row:
-            raise ValueError("La solicitud ya no existe.")
-        if row["quote_code"]:
-            raise ValueError(f"Este caso ya tiene el código {row['quote_code']}.")
-        other = db.execute("SELECT 1 FROM quotes WHERE quote_code=?", (number,)).fetchone()
-        if other:
-            raise ValueError(f"El código {number} ya está asignado a otro caso.")
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+    with transaccion(inmediata=False) as db:
+        _validar_numero(db, thread_id, number)
+        now = ahora_iso("seconds")
         actualizar_caso(db, thread_id,
             quote_code=number,
             code_stage='T',
@@ -204,67 +217,84 @@ def assign_code(thread_id: str, number: str) -> str:
         record_event(db, thread_id, "code_assigned", "dashboard", _action_ref(),
                      f"Se aceptó el proyecto y se asignó el código {code_label(number, 'T')}. "
                      "Desde aquí todo cambio debe citarlo.", now)
-        db.commit()
-    finally:
-        db.close()
     return (f"Código {code_label(number, 'T')} asignado. Revisa el correo de «proyecto recibido» "
             "y envíalo para informar al cliente.")
 
 
 def promote_to_te(thread_id: str) -> str:
     """La oferta fue aprobada: la T pasa a T&E (mismo número)."""
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         row = db.execute("SELECT quote_code, code_stage FROM quotes WHERE thread_id=?",
                          (thread_id,)).fetchone()
         if not row or not row["quote_code"]:
-            raise ValueError("Este caso todavía no tiene código.")
+            raise ErrorDeValidacion("Este caso todavía no tiene código.")
         if row["code_stage"] == "TE":
             return "La oferta ya figuraba como aprobada."
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        now = ahora_iso("seconds")
         actualizar_caso(db, thread_id,
             code_stage='TE',
             updated_at=now)
         record_event(db, thread_id, "code_approved", "dashboard", _action_ref(),
                      f"La oferta fue aprobada: {code_label(row['quote_code'], 'T')} pasa a "
                      f"{code_label(row['quote_code'], 'TE')}.", now)
-        db.commit()
-    finally:
-        db.close()
-    return f"Oferta aprobada: ahora es {code_label(row['quote_code'], 'TE')}."
+    return f"Listo: la oferta quedó aprobada ({code_label(row['quote_code'], 'TE')})."
 
 
 def resolve_change(thread_id: str, change_id: int, is_change: bool) -> str:
     """Una persona decide si el mensaje posterior a la T pide un cambio o es otra cosa."""
-    db = connect()
-    try:
+    with transaccion(inmediata=False) as db:
         change = db.execute("SELECT * FROM case_changes WHERE id=? AND thread_id=? AND state='pending'",
                             (change_id, thread_id)).fetchone()
         if not change:
             return "Ese mensaje ya se había revisado."
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        now = ahora_iso("seconds")
         who = change["sender_name"] or change["sender_email"]
         db.execute("UPDATE case_changes SET state=?, decided_at=? WHERE id=?",
                    ("change" if is_change else "not_change", now, change_id))
         if is_change:
             summary = (f"Confirmaste que el mensaje de {who} «{change['subject'][:80]}» solicita un cambio "
                        f"({'con' if change['has_code'] else 'sin'} el código).")
-            message = "Registrado como solicitud de cambio. Abajo quedan los correos por enviar."
+            message = "Anotado como cambio. Abajo están los correos por enviar."
         else:
             summary = f"Marcaste el mensaje de {who} «{change['subject'][:80]}» como no relacionado con un cambio."
-            message = "Anotado: no es un cambio."
+            message = ("Anotado: no es un cambio. Si fue un error, puedes reabrirlo en la pestaña «Historial» "
+                       "(«Decisiones que puedes deshacer»).")
         record_event(db, thread_id, "change_confirmed" if is_change else "change_dismissed", "dashboard",
                      f"change-{change_id}", summary, now, change["sender_email"], change["sender_name"])
-        db.commit()
-    finally:
-        db.close()
     return message
+
+
+def reabrir_cambio(thread_id: str, change_id: int) -> str:
+    """Deshace «No es un cambio»: el mensaje vuelve a quedar por revisar y se anota quién lo reabrió (U-57)."""
+    with transaccion(inmediata=False) as db:
+        change = db.execute("SELECT * FROM case_changes WHERE id=? AND thread_id=?", (change_id, thread_id)).fetchone()
+        if not change:
+            return "Ese mensaje ya no está en este caso."
+        if change["state"] != "not_change":
+            return "Ese mensaje ya estaba por revisar." if change["state"] == "pending" else (
+                "Ese mensaje ya se había confirmado como un cambio.")
+        now = ahora_iso("seconds")
+        who = change["sender_name"] or change["sender_email"]
+        db.execute("UPDATE case_changes SET state='pending', decided_at=NULL WHERE id=?", (change_id,))
+        record_event(db, thread_id, "change_reopened", "dashboard", f"change-{change_id}-reopened-{uuid4().hex[:6]}",
+                     f"Reabriste el mensaje de {who} «{change['subject'][:80]}» que habías marcado como no relacionado "
+                     "con un cambio.", now, change["sender_email"], change["sender_name"])
+    return "Reabierto: el mensaje vuelve a estar por revisar arriba, en el caso."
+
+
+def cambios_descartados(thread_id: str) -> list[dict[str, str]]:
+    """Los mensajes que una persona marcó como «No es un cambio» y se pueden reabrir (los 5 más recientes)."""
+    with lectura() as db:
+        rows = db.execute("SELECT id, sender_name, sender_email, subject, decided_at FROM case_changes "
+                          "WHERE thread_id=? AND state='not_change' ORDER BY decided_at DESC, id DESC LIMIT 5",
+                          (thread_id,)).fetchall()
+    return [{"id": str(r["id"]), "quien": r["sender_name"] or r["sender_email"], "asunto": r["subject"],
+             "cuando": (r["decided_at"] or "")[:16].replace("T", " ")} for r in rows]
 
 
 def known_addresses(thread_id: str) -> set[str]:
     """Direcciones que ya participan en el caso: solo a ellas se puede escribir desde el dashboard."""
-    db = connect()
-    try:
+    with lectura() as db:
         found = {row[0].casefold() for row in db.execute(
             "SELECT contact_email FROM quotes WHERE thread_id=? "
             "UNION SELECT recipient FROM quotes WHERE thread_id=? "
@@ -272,9 +302,46 @@ def known_addresses(thread_id: str) -> set[str]:
             "UNION SELECT sender_email FROM case_changes WHERE thread_id=? "
             "UNION SELECT sender_email FROM case_links WHERE thread_id=?",
             (thread_id,) * 5) if row[0]}
-    finally:
-        db.close()
     return found
+
+
+ORIGEN_CONTACTO = "contacto registrado"
+ORIGEN_DESTINATARIO = "destinatario del caso"
+ORIGEN_PARTICIPANTE = "participante del hilo"
+ORIGEN_CAMBIO = "remitente de un cambio"
+ORIGEN_VINCULADO = "vinculado desde otro hilo"
+ORIGEN_NUEVO = "nuevo (no figura en el caso)"
+
+
+def origen_de_destinatario(thread_id: str, address: str, db: sqlite3.Connection | None = None) -> str:
+    """De dónde sale una dirección dentro del caso, para que quien revisa lo vea antes de enviar (U-45, R8).
+
+    Orden: contacto registrado, destinatario del caso, remitente de un cambio, vinculado desde otro hilo, participante
+    del hilo (los dos primeros ya son de confianza; los demás se advierten); si no figura en ninguno, «nuevo».
+    """
+    wanted = (address or "").strip().casefold()
+    propia = db is None
+    conexion = db if db is not None else connect()
+    try:
+        consultas = (
+            (ORIGEN_CONTACTO, "SELECT 1 FROM quotes WHERE thread_id=? AND lower(contact_email)=?"),
+            (ORIGEN_DESTINATARIO, "SELECT 1 FROM quotes WHERE thread_id=? AND lower(recipient)=?"),
+            (ORIGEN_CAMBIO, "SELECT 1 FROM case_changes WHERE thread_id=? AND lower(sender_email)=?"),
+            (ORIGEN_VINCULADO, "SELECT 1 FROM case_links WHERE thread_id=? AND lower(sender_email)=?"),
+            (ORIGEN_PARTICIPANTE, "SELECT 1 FROM case_events WHERE thread_id=? AND lower(actor_email)=?"),
+        )
+        for origen, sql in consultas:
+            if conexion.execute(sql, (thread_id, wanted)).fetchone():
+                return origen
+    finally:
+        if propia:
+            conexion.close()
+    return ORIGEN_NUEVO
+
+
+def origen_en_texto(origen: str) -> str:
+    """« (origen)» para el historial, o vacío si es el contacto o el destinatario del caso."""
+    return "" if origen in (ORIGEN_CONTACTO, ORIGEN_DESTINATARIO) else f" ({origen})"
 
 
 def mark_change_sent(thread_id: str, change_id: int, purpose: str, to: str) -> None:
@@ -282,13 +349,9 @@ def mark_change_sent(thread_id: str, change_id: int, purpose: str, to: str) -> N
     column = "contact_notified_at" if purpose == "notify_contact" else "reply_sent_at"
     labels = {"ack": "Se envió «cambio recibido» a", "ask_code": "Se pidió el código a",
               "notify_contact": "Se avisó al contacto registrado,"}
-    db = connect()
-    try:
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
+    with transaccion(inmediata=False) as db:
+        now = ahora_iso("seconds")
         db.execute(f"UPDATE case_changes SET {column}=? WHERE id=? AND thread_id=?",
                    (now, change_id, thread_id))
         record_event(db, thread_id, "change_reply", "dashboard", f"{purpose}-{change_id}",
                      f"{labels.get(purpose, 'Se envió un correo a')} {to} por el cambio #{change_id}.", now)
-        db.commit()
-    finally:
-        db.close()

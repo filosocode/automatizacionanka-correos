@@ -1,0 +1,597 @@
+{
+  "actividades": [
+    {
+      "cantidad_literal": "18,5",
+      "claves": [
+        "planim",
+        "altim"
+      ],
+      "entregable": "Plano en DWG y PDF; curvas cada 0,5 m",
+      "grupos_entregable": [
+        [
+          "dwg"
+        ],
+        [
+          "pdf"
+        ]
+      ],
+      "id": "C1-A1",
+      "nombre": "Levantamiento topográfico planimétrico y altimétrico del área de intervención",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "fila": 1,
+        "pagina": 1,
+        "tabla": 1
+      },
+      "servicio": "topografia",
+      "unidad_literal": "ha",
+      "valor": "18.5"
+    },
+    {
+      "ambiguo": true,
+      "cantidad_literal": "2,350",
+      "claves": [
+        "ejes",
+        "vias"
+      ],
+      "entregable": "Perfil longitudinal en PDF",
+      "grupos_entregable": [
+        [
+          "perfil"
+        ]
+      ],
+      "id": "C1-A2",
+      "interpretaciones": [
+        "2.35",
+        "2350"
+      ],
+      "nombre": "Levantamiento de ejes de vías internas existentes",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "fila": 2,
+        "pagina": 1,
+        "tabla": 1
+      },
+      "servicio": "topografia",
+      "unidad_literal": "km",
+      "valor": "2.35"
+    },
+    {
+      "cantidad_literal": "12",
+      "claves": [
+        "monument",
+        "control"
+      ],
+      "entregable": "Reseñas en PDF",
+      "grupos_entregable": [
+        [
+          "resen"
+        ]
+      ],
+      "id": "C1-A3",
+      "nombre": "Localización y monumentación de puntos de control",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "fila": 3,
+        "pagina": 1,
+        "tabla": 1
+      },
+      "servicio": "geodesia",
+      "unidad_literal": "puntos",
+      "valor": "12"
+    },
+    {
+      "cantidad_literal": "7",
+      "claves": [
+        "construc"
+      ],
+      "entregable": "Planta y fachada en DWG",
+      "grupos_entregable": [
+        [
+          "planta"
+        ],
+        [
+          "fachada"
+        ]
+      ],
+      "id": "C1-A4",
+      "nombre": "Levantamiento de construcciones existentes",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "fila": 4,
+        "pagina": 1,
+        "tabla": 1
+      },
+      "servicio": "topografia",
+      "unidad_literal": "construcciones",
+      "valor": "7"
+    },
+    {
+      "cantidad_literal": "3",
+      "claves": [
+        "quebr",
+        "drenaj"
+      ],
+      "entregable": "Trazado en DWG",
+      "grupos_entregable": [
+        [
+          "dwg"
+        ]
+      ],
+      "id": "C1-A5",
+      "nombre": "Localización de quebradas y drenajes",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "fila": 5,
+        "pagina": 1,
+        "tabla": 1
+      },
+      "servicio": "topografia",
+      "unidad_literal": "quebradas",
+      "valor": "3"
+    }
+  ],
+  "ambiguedades": [
+    {
+      "actividad": "C1-A2",
+      "gravedad": "no_critico",
+      "grupos": [
+        [
+          "2,350",
+          "2.350"
+        ],
+        [
+          "separador",
+          "decimal",
+          "miles",
+          "ambig",
+          "2,35"
+        ]
+      ],
+      "id": "C1-M1",
+      "literal": "2,350",
+      "motivo": "«2,350 km» admite 2,35 km o 2350 km según el separador; el prompt pide declarar la cifra ambigua.",
+      "reconoce_en": [
+        "limitaciones_de_lectura",
+        "revisiones_internas",
+        "preguntas_cliente",
+        "contradicciones"
+      ],
+      "unidad": "km"
+    }
+  ],
+  "cambios": [
+    {
+      "caso": "C1",
+      "efecto": "C1-F2 deja de contarse como omisión de Work (v1: no crítico).",
+      "id": "V2-C1-1",
+      "origen_del_cambio": "respuesta de Work C1 (T-72)",
+      "por_que": "La Nota 6 del documento ya difiere su definición a la reunión de inicio; Work lo trató como revisión interna y no preguntó.",
+      "que": "El sistema de coordenadas (C1-F2) pasa a destino «cliente_o_revision_interna»: se reconoce en preguntas o en revisiones internas."
+    },
+    {
+      "caso": "C1",
+      "efecto": "Sigue siendo un hallazgo no crítico si Work no la declara (en C1 no la declaró).",
+      "id": "V2-C1-2",
+      "origen_del_cambio": "T-72 (informe C1)",
+      "por_que": "Era un juicio interno que el prompt ya pedía declarar como ambigüedad de lectura.",
+      "que": "La ambigüedad de «2,350 km» sale de las revisiones internas y pasa a una lista de ambigüedades (C1-M1), reconocible en limitaciones, revisiones, preguntas o contradicciones."
+    },
+    {
+      "caso": "C1",
+      "efecto": "C1-F3 exige «12» y «10»; C1-F1, un término de polígono y otro de predio o alcance.",
+      "id": "V2-C1-3",
+      "origen_del_cambio": "T-73 (límites del comparador)",
+      "por_que": "Evitar coincidencias por una sola palabra.",
+      "que": "C1-F1, C1-F3 y C1-I1 exigen dos conceptos, no una palabra suelta."
+    },
+    {
+      "caso": "C1",
+      "efecto": "Si aparece, se cuenta como hallazgo adicional correcto; si no, no se penaliza.",
+      "id": "V2-C1-4",
+      "origen_del_cambio": "respuesta de Work C1 (T-72)",
+      "por_que": "Work la señaló y está fundada en el documento; la referencia v1 no la contemplaba.",
+      "que": "Se añade C1-K2 (Nota 7 frente a planta y fachada) como contradicción opcional."
+    }
+  ],
+  "caso": "C1",
+  "contradicciones": [
+    {
+      "critica": true,
+      "exigida": true,
+      "grupos": [
+        [
+          "12"
+        ],
+        [
+          "10"
+        ]
+      ],
+      "id": "C1-K1",
+      "motivo": "La tabla pide 12 puntos de control y el texto de condiciones estima 10.",
+      "tema": "cantidad de puntos de control",
+      "valores": [
+        {
+          "literal": "12",
+          "origen": {
+            "documento": "solicitud_01.pdf",
+            "fila": 3,
+            "pagina": 1,
+            "tabla": 1
+          },
+          "unidad": "puntos"
+        },
+        {
+          "literal": "10",
+          "origen": {
+            "documento": "solicitud_01.pdf",
+            "pagina": 2,
+            "parrafo": "Condiciones, quinto punto"
+          },
+          "unidad": "puntos"
+        }
+      ]
+    }
+  ],
+  "contradicciones_opcionales": [
+    {
+      "grupos": [
+        [
+          "nota 7"
+        ],
+        [
+          "fachada"
+        ]
+      ],
+      "id": "C1-K2",
+      "motivo": "La Tabla 1 pide planta y fachada de 7 construcciones y la Nota 7 limita el sector sur a fachada principal.",
+      "palabras_de_contexto": [
+        "construccion"
+      ],
+      "tema": "alcance de las construcciones del sector sur"
+    }
+  ],
+  "datos_presentes": [
+    {
+      "grupos": [
+        [
+          "plazo"
+        ]
+      ],
+      "tema": "plazo"
+    },
+    {
+      "grupos": [
+        [
+          "entregable",
+          "formato"
+        ]
+      ],
+      "tema": "entregables"
+    },
+    {
+      "grupos": [
+        [
+          "precision"
+        ]
+      ],
+      "tema": "precision"
+    },
+    {
+      "grupos": [
+        [
+          "acceso",
+          "horario"
+        ]
+      ],
+      "tema": "acceso"
+    }
+  ],
+  "deriva_de": {
+    "sha256": "e98e4236704de364e15c077056179b362940657e300a8e83af091509a8300322",
+    "version": "1"
+  },
+  "documento": {
+    "archivo": "solicitud_01.pdf",
+    "sha256": "f47ed4da974e982b09954bfd1b71472b0fefa5859309d7ab1e24c924c92bd844"
+  },
+  "elementos_visuales": [],
+  "esperado": {
+    "actividades": [
+      {
+        "cantidad": 18.5,
+        "servicio": "topografia",
+        "unidad": "ha"
+      },
+      {
+        "cantidad": 2.35,
+        "servicio": "topografia",
+        "unidad": "km"
+      },
+      {
+        "cantidad": 12.0,
+        "servicio": "geodesia",
+        "unidad": "puntos"
+      },
+      {
+        "cantidad": 7.0,
+        "servicio": "topografia",
+        "unidad": "construcciones"
+      },
+      {
+        "cantidad": 3.0,
+        "servicio": "topografia",
+        "unidad": "quebradas"
+      }
+    ],
+    "es_solicitud": true,
+    "faltante": [
+      "sistema",
+      "ubicacion"
+    ],
+    "ubicacion": [
+      "esperanza",
+      "villa ejemplo",
+      "cundinamarca"
+    ]
+  },
+  "faltantes": [
+    {
+      "bloqueante": true,
+      "destino": "cliente",
+      "grupos": [
+        [
+          "poligono",
+          "kmz",
+          "kml",
+          "limites",
+          "delimit"
+        ],
+        [
+          "predio",
+          "lote",
+          "area",
+          "alcance"
+        ]
+      ],
+      "id": "C1-F1",
+      "motivo": "El polígono del predio «se enviará por separado» y no está en el documento.",
+      "reconoce_en": [
+        "preguntas_cliente"
+      ],
+      "tema": "ubicacion"
+    },
+    {
+      "bloqueante": false,
+      "destino": "cliente_o_revision_interna",
+      "grupos": [
+        [
+          "sistema de coordenadas",
+          "datum",
+          "magna",
+          "sistema de referencia",
+          "coordenadas"
+        ]
+      ],
+      "id": "C1-F2",
+      "motivo": "La Nota 6 difiere la definición del sistema de coordenadas a la reunión de inicio: basta reconocerlo como pendiente, ya sea como pregunta al cliente o como revisión interna.",
+      "reconoce_en": [
+        "preguntas_cliente",
+        "revisiones_internas"
+      ],
+      "tema": "sistema"
+    },
+    {
+      "bloqueante": false,
+      "destino": "cliente",
+      "grupos": [
+        [
+          "12"
+        ],
+        [
+          "10"
+        ]
+      ],
+      "id": "C1-F3",
+      "motivo": "Resolver la contradicción entre 12 y 10 puntos de control.",
+      "reconoce_en": [
+        "preguntas_cliente"
+      ],
+      "tema": "cantidad de puntos"
+    }
+  ],
+  "ficticio": true,
+  "inventario": {
+    "paginas": [
+      {
+        "elementos": [
+          "encabezado",
+          "objeto",
+          "datos del predio",
+          "Tabla 1 (5 filas)"
+        ],
+        "n": 1
+      },
+      {
+        "elementos": [
+          "condiciones (6 puntos)",
+          "notas",
+          "contacto"
+        ],
+        "n": 2
+      }
+    ],
+    "tablas": [
+      {
+        "columnas": [
+          "Ítem",
+          "Actividad",
+          "Cantidad",
+          "Unidad",
+          "Entregable"
+        ],
+        "filas": 5,
+        "id": 1,
+        "pagina": 1
+      }
+    ]
+  },
+  "nota": "Propuesta posterior a las respuestas de Work: reevaluar con ella no es una evaluación ciega. La referencia v1 sigue siendo la línea base congelada.",
+  "ocr": {
+    "motivo": "texto digital extraíble",
+    "requiere": false
+  },
+  "regla_de_valores": "cada valor y unidad se conservan tal como están escritos; no hay conversión implícita",
+  "restricciones": [
+    {
+      "critica": true,
+      "grupos": [
+        [
+          "25"
+        ],
+        [
+          "dias"
+        ]
+      ],
+      "id": "C1-R1",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "pagina": 2
+      },
+      "texto": "Plazo de entrega: 25 días calendario desde la orden de inicio."
+    },
+    {
+      "critica": false,
+      "grupos": [
+        [
+          "lunes"
+        ],
+        [
+          "viernes"
+        ]
+      ],
+      "id": "C1-R2",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "pagina": 2
+      },
+      "texto": "Acceso al predio de lunes a viernes entre 7:00 y 16:00; sábados solo con autorización."
+    },
+    {
+      "critica": false,
+      "grupos": [
+        [
+          "2 cm"
+        ],
+        [
+          "gnss"
+        ]
+      ],
+      "id": "C1-R3",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "pagina": 2
+      },
+      "texto": "Precisión horizontal requerida: ±2 cm (posicionamiento GNSS)."
+    },
+    {
+      "critica": false,
+      "grupos": [
+        [
+          "arl"
+        ],
+        [
+          "ganado"
+        ]
+      ],
+      "id": "C1-R4",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "pagina": 2
+      },
+      "texto": "El predio tiene presencia de ganado; se exige afiliación vigente a ARL y EPP."
+    }
+  ],
+  "revisiones_internas": [
+    {
+      "grupos": [
+        [
+          "18,5",
+          "intervencion"
+        ],
+        [
+          "21,0",
+          "predio",
+          "escritura"
+        ]
+      ],
+      "id": "C1-I1",
+      "texto": "Comprobar que el área de intervención (18,5 ha) cabe en el predio (21,0 ha).",
+      "tipo": "verificable"
+    }
+  ],
+  "tipo": "pdf_digital",
+  "titulo": "Solicitud de cotización de servicios de topografía",
+  "trampas": [
+    {
+      "conceptos_confundibles": [
+        "monument",
+        "control"
+      ],
+      "confusion": "tomarlo como cantidad de puntos de control",
+      "es": "12 fotografías por punto de control",
+      "id": "C1-T1",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "pagina": 2
+      },
+      "valor": "12",
+      "valor_literal": "12"
+    },
+    {
+      "conceptos_confundibles": [
+        "planim",
+        "altim"
+      ],
+      "confusion": "tomarlo como área de intervención",
+      "es": "área total del predio según escritura",
+      "id": "C1-T2",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "pagina": 1
+      },
+      "valor": "21.0",
+      "valor_literal": "21,0"
+    },
+    {
+      "conceptos_confundibles": [
+        "levan"
+      ],
+      "confusion": "tomar la fecha como cantidad de alguna actividad",
+      "es": "día de la reunión de inicio («25 de noviembre») además del plazo de 25 días",
+      "id": "C1-T3",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "pagina": 2
+      },
+      "valor": "25",
+      "valor_literal": "25"
+    },
+    {
+      "conceptos_confundibles": [
+        "quebr",
+        "drenaj"
+      ],
+      "confusion": "tomarlo como cantidad de quebradas",
+      "es": "número de nota («Nota 7») además de 7 construcciones",
+      "id": "C1-T4",
+      "origen": {
+        "documento": "solicitud_01.pdf",
+        "pagina": 2
+      },
+      "valor": "7",
+      "valor_literal": "7"
+    }
+  ],
+  "version": "2"
+}

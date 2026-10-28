@@ -1,0 +1,146 @@
+{
+  "casos": {
+    "C1": {
+      "actividades": {
+        "con_cantidad_y_unidad_correctas": 5,
+        "encontradas": 5,
+        "esperadas": 5,
+        "exhaustividad": 1.0,
+        "obtenidas": 5,
+        "precision": 1.0
+      },
+      "aprobacion_documental": "aprobado con reservas",
+      "cobertura_declarada_por_work": [
+        {
+          "archivo": "solicitud_01.pdf",
+          "cobertura": "completa",
+          "estado": "extraido"
+        }
+      ],
+      "contradicciones": {
+        "adicionales_fundadas": 0,
+        "detectadas": 1,
+        "exigidas": 1,
+        "omitidas": 0
+      },
+      "documento": "solicitud_01.pdf",
+      "elementos_visuales_esperados": 0,
+      "errores_criticos": 0,
+      "errores_no_criticos": 3,
+      "hallazgos_por_gravedad": {
+        "no_critico": 3,
+        "revision_humana": 2
+      },
+      "omisiones": {
+        "actividades": 0,
+        "faltantes_sin_reconocer": 1,
+        "restricciones": 0,
+        "revisiones_internas_omitidas": 1
+      },
+      "origen": {
+        "evaluacion_sha256": "5f8fee21e1d645a126f737fda12d6b2ac2825b9121366c9c4af4de79c29f77e2",
+        "referencia": "referencias_v2 (propuesta posterior a las respuestas de Work: no es una evaluación ciega)",
+        "retorno_work_sha256": "0be9c574de6c9ba32d2d76e568e480e0521c0731b0c5859c0c4dd2cf7ce06f33"
+      },
+      "para_revision_humana": 2,
+      "sha256_documento": "f47ed4da974e982b09954bfd1b71472b0fefa5859309d7ab1e24c924c92bd844",
+      "tipo": "pdf_digital"
+    },
+    "C2": {
+      "actividades": {
+        "con_cantidad_y_unidad_correctas": 0,
+        "encontradas": 0,
+        "esperadas": 4,
+        "exhaustividad": 0.0,
+        "obtenidas": 0,
+        "precision": null
+      },
+      "aprobacion_documental": "NO aprobado documentalmente",
+      "cobertura_declarada_por_work": [
+        {
+          "archivo": "tdr_02.pdf",
+          "cobertura": "parcial",
+          "estado": "bloqueado"
+        }
+      ],
+      "contradicciones": {
+        "adicionales_fundadas": 0,
+        "detectadas": 0,
+        "exigidas": 1,
+        "omitidas": 1
+      },
+      "documento": "tdr_02.pdf",
+      "elementos_visuales_esperados": 3,
+      "errores_criticos": 6,
+      "errores_no_criticos": 6,
+      "hallazgos_por_gravedad": {
+        "critico": 6,
+        "no_critico": 6,
+        "revision_humana": 4
+      },
+      "omisiones": {
+        "actividades": 4,
+        "faltantes_sin_reconocer": 3,
+        "restricciones": 3,
+        "revisiones_internas_omitidas": 1
+      },
+      "origen": {
+        "evaluacion_sha256": "6917f55b091333847e8230197082d2a2db8df69c27268a99775d420ebb73fd9e",
+        "referencia": "referencias_v2 (propuesta posterior a las respuestas de Work: no es una evaluación ciega)",
+        "retorno_work_sha256": "7f23dc5467e902870f0032c169435b9476fc32a3e126815e0c3b3125832610fa"
+      },
+      "para_revision_humana": 4,
+      "sha256_documento": "0287414f91bb1c9b3ecfd05e98de713adaa81177261885f89e4fe8f23c66d732",
+      "tipo": "pdf_escaneado"
+    },
+    "C3": {
+      "actividades": {
+        "con_cantidad_y_unidad_correctas": 4,
+        "encontradas": 4,
+        "esperadas": 4,
+        "exhaustividad": 1.0,
+        "obtenidas": 4,
+        "precision": 1.0
+      },
+      "aprobacion_documental": "aprobado con reservas",
+      "cobertura_declarada_por_work": [
+        {
+          "archivo": "cantidades_03.xlsx",
+          "cobertura": "completa",
+          "estado": "extraido"
+        }
+      ],
+      "contradicciones": {
+        "adicionales_fundadas": 2,
+        "detectadas": 2,
+        "exigidas": 2,
+        "omitidas": 0
+      },
+      "documento": "cantidades_03.xlsx",
+      "elementos_visuales_esperados": 0,
+      "errores_criticos": 0,
+      "errores_no_criticos": 1,
+      "hallazgos_por_gravedad": {
+        "acierto_adicional": 2,
+        "no_critico": 1,
+        "revision_humana": 1
+      },
+      "omisiones": {
+        "actividades": 0,
+        "faltantes_sin_reconocer": 0,
+        "restricciones": 0,
+        "revisiones_internas_omitidas": 1
+      },
+      "origen": {
+        "evaluacion_sha256": "2040bcc2a0f0fe6a878ea59115d40a6c98d96ecd17a950457461b45b22b3f83a",
+        "referencia": "referencias_v2 (propuesta posterior a las respuestas de Work: no es una evaluación ciega)",
+        "retorno_work_sha256": "6978f36bcb39e779619f9979a25b908a2dc4e66a63ebda0a902726dfb30d18f9"
+      },
+      "para_revision_humana": 1,
+      "sha256_documento": "12c52e788feb76d4c7879726d7402cb0c51f8178101e5a7a9e1bfb10cb7c0c6a",
+      "tipo": "excel"
+    }
+  },
+  "descripcion": "Línea base congelada de C1, C2 y C3 (T-117): resultado de la ejecución integrada de Work evaluado con el evaluador inverso tras T-105. No es precisión estadística: un documento por tipo y una sola ejecución cada uno.",
+  "reglas": "Las cantidades y unidades se comparan literales; la interpretación visual no se juzga automáticamente."
+}

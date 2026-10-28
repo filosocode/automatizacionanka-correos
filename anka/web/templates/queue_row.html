@@ -1,6 +1,6 @@
-<li class="queue-row">
+<li class="queue-row" data-etapa="{{ etapa }}" data-search="{{ busqueda }}">
   <span class="rank" aria-hidden="true">{{ position }}</span>
-  <div><strong>{{ project }}</strong>{% if is_new %} <span class='badge'>Nuevo</span>{% endif %}
-    <div class="meta">{{ client_name }}{% if code %} · {{ code }}{% endif %} · {{ reason }}{% if mismos %} · +{{ mismos }} hilo(s) más del mismo proyecto{% endif %}</div></div>
-  <a class="button{% if position != 1 %} secondary{% endif %}" href="{{ href }}">{{ verb }}</a>
+  <div><strong><span class="verbo" aria-hidden="true">{{ verb }} · </span>{% if client_name %}{{ client_name }} · {% endif %}{{ project }}</strong>{% if is_new %} <span class='badge'>Nuevo</span>{% endif %}
+    <div class="meta">{% if code %}{{ code }} · {% endif %}{{ reason }}{% if mismos %} · +{{ mismos }} correo(s) más del mismo proyecto{% endif %}</div></div>
+  <a class="button{% if not primaria %} secondary{% endif %}" href="{{ href }}">{{ verb }}</a>
 </li>

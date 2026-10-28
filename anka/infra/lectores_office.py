@@ -247,8 +247,10 @@ def xlsx_text(content: bytes) -> str:
     rows = []
     for sheet in workbook.worksheets:
         formula_sheet = formulas[sheet.title]
+        oculta = "HOJA OCULTA; " if sheet.sheet_state != "visible" else ""
         rows.append(
-            f"Hoja: {sheet.title}; visibilidad: {sheet.sheet_state}; rango declarado: {sheet.calculate_dimension()}"
+            f"Hoja: {sheet.title}; visibilidad: {sheet.sheet_state}; {oculta}"
+            f"rango declarado: {sheet.calculate_dimension()}"
         )
         cell_count = 0
         over_limit = False

@@ -324,8 +324,8 @@ class QuoteFlowTests(unittest.TestCase):
         ), patch("anka.web.paginas.load_config", return_value=test_config()
         ), patch("anka.servicios.internal_context.load_internal_commercial_index", return_value={}):
             page = pantalla_caso.render_case("thread-1")
-        self.assertIn("Evaluación de recepción", page)
-        self.assertIn("Etapa actual:", page)
+        self.assertIn("Primera revisión del correo", page)
+        self.assertIn("Todavía no hay precio ni alcance final", page)
 
     def test_inbound_excludes_our_sent_reply(self):
         thread = {"messages": [
@@ -491,7 +491,8 @@ class QuoteFlowTests(unittest.TestCase):
             "TOPOGRAFIA LLANOS 8.dwg", "application/acad", b"binary"
         )
         self.assertEqual(text, "")
-        self.assertEqual(reason, "plano CAD requiere revisión manual")
+        self.assertIn("plano DWG", reason)   # U-55: dice qué es y pide un formato abierto
+        self.assertIn("pedir al cliente un formato abierto", reason)
 
     def test_forwarded_message_keeps_internal_reviewer_as_recipient(self):
         message = encoded_message(
@@ -631,6 +632,7 @@ class QuoteFlowTests(unittest.TestCase):
     def test_dashboard_upsert_collects_commercial_metrics(self):
         payload = {
             "thread_id": "thread-dashboard",
+            "message_id": "msg-dashboard",
             "status": "Nueva solicitud",
             "client_email": "cliente@example.com",
             "client_name": "Cliente Ejemplo",
@@ -701,7 +703,7 @@ class QuoteFlowTests(unittest.TestCase):
                                         "AND kind IN ('draft_saved', 'response_sent')").fetchone()[0]
             finally:
                 db.close()
-        self.assertIn("Borrador guardado", message)
+        self.assertIn("Guardado en Gmail sin enviar", message)
         self.assertEqual(draft_quote["status"], "draft_created")
         self.assertEqual(draft_quote["draft_id"], "draft-1")
         self.assertEqual(gmail.sent_drafts, ["draft-1"])
@@ -1039,7 +1041,8 @@ class ActivitiesTests(unittest.TestCase):
             db.close()
             analysis = quotes.get_quote("t1")["analysis"]
         self.assertEqual(analysis["activities"][0]["activity"], "editada")
-        self.assertEqual(analysis["pending_model_activities"][0]["activity"], "modelo v2")
+        # la propuesta es la tabla de la persona con lo del modelo sumado: adoptarla no borra lo que el modelo no repite
+        self.assertEqual([a["activity"] for a in analysis["pending_model_activities"]], ["editada", "modelo v2"])
 
     def test_editor_renders_state_classes_and_export_link(self):
         from anka.web.views import activities_editor
@@ -1069,7 +1072,7 @@ class CheckStatusTests(unittest.TestCase):
             saved = estado_de_revision.read_last_check()
         self.assertEqual((result["new"], result["updated"], result["error"]), (1, 1, ""))
         self.assertEqual(saved["source"], "dashboard")
-        self.assertIn("1 solicitudes nuevas, 1 actualizadas", estado_de_revision.describe_check(result))
+        self.assertIn("1 nuevos, 1 cambiados", estado_de_revision.describe_check(result))
 
     def test_checked_run_records_error_instead_of_raising(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
@@ -1077,7 +1080,7 @@ class CheckStatusTests(unittest.TestCase):
             with self.assertLogs("anka.servicios.estado_de_revision", "ERROR") as logs:
                 result = estado_de_revision.checked_run(True, True, False, "dashboard")
         self.assertEqual(result["error"], "falta token")
-        self.assertIn("falló: falta token", estado_de_revision.describe_check(result))
+        self.assertIn("Detalle: falta token", estado_de_revision.describe_check(result))
         # El error queda con su traceback en el registro, no solo como texto en last_check.
         self.assertIsNotNone(logs.records[0].exc_info)
         self.assertIn("(dashboard)", logs.output[0])
@@ -1085,7 +1088,7 @@ class CheckStatusTests(unittest.TestCase):
     def test_sync_status_text_by_mode(self):
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch.dict(os.environ, {"CODEX_HOME": temp_dir}):
-            for mode, expected in (("local", "Motor Ollama"), ("api", "Motor API"),
+            for mode, expected in (("local", "Programa que lee los correos: Ollama"), ("api", "Programa que lee los correos: API"),
                                    ("chatgpt_work", "ChatGPT Work")):
                 with patch("anka.servicios.estado_de_revision.load_config", return_value={"active_mode": mode}):
                     self.assertIn(expected, estado_de_revision.sync_status_text())

@@ -1,0 +1,24 @@
+<details class="more rondas" id="rondas"{% if rondas | selectattr('con_respuesta') | list %} open{% endif %}>
+  <summary>Preguntas enviadas al cliente ({{ rondas | length }} ronda{{ 's' if rondas | length != 1 }})</summary>
+  {% for ronda in rondas %}<section class="ronda">
+    <h3>Ronda {{ ronda.numero }}{% if ronda.historica %} <span class="chip">Registro anterior</span>{% endif %}</h3>
+    <p class="meta"><strong>Pregunta enviada</strong>{% if ronda.enviada_en %} el {{ ronda.enviada_en }}{% else %} (sin fecha registrada){% endif %}.
+      {% if ronda.mensaje_id %}<a href="https://mail.google.com/mail/u/0/#all/{{ ronda.mensaje_id | urlquote }}" target="_blank" rel="noopener">Ver el correo enviado</a>
+      {% elif ronda.mensaje %}Mensaje: {{ ronda.mensaje }} (sin enlace: no parece un identificador de Gmail).
+      {% else %}Sin identificador del mensaje.{% endif %}</p>
+    <ol class="preguntas-ronda">
+      {% for pregunta in ronda.preguntas %}<li><span class="estado-pregunta {{ pregunta.clase }}">{{ pregunta.titulo }}</span> {{ pregunta.texto or '(sin texto)' }}
+        <span class="meta">— {{ pregunta.ayuda }}</span></li>
+      {% else %}<li class="meta">Esta ronda no guardó el texto de las preguntas.</li>
+      {% endfor %}
+    </ol>
+    {% if ronda.con_respuesta %}<p class="meta"><strong>Respuesta recibida en la ronda</strong>{% if ronda.respuesta_en %} el {{ ronda.respuesta_en }}{% else %} (sin fecha registrada){% endif %}.
+      {% if ronda.respuesta_id %}<a href="https://mail.google.com/mail/u/0/#all/{{ ronda.respuesta_id | urlquote }}" target="_blank" rel="noopener">Ver la respuesta</a>
+      {% elif ronda.respuesta_mensaje %}Mensaje: {{ ronda.respuesta_mensaje }} (sin enlace: no parece un identificador de Gmail).
+      {% else %}Sin identificador del mensaje.{% endif %}
+      El expediente no relaciona cada respuesta con cada pregunta; lo que contestó está en la pestaña «Conversación».</p>
+    {% elif ronda.historica %}<p class="meta">Registro anterior a las rondas: no se sabe si el cliente respondió.</p>
+    {% else %}<p class="meta"><strong>Sin respuesta registrada todavía.</strong></p>{% endif %}
+  </section>
+  {% endfor %}
+</details>

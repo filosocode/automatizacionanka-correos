@@ -54,6 +54,13 @@ def _noise_signal_id(message: dict) -> str | None:
     return None
 
 
+def noise_signal_id(message: dict) -> str | None:
+    """El identificador de la señal de ruido (R1) de un mensaje de Gmail, o None.
+
+    Es el que el receptor guarda en la evidencia del mensaje y el que usa la elegibilidad de los trabajos (T-51)."""
+    return _noise_signal_id(message)
+
+
 def _automated_signal(message: dict) -> str | None:
     """Motivo (genérico) por el que un mensaje es automático, o None."""
     signal = _noise_signal_id(message)
@@ -325,7 +332,8 @@ def _question_repeats_field(question: str, field: str) -> bool:
 
 def question_email(questions: list[str], forwarded: bool = False) -> str:
     """Correo al cliente con las preguntas numeradas, en el tono de un reenvío o de un mensaje directo."""
-    items = "\n".join(f"{i}. {question}" for i, question in enumerate(questions, 1))
+    textos = [str(q) for q in questions if q is not None and str(q).strip()]   # una pregunta vacía no se numera
+    items = "\n".join(f"{i}. {question}" for i, question in enumerate(textos, 1))
     opening = (
         "Gracias por compartir la solicitud. Para completar la información inicial, "
         if forwarded else
@@ -512,8 +520,18 @@ def suggested_reply(analysis: Analisis, required_fields: list[str] | None = None
     )
 
 
-def safe_folder_name(project: str, thread_id: str, prefix: str) -> str:
-    """Nombre de carpeta de la solicitud: prefijo, proyecto sin caracteres no válidos y final del id del hilo."""
-    clean = re.sub(r'[\\/:*?"<>|\x00-\x1f]', " ", project).strip(" .")
-    clean = re.sub(r"\s+", " ", clean)[:90] or "Sin nombre"
-    return f"{prefix} - {clean} - {thread_id[-8:]}"
+def _sin_caracteres_de_control(texto: str) -> str:
+    """El texto sin caracteres de control ni de formato invisibles (p. ej. «\\u202e», que invierte lo que se ve)."""
+    return "".join(" " if unicodedata.category(c) in ("Cc", "Cf") else c for c in texto)
+
+
+def safe_folder_name(project: str | None, thread_id: str | None, prefix: str) -> str:
+    """Nombre de carpeta de la solicitud: prefijo, proyecto sin caracteres no válidos y final del id del hilo.
+
+    El final del id también se limpia: un id de Gmail es alfanumérico, así que fuera de letras, cifras, «-» y «_» no
+    queda nada que pueda partir la ruta (separadores, «..», controles) ni dejar un punto o espacio al final.
+    """
+    clean = re.sub(r'[\\/:*?"<>|]', " ", _sin_caracteres_de_control(str(project or ""))).strip(" .")
+    clean = re.sub(r"\s+", " ", clean)[:90].strip(" .") or "Sin nombre"
+    final = re.sub(r"[^0-9A-Za-z_-]", "", str(thread_id or ""))[-8:] or "sin-id"
+    return f"{prefix} - {clean} - {final}"

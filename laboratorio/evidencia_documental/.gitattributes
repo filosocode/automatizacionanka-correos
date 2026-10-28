@@ -1,0 +1,6 @@
+# Laboratorio de evidencia documental (T-120): sin conversion de fin de linea; las pruebas comparan huellas y textos congelados.
+* text=auto eol=lf
+datos/** -text
+*.json text eol=lf
+*.py text eol=lf
+*.md text eol=lf

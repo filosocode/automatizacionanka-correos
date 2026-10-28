@@ -1,25 +1,25 @@
-<div class="page-head"><div><h1>Acta de cambios</h1><p>{{ project }}{% if code %} · {{ code }}{% endif %} · generada el {{ generated }}</p></div>
-  <div class="toolbar"><button type="button" class="secondary" data-print>Imprimir o guardar como PDF</button><a class="button secondary" href="{{ back }}">Volver</a></div></div>
+<div class="page-head"><div><h1>Registro de cambios</h1><p>{{ project }}{% if code %} · {{ code }}{% endif %} · generada el {{ generated }}</p></div>
+  <div class="toolbar"><button type="button" class="secondary" data-print>Imprimir o guardar en PDF</button><a class="button secondary" href="{{ back }}">Volver</a></div></div>
 <section class="section">
-  <p><strong>Integridad del registro:</strong>
-    {% if integrity_ok %}<span class="chip nueva">Verificada · {{ event_count }} hechos encadenados</span>
-    {% else %}<span class="chip distinta">ALTERADA: la cadena de huellas no coincide</span>{% endif %}</p>
+  <p><strong>¿Alguien cambió este registro?</strong>
+    {% if integrity_ok %}<span class="chip nueva">No, está intacto ({{ event_count }} anotaciones)</span>
+    {% else %}<span class="chip distinta">Cuidado: alguien cambió este registro. Avisa al equipo de sistemas antes de usarlo</span>{% endif %}</p>
   {% if contact %}<p class="meta">Contacto registrado: {{ contact }}{% if stage_label %} · Etapa: {{ stage_label }}{% endif %}</p>{% endif %}
 </section>
 {% if people %}
 <section class="section"><h2>Quién ha escrito</h2>
-  <table class="people"><thead><tr><th>Persona</th><th>Empresa</th><th>Correos</th><th>Último</th><th></th></tr></thead>
+  <table class="people"><thead><tr><th scope="col">Persona</th><th scope="col">Empresa</th><th scope="col">Correos</th><th scope="col">Último</th><th scope="col"><span class="solo-lectores">Rol</span></th></tr></thead>
   <tbody>{% for person in people %}<tr><td>{{ person.name }}<div class="meta">{{ person.email }}</div></td><td>{{ person.domain }}</td><td>{{ person.count }}</td><td>{{ person.last }}</td><td>{{ person.role }}</td></tr>
   {% endfor %}</tbody></table>
 </section>
 {% endif %}
 {% if changes %}
 <section class="section"><h2>Solicitudes de cambio</h2>
-  <table class="people"><thead><tr><th>Cuándo</th><th>Quién</th><th>Código</th><th>Estado</th><th>Respuestas</th></tr></thead>
+  <table class="people"><thead><tr><th scope="col">Cuándo</th><th scope="col">Quién</th><th scope="col">Código</th><th scope="col">Estado</th><th scope="col">Respuestas</th></tr></thead>
   <tbody>{% for change in changes %}<tr>
     <td>{{ change.occurred_at[:16] | replace('T', ' ') }}</td>
     <td>{{ change.sender_name or change.sender_email }}<div class="meta">{{ change.sender_email }} · {{ 'contacto registrado' if change.is_contact else 'otra persona' }}</div><div class="meta">«{{ change.subject }}»</div></td>
-    <td>{{ 'Cita la T' if change.has_code else 'No cita la T' }}</td>
+    <td>{{ 'Menciona el código' if change.has_code else 'No menciona el código' }}</td>
     <td>{{ {'pending': 'Por revisar', 'change': 'Cambio confirmado', 'not_change': 'No es un cambio'}[change.state] }}</td>
     <td>{% if change.reply_sent_at %}Respuesta: {{ change.reply_sent_at[:16] | replace('T', ' ') }}{% else %}Respuesta: pendiente{% endif %}<br>{% if change.is_contact %}—{% elif change.contact_notified_at %}Aviso al contacto: {{ change.contact_notified_at[:16] | replace('T', ' ') }}{% else %}Aviso al contacto: pendiente{% endif %}</td>
   </tr>{% endfor %}</tbody></table>
@@ -27,7 +27,7 @@
 {% endif %}
 {% if versions %}
 <section class="section"><h2>Versiones de la tabla de actividades</h2>
-  <table class="people"><thead><tr><th>Versión</th><th>Cuándo</th><th>Quién</th><th>Qué cambió</th><th>Motivo</th></tr></thead>
+  <table class="people"><thead><tr><th scope="col">Versión</th><th scope="col">Cuándo</th><th scope="col">Quién</th><th scope="col">Qué cambió</th><th scope="col">Motivo</th></tr></thead>
   <tbody>{% for v in versions %}<tr><td>v{{ v.version }}</td><td>{{ v.when }}</td><td>{{ v.origin }}</td>
     <td>{{ v.summary }} <span class="meta">({{ v.count }} filas)</span>{% if v.note %}<div class="meta"><strong>{{ v.note }}</strong></div>{% endif %}
       <details><summary class="meta">Ver filas</summary><ul>{% for row in v.rows %}<li>{{ row }}</li>{% endfor %}</ul></details></td>
@@ -36,10 +36,10 @@
 </section>
 {% endif %}
 <section class="section"><h2>Historial completo</h2>
-  <table class="people"><thead><tr><th>Fecha</th><th>Origen</th><th>Quién</th><th>Hecho</th><th>Huella</th></tr></thead>
+  <table class="people"><thead><tr><th scope="col">Fecha</th><th scope="col">Origen</th><th scope="col">Quién</th><th scope="col">Anotación</th><th scope="col">Código de control</th></tr></thead>
   <tbody>{% for event in events %}<tr>
     <td>{{ event.when }}</td><td>{{ event.origin }}</td><td>{{ event.who }}</td>
-    <td>{{ event.summary }}{% if event.gmail_url %} <a href="{{ event.gmail_url }}" target="_blank" rel="noopener">ver correo</a>{% endif %}</td>
+    <td>{{ event.summary }}{% if event.gmail_url %} <a href="{{ event.gmail_url }}" target="_blank" rel="noopener">ver correo<span class="solo-lectores"> (se abre en una pestaña nueva)</span></a>{% endif %}</td>
     <td class="meta">{{ event.hash[:10] }}</td></tr>
   {% endfor %}</tbody></table>
 </section>

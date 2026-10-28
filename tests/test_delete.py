@@ -56,7 +56,7 @@ class DeleteTests(unittest.TestCase):
     def test_deletes_only_the_selected_threads_with_all_their_data(self):
         message = quotes.delete_quotes(["t-a", "t-b"])
         self.assertEqual(self.ids(), {"t-c"})
-        self.assertIn("2 solicitud", message)
+        self.assertIn("2 caso", message)
         for table in ("quotes", "quote_metadata", "dashboard_notifications"):
             self.assertEqual(self.count(table, "t-a"), 0, table)
         self.assertFalse(quotes.review_packet_path("t-a").exists())
@@ -77,12 +77,12 @@ class DeleteTests(unittest.TestCase):
         self.assertEqual({n["thread_id"] for n in quotes.unread_notifications(100)}, {"t-new"})
 
     def test_empty_selection_and_unknown_threads_are_harmless(self):
-        self.assertIn("ninguna", quotes.delete_quotes([]))
-        self.assertIn("ya no existían", quotes.delete_quotes(["no-existe"]))
+        self.assertIn("ningún caso", quotes.delete_quotes([]))
+        self.assertIn("ya no estaban", quotes.delete_quotes(["no-existe"]))
         self.assertEqual(self.ids(), {"t-a", "t-b", "t-c"})
 
     def test_duplicate_ids_are_counted_once(self):
-        self.assertIn("1 solicitud", quotes.delete_quotes(["t-c", "t-c"]))
+        self.assertIn("1 caso", quotes.delete_quotes(["t-c", "t-c"]))
 
     def test_requests_page_has_a_checkbox_per_row_and_the_bulk_form(self):
         page = paginas.render_requests()
@@ -160,7 +160,7 @@ class DeleteWithDriveTests(unittest.TestCase):
         with self.assertLogs("anka.servicios.case_actions", "ERROR"):
             message = self.case_actions.delete_cases(["t-odd", "t-nofolder"])
         self.assertEqual(self.drive.trashed, set())
-        self.assertIn("No borré 1 solicitud", message)
+        self.assertIn("No se borró 1 caso", message)
         self.assertEqual(self.ids(), {"t-a", "t-odd"})
 
     def test_a_folder_that_is_already_gone_does_not_block_the_deletion(self):
@@ -172,7 +172,7 @@ class DeleteWithDriveTests(unittest.TestCase):
         with patch("anka.servicios.case_actions.services", side_effect=RuntimeError("sin red")):
             with self.assertLogs("anka.servicios.case_actions", "ERROR"):
                 message = self.case_actions.delete_cases(["t-a", "t-nofolder"])
-        self.assertIn("No borré nada", message)
+        self.assertIn("No se borró nada", message)
         self.assertEqual(self.ids(), {"t-a", "t-nofolder", "t-odd"})
 
 

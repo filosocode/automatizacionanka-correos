@@ -1,0 +1,99 @@
+{
+  "caso": "C1",
+  "actividades": [
+    {
+      "nombre": "Levantamiento topográfico planimétrico y altimétrico del área de intervención",
+      "cantidad": "18,5",
+      "unidad": "ha",
+      "entregable": "Plano en DWG y PDF; curvas cada 0,5 m",
+      "origen": {
+        "pagina": 1,
+        "tabla": 1,
+        "fila": 1
+      }
+    },
+    {
+      "nombre": "Levantamiento de ejes de vías internas existentes",
+      "cantidad": "2,350",
+      "unidad": "km",
+      "entregable": "Perfil longitudinal en PDF",
+      "origen": {
+        "pagina": 1,
+        "tabla": 1,
+        "fila": 2
+      }
+    },
+    {
+      "nombre": "Localización y monumentación de puntos de control",
+      "cantidad": "12",
+      "unidad": "puntos",
+      "entregable": "Reseñas en PDF; incluir 12 fotografías por punto de control según página 2, condición e).",
+      "origen": {
+        "pagina": 1,
+        "tabla": 1,
+        "fila": 3
+      }
+    },
+    {
+      "nombre": "Levantamiento de construcciones existentes",
+      "cantidad": "7",
+      "unidad": "construcciones",
+      "entregable": "Planta y fachada en DWG; las construcciones del sector sur se levantarán solo por fachada principal según página 2, Nota 7.",
+      "origen": {
+        "pagina": 1,
+        "tabla": 1,
+        "fila": 4
+      }
+    },
+    {
+      "nombre": "Localización de quebradas y drenajes",
+      "cantidad": "3",
+      "unidad": "quebradas",
+      "entregable": "Trazado en DWG",
+      "origen": {
+        "pagina": 1,
+        "tabla": 1,
+        "fila": 5
+      }
+    }
+  ],
+  "entregables": [
+    "Plano en DWG y PDF; curvas cada 0,5 m (página 1, tabla 1, fila 1).",
+    "Perfil longitudinal en PDF (página 1, tabla 1, fila 2).",
+    "Reseñas en PDF (página 1, tabla 1, fila 3), con 12 fotografías por punto de control (página 2, condición e).",
+    "Planta y fachada en DWG (página 1, tabla 1, fila 4), con alcance limitado a fachada principal para las construcciones del sector sur (página 2, Nota 7).",
+    "Trazado en DWG (página 1, tabla 1, fila 5)."
+  ],
+  "restricciones": [
+    "Ubicación: predio «Lote Los Almendros», vereda La Esperanza, municipio de Villa Ejemplo, departamento de Cundinamarca; destinado al diseño del Parque solar Los Almendros, proyecto ficticio (página 1, sección 1).",
+    "Área total del predio según escritura: 21,0 ha. El polígono del predio se enviará por separado en archivo KMZ (página 1, sección 2).",
+    "Curvas cada 0,5 m (página 1, tabla 1, fila 1).",
+    "Plazo de entrega: 25 días calendario contados desde la orden de inicio (página 2, condición a).",
+    "Reunión de inicio programada para el 25 de noviembre de 2026 (página 2, condición b).",
+    "Acceso al predio de lunes a viernes entre 7:00 y 16:00; sábados solo con autorización previa (página 2, condición c).",
+    "Precisión horizontal requerida: ±2 cm (posicionamiento GNSS) (página 2, condición d).",
+    "Se estima un total de 10 puntos de control para el proyecto; el paquete de reseñas debe incluir 12 fotografías por punto de control (página 2, condición e).",
+    "El predio tiene presencia de ganado; se exige afiliación vigente a ARL y uso de EPP (página 2, condición f).",
+    "El sistema de coordenadas se definirá en la reunión de inicio (página 2, Nota 6).",
+    "Las construcciones del sector sur se levantarán solo por fachada principal (página 2, Nota 7)."
+  ],
+  "contradicciones": [
+    "Cantidad de puntos de control: la página 1, tabla 1, fila 3 solicita «12» en la unidad «puntos», mientras la página 2, condición e), indica «10 puntos de control». Las «12 fotografías por punto de control» de esa misma condición corresponden a un requisito distinto y no resuelven la contradicción.",
+    "Alcance de construcciones: la página 1, tabla 1, fila 4 exige «Planta y fachada en DWG» para «7» «construcciones», mientras la página 2, Nota 7, dispone que las construcciones del sector sur se levantarán «solo por fachada principal». Esta excepción requiere precisar cuáles construcciones afecta y si excluye su planta."
+  ],
+  "preguntas_cliente": [
+    "¿La cantidad definitiva que debemos cotizar es de 12 puntos, según página 1, tabla 1, fila 3, o de 10 puntos de control, según página 2, condición e)?",
+    "¿Pueden remitir el KMZ anunciado y delimitar dentro de él el área de intervención de 18,5 ha, los ejes de vías, las construcciones y las quebradas solicitadas? El documento informa 21,0 ha de área total del predio, pero no permite localizar el alcance a cotizar (página 1, sección 2 y tabla 1, filas 1 a 5).",
+    "¿Cuáles de las 7 construcciones pertenecen al sector sur y, para ellas, se excluye la planta del entregable y se requiere únicamente la fachada principal? (Página 1, tabla 1, fila 4; página 2, Nota 7)."
+  ],
+  "revisiones_internas": [
+    "Evaluar la metodología y los recursos necesarios para cumplir la precisión horizontal de ±2 cm mediante posicionamiento GNSS y producir curvas cada 0,5 m; el documento no especifica precisión vertical (página 2, condición d; página 1, tabla 1, fila 1).",
+    "Evaluar recursos y programación para el plazo de 25 días calendario desde la orden de inicio, considerando la reunión del 25 de noviembre de 2026 y las ventanas de acceso de lunes a viernes entre 7:00 y 16:00; los sábados requieren autorización previa (página 2, condiciones a, b y c).",
+    "Verificar medidas de trabajo ante presencia de ganado, afiliación vigente a ARL y uso de EPP (página 2, condición f).",
+    "Incorporar el requisito de 12 fotografías por punto en la preparación de las reseñas, una vez aclarada la cantidad de puntos de control (página 2, condición e; página 1, tabla 1, fila 3).",
+    "Registrar que el sistema de coordenadas se definirá en la reunión de inicio y que el datum no está especificado; no asignarlos por inferencia ni considerar automáticamente esta definición pendiente como bloqueo de la cotización (página 2, Nota 6).",
+    "No interpretar como contradicción automática las 21,0 ha del predio y las 18,5 ha del área de intervención: corresponden a conceptos distintos; verificar su delimitación cuando se reciba el KMZ (página 1, sección 2 y tabla 1, fila 1)."
+  ],
+  "elementos_visuales": [],
+  "limitaciones_de_lectura": []
+}

@@ -14,8 +14,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
-from datetime import datetime
-from anka.dominio.errores import ErrorDeAnka
+from anka.dominio.reloj import ahora
+from anka.infra.acciones_en_curso import en_curso
+from anka.dominio.errores import AutorizacionDeGoogle, ErrorDeAnka
 from anka.dominio.activities import build_workbook
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import request_scope
@@ -29,12 +30,17 @@ from anka.servicios.quotes import (
     all_quotes, archived_threads, change_marker, get_quote, unread_thread_count,
 )
 
-from anka.web import openapi, paginas
+from anka.web import estaticos, openapi, paginas
+from anka.web.marcador import MarcadorCompartido
+from anka.web import formularios_pendientes as pendientes
 from anka.web.acciones import POST_ROUTES, field, int_field
-from anka.web.api import a_json, resumen_de_caso
+from anka.web.api import a_json, error_de_api, es_ruta_de_api, resumen_de_caso
 from anka.web import pantalla_caso
+from anka.web.views import marcar_como_error
 from anka.web.seguridad import (
-    CSRF_TOKEN, add_csrf_tokens, is_local_host_header, is_same_origin,
+    CSRF_TOKEN, CuerpoNoValido, add_csrf_tokens, cabeceras_de_seguridad, csp_docs, es_mensaje_para_la_persona,
+    firmar_mensaje, id_de_error, is_local_host_header, is_same_origin, longitud_del_cuerpo, mensaje_de_la_direccion,
+    nombre_seguro,
 )
 
 log = get_logger(__name__)
@@ -52,13 +58,14 @@ GET_ROUTES: dict[str, str] = {
     "/state": "_get_state",
     "/eventos": "_get_eventos",
     "/desempeno": "_get_desempeno",
+    "/operacion": "_get_operacion",
     "/api/casos": "_get_api_cases",
     "/api/salud": "_get_api_health",
     "/api/autorizacion": "_get_api_authorization",
     "/docs": "_get_docs",
     "/openapi.json": "_get_openapi",
 }
-GET_PATTERNS: dict[str, str] = {"/api/casos/{thread_id}": "_get_api_case"}
+GET_PATTERNS: dict[str, str] = {"/api/casos/{thread_id}": "_get_api_case", "/static/{archivo}": "_get_static"}
 _GET_PATTERNS = [(re.compile(re.sub(r"\{\w+\}", "([^/]+)", template)), name) for template, name in GET_PATTERNS.items()]
 
 
@@ -69,54 +76,181 @@ STREAM_SECONDS = 600        # la conexión se renueva sola: el navegador reconec
 STREAM_CHECK = 1.0          # cada cuánto mira si cambió algo (una consulta ligera)
 STREAM_KEEPALIVE = 15       # latido para que nada corte una conexión inactiva
 _streams = threading.BoundedSemaphore(MAX_STREAMS)
+# El marcador lo calcula una sola consulta por segundo para todas las pestañas conectadas (U-48).
+_marcador_compartido = MarcadorCompartido(lambda: change_marker(), STREAM_CHECK)
+
+MAX_CAMPOS = 10_000         # campos de un formulario: la tabla más grande (200 filas × 11) cabe de sobra
+
+
+def _mensaje(query: dict[str, list[str]]) -> str:
+    """El aviso de la dirección; con `aviso=error` se marca como fallo para anunciarlo como alerta (U-37)."""
+    texto = mensaje_de_la_direccion(field(query, "message"), field(query, "firma"))
+    return marcar_como_error(texto) if field(query, "aviso") == "error" else texto
+
+
+def _senalar_fallo(location: str) -> str:
+    """Añade `aviso=error` a la dirección a la que se redirige tras una acción que terminó con un aviso de fallo."""
+    ruta, almohadilla, ancla = location.partition("#")
+    if "message=" not in ruta:
+        return location
+    return ruta + ("&" if "?" in ruta else "?") + "aviso=error" + almohadilla + ancla
+
+
+def _firmar_aviso(location: str) -> str:
+    """Añade la firma del aviso a la dirección de una redirección propia: así `?message=` se muestra completo solo si lo
+    escribió este servidor, y uno puesto a mano en un enlace se recorta (U-61, B2-04)."""
+    ruta, almohadilla, ancla = location.partition("#")
+    base, interrogante, consulta = ruta.partition("?")
+    mensaje = urllib.parse.parse_qs(consulta).get("message")
+    if not interrogante or not mensaje:
+        return location
+    return f"{ruta}&firma={firmar_mensaje(mensaje[0])}{almohadilla}{ancla}"
 
 
 class ReviewHandler(BaseHTTPRequestHandler):
     """Servidor HTTP local del dashboard: páginas por GET y acciones por POST con token."""
+    timeout = 30      # una conexión que no habla en 30 s se corta y libera su hilo (U-43)
+    protocol_version = "HTTP/1.1"      # la conexión se reutiliza; toda respuesta lleva su longitud (U-48)
+
+    def _host_permitido(self) -> bool:
+        """¿El Host es local y, si trae puerto, el de este servidor? (sin servidor conocido, solo se mira el nombre)."""
+        direccion = getattr(getattr(self, "server", None), "server_address", None)
+        puerto = direccion[1] if isinstance(direccion, tuple) and len(direccion) > 1 else None
+        return is_local_host_header(self.headers.get("Host", ""), puerto if isinstance(puerto, int) else None)
+
     def _send_bytes(self, status: int, content_type: str, data: bytes,
                     extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(status)
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
-        self.send_header("Content-Type", content_type)
-        self.send_header("Cache-Control", "no-store")
-        for name, value in (extra_headers or {}).items():
+        headers = cabeceras_de_seguridad()
+        headers["Content-Type"] = content_type
+        headers.update(extra_headers or {})       # p. ej. la CSP propia de /docs o el nombre del Excel
+        comprimido = estaticos.comprimir(data, content_type, self.headers.get("Accept-Encoding", ""))
+        if estaticos.comprimible(content_type):
+            headers["Vary"] = "Accept-Encoding"
+        if comprimido is not None:                # texto grande y el cliente acepta gzip (U-48)
+            data, headers["Content-Encoding"] = comprimido, "gzip"
+        for name, value in headers.items():
             self.send_header(name, value)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        if getattr(self, "command", "") != "HEAD":      # HEAD: las mismas cabeceras y ningún cuerpo (U-50)
+            self.wfile.write(data)
 
-    def _send_html(self, content: str, status: int = 200) -> None:
-        self._send_bytes(status, "text/html; charset=utf-8", add_csrf_tokens(content).encode("utf-8"))
+    def _send_html(self, content: str, status: int = 200, extra_headers: dict[str, str] | None = None) -> None:
+        self._send_bytes(status, "text/html; charset=utf-8", add_csrf_tokens(content).encode("utf-8"), extra_headers)
 
     def _send_json(self, value: Any, status: int = 200) -> None:
         self._send_bytes(status, "application/json; charset=utf-8", a_json(value))
 
     def _read_form(self) -> dict[str, list[str]]:
-        length = int(self.headers.get("Content-Length", "0"))
-        data = self.rfile.read(length).decode("utf-8")
-        return urllib.parse.parse_qs(data)
+        """El formulario del POST; sin longitud válida, de más de 2 MiB o mal codificado lanza `CuerpoNoValido`."""
+        length = longitud_del_cuerpo(self.headers.get("Content-Length"))
+        try:
+            data = self.rfile.read(length).decode("utf-8")
+            return urllib.parse.parse_qs(data, max_num_fields=MAX_CAMPOS)
+        except ValueError as exc:   # UnicodeDecodeError o demasiados campos
+            raise CuerpoNoValido(400, "El formulario no se pudo leer.") from exc
 
-    def _reject(self, reason: str) -> None:
+    def _ruta_de_api(self) -> bool:
+        return es_ruta_de_api(urllib.parse.urlparse(getattr(self, "path", "")).path)
+
+    def _error_json(self, status: int, mensaje: str, id_de_error: str = "",
+                    extra_headers: dict[str, str] | None = None) -> None:
+        self._send_bytes(status, "application/json; charset=utf-8", error_de_api(status, mensaje, id_de_error),
+                         extra_headers)
+
+    def send_error(self, code: int, message: str | None = None, explain: str | None = None) -> None:
+        """Los errores que detecta `http.server` (método desconocido, petición mal formada) también salen en JSON
+        bajo la API (U-50)."""
+        if self._ruta_de_api():
+            self.close_connection = True
+            return self._error_json(code, "La petición no se pudo atender.")
+        super().send_error(code, message, explain)
+
+    def _aviso(self, titulo: str, texto: str, status: int, thread_id: str = "",
+               exc: BaseException | None = None, id_de_error: str = "",
+               extra_headers: dict[str, str] | None = None) -> None:
+        """Una página de aviso con salida: «Volver al caso» si se sabe cuál, «← Mis casos» y, si la causa fue la
+        autorización de Google, el botón para reautorizar (solo la persona lo pulsa; D-27). Bajo la API, en cambio,
+        el mismo aviso sale como JSON `{"error": {...}}` (U-50)."""
+        if self._ruta_de_api():
+            return self._error_json(status, texto, id_de_error, extra_headers)
+        pagina = render("empty.html", text=texto, salidas=True, volver_caso=thread_id,
+                        reautorizar=isinstance(exc, AutorizacionDeGoogle))
+        if extra_headers:
+            return self._send_html(paginas.page(titulo, pagina), status, extra_headers)
+        self._send_html(paginas.page(titulo, pagina), status)
+
+    def _error_inesperado(self, metodo: str, ruta: str, exc: Exception, thread_id: str = "") -> None:
+        """Un fallo del servidor: la persona ve un mensaje genérico con un código; el detalle queda solo en el registro.
+
+        Un `ErrorDeAnka` sí muestra su texto, porque se escribió para la persona (D-17), y no pide «avisar con el
+        código»: lo que dice ya es lo que hay que hacer (U-34.1)."""
+        codigo = id_de_error()
+        log.exception("Error atendiendo %s %s (código %s)", metodo, ruta, codigo)
+        if isinstance(exc, ErrorDeAnka):
+            texto = str(exc)
+        else:
+            texto = ("Ocurrió un error inesperado. " if not es_mensaje_para_la_persona(exc) else f"{exc} ")
+            texto += f"Si se repite, avisa con el código de error {codigo}."
+        if metodo == "POST" and ruta in pendientes.RUTAS_CON_TEXTO:
+            texto += " Lo que escribiste se conserva: vuelve al caso y lo verás ahí."
+        self._aviso("Error", texto, 500, thread_id, exc, id_de_error=codigo)
+
+    def _reject(self, reason: str, thread_id: str = "") -> None:
         origin = getattr(self, "client_address", ("?",))[0]
         log.warning("Solicitud rechazada (%s) desde %s", reason, origin)
-        self._send_html(paginas.page("Solicitud rechazada", render("empty.html", text=reason)), 403)
+        self._aviso("Solicitud rechazada", reason, 403, thread_id)
+
+    def do_HEAD(self) -> None:
+        """Como GET pero sin cuerpo (U-50): las mismas cabeceras y la misma longitud, para sondear una ruta."""
+        self.do_GET()
+
+    def do_PUT(self) -> None:
+        """PUT, DELETE, PATCH y OPTIONS no se aceptan en ninguna ruta (U-50)."""
+        self._metodo_no_permitido()
+
+    do_DELETE = do_PATCH = do_OPTIONS = do_PUT
+
+    def _metodos_de(self, ruta: str) -> list[str]:
+        """Los métodos que acepta una ruta (vacío si no existe)."""
+        if ruta in GET_ROUTES or any(patron.fullmatch(ruta) for patron, _ in _GET_PATTERNS):
+            return ["GET", "HEAD"]
+        return ["POST"] if ruta in POST_ROUTES else []
+
+    def _metodo_no_permitido(self) -> None:
+        """405 con `Allow` si la ruta existe con otro método; 404 si no existe. El cuerpo de la petición no se leyó."""
+        self.close_connection = True
+        if not self._host_permitido():
+            return self._reject("Host no permitido.")
+        ruta = urllib.parse.urlparse(self.path).path
+        permitidos = self._metodos_de(ruta)
+        if not permitidos:
+            return self._aviso("No encontrado", "Página no encontrada.", 404)
+        self._aviso("Método no permitido", "Esta dirección no acepta ese método.", 405,
+                    extra_headers={"Allow": ", ".join(permitidos)})
 
     def do_GET(self) -> None:
         """Atiende las páginas del dashboard; un error se registra y se muestra sin romper el servidor."""
         try:
             if urllib.parse.urlparse(self.path).path in STREAM_ROUTES:
+                if getattr(self, "command", "") == "HEAD":      # sin abrir la conexión larga: solo cabeceras
+                    return self._send_bytes(200, "text/event-stream; charset=utf-8", b"")
                 return self._get()      # una conexión larga no puede retener la conexión a la base de la petición
             with request_scope():   # una sola conexión a la base para toda la petición
                 self._get()
         except ValueError as exc:
-            self._rechazada("GET", self.path.split("?")[0], exc)
+            self._rechazada("GET", self.path.split("?")[0], exc, self._caso_de_la_url())
         except Exception as exc:
-            log.exception("Error atendiendo GET %s", self.path.split("?")[0])
-            self._send_html(paginas.page("Error", render("empty.html", text=str(exc))), 500)
+            self._error_inesperado("GET", self.path.split("?")[0], exc, self._caso_de_la_url())
+
+    def _caso_de_la_url(self) -> str:
+        """El caso que nombra la URL (`thread_id`), para ofrecer «Volver al caso» si la página falla."""
+        consulta = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        return field(consulta, "thread_id")[:200]
 
     def _get(self) -> None:
-        if not is_local_host_header(self.headers.get("Host", "")):
+        if not self._host_permitido():
             return self._reject("Host no permitido.")
         parsed = urllib.parse.urlparse(self.path)
         query = urllib.parse.parse_qs(parsed.query)
@@ -129,32 +263,58 @@ class ReviewHandler(BaseHTTPRequestHandler):
                     method, arguments = name, tuple(urllib.parse.unquote(g) for g in found.groups())
                     break
         if method is None:
-            return self._send_html(
-                paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
+            if parsed.path in POST_ROUTES:          # existe, pero es una acción (POST)
+                return self._aviso("Método no permitido", "Esta dirección no acepta ese método.", 405,
+                                   extra_headers={"Allow": "POST"})
+            return self._aviso("No encontrado", "Página no encontrada.", 404)
         getattr(self, method)(query, *arguments)
 
     # --- páginas (GET)
     def _get_index(self, query: dict[str, list[str]]) -> None:
-        self._send_html(paginas.render_index(field(query, "message")))
+        self._send_html(paginas.render_index(
+            _mensaje(query), int_field(query, "mostrar"), field(query, "q"),
+            field(query, "etapa") if "etapa" in query else None))
 
     def _get_requests(self, query: dict[str, list[str]]) -> None:
         agrupar = field(query, "agrupar", "1") != "0"
-        self._send_html(paginas.render_requests(field(query, "message"), agrupar_hilos=agrupar))
+        self._send_html(paginas.render_requests(
+            _mensaje(query), agrupar_hilos=agrupar, mostrar=int_field(query, "mostrar"), q=field(query, "q"),
+            etapa=field(query, "etapa") if "etapa" in query else None, tipo=field(query, "tipo"),
+            orden=field(query, "orden", "reciente")))
 
     def _get_desempeno(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.render_desempeno(field(query, "message")))
 
+    def _get_operacion(self, query: dict[str, list[str]]) -> None:
+        self._send_html(paginas.render_operacion(field(query, "message")))
+
     def _get_discarded(self, query: dict[str, list[str]]) -> None:
-        self._send_html(paginas.render_discarded(field(query, "message")))
+        self._send_html(paginas.render_discarded(_mensaje(query)))
 
     def _get_case(self, query: dict[str, list[str]]) -> None:
-        self._send_html(pantalla_caso.render_case(
-            field(query, "thread_id"), field(query, "message"), field(query, "template"),
-            int_field(query, "change_id"), field(query, "to"), field(query, "preguntas"),
-        ))
+        thread_id = field(query, "thread_id")
+        if not get_quote(thread_id):        # un caso que no existe es un 404 con salida, no una pantalla vacía (U-34.1)
+            return self._aviso("Caso no encontrado", "La solicitud no existe.", 404)
+        try:
+            pagina = pantalla_caso.render_case(
+                thread_id, _mensaje(query), field(query, "template"),
+                int_field(query, "change_id"), field(query, "to"), field(query, "preguntas"))
+        except ErrorDeAnka as exc:          # p. ej. config.json incompleto: se dice qué falta, con salida (U-34.1)
+            log.warning("%s: la pantalla del caso no se pudo armar (%s)", thread_id, exc, exc_info=True)
+            return self._aviso("No se pudo abrir el caso", str(exc), 500, exc=exc)
+        self._send_html(pagina)
 
     def _get_acta(self, query: dict[str, list[str]]) -> None:
         self._send_html(pantalla_caso.render_acta(field(query, "thread_id")))
+
+    def _get_static(self, query: dict[str, list[str]], archivo: str) -> None:
+        fijo = estaticos.buscar(archivo)
+        if fijo is None:
+            return self._aviso("No encontrado", "Página no encontrada.", 404)
+        cabeceras = {"Cache-Control": fijo.cache, "ETag": fijo.etag}
+        if estaticos.coincide_etag(self.headers.get("If-None-Match", ""), fijo.etag):
+            return self._send_bytes(304, fijo.tipo, b"", cabeceras)       # el navegador ya tiene esta versión
+        self._send_bytes(200, fijo.tipo, fijo.datos, cabeceras)
 
     def _get_archive(self, query: dict[str, list[str]]) -> None:
         self._send_html(paginas.page("Archivo", render("archive.html", items=archived_threads())))
@@ -164,10 +324,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
         quotes = [get_quote(thread_id)] if thread_id else all_quotes()
         quotes = [item for item in quotes if item]
         if thread_id and not quotes:
-            return self._send_html(
-                paginas.page("No encontrado", render("empty.html", text="La solicitud no existe.")), 404)
-        stamp = datetime.now().strftime("%Y%m%d-%H%M")
-        name = f"actividades-{thread_id[:8] or 'todas'}-{stamp}.xlsx"
+            return self._aviso("No encontrado", "La solicitud no existe.", 404)
+        stamp = ahora().strftime("%Y%m%d-%H%M")
+        caso = (nombre_seguro(thread_id)[:8] or "caso") if thread_id else "todas"   # el id viene de la URL
+        name = f"actividades-{caso}-{stamp}.xlsx"
         self._send_bytes(
             200, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", build_workbook(quotes),
             {"Content-Disposition": f'attachment; filename="{name}"'})
@@ -186,17 +346,18 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def _get_eventos(self, query: dict[str, list[str]]) -> None:
         """Avisa a la página en cuanto cambia algo (U-23), en vez de esperar a su consulta periódica."""
         if not _streams.acquire(blocking=False):
-            return self._send_json({"error": "Demasiadas pestañas conectadas."}, 503)
+            return self._error_json(503, "Demasiadas pestañas conectadas.")
         try:
             self.send_response(200)
+            for name, value in cabeceras_de_seguridad().items():
+                self.send_header(name, value)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Connection", "close")          # no tiene longitud: termina cuando se cierra
             self.end_headers()
             self.wfile.write(b"retry: 3000\n\n")
             last, quiet, started = None, 0.0, time.monotonic()
             while time.monotonic() - started < STREAM_SECONDS:
-                marker = change_marker()
+                marker = _marcador_compartido.valor()
                 if marker != last:
                     last, quiet = marker, 0.0
                     self.wfile.write(f"data: {marker}\n\n".encode())
@@ -239,49 +400,74 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def _get_api_case(self, query: dict[str, list[str]], thread_id: str) -> None:
         caso = get_quote(thread_id)
         if not caso:
-            return self._send_json({"error": "La solicitud no existe."}, 404)
+            return self._error_json(404, "La solicitud no existe.")
         self._send_json(caso)
 
     def _get_docs(self, query: dict[str, list[str]]) -> None:
-        self._send_bytes(200, "text/html; charset=utf-8", openapi.docs_page().encode("utf-8"))
+        # La página lleva el token como cualquier pantalla con formularios; `/openapi.json` ya no (D-71).
+        nonce = secrets.token_urlsafe(16)
+        self._send_bytes(200, "text/html; charset=utf-8", openapi.docs_page(CSRF_TOKEN, nonce).encode("utf-8"),
+                         {"Content-Security-Policy": csp_docs(nonce)})
 
     def _get_openapi(self, query: dict[str, list[str]]) -> None:
-        self._send_json(openapi.build_spec(CSRF_TOKEN))
+        self._send_json(openapi.build_spec())
 
     def do_POST(self) -> None:
         """Valida host, origen y token y ejecuta la acción de `POST_ROUTES`; redirige al resultado."""
         host = self.headers.get("Host", "")
-        if not is_local_host_header(host):
+        if not self._host_permitido():
+            self.close_connection = True          # el cuerpo no se leyó: no se reutiliza la conexión
             return self._reject("Host no permitido.")
-        if not is_same_origin(self.headers.get("Origin", ""), host):
+        if not is_same_origin(self.headers.get("Origin", ""), host, self.headers.get("Sec-Fetch-Site", "")):
+            self.close_connection = True
             return self._reject("Origen no permitido.")
         path = urllib.parse.urlparse(self.path).path
-        form = self._read_form()
+        try:
+            form = self._read_form()
+        except CuerpoNoValido as exc:
+            log.warning("POST %s rechazado (%s): %s", path, exc.status, exc)
+            self.close_connection = True          # el cuerpo no se leyó: no se reutiliza la conexión
+            return self._aviso("No se pudo completar", str(exc), exc.status)
         if not secrets.compare_digest(field(form, "csrf_token"), CSRF_TOKEN):
-            return self._reject("Token de seguridad inválido. Recarga la página e inténtalo de nuevo.")
+            return self._reject("Token de seguridad inválido. Recarga la página e inténtalo de nuevo.",
+                                field(form, "thread_id")[:200])
         action = POST_ROUTES.get(path)
         if action is None:
-            return self._send_html(
-                paginas.page("No encontrado", render("empty.html", text="Página no encontrada.")), 404)
+            if self._metodos_de(path):              # es una página o una lectura: solo acepta GET
+                return self._aviso("Método no permitido", "Esta dirección no acepta ese método.", 405,
+                                   extra_headers={"Allow": ", ".join(self._metodos_de(path))})
+            return self._aviso("No encontrado", "Página no encontrada.", 404)
+        hilo = field(form, "thread_id") if path in pendientes.RUTAS_CON_TEXTO else ""
+        if hilo:
+            pendientes.guardar(hilo, path, form)         # si algo falla, la persona recupera lo que escribió (U-31)
         try:
-            with request_scope():
+            with en_curso(path), request_scope():       # el lanzador espera a que termine antes de reiniciar
                 location = action(form)
-            self._redirect(location)
+            hubo_fallo = pendientes.hubo_fallo()
+            if hilo and not hubo_fallo:
+                pendientes.limpiar(hilo)
+            self._redirect(_senalar_fallo(location) if hubo_fallo else location)
         except ValueError as exc:
-            self._rechazada("POST", path, exc)
+            self._rechazada("POST", path, exc, field(form, "thread_id")[:200])
         except Exception as exc:
-            log.exception("Error atendiendo POST %s", path)
-            self._send_html(paginas.page("Error", render("empty.html", text=str(exc))), 500)
+            self._error_inesperado("POST", path, exc, field(form, "thread_id")[:200])
 
-    def _rechazada(self, metodo: str, ruta: str, exc: ValueError) -> None:
+    def _rechazada(self, metodo: str, ruta: str, exc: ValueError, thread_id: str = "") -> None:
         """Una petición que la aplicación rechaza con su motivo (caso inexistente, dato no válido) no es un fallo del
-        servidor: se responde 400 con el mensaje y se anota como aviso, con su traza por si ocultara un error propio."""
+        servidor: se responde 400 con el mensaje y se anota como aviso, con su traza por si ocultara un error propio.
+
+        Solo se muestra el texto si Anka lo escribió para la persona; el de Python o de una librería se cambia por uno
+        genérico (D-71)."""
         log.warning("%s %s rechazada: %s", metodo, ruta, exc, exc_info=True)
-        self._send_html(paginas.page("No se pudo completar", render("empty.html", text=str(exc))), 400)
+        texto = str(exc) if es_mensaje_para_la_persona(exc) else "Los datos enviados no son válidos."
+        self._aviso("No se pudo completar", texto, 400, thread_id)
 
     def _redirect(self, location: str) -> None:
         self.send_response(303)
-        self.send_header("Location", location)
+        for name, value in cabeceras_de_seguridad().items():
+            self.send_header(name, value)
+        self.send_header("Location", _firmar_aviso(location))
+        self.send_header("Content-Length", "0")
         self.end_headers()
 
     def log_message(self, format: str, *args: Any) -> None:

@@ -62,11 +62,11 @@ class PacketTests(unittest.TestCase):
 
     def test_chunks_prefer_line_breaks_and_never_drop_text(self):
         text = ("x" * 7000 + "\n") * 5
-        chunks = packet._chunk_text(text)
+        chunks = packet.chunk_text(text)
         self.assertEqual("".join(chunks), text)
         self.assertTrue(all(len(chunk) <= packet.PACKET_CHUNK_CHARS for chunk in chunks))
         self.assertTrue(all(chunk.endswith("\n") for chunk in chunks[:-1]))
-        self.assertEqual(packet._chunk_text("x" * 30_000)[0], "x" * packet.PACKET_CHUNK_CHARS)
+        self.assertEqual(packet.chunk_text("x" * 30_000)[0], "x" * packet.PACKET_CHUNK_CHARS)
 
     def test_unreadable_format_is_blocked_not_treated_as_missing_data(self):
         self.write("plano.dwg", b"\x00\x01binario")

@@ -153,7 +153,7 @@ class FolderCreationFillsItTests(unittest.TestCase):
         with patch("anka.servicios.case_actions.populate_project_folder", side_effect=RuntimeError("boom")), \
                 self.assertLogs("anka.servicios.case_actions", "ERROR"):
             message = case_actions.approve_review("t-1")
-        self.assertIn("no pude copiar su contenido", message)
+        self.assertIn("no se pudo copiar su contenido", message)
         from anka.servicios import quotes
         self.assertEqual(quotes.get_quote("t-1")["status"], QuoteStatus.READY)
 

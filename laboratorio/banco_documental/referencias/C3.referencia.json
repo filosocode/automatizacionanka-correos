@@ -1,0 +1,344 @@
+{
+  "actividades": [
+    {
+      "cantidad_literal": "33.7",
+      "claves": [
+        "lotes",
+        "topograf"
+      ],
+      "claves_entregable": [],
+      "entregable": "",
+      "formula": "=Detalle!D8",
+      "id": "C3-A1",
+      "nombre": "Levantamiento topográfico de lotes",
+      "origen": {
+        "celda": "C4",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Resumen"
+      },
+      "servicio": "topografia",
+      "unidad_literal": "ha",
+      "unidades_de_origen": "Detalle!D2:D7 en ha; Detalle!C2:C7 en m2 (no se convierte)",
+      "valor": "33.7"
+    },
+    {
+      "cantidad_literal": "3.625",
+      "claves": [
+        "ejes",
+        "viales"
+      ],
+      "claves_entregable": [],
+      "entregable": "",
+      "formula": "=SUM(Detalle!G2:G4)/1000",
+      "id": "C3-A2",
+      "nombre": "Levantamiento de ejes viales",
+      "origen": {
+        "celda": "C5",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Resumen"
+      },
+      "servicio": "topografia",
+      "unidad_literal": "km",
+      "unidades_de_origen": "Detalle!G2:G4 en m",
+      "valor": "3.625"
+    },
+    {
+      "cantidad_literal": "24",
+      "claves": [
+        "puntos",
+        "control"
+      ],
+      "claves_entregable": [],
+      "entregable": "",
+      "formula": "=Supuestos!B2*COUNTA(Detalle!A2:A7)",
+      "id": "C3-A3",
+      "nombre": "Puntos de control",
+      "origen": {
+        "celda": "C6",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Resumen"
+      },
+      "servicio": "geodesia",
+      "unidad_literal": "puntos",
+      "unidades_de_origen": "4 puntos por lote × 6 lotes",
+      "valor": "24"
+    },
+    {
+      "cantidad_literal": "3",
+      "claves": [
+        "perfiles",
+        "eje"
+      ],
+      "claves_entregable": [],
+      "entregable": "",
+      "formula": "=COUNTA(Detalle!F2:F4)",
+      "id": "C3-A4",
+      "nombre": "Perfiles de eje",
+      "origen": {
+        "celda": "C7",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Resumen"
+      },
+      "servicio": "topografia",
+      "unidad_literal": "perfiles",
+      "unidades_de_origen": "un perfil por tramo",
+      "valor": "3"
+    }
+  ],
+  "caso": "C3",
+  "contradicciones": [
+    {
+      "critica": true,
+      "id": "C3-K1",
+      "literales_clave": [
+        "7",
+        "6"
+      ],
+      "motivo": "El resumen declara 7 predios y el detalle solo lista 6 lotes.",
+      "palabras": [
+        "predio",
+        "lote"
+      ],
+      "tema": "número de predios intervenidos",
+      "valores": [
+        {
+          "literal": "7",
+          "origen": {
+            "celda": "C9",
+            "documento": "cantidades_03.xlsx",
+            "hoja": "Resumen"
+          },
+          "unidad": "lotes"
+        },
+        {
+          "literal": "6",
+          "origen": {
+            "celda": "A2:A7",
+            "documento": "cantidades_03.xlsx",
+            "hoja": "Detalle"
+          },
+          "unidad": "lotes"
+        }
+      ]
+    },
+    {
+      "critica": false,
+      "id": "C3-K2",
+      "literales_clave": [
+        "31.2",
+        "33.7"
+      ],
+      "motivo": "Una hoja oculta conserva cantidades anteriores; no deben tomarse como vigentes.",
+      "palabras": [
+        "oculta",
+        "borrador"
+      ],
+      "tema": "cantidades de la hoja oculta frente a la visible",
+      "valores": [
+        {
+          "literal": "31.2",
+          "origen": {
+            "celda": "C2",
+            "documento": "cantidades_03.xlsx",
+            "hoja": "Borrador_anterior",
+            "nota": "hoja oculta"
+          },
+          "unidad": "ha"
+        },
+        {
+          "literal": "33.7",
+          "origen": {
+            "celda": "C4",
+            "documento": "cantidades_03.xlsx",
+            "hoja": "Resumen"
+          },
+          "unidad": "ha"
+        }
+      ]
+    }
+  ],
+  "datos_presentes": [
+    {
+      "palabras": [
+        "vereda"
+      ],
+      "tema": "ubicacion"
+    }
+  ],
+  "documento": {
+    "archivo": "cantidades_03.xlsx",
+    "sha256": "12c52e788feb76d4c7879726d7402cb0c51f8178101e5a7a9e1bfb10cb7c0c6a"
+  },
+  "elementos_visuales": [],
+  "esperado": {
+    "actividades": [
+      {
+        "cantidad": 33.7,
+        "servicio": "topografia",
+        "unidad": "ha"
+      },
+      {
+        "cantidad": 3.625,
+        "servicio": "topografia",
+        "unidad": "km"
+      },
+      {
+        "cantidad": 24.0,
+        "servicio": "geodesia",
+        "unidad": "puntos"
+      },
+      {
+        "cantidad": 3.0,
+        "servicio": "topografia",
+        "unidad": "perfiles"
+      }
+    ],
+    "es_solicitud": true,
+    "faltante": [],
+    "ubicacion": [
+      "esperanza",
+      "mirador"
+    ]
+  },
+  "faltantes": [],
+  "ficticio": true,
+  "inventario": {
+    "hojas": [
+      {
+        "comentarios": [
+          "C9"
+        ],
+        "formulas": [
+          "C4",
+          "C5",
+          "C6",
+          "C7"
+        ],
+        "nombre": "Resumen",
+        "rango": "A1:E9",
+        "visibilidad": "visible"
+      },
+      {
+        "formulas": [
+          "D2:D7",
+          "C8",
+          "D8"
+        ],
+        "nombre": "Detalle",
+        "rango": "A1:G8",
+        "visibilidad": "visible"
+      },
+      {
+        "formulas": [],
+        "nombre": "Supuestos",
+        "rango": "A1:C4",
+        "visibilidad": "visible"
+      },
+      {
+        "formulas": [],
+        "nombre": "Borrador_anterior",
+        "rango": "A1:D4",
+        "visibilidad": "hidden"
+      }
+    ]
+  },
+  "ocr": {
+    "motivo": "celdas con valor y fórmula; no hay imágenes",
+    "requiere": false
+  },
+  "regla_de_valores": "cada valor y unidad se conservan tal como están escritos; no hay conversión implícita",
+  "restricciones": [
+    {
+      "claves": [
+        "0,5",
+        "curvas"
+      ],
+      "critica": false,
+      "id": "C3-R1",
+      "origen": {
+        "celda": "B3",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Supuestos"
+      },
+      "texto": "Equidistancia de curvas de nivel: 0,5 m."
+    },
+    {
+      "claves": [
+        "0,02",
+        "precision"
+      ],
+      "critica": false,
+      "id": "C3-R2",
+      "origen": {
+        "celda": "B4",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Supuestos"
+      },
+      "texto": "Precisión horizontal: 0,02 m."
+    }
+  ],
+  "revisiones_internas": [
+    {
+      "id": "C3-I1",
+      "palabras": [
+        "oculta",
+        "borrador"
+      ],
+      "texto": "Confirmar que la hoja oculta Borrador_anterior no es la vigente."
+    }
+  ],
+  "tipo": "excel",
+  "titulo": "Resumen de cantidades del proyecto vial ficticio",
+  "trampas": [
+    {
+      "conceptos_confundibles": [
+        "lotes",
+        "topograf"
+      ],
+      "confusion": "tomarla como hectáreas o mezclar la unidad con ha",
+      "es": "suma de áreas en m2",
+      "id": "C3-T1",
+      "origen": {
+        "celda": "C8",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Detalle"
+      },
+      "unidad_distinta": "m2",
+      "valor": "337000",
+      "valor_literal": "337000"
+    },
+    {
+      "conceptos_confundibles": [
+        "lotes",
+        "topograf"
+      ],
+      "confusion": "tomarla como vigente",
+      "es": "área de la hoja oculta",
+      "id": "C3-T2",
+      "origen": {
+        "celda": "C2",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Borrador_anterior"
+      },
+      "valor": "31.2",
+      "valor_literal": "31.2"
+    },
+    {
+      "conceptos_confundibles": [
+        "puntos",
+        "control"
+      ],
+      "confusion": "tomarlo como total de puntos de control",
+      "es": "puntos de control por lote (parámetro)",
+      "id": "C3-T3",
+      "origen": {
+        "celda": "B2",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Supuestos"
+      },
+      "valor": "4",
+      "valor_literal": "4"
+    }
+  ],
+  "version": "1"
+}

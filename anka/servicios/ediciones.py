@@ -5,18 +5,26 @@ que un reproceso del modelo no la pise (R11/R12 en spec/02-reglas.md).
 """
 
 from __future__ import annotations
+from anka.dominio.errores import ErrorDeValidacion
 from anka.servicios.repositorio import actualizar_caso
 
 import json
 import re
 from datetime import datetime
+from collections.abc import Sequence
+from typing import Any
 from uuid import uuid4
 
+from anka.dominio.activities import ACTIVITY_COLUMNS, huella_de_tabla
 from anka.dominio.analisis import Actividad
+from anka.dominio.areas_calculadas import actividad_con_area, area_elegida, sin_cantidad
+from anka.dominio.filas_de_hoja import actividad_de_fila, clave_de_fila, filas_aun_sin_cubrir
 from anka.infra.logging_setup import get_logger
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
 from anka.servicios.repositorio import RepositorioDeCasos
-from anka.infra.store import add_table_version, connect, latest_table_version, record_event
+from anka.infra.store import (
+    add_table_version, latest_table_version, lectura, record_event, transaccion,
+)
 from anka.dominio.caso import load_analysis
 
 log = get_logger(__name__)
@@ -28,6 +36,7 @@ EDIT_REASONS = {
     "modelo": "El modelo se lo inventó",
     "correccion": "Corrección mía",
     "cliente": "El cliente lo pidió",
+    "archivo": "Viene de un archivo adjunto",
     "otro": "Otro",
 }
 
@@ -97,8 +106,7 @@ def table_versions(thread_id: str) -> list[dict]:
 
 def last_manual_version(thread_id: str) -> dict | None:
     """Última edición de una persona y si ya se avisó al cliente de ella."""
-    db = connect()
-    try:
+    with lectura() as db:
         row = db.execute(
             "SELECT * FROM table_versions WHERE thread_id=? AND source='dashboard' "
             "ORDER BY version DESC LIMIT 1", (thread_id,)).fetchone()
@@ -107,23 +115,41 @@ def last_manual_version(thread_id: str) -> dict | None:
         notified = db.execute(
             "SELECT 1 FROM case_events WHERE thread_id=? AND kind='scope_update_sent' "
             "AND recorded_at >= ?", (thread_id, row["created_at"])).fetchone()
-    finally:
-        db.close()
     return {**dict(row), "notified": notified is not None}
 
 
-def save_activities(thread_id: str, activities: list[Actividad], reason: str = "") -> str:
-    """Guarda la tabla editada a mano y la marca para que un reproceso no la pise."""
-    db = connect()
-    try:
+def _celdas(activities: list[Any]) -> list[dict[str, str]]:
+    """Las actividades reducidas a sus columnas y a su forma normal, para saber si una edición cambió algo."""
+    return [{key: (str(item.get(key) or "").strip() or ("pendiente" if key == "estado" else ""))
+             for key, _ in ACTIVITY_COLUMNS} for item in activities]
+
+
+def save_activities(thread_id: str, activities: list[Actividad], reason: str = "", base_version: str = "",
+                    filas_enviadas: int | None = None) -> str:
+    """Guarda la tabla editada a mano y la marca para que un reproceso no la pise.
+
+    `base_version` es la huella de la tabla que la persona tenía a la vista: si cambió desde entonces se rechaza
+    sin perder lo escrito (U-34.5). `filas_enviadas` es el `row_count` del formulario: 0 con una tabla que tiene
+    filas es un formulario truncado. Una edición que no cambia nada no crea versión.
+    """
+    with transaccion() as db:       # leer y escribir bajo el mismo candado (U-42)
         row = db.execute(
             "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
         ).fetchone()
         if not row:
-            raise ValueError("La solicitud ya no existe.")
+            raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
         analysis = load_analysis(row["analysis_json"])
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         before = analysis.get("activities") or []
+        if base_version and base_version != huella_de_tabla(before):
+            raise ErrorDeValidacion(
+                "La tabla cambió desde que la abriste (otra edición o un análisis nuevo), así que no se guardó. "
+                "Lo que escribiste sigue en el editor: compáralo con la tabla de arriba y vuelve a guardar.")
+        if filas_enviadas == 0 and before:
+            raise ErrorDeValidacion("El formulario llegó sin las filas de la tabla, así que no se guardó nada. "
+                                    "Recarga el caso y vuelve a intentarlo.")
+        if _celdas(before) == _celdas(activities):
+            return "No hay cambios que guardar: la tabla sigue igual."
         if latest_table_version(db, thread_id) is None:
             # la tabla que había antes de la primera edición (la del modelo si nadie la tocó)
             add_table_version(db, thread_id, before, "previa", "Tabla anterior a la primera edición")
@@ -139,8 +165,56 @@ def save_activities(thread_id: str, activities: list[Actividad], reason: str = "
         actualizar_caso(db, thread_id,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
             updated_at=now)
-        db.commit()
-    finally:
-        db.close()
     programar_actualizacion_de_hoja(thread_id)   # la hoja de Google se actualiza sola
-    return f"Tabla guardada (versión {version}): {summary}."
+    return f"Tabla guardada. {summary}."
+
+
+def agregar_filas_de_hoja(thread_id: str, claves: Sequence[str], todas: bool = False, base_version: str = "") -> str:
+    """Agrega a la tabla, a pedido de una persona, filas de hojas de cálculo que la tabla no recogía (T-128).
+
+    Las filas entran como `pendiente`, con su archivo, hoja y fila como fuente, y se guardan como cualquier edición a
+    mano: con versión, con huella y protegidas de un reproceso. `claves` son las que marcó (`clave_de_fila`); `todas`
+    agrega todas las que la tabla aún no recoge.
+    """
+    with lectura() as db:
+        row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+    if not row:
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
+    analysis = load_analysis(row["analysis_json"])
+    actuales = analysis.get("activities") or []
+    marcadas = set(claves)
+    elegidas = [f for f in filas_aun_sin_cubrir(analysis.get("filas_de_hoja_sin_cubrir") or [], actuales)
+                if todas or clave_de_fila(f) in marcadas]
+    if not elegidas:
+        raise ErrorDeValidacion("No marcaste ninguna fila, o la tabla ya recoge las que marcaste.")
+    mensaje = save_activities(thread_id, [*actuales, *(actividad_de_fila(f) for f in elegidas)], "archivo",
+                              base_version or huella_de_tabla(actuales))
+    return f"{mensaje} Agregaste {len(elegidas)} fila{'' if len(elegidas) == 1 else 's'} de archivos adjuntos."
+
+
+def poner_area_en_actividad(thread_id: str, clave_de_area: str, indice: str, base_version: str = "") -> str:
+    """Pone, a pedido de una persona, un área calculada de un KML/KMZ como cantidad de una actividad (T-130).
+
+    Solo a actividades que no traen cantidad: nunca cambia una cifra escrita. La actividad queda `pendiente` y con una
+    nota que dice que el área es aproximada y la calculó el programa. Se guarda como cualquier edición a mano.
+    """
+    with lectura() as db:
+        row = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+    if not row:
+        raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
+    analysis = load_analysis(row["analysis_json"])
+    actuales = analysis.get("activities") or []
+    elegida = area_elegida(analysis.get("areas_calculadas") or [], clave_de_area)
+    if not elegida:
+        raise ErrorDeValidacion("No elegiste un área, o los archivos se leyeron de nuevo y esa área ya no está. "
+                                "Recarga el caso y vuelve a elegir.")
+    if not indice.isdigit() or int(indice) >= len(actuales):
+        raise ErrorDeValidacion("No elegiste una actividad de la tabla. Elige una y vuelve a intentarlo.")
+    destino = actuales[int(indice)]
+    if not sin_cantidad(destino.get("quantity")):
+        raise ErrorDeValidacion("Esa actividad ya tiene cantidad y no la cambio por un área calculada. "
+                                "Si quieres cambiarla, edítala en la tabla.")
+    nuevas = [dict(a) for a in actuales]
+    nuevas[int(indice)] = dict(actividad_con_area(destino, elegida[0], elegida[1]))
+    mensaje = save_activities(thread_id, nuevas, "archivo", base_version or huella_de_tabla(actuales))   # type: ignore[arg-type]
+    return f"{mensaje} Pusiste el {elegida[0]} ({elegida[1]:.4f} ha) en «{destino.get('activity')}»."

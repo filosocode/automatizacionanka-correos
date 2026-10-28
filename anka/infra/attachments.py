@@ -7,16 +7,19 @@ from anka.dominio.attachments import (
     build_attachment_evidence as build_attachment_evidence,
 )
 import re
-import zipfile
-from io import BytesIO
+from collections.abc import Mapping
 from pathlib import Path
 from anka.dominio.attachments import (
     MAX_ATTACHMENT_BYTES,
     MAX_WORK_PACKET_ATTACHMENT_BYTES,
     MAX_ARCHIVE_FILES,
     MAX_ARCHIVE_EXPANDED_BYTES,
+    MARCA_FORMATO_ABIERTO,
     TEXT_ATTACHMENT_EXTENSIONS,
+    motivo_sin_lector,
 )
+from anka.dominio.lectores_cad import dxf_text
+from anka.dominio.lectores_shapefile import dbf_text, shapefile_text
 from anka.dominio.lectores_texto import Unreadable, plain_text, html_text, rtf_text
 from anka.dominio.lectores_geograficos import (
     kmz_text,
@@ -30,13 +33,14 @@ from anka.dominio.lectores_geograficos import (
 )
 from anka.infra.lectores_office import docx_text, ods_text, odp_text, odt_text, pptx_text, xls_text, xlsx_text
 from anka.infra.lectores_pdf import pdf_text
-from anka.infra.lectores_zip import shapefile_zip_text
+from anka.infra.lectores_zip import shapefile_zip_text, zip_acotado
 from anka.infra.lectores_imagen import image_text, office_legacy_text
+from anka.infra.presupuesto_ocr import presupuesto_de_archivo
 
 
 def _zip_text(content: bytes) -> str:
     """Inspecciona paquetes ZIP sin extraerlos a disco; limita expansión y cantidad de entradas."""
-    with zipfile.ZipFile(BytesIO(content)) as archive:
+    with zip_acotado(content, "paquete ZIP") as archive:
         entries = [item for item in archive.infolist() if not item.is_dir()]
         supported_extensions = TEXT_ATTACHMENT_EXTENSIONS | {
             ".pdf",
@@ -55,6 +59,7 @@ def _zip_text(content: bytes) -> str:
             ".htm",
             ".kmz",
             ".shp",
+            ".dxf",
         }
         shapefile_sidecars = {".shp", ".shx", ".dbf", ".prj", ".cpg"}
         has_shapefiles = any(Path(item.filename).suffix.casefold() == ".shp" for item in entries)
@@ -91,6 +96,9 @@ def _zip_text(content: bytes) -> str:
             fragments.append(
                 "LECTURA PARCIAL DEL ZIP; formatos internos no inspeccionados: " + ", ".join(unsupported[:100])
             )
+            sin_lector = [name for name in unsupported if motivo_sin_lector(Path(name).suffix.casefold())]
+            if sin_lector:
+                fragments.append(f"Sin lector local: {', '.join(sin_lector[:100])}; {MARCA_FORMATO_ABIERTO}")
         return "\n\n".join(fragments)
 
 
@@ -125,14 +133,11 @@ def _read_other_format(filename: str, mime_type: str, content: bytes, extension:
         return docx_text(content)
     if extension in {".xlsx", ".xlsm"}:
         return xlsx_text(content)
-    if extension == ".dwg":
-        raise Unreadable("DWG requiere exportación a PDF, DXF o imagen; revise el plano original")
-    if extension in {".dwg", ".dxf"}:
-        raise Unreadable("plano CAD requiere revisión manual")
     return ""
 
 
-def _read_by_format(filename: str, mime_type: str, content: bytes) -> str:
+def _read_by_format(filename: str, mime_type: str, content: bytes,
+                    companeros: Mapping[str, bytes] | None = None) -> str:
     extension = Path(filename).suffix.casefold()
     if extension in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".gif"}:
         return image_text(filename, content)
@@ -141,7 +146,11 @@ def _read_by_format(filename: str, mime_type: str, content: bytes) -> str:
     if extension in {".doc", ".ppt"}:
         return office_legacy_text(extension, content)
     if extension == ".shp":
-        raise Unreadable("shapefile incompleto; comprima .shp, .shx y .dbf juntos en un ZIP")
+        return shapefile_text(Path(filename).stem, content, companeros)
+    if extension == ".dbf":
+        return dbf_text(Path(filename).stem, content, (companeros or {}).get(".cpg"))
+    if extension == ".dxf":
+        return dxf_text(Path(filename).name, content)
     return _read_other_format(filename, mime_type, content, extension)
 
 
@@ -169,6 +178,8 @@ def _readable(filename: str, mime_type: str) -> bool:
             ".doc",
             ".ppt",
             ".shp",
+            ".dbf",
+            ".dxf",
             ".png",
             ".jpg",
             ".jpeg",
@@ -182,9 +193,9 @@ def _readable(filename: str, mime_type: str) -> bool:
     )
 
 
-# Marcas que dejan los lectores en el texto cuando una parte legible del archivo NO se pudo extraer. «COBERTURA VISUAL
-# PARCIAL» no está aquí a propósito: significa que el OCR se ejecutó y su texto ya está en el resultado (T-24).
+# Extraer texto por OCR no certifica la interpretación de tablas y figuras (T-24, T-45).
 _MARCAS_DE_LECTURA_PARCIAL = (
+    "COBERTURA VISUAL PARCIAL",
     "LECTURA PARCIAL",
     "CONTENIDO VISUAL NO INSPECCIONADO",
     "CONTENIDO GRÁFICO",
@@ -194,6 +205,8 @@ _MARCAS_DE_LECTURA_PARCIAL = (
     "CONTENIDO DE GRÁFICOS NO EXTRAÍDO",
     "COBERTURA PARCIAL:",
     "CAMBIOS RASTREADOS:",
+    "TABLA EN IMAGEN",
+    "LIGADURAS RECUPERADAS",
 )
 
 
@@ -205,25 +218,34 @@ def _motivos_de_lectura_parcial(text: str) -> list[str]:
         reasons.append("páginas sin texto extraíble (posible escaneo u hoja vacía): " + ", ".join(blank_pages))
     if any(marker in text for marker in _MARCAS_DE_LECTURA_PARCIAL):
         reasons.append("hay imágenes, gráficos, comentarios o secciones que requieren inspección visual/manual")
+    if "TABLA EN IMAGEN" in text:
+        reasons.append("tabla en imagen: las cifras vienen del OCR; confirmar filas, columnas y celdas en la imagen")
+    if "LIGADURAS RECUPERADAS" in text:
+        reasons.append("se repararon sílabas «ti» perdidas (heurística); confirmar las palabras clave en el original")
     if "LECTURA PARCIAL DEL ZIP" in text:
         reasons.append("uno o más archivos dentro del ZIP no se pudieron extraer por completo")
+    if "REQUIERE VISIÓN" in text:
+        reasons.append("requiere visión: páginas escaneadas sin OCR local; que las lea Work o una persona")
+    if "OCR omitido por tiempo" in text or "OCR OMITIDO POR TIEMPO" in text:
+        reasons.append("OCR omitido por tiempo: se agotó el presupuesto de segundos de OCR; lectura parcial")
     if "SISTEMA DE COORDENADAS NO DECLARADO" in text:
         reasons.append("shapefile sin .prj; revisar referencia espacial antes de interpretar coordenadas")
     return reasons
 
 
 def _leer_adjunto(filename: str, mime_type: str, content: bytes, max_bytes: int, detalle_del_error: bool,
-                  ) -> tuple[str, str]:
+                  companeros: Mapping[str, bytes] | None = None) -> tuple[str, str]:
     """Texto completo y motivo de lectura parcial. `detalle_del_error=False` no repite el texto de la excepción."""
     if len(content) > max_bytes:
         return "", f"supera el límite de {max_bytes // (1024 * 1024)} MiB"
+    extension = Path(filename).suffix.casefold()
+    if sin_lector := motivo_sin_lector(extension, content):
+        return "", sin_lector
     if not _readable(filename, mime_type):
-        extension = Path(filename).suffix.casefold()
-        if extension in {".dwg", ".dxf"}:
-            return "", "plano CAD requiere revisión manual"
         return "", f"formato no soportado ({extension or mime_type or 'desconocido'})"
     try:
-        text = _read_by_format(filename, mime_type, content).strip()
+        with presupuesto_de_archivo():
+            text = _read_by_format(filename, mime_type, content, companeros).strip()
     except Unreadable as exc:
         return "", str(exc)
     except Exception as exc:
@@ -234,13 +256,18 @@ def _leer_adjunto(filename: str, mime_type: str, content: bytes, max_bytes: int,
     return text, ("lectura parcial: " + "; ".join(reasons)) if reasons else ""
 
 
-def extract_attachment_text(filename: str, mime_type: str, content: bytes) -> tuple[str, str]:
-    """Devuelve el texto completo y el motivo si quedó algo sin leer; el texto mantiene páginas, filas o elementos."""
-    return _leer_adjunto(filename, mime_type, content, MAX_ATTACHMENT_BYTES, detalle_del_error=True)
+def extract_attachment_text(filename: str, mime_type: str, content: bytes,
+                            companeros: Mapping[str, bytes] | None = None) -> tuple[str, str]:
+    """Devuelve el texto completo y el motivo si quedó algo sin leer; el texto mantiene páginas, filas o elementos.
+
+    `companeros` son los archivos hermanos de un `.shp` suelto (`.shx`, `.dbf`, `.prj`, `.cpg`), por extensión.
+    """
+    return _leer_adjunto(filename, mime_type, content, MAX_ATTACHMENT_BYTES, True, companeros)
 
 
-def extract_attachment_text_for_work_packet(filename: str, mime_type: str, content: bytes) -> tuple[str, str]:
+def extract_attachment_text_for_work_packet(filename: str, mime_type: str, content: bytes,
+                                            companeros: Mapping[str, bytes] | None = None) -> tuple[str, str]:
     """Igual que `extract_attachment_text` para el paquete que se adjunta a Work (sin repetir contenido en errores)."""
-    return _leer_adjunto(filename, mime_type, content, MAX_WORK_PACKET_ATTACHMENT_BYTES, detalle_del_error=False)
+    return _leer_adjunto(filename, mime_type, content, MAX_WORK_PACKET_ATTACHMENT_BYTES, False, companeros)
 
 

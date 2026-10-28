@@ -14,12 +14,19 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
+from typing import Any
 
+from anka.dominio import coordinacion_work
+from anka.dominio.configuracion import es_modo_work
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
-from anka.infra.backup import backup_due, run_backup
+from anka.infra import acciones_en_curso
+from anka.infra.backup import anotar_fallo, backup_due
+from anka.servicios import envios
+from anka.servicios.case_actions import reconciliar_envios_pendientes
 from anka.servicios.followup_reminders import run_due_reminders
 from anka.infra.logging_setup import configure_logging, get_logger
 
@@ -30,10 +37,13 @@ EXIT_STOP = 2                       # el puente pide no reiniciarlo (modo o cuen
 EXIT_RELANZAR = 75                  # el servicio pide que el guardián lo lance de nuevo (cambió el código)
 SERVICIO = "--servicio"             # argumento con el que el guardián lanza el servicio
 REMINDER_EVERY = 300                # segundos entre revisiones de recordatorios
+COPIA_TOPE = 900                    # segundos que puede tardar una copia antes de cancelarla (B3-09)
+COPIA_REINTENTO = 3600              # segundos de espera para volver a intentar una copia que falló o se canceló
+RECONCILIAR_CADA = 300              # segundos entre revisiones de envíos inciertos (B3-06)
 MODE_RECHECK = 30          # segundos entre lecturas de config.json para saber si el puente debe estar activo
 WATCH_EVERY = 3                     # segundos entre revisiones de cambios y de procesos
 CHILD_PYTHON = sys.executable.replace("pythonw.exe", "python.exe")
-MARKERS = ("app.py review-ui", "work_dashboard_sync.py", "supervisor.py")
+MARKERS = ("app.py review-ui", "work_dashboard_sync.py", "supervisor.py", "app.py work-drive-sync")
 
 
 def code_snapshot(root: Path = ROOT) -> dict[str, float]:
@@ -44,8 +54,8 @@ def code_snapshot(root: Path = ROOT) -> dict[str, float]:
     for path in files:
         try:
             snapshot[str(path)] = path.stat().st_mtime
-        except OSError:
-            pass
+        except OSError as exc:   # borrado o renombrado mientras se recorría: el siguiente recorrido lo verá bien
+            log.debug("Sin fecha de %s (%s); no cuenta para detectar cambios", path.name, type(exc).__name__)
     return snapshot
 
 
@@ -97,7 +107,23 @@ def stop_old_instances() -> int:
 def work_mode() -> bool:
     """¿Está activo el modo ChatGPT Work? (solo en ese modo hace falta el puente de borradores)."""
     try:
-        return settings.load_config().get("active_mode") == "chatgpt_work"
+        return es_modo_work(settings.load_config())
+    except (ErrorDeAnka, OSError, ValueError):
+        return False
+
+
+def puente_general_corre(en_modo_work: bool, coordinacion_activa: bool, habilitado: bool) -> bool:
+    """¿Debe correr el puente general de borradores? Solo en modo Work, con autorización expresa del dueño
+    (`work_general_bridge_enabled`, T-56) y sin la coordinación activa: entonces ella es el único importador (D-161).
+    Apagar la coordinación nunca lo arranca por sí solo (D-163)."""
+    return en_modo_work and habilitado and not coordinacion_activa
+
+
+def work_drive_enabled() -> bool:
+    """¿Se activó explícitamente el preparador de expedientes del modo Work?"""
+    try:
+        config = settings.load_config()
+        return es_modo_work(config) and bool(config.get("work_drive_enabled", False))
     except (ErrorDeAnka, OSError, ValueError):
         return False
 
@@ -150,33 +176,216 @@ class Child:
         log.warning("%s terminó (código %s); se reinicia en %d s", self.name, code, wait)
 
 
+class CopiaDeSeguridad:
+    """La copia diaria en un proceso aparte con tope de tiempo: un Drive colgado no congela la supervisión (B3-09).
+
+    Lanza `python -m anka.infra.backup` (que copia, verifica y sube) y lo vigila desde el bucle sin esperarlo; si
+    pasa del tope lo cancela y lo anota. Una copia que falla no se reintenta en cada vuelta, sino pasada una hora."""
+
+    def __init__(self) -> None:
+        self.process: subprocess.Popen | None = None
+        self.started = 0.0
+        self.retry_at = 0.0
+
+    def start(self) -> None:
+        """Lanza la copia en un proceso aparte."""
+        self.process = subprocess.Popen(
+            [CHILD_PYTHON, "-m", "anka.infra.backup"], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=0x08000000 if sys.stdout is None else 0)
+        self.started = time.time()
+        log.info("Copia de seguridad iniciada en un proceso aparte (PID %s)", self.process.pid)
+
+    def stop(self) -> None:
+        """Cancela la copia si sigue en curso."""
+        if self.process and self.process.poll() is None:
+            self.process.kill()
+        self.process = None
+
+    def check(self) -> None:
+        """Vigila la copia en curso (la cancela si tarda demasiado) o la lanza si toca y no hay una corriendo."""
+        if self.process is not None:
+            code = self.process.poll()
+            if code is None:
+                if time.time() - self.started > COPIA_TOPE:
+                    self.stop()
+                    anotar_fallo(f"La copia tardó más de {COPIA_TOPE // 60} minutos y se canceló.")
+                    log.error("La copia de seguridad pasó el tope de %d s y se canceló", COPIA_TOPE)
+                    self.retry_at = time.time() + COPIA_REINTENTO
+                return
+            self.process = None
+            if code != 0:
+                log.warning("La copia de seguridad terminó con código %s; se reintenta en una hora", code)
+                self.retry_at = time.time() + COPIA_REINTENTO
+            return
+        if time.time() >= self.retry_at and backup_due():
+            self.start()
+
+
+class Reconciliador:
+    """Aclara con Gmail los envíos inciertos en un hilo aparte, de uno en uno, sin frenar la supervisión (B3-06)."""
+
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self.last = 0.0
+
+    def check(self) -> None:
+        """Cada RECONCILIAR_CADA segundos lanza una ronda, si la anterior ya terminó."""
+        if time.time() - self.last < RECONCILIAR_CADA or (self.thread and self.thread.is_alive()):
+            return
+        self.last = time.time()
+        self.thread = threading.Thread(target=self._ronda, name="reconciliar-envios", daemon=True)
+        self.thread.start()
+
+    @staticmethod
+    def _ronda() -> None:
+        try:
+            for hecho in reconciliar_envios_pendientes():
+                log.info("Envío incierto aclarado: %s", hecho)
+        except Exception:
+            log.exception("Error al aclarar los envíos inciertos")
+
+
+class ReceptorGmail:
+    """Sondeo Gmail de solo lectura; un hilo no bloquea el supervisor ni solapa sus propias pasadas."""
+
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self.last = 0.0
+
+    def check(self, enabled: bool, interval: int) -> None:
+        if not enabled or time.time() - self.last < interval or (self.thread and self.thread.is_alive()):
+            return
+        self.last = time.time()
+        self.thread = threading.Thread(target=self._ronda, name="recepcion-gmail", daemon=True)
+        self.thread.start()
+
+    @staticmethod
+    def _ronda() -> None:
+        try:
+            from anka.infra.google_services import services
+            from anka.servicios.recepcion import sondear
+
+            gmail, _ = services()
+            result = sondear(gmail)
+            if result.get("status") not in ("ok", "inicializado_sin_historial", "concurrente"):
+                log.warning("Recepción Gmail: sondeo con estado %s", result.get("status", "error"))
+            elif result.get("discovered"):
+                log.info("Recepción Gmail: %d mensaje(s) nuevos registrados", result["discovered"])
+        except Exception as exc:
+            log.warning("Recepción Gmail no pudo iniciar el sondeo (%s)", type(exc).__name__)
+            try:
+                from anka.servicios.recepcion import registrar_fallo
+
+                registrar_fallo(exc)
+            except Exception as storage_error:
+                log.warning("No se pudo guardar el fallo de recepción Gmail (%s)", type(storage_error).__name__)
+
+
+class CoordinadorWork:
+    """Ciclo de coordinación Python-Work (T-55) en un hilo, igual que el receptor: nunca dos solapados."""
+
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self.last = 0.0
+        self.coordinador: Any = None          # se conserva entre ciclos: guarda los fallos y esperas de cada trabajo
+
+    def check(self, enabled: bool, interval: int) -> None:
+        """Cada `interval` segundos lanza un ciclo, si la coordinación está activada y el anterior ya terminó."""
+        if not enabled or time.time() - self.last < interval or (self.thread and self.thread.is_alive()):
+            return
+        self.last = time.time()
+        self.thread = threading.Thread(target=self._ronda, name="coordinacion-work", daemon=True)
+        self.thread.start()
+
+    def _ronda(self) -> None:
+        try:
+            from anka.cli import work_coordinacion
+
+            plan = work_coordinacion.plan_de(settings.load_config())
+            if plan is None:
+                return
+            if self.coordinador is None:
+                self.coordinador = work_coordinacion.nuevo_coordinador()
+            informe = self.coordinador.ciclo(plan)
+            if informe.get("resultado") not in ("ok", "concurrente"):
+                log.warning("Coordinación Work: ciclo con resultado %s", informe.get("resultado"))
+        except Exception as exc:
+            self.coordinador = None            # reconectar en el siguiente ciclo (token vencido, red caída)
+            log.warning("Coordinación Work: el ciclo no pudo ejecutarse (%s)", type(exc).__name__)
+
+
+def cierre_ordenado(tope: float = acciones_en_curso.ESPERA_MAXIMA) -> bool:
+    """Antes de reiniciar por un cambio de código: espera (hasta `tope` s) a que terminen las acciones del dashboard
+    y no haya un envío saliendo, para no cortarlos a la mitad (B3-15). Devuelve si ya no quedaba nada en curso."""
+    limite = time.monotonic() + tope
+    while True:
+        en_curso = acciones_en_curso.acciones_activas()
+        saliendo = envios.hay_envios_en_curso()
+        if not en_curso and not saliendo:
+            return True
+        if time.monotonic() >= limite:
+            log.warning("Se reinicia con acciones aún en curso (%s%s)", ", ".join(en_curso),
+                        "; hay un envío saliendo" if saliendo else "")
+            return False
+        time.sleep(0.5)
+
+
 def servicio() -> int:
     """Arranca dashboard y puente, los reinicia si se caen, copia a diario y pide relanzarse si cambia el código."""
     configure_logging(console=sys.stdout is not None)
     stop_old_instances()
     dashboard = Child("Dashboard", ["app.py", "review-ui", "--no-browser"])
     bridge = Child("Puente Work", ["work_dashboard_sync.py", "--seconds", "30"])
-    children = [dashboard, bridge]
+    preparer = Child("Expedientes Work", ["app.py", "work-drive-sync", "--watch-seconds", "60"])
+    children = [dashboard, bridge, preparer]
     snapshot = code_snapshot()
     last_reminders = 0.0
+    copia = CopiaDeSeguridad()
+    reconciliador = Reconciliador()
+    receptor = ReceptorGmail()
+    coordinador = CoordinadorWork()
     mode_checked, in_work_mode = 0.0, False   # config.json se relee cada MODE_RECHECK s, no en cada vuelta
+    prepare_enabled = False
+    reception_enabled, reception_interval = False, 60
+    coordination_enabled, coordination_interval = False, 300
+    bridge_enabled = False
     log.info("Anka iniciado: dashboard en http://127.0.0.1:8765/")
     try:
         while True:
             if code_snapshot() != snapshot:
                 time.sleep(2)                       # que terminen de guardarse los archivos
+                cierre_ordenado()                   # sin cortar un envío ni una acción a la mitad
                 log.info("Cambió el código: el lanzador se reinicia solo, con el dashboard y el puente")
                 return EXIT_RELANZAR                # el `finally` detiene a los hijos; el guardián lanza el código nuevo
             if time.time() - mode_checked >= MODE_RECHECK:
                 mode_checked, in_work_mode = time.time(), work_mode()
-            if in_work_mode:
+                prepare_enabled = work_drive_enabled()
+                try:
+                    config = settings.load_config()
+                    reception_enabled = in_work_mode and bool(config.get("gmail_reception_enabled", False))
+                    interval = config.get("gmail_reception_interval_seconds", 60)
+                    reception_interval = interval if isinstance(interval, int) and not isinstance(interval, bool) else 60
+                    coordination_enabled = in_work_mode and bool(config.get("work_coordination_enabled", False))
+                    bridge_enabled = coordinacion_work.puente_general_habilitado(config)
+                    interval = config.get("work_coordination_interval_seconds", 300)
+                    coordination_interval = interval if isinstance(interval, int) and not isinstance(interval, bool) else 300
+                except (ErrorDeAnka, OSError, ValueError, TypeError):
+                    reception_enabled = coordination_enabled = bridge_enabled = False
+            if puente_general_corre(in_work_mode, coordination_enabled, bridge_enabled):
                 bridge.check()
             elif bridge.process:
                 bridge.stop()                        # cambió a otro modo: el puente sobra
                 bridge.stopped = False
+            if prepare_enabled:
+                preparer.check()
+            elif preparer.process:
+                preparer.stop()
+                preparer.stopped = False
             dashboard.check()
-            if backup_due():
-                run_backup()
+            copia.check()
+            reconciliador.check()
+            receptor.check(reception_enabled, reception_interval)
+            coordinador.check(coordination_enabled, coordination_interval)
             if time.time() - last_reminders >= REMINDER_EVERY:
                 last_reminders = time.time()
                 try:
@@ -187,6 +396,7 @@ def servicio() -> int:
     except KeyboardInterrupt:
         log.info("Anka detenido")
     finally:
+        copia.stop()
         for child in children:
             child.stop()
     return 0

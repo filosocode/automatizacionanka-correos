@@ -1,3 +1,3 @@
-<p class="meta edit-note">Última edición tuya: <strong>versión {{ version }}</strong>, {{ when }} — {{ summary }}.
-  {% if notified %}Ya avisaste al cliente.{% else %}Solo está en tu historial; el cliente no ha sido avisado.
-  <a href="/case?thread_id={{ thread_id | urlquote }}&template=scope_update#respuesta">Preparar un correo de actualización (opcional)</a>{% endif %}</p>
+<p class="meta edit-note">Tu último cambio fue el {{ when }} (<strong>versión {{ version }}</strong>): {{ summary }}.
+  {% if notified %}El cliente ya lo sabe.{% else %}Solo quedó en tu historial; el cliente no lo sabe todavía.
+  <a href="/case?thread_id={{ thread_id | urlquote }}&template=scope_update#respuesta">Preparar un correo para avisarle (opcional)</a>{% endif %}</p>

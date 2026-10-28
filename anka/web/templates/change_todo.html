@@ -1,8 +1,9 @@
 <div class="next-step warn">
+  <span class="marca-paso">Antes de seguir</span>
   <div>
-    <strong>Cambio de {{ who }}: faltan correos por enviar</strong>
+    <strong>Hay correos por enviar por el cambio de {{ who }}</strong>
     {% for item in todo %}<span><a href="{{ item.href }}">{{ item.label }}</a></span>
     {% endfor %}
-    <span class="meta">Cada enlace prepara el texto; tú lo revisas y pulsas «Enviar ahora».</span>
+    <span class="meta">Pulsa un enlace para preparar el correo. Tú lo lees y pulsas «Enviar al cliente».</span>
   </div>
 </div>

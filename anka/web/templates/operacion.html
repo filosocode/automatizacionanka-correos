@@ -1,0 +1,52 @@
+<div class="page-head"><div><h1>Recepción y trabajos de Work</h1>
+  <p>Lo que Anka tiene registrado sobre los mensajes recibidos y los trabajos para Work. Solo se lee: desde aquí no se procesa, publica ni archiva nada.</p></div></div>
+<div class="notice"><strong>Registrado no es lo mismo que funcionando.</strong> Los números salen de la base local. Un mensaje o un trabajo reciente no prueba que el servicio que los produce siga activo ahora: eso solo se comprueba donde se indica.</div>
+
+<section class="section">
+  <div class="section-head"><h2>Estado de los servicios</h2></div>
+  <ul class="servicios-operacion">
+    <li><span class="estado-op {{ 'ok' if datos.puente.estado == 'ok' else ('desconocido' if datos.puente.estado == 'never' else 'error') }}">Puente Work</span>
+      Comprobado con su latido local: {{ datos.puente.texto }}</li>
+    <li><span class="estado-op desconocido">Recepción de Gmail</span> Estado no comprobado. Se muestra solo lo que quedó registrado (abajo); este panel no consulta Gmail.</li>
+    <li><span class="estado-op desconocido">Publicación en Drive y análisis de Work</span> Estado no comprobado. Se muestra solo lo que quedó registrado (abajo); este panel no consulta Drive ni Work.</li>
+  </ul>
+</section>
+
+<section class="section">
+  <div class="section-head"><h2>Mensajes recibidos</h2><span class="badge info">{{ datos.total_de_mensajes }} registrado{{ 's' if datos.total_de_mensajes != 1 }}</span></div>
+  {% if not datos.mensajes %}<p class="meta">Todavía no hay mensajes registrados en la cola de recepción. Aparecerán aquí cuando la recepción los registre.</p>
+  {% else %}
+  <ul class="conteos-operacion">{% for c in datos.mensajes %}<li><span class="estado-op {{ c.gravedad }}">{{ c.texto }}</span> <strong>{{ c.n }}</strong></li>{% endfor %}</ul>
+  <p class="meta">«Registrado y clasificado» quiere decir que Anka lo guardó y decidió qué es; que Work lo interprete se ve en los trabajos de abajo.
+    Último mensaje detectado: {{ datos.ultimo_detectado or 'sin fecha registrada' }}. Último procesado: {{ datos.ultimo_procesado or 'sin fecha registrada' }}.</p>
+  {% if datos.clasificados %}<details class="more"><summary>Cómo se clasificaron los registrados</summary>
+    <ul>{% for c in datos.clasificados %}<li>{{ c.texto }}: {{ c.n }}</li>{% endfor %}</ul></details>{% endif %}
+  {% endif %}
+  {% for c in datos.control %}<p class="meta">Último intento de lectura registrado: {{ c.ultimo_intento or 'sin fecha registrada' }}; último con éxito: {{ c.ultimo_exito or 'sin fecha registrada' }}.
+    {% if c.errores_seguidos %}<span class="estado-op error">{{ c.errores_seguidos }} error{{ 'es' if c.errores_seguidos != 1 }} seguido{{ 's' if c.errores_seguidos != 1 }}</span> {{ c.tipo_de_error }}{% endif %}
+    {% if c.recuperacion and c.recuperacion != 'normal' %}<span class="estado-op error">Recuperación: {{ c.recuperacion }}</span>{% endif %}
+    Es lo que quedó anotado, no una comprobación actual.</p>{% endfor %}
+  {% if datos.atencion %}<h3>Mensajes que no están listos</h3>
+  <div class="tabla-ancha"><table><thead><tr><th scope="col">Estado</th><th scope="col">Detalle</th><th scope="col">Intentos</th><th scope="col">Detectado</th><th scope="col">Expediente</th></tr></thead><tbody>
+    {% for m in datos.atencion %}<tr><td><span class="estado-op {{ m.gravedad }}">{{ m.texto }}</span></td><td>{{ m.detalle or '—' }}</td><td>{{ m.attempts }}</td>
+      <td>{{ m.fecha or 'sin fecha' }}</td>
+      <td>{% if m.expediente %}<a href="/case?thread_id={{ m.thread_id | urlquote }}">Abrir expediente</a>{% else %}<span class="meta">Sin expediente en Anka</span>{% endif %}</td></tr>
+    {% endfor %}</tbody></table></div>{% endif %}
+</section>
+
+<section class="section">
+  <div class="section-head"><h2>Trabajos para Work</h2><span class="badge info">{{ datos.total_de_trabajos }} registrado{{ 's' if datos.total_de_trabajos != 1 }}</span></div>
+  {% if not datos.trabajos %}<p class="meta">Todavía no hay trabajos para Work. Se crean al registrar un mensaje y publicarlo; hasta entonces no hay nada que ver aquí.</p>
+  {% else %}
+  <ul class="conteos-operacion">{% for c in datos.trabajos %}<li><span class="estado-op {{ c.gravedad }}">{{ c.texto }}</span> <strong>{{ c.n }}</strong></li>{% endfor %}</ul>
+  <p class="meta">Última actividad registrada en los trabajos: {{ datos.ultimo_trabajo or 'sin fecha registrada' }}.
+    {% if datos.con_error %}<span class="estado-op error">{{ datos.con_error }} sin cerrar con un error anotado</span>{% else %}Ninguno sin cerrar tiene un error anotado.{% endif %}
+    «Ambiguo» y «con error» son problemas reales; «pendiente» solo quiere decir que falta un paso.</p>
+  <div class="tabla-ancha"><table><thead><tr><th scope="col">Trabajo</th><th scope="col">Estado</th><th scope="col">Fecha</th><th scope="col">Intentos</th><th scope="col">Error anotado</th><th scope="col">Expediente</th></tr></thead><tbody>
+    {% for t in datos.lista_de_trabajos %}<tr><td><code>{{ t.job_id }}</code></td><td><span class="estado-op {{ t.gravedad }}">{{ t.texto }}</span></td>
+      <td>{{ t.fecha_de }} {{ t.fecha or 'sin fecha' }}</td><td>{{ t.attempts }}</td><td>{{ t.error or '—' }}</td>
+      <td>{% if t.expediente %}<a href="/case?thread_id={{ t.thread_id | urlquote }}">Abrir expediente</a>{% else %}<span class="meta">Sin expediente en Anka</span>{% endif %}</td></tr>
+    {% endfor %}</tbody></table></div>
+  {% if datos.total_de_trabajos > datos.lista_de_trabajos | length %}<p class="meta">Se muestran los {{ datos.lista_de_trabajos | length }} más importantes de {{ datos.total_de_trabajos }}; los conteos de arriba incluyen todos.</p>{% endif %}
+  {% endif %}
+</section>

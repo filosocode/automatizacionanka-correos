@@ -7,15 +7,17 @@ plantillas y el código que ya existía siguen funcionando mientras se migra a a
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import cast, Any
 import json
+import re
 from datetime import datetime
 
 from anka.dominio.analisis import Actividad, Analisis
 from anka.dominio.registros import Cambio, MapaDeSoloLectura, Vinculo
 from anka.dominio.correo import valid_email_address
-from anka.dominio.status import CLOSED_STATUSES, QuoteStatus
+from anka.dominio.status import CLOSED_STATUSES, ESTADOS, QuoteStatus
 
 
 @dataclass(frozen=True)
@@ -33,7 +35,7 @@ class Caso(MapaDeSoloLectura):
     sector: str
     notes: str
     analysis: Analisis
-    reception_assessment: dict
+    reception_assessment: Mapping[str, Any]
     services: list[str]
     first_seen_at: str
     updated_at: str
@@ -67,6 +69,12 @@ class Caso(MapaDeSoloLectura):
 
     # --- reglas del caso que dependen solo de sus propios campos
     @property
+    def marca_de_estado(self) -> str:
+        """Identifica el estado del caso que la persona tenía a la vista (U-34.4): si cambia entre que abre la pantalla
+        y envía, el envío se rechaza para que no salga un correo revisado sobre algo ya distinto."""
+        return f"{self.updated_at}|{self.sent_at}"
+
+    @property
     def cerrado(self) -> bool:
         """¿El caso ya terminó o se descartó (no espera más gestión por correo)?"""
         return self.status in CLOSED_STATUSES
@@ -97,18 +105,7 @@ class Caso(MapaDeSoloLectura):
 
 # --- Datos que se derivan de lo guardado de un caso (funciones puras: no tocan la base)
 
-STATUS_LABELS = {
-    QuoteStatus.REVIEW_PENDING: "Requiere aclaraciones",
-    QuoteStatus.READY_REVIEW: "Información suficiente para revisión interna",
-    QuoteStatus.SENDING: "Enviando",
-    QuoteStatus.REVIEW: "Revisión técnica interna",
-    QuoteStatus.WAITING: "Esperando cliente",
-    QuoteStatus.DRAFT_CREATED: "Borrador preparado",
-    QuoteStatus.RESPONSE_SENT: "Respuesta enviada",
-    QuoteStatus.READY: "Proyecto creado",
-    QuoteStatus.MISSING: "Hilo no disponible",
-    QuoteStatus.IGNORED: "Descartada",
-}
+STATUS_LABELS = {estado: info.etiqueta for estado, info in ESTADOS.items()}      # la tabla única: dominio/status.py
 
 
 CLIENT_TYPES = [
@@ -186,7 +183,109 @@ def model_proposal(analysis: Analisis) -> list[dict]:
         elif any(str(current.get(key) or "") != str(item.get(key) or "")
                  for key in ("quantity", "unit", "ubicacion", "entregable", "plazo_restriccion")):
             changes.append({"kind": "distinta", "activity": name, "detail": detail})
+    propuestas = {str(item.get("activity", "")).strip().casefold() for item in proposed if isinstance(item, dict)}
+    changes += [{"kind": "quitar", "activity": nombre, "detail": ""} for clave, fila in mine.items()
+                if clave not in propuestas and (nombre := str(fila.get("activity", "")).strip())]
     return changes
+
+
+# --- El resumen de un caso para las listas (U-49): lo que pintan sin leer el análisis completo
+
+VERSION_DEL_RESUMEN = 2        # 2: la propuesta también cuenta las actividades que quitaría (T-61)
+# Claves del análisis que leen las listas y las fichas de proyecto; el resumen guarda su valor exacto, así que leerlas
+# del resumen da lo mismo que leerlas del análisis. Si una lista empieza a leer otra clave, no se rompe nada (se lee el
+# análisis completo): solo se pierde la ventaja hasta añadirla aquí y subir `VERSION_DEL_RESUMEN`.
+CLAVES_DE_LISTA = ("project_name", "received_at", "routing", "attachments", "preguntas_enviadas")
+
+
+def resumen_de_analisis(analysis: Analisis) -> dict[str, Any]:
+    """Lo que las listas necesitan de un análisis: sus claves de lista (valor exacto), si está vacío y lo derivado
+    que cuesta recorrer actividades (servicios y propuesta del modelo). Es JSON puro, listo para guardarse."""
+    return {
+        "v": VERSION_DEL_RESUMEN,
+        "vacio": not analysis,
+        "claves": {k: v for k, v in cast(Mapping[str, Any], analysis).items() if k in CLAVES_DE_LISTA},
+        "servicios": service_names(analysis),
+        "propuesta": model_proposal(analysis),
+    }
+
+
+class AnalisisPerezoso(Mapping[str, Any]):
+    """El análisis de un caso visto desde una lista: las claves de lista salen del resumen y, solo si alguien pide
+    otra cosa, se lee y se interpreta el análisis completo (una vez). Se comporta como el diccionario de siempre."""
+
+    __slots__ = ("_claves", "_vacio", "_cargar", "_completo")
+
+    def __init__(self, claves: Mapping[str, Any], vacio: bool, cargar: Callable[[], Analisis]) -> None:
+        self._claves = claves
+        self._vacio = vacio
+        self._cargar = cargar
+        self._completo: Analisis | None = None
+
+    @property
+    def cargado(self) -> bool:
+        """¿Ya se leyó el análisis completo? (las pruebas lo usan para comprobar que una lista no lo lee)"""
+        return self._completo is not None
+
+    def _todo(self) -> Analisis:
+        if self._completo is None:
+            self._completo = self._cargar()
+        return self._completo
+
+    def __getitem__(self, clave: str) -> Any:
+        if self._completo is None and clave in CLAVES_DE_LISTA:
+            return self._claves[clave]
+        return cast(Mapping[str, Any], self._todo())[clave]
+
+    def get(self, clave: str, default: Any = None) -> Any:
+        """El valor de la clave, o `default`; las claves de lista salen del resumen sin leer el análisis."""
+        if self._completo is None and clave in CLAVES_DE_LISTA:
+            return self._claves.get(clave, default)
+        return cast(Mapping[str, Any], self._todo()).get(clave, default)
+
+    def __contains__(self, clave: object) -> bool:
+        if self._completo is None and clave in CLAVES_DE_LISTA:
+            return clave in self._claves
+        return clave in self._todo()
+
+    def __bool__(self) -> bool:
+        return not self._vacio if self._completo is None else bool(self._completo)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._todo())
+
+    def __len__(self) -> int:
+        return len(self._todo())
+
+    def __repr__(self) -> str:
+        return repr(self._todo())
+
+
+class EvaluacionPerezosa(Mapping[str, Any]):
+    """La evaluación de recepción de un caso de una lista: se calcula la primera vez que alguien la mira."""
+
+    __slots__ = ("_calcular", "_valor")
+
+    def __init__(self, calcular: Callable[[], dict]) -> None:
+        self._calcular = calcular
+        self._valor: dict | None = None
+
+    def _todo(self) -> dict:
+        if self._valor is None:
+            self._valor = self._calcular()
+        return self._valor
+
+    def __getitem__(self, clave: str) -> Any:
+        return self._todo()[clave]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._todo())
+
+    def __len__(self) -> int:
+        return len(self._todo())
+
+    def __repr__(self) -> str:
+        return repr(self._todo())
 
 
 def combine_activities(current: list[Actividad], incoming: list[Actividad]) -> list[Actividad]:
@@ -218,9 +317,131 @@ def waiting_since(status: str, sent_at: str, latest: tuple[str, str] | None, sin
     return sent_at
 
 
-def status_label(status: Any, assessment: dict) -> str:
-    """Etiqueta del estado; en revisión la da la evaluación de recepción (qué le falta al caso)."""
-    review_states = {QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.REVIEW}
-    if status in review_states and assessment:
-        return str(assessment["label"])
+def status_label(status: Any, assessment: Mapping[str, Any]) -> str:
+    """El nombre del estado, el mismo en la insignia, la lista y los pasos (U-31, D-86).
+
+    Sale del estado del flujo y no de la evaluación de recepción: así nunca contradice a la tarjeta «Ahora».
+    """
     return STATUS_LABELS.get(status) or str(status)
+
+
+# --- Por qué Work propone un cambio: lo que el panel de la propuesta le muestra a la persona (T-61) -------------------
+
+_CAMPOS_DE_PROPUESTA = ("quantity", "unit", "ubicacion", "entregable", "plazo_restriccion")
+_ETIQUETAS_DE_CAMPO = {
+    "quantity": "Cantidad", "unit": "Unidad", "ubicacion": "Ubicación", "entregable": "Entregable",
+    "plazo_restriccion": "Plazo o restricción", "servicio_tecnica": "Servicio o técnica", "estado": "Estado"}
+_GMAIL_EN_FUENTE = re.compile(r"\bGmail ([0-9a-f]{10,32})\b")
+
+
+def _plano_de_propuesta(valor: object) -> str:
+    return " ".join(str(valor if valor is not None else "").split()).casefold()
+
+
+def _cambio_explicado(clase: str, titulo: str, actividad: str, texto: str, entrada: Mapping[str, Any] | None = None,
+                      campo: str = "", vigente: str = "", propuesto: str = "") -> dict[str, Any]:
+    fuente = str((entrada or {}).get("fuente") or "").strip()
+    return {"clase": clase, "titulo": titulo, "actividad": actividad, "texto": texto,
+            "campo": _ETIQUETAS_DE_CAMPO.get(campo, campo), "campo_original": campo,
+            "vigente": vigente, "propuesto": propuesto, "con_valores": bool(campo),
+            "fuente": fuente, "correos": list(dict.fromkeys(_GMAIL_EN_FUENTE.findall(fuente))),
+            "codigo": str((entrada or {}).get("tipo") or "")}
+
+
+def _explicacion_de_entrada(entrada: Mapping[str, Any], filas: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """Una frase para la persona por cada motivo estructurado de `revision_de_tabla`, sin inventar lo que falte."""
+    tipo = str(entrada.get("tipo") or "")
+    actividad = str(entrada.get("actividad") or "").strip()
+    campo = str(entrada.get("campo") or "").strip()
+    nombre = f"«{actividad}»" if actividad else "una actividad sin nombre"
+    actual = filas.get(actividad.casefold())
+    if tipo == "dato_distinto":
+        vigente = str(actual.get(campo) or "") if actual is not None and campo in actual \
+            else str(entrada.get("anterior") or "")
+        etiqueta = _ETIQUETAS_DE_CAMPO.get(campo, campo or "un dato").lower()
+        return _cambio_explicado(
+            "distinto", "Dato distinto", actividad,
+            f"El correo da otro valor de {etiqueta} para {nombre} que el que ya tienes registrado.",
+            entrada, campo, vigente, str(entrada.get("propuesto") or ""))
+    if tipo == "contradiccion":
+        return _cambio_explicado(
+            "contradiccion", "Contradicción", actividad,
+            f"La información de {nombre} se contradice con lo que ya constaba. Quedó marcada como contradictoria y "
+            "hay que revisarla antes de cotizar.", entrada)
+    if tipo == "eliminacion_pedida":
+        return _cambio_explicado(
+            "eliminacion", "Eliminación propuesta", actividad,
+            f"El correo parece pedir que se quite {nombre}. Aceptar la propuesta la saca de la tabla.", entrada)
+    if tipo == "eliminacion_sin_coincidencia":
+        return _cambio_explicado(
+            "eliminacion", "Eliminación sin coincidencia", actividad,
+            f"El correo parece pedir quitar {nombre}, pero no hay una actividad con ese nombre en tu tabla.", entrada)
+    if tipo == "duplicada":
+        return _cambio_explicado(
+            "contradiccion", "Actividad repetida", actividad,
+            f"Work devolvió {nombre} más de una vez y con datos distintos. Aceptar la propuesta deja todas las filas.",
+            entrada)
+    if tipo == "sustitucion_ambigua":
+        anterior = str(entrada.get("anterior") or "").strip()
+        parecida = f" a «{anterior}»" if anterior else " a otra de tus actividades"
+        return _cambio_explicado(
+            "distinto", "Posible sustitución", actividad,
+            f"{nombre[:1].upper()}{nombre[1:]} se parece{parecida}: Work no puede saber si es la misma ni si la "
+            "reemplaza, así que se propone como actividad aparte.", entrada)
+    if tipo == "sin_nombre":
+        return _cambio_explicado("otro", "Fila sin nombre", actividad,
+                                 "Work devolvió una fila sin nombre de actividad.", entrada)
+    return _cambio_explicado("otro", "Motivo registrado", actividad,
+                             f"Work dejó este motivo de revisión sobre {nombre}.", entrada)
+
+
+def _cambio_sin_motivo(cambio: Mapping[str, Any], actual: Mapping[str, Any] | None,
+                       propuesta: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Una propuesta sin motivo estructurado (antigua, o de R11 o de un correo unido): solo lo que se ve al comparar."""
+    actividad = str(cambio["activity"])
+    if cambio["kind"] == "quitar":
+        return [_cambio_explicado("eliminacion", "Se quitaría", actividad,
+                                  f"Aceptar la propuesta quita «{actividad}» de tu tabla. "
+                                  "No dejó un motivo registrado.")]
+    if actual is None:
+        return [_cambio_explicado("nueva", "Actividad nueva", actividad,
+                                  f"Work propone agregar «{actividad}». No dejó un motivo registrado.")]
+    filas = [_cambio_explicado(
+        "sin_motivo", "Cambio propuesto", actividad,
+        f"Work propone otro valor para «{actividad}». No dejó un motivo registrado.",
+        campo=campo, vigente=str(actual.get(campo) or ""), propuesto=str(propuesta.get(campo) or ""))
+        for campo in _CAMPOS_DE_PROPUESTA
+        if str(actual.get(campo) or "") != str(propuesta.get(campo) or "")]
+    return filas
+
+
+def _prioridad_de_cambio(item: Mapping[str, Any]) -> int:
+    """La cantidad primero (lo que más pesa en una cotización), luego los demás datos y al final lo estructural."""
+    if item["codigo"] == "dato_distinto":
+        return 0 if item["campo_original"] == "quantity" else 1
+    return 2 if item["clase"] in ("contradiccion", "eliminacion") else 3
+
+
+def explicar_propuesta(analysis: Analisis) -> list[dict[str, Any]]:
+    """Los grupos `{actividad, cambios}` que el panel de la propuesta pendiente de Work muestra, uno por actividad.
+
+    Solo lee `activities`, `pending_model_activities` y `revision_de_tabla`; no inventa un dato que falte y no cambia
+    nada. Una propuesta sin motivos estructurados se muestra por lo que difiere entre las dos tablas."""
+    propuesta = [f for f in analysis.get("pending_model_activities") or [] if isinstance(f, dict)]
+    if not propuesta:
+        return []
+    filas = {str(f.get("activity", "")).strip().casefold(): f
+             for f in analysis.get("activities") or [] if isinstance(f, dict)}
+    entradas = [e for e in analysis.get("revision_de_tabla") or [] if isinstance(e, Mapping)]
+    explicados = [_explicacion_de_entrada(e, filas) for e in entradas]
+    con_motivo = {_plano_de_propuesta(e["actividad"]) for e in explicados}
+    por_nombre = {str(f.get("activity", "")).strip().casefold(): f for f in propuesta}
+    for cambio in model_proposal(analysis):
+        clave = str(cambio["activity"]).strip().casefold()
+        if _plano_de_propuesta(cambio["activity"]) not in con_motivo:
+            explicados += _cambio_sin_motivo(cambio, filas.get(clave), por_nombre.get(clave, {}))
+    grupos: dict[str, dict[str, Any]] = {}
+    for item in sorted(explicados, key=_prioridad_de_cambio):
+        grupo = grupos.setdefault(item["actividad"], {"actividad": item["actividad"], "cambios": []})
+        grupo["cambios"].append(item)
+    return list(grupos.values())

@@ -1,0 +1,32 @@
+{
+  "documentos": [
+    {
+      "archivo": "solicitud_01.pdf",
+      "bytes": 4913,
+      "id": "C1",
+      "sha256": "f47ed4da974e982b09954bfd1b71472b0fefa5859309d7ab1e24c924c92bd844",
+      "tipo": "pdf_digital"
+    },
+    {
+      "archivo": "tdr_02.pdf",
+      "bytes": 492471,
+      "id": "C2",
+      "sha256": "0287414f91bb1c9b3ecfd05e98de713adaa81177261885f89e4fe8f23c66d732",
+      "tipo": "pdf_escaneado"
+    },
+    {
+      "archivo": "cantidades_03.xlsx",
+      "bytes": 9087,
+      "id": "C3",
+      "sha256": "12c52e788feb76d4c7879726d7402cb0c51f8178101e5a7a9e1bfb10cb7c0c6a",
+      "tipo": "excel"
+    }
+  ],
+  "ficticio": true,
+  "fuentes_del_escaneado": {
+    "cursiva": "86b32db9a06f9694e2a3760c42e5117bcdc5cc1255bb5186ca8ce0305e22f288",
+    "negrita": "e8f4e3baf6cc35fed6fcce3a540e8b39e8f6cda1d22a28f2ec8f526fef7a43f5",
+    "normal": "b3658eadae55e682b5f69eb64c439c1ecc8f196c0bb8d4756d145d13bc86476a"
+  },
+  "version": "1"
+}

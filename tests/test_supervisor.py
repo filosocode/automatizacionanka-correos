@@ -36,7 +36,7 @@ class BackupTests(unittest.TestCase):
         path = backup.create_backup()
         with zipfile.ZipFile(path) as archive:
             names = set(archive.namelist())
-        self.assertEqual(names, {"quotes.sqlite3", "config.json"})
+        self.assertEqual(names, {"quotes.sqlite3", "config.redactado.json"})   # U-78: nunca config.json en bruto
 
     def test_restore_brings_back_data_and_keeps_current_db(self):
         path = backup.create_backup()
@@ -63,8 +63,9 @@ class BackupTests(unittest.TestCase):
         self.assertTrue(backup.backup_due())
         result = backup.run_backup(use_drive=False)
         self.assertEqual(result["error"], "")
-        self.assertFalse(backup.backup_due())
-        self.assertTrue(backup.backup_due(datetime.now().astimezone() + timedelta(hours=25)))
+        hecha = datetime.fromisoformat(result["at"])          # el reloj se inyecta desde la hora de la copia
+        self.assertFalse(backup.backup_due(hecha + timedelta(hours=23)))
+        self.assertTrue(backup.backup_due(hecha + timedelta(hours=25)))
 
     def test_drive_failure_keeps_local_copy_and_reports_error(self):
         drive = MagicMock()
@@ -90,6 +91,30 @@ class BackupTests(unittest.TestCase):
 
 # Cubre: T-06
 class SupervisorTests(unittest.TestCase):
+    # Cubre: U-81
+    def test_gmail_receiver_runs_only_when_enabled_and_interval_has_elapsed(self):
+        worker = supervisor.ReceptorGmail()
+        started = []
+
+        class Thread:
+            def __init__(self, target, name, daemon):
+                self.target = target
+                started.append(name)
+
+            def start(self):
+                pass
+
+            def is_alive(self):
+                return False
+
+        with patch.object(supervisor.threading, "Thread", Thread), \
+                patch.object(supervisor.time, "time", side_effect=[100, 100, 101, 161, 161]):
+            worker.check(False, 60)
+            worker.check(True, 60)
+            worker.check(True, 60)
+            worker.check(True, 60)
+        self.assertEqual(started, ["recepcion-gmail", "recepcion-gmail"])
+
     def test_backoff_grows_and_caps(self):
         self.assertEqual([supervisor.backoff(n) for n in (1, 2, 3, 10)], [2, 4, 8, 60])
 
@@ -198,7 +223,7 @@ class AutoReinicioTests(unittest.TestCase):
 
         with patch.object(supervisor, "configure_logging"), patch.object(supervisor, "stop_old_instances"),                 patch.object(supervisor, "Child", Hijo), patch.object(supervisor.time, "sleep"),                 patch.object(supervisor, "work_mode", return_value=False),                 patch.object(supervisor, "backup_due", return_value=False),                 patch.object(supervisor, "run_due_reminders"),                 patch.object(supervisor, "code_snapshot", side_effect=[{"a": 1.0}, {"a": 2.0}, {"a": 2.0}]):
             self.assertEqual(supervisor.servicio(), supervisor.EXIT_RELANZAR)
-        self.assertEqual([h.stop_calls for h in hijos], [1, 1])                 # dashboard y puente quedan detenidos
+        self.assertEqual([h.stop_calls for h in hijos], [1, 1, 1])  # incluye el preparador independiente
 
 
 if __name__ == "__main__":

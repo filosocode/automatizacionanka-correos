@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "analisis": {
+      "properties": {
+        "declarado_completo": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "declarado_completo",
+        "motivos_de_incompletitud"
+      ],
+      "type": "object"
+    },
+    "caso": {
+      "type": "string"
+    },
+    "contradicciones": {
+      "items": {
+        "properties": {
+          "estado": {
+            "enum": [
+              "abierta",
+              "resuelta_por_persona"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "tema",
+          "evidencias",
+          "estado"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "documentos": {
+      "items": {
+        "properties": {
+          "archivo": {
+            "type": "string"
+          },
+          "cobertura": {
+            "properties": {
+              "detalle": {
+                "type": "array"
+              },
+              "ilegibles": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "leidas": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "unidad": {
+                "enum": [
+                  "paginas",
+                  "hojas"
+                ]
+              }
+            },
+            "required": [
+              "unidad",
+              "total",
+              "leidas",
+              "ilegibles",
+              "detalle"
+            ],
+            "type": "object"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "tipo": {
+            "enum": [
+              "pdf_digital",
+              "pdf_escaneado",
+              "xlsx"
+            ]
+          }
+        },
+        "required": [
+          "archivo",
+          "sha256",
+          "tipo",
+          "cobertura"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "evidencias": {
+      "items": {
+        "properties": {
+          "cantidad_literal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "certifica_interpretacion_visual": {
+            "const": false
+          },
+          "concepto": {
+            "type": "string"
+          },
+          "confianza": {
+            "enum": [
+              "alta",
+              "media",
+              "baja"
+            ]
+          },
+          "documento": {
+            "type": "string"
+          },
+          "estado_de_lectura": {
+            "enum": [
+              "leido",
+              "no_encontrado",
+              "ilegible",
+              "contradictorio",
+              "parcialmente_leido",
+              "pendiente_revision_visual"
+            ]
+          },
+          "faltante": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "localizador": {
+            "description": "pagina (+ tabla, fila o region, descriptivos) o hoja + celda | rango",
+            "type": "object"
+          },
+          "metodo": {
+            "enum": [
+              "texto_nativo",
+              "celda",
+              "ocr",
+              "vision",
+              "humano"
+            ]
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "revision_humana_requerida": {
+            "type": "boolean"
+          },
+          "revisor": {
+            "type": "string"
+          },
+          "texto_literal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tipo": {
+            "enum": [
+              "cantidad",
+              "texto",
+              "elemento_visual"
+            ]
+          },
+          "unidad_literal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valor_normalizado": {
+            "description": "opcional: valor, unidad y regla; nunca sustituye al literal",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "vigencia": {
+            "enum": [
+              "vigente",
+              "historica",
+              "sin_confirmar"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "documento",
+          "tipo",
+          "metodo",
+          "estado_de_lectura",
+          "vigencia",
+          "confianza",
+          "revision_humana_requerida"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "interpretaciones": {
+      "items": {
+        "properties": {
+          "confianza": {
+            "enum": [
+              "alta",
+              "media",
+              "baja"
+            ]
+          },
+          "evidencias": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tipo": {
+            "enum": [
+              "actividad",
+              "restriccion",
+              "faltante",
+              "pregunta",
+              "alcance"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "tipo",
+          "texto",
+          "evidencias",
+          "confianza"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "version_modelo": {
+      "const": "evidencia-documental/1"
+    }
+  },
+  "required": [
+    "version_modelo",
+    "caso",
+    "documentos",
+    "evidencias",
+    "interpretaciones",
+    "contradicciones",
+    "analisis"
+  ],
+  "title": "Evidencia documental de ANKA (laboratorio T-117)",
+  "type": "object"
+}

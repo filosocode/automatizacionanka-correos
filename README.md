@@ -18,6 +18,7 @@ espera de él. Nada sale al cliente sin que una persona lo revise y lo envíe.
 ## Mapa del repositorio
 
 ```
+
 anka/               el código, en capas (ver spec/06-arquitectura.md)
   dominio/            reglas puras: estados, actividades, recepción, correo, contrato con Work
   infra/              lo externo: configuración, base SQLite, Gmail/Drive, modelos, registro, copias
@@ -35,6 +36,7 @@ app.py, supervisor.py, work_dashboard_sync.py    puntos de entrada de una línea
 check.bat, check_spec.py                         verificación completa (igual que el CI)
 Iniciar Anka.bat                                 el lanzador de uso diario
 ```
+El trigger de Gmail determinístico es opt-in y corre en modo `chatgpt_work`; su configuración e instrucciones de activación están en [`docs/MODO_OPERACION.md`](docs/MODO_OPERACION.md). La primera ejecución solo ancla el cursor actual y no importa correos anteriores.
 
 ## Documentación
 
@@ -67,6 +69,11 @@ El programa no cambia automáticamente de proveedor si falla el seleccionado. As
 
 ## Uso
 
+`python app.py work-drive-sync`: prepara automáticamente los adjuntos de Gmail y su extracción OCR en expedientes
+versionados de Drive para Work. Requiere activación explícita y una carpeta de recepción separada; el supervisor
+lo ejecuta en otro proceso cada 60 segundos. Configuración, límites y lectura desde Work:
+[Expedientes OCR en Drive](docs/WORK_DRIVE_OCR.md). No envía correos ni modifica casos comerciales.
+
 `python app.py auth`: autoriza la cuenta de Google (también se puede hacer desde el dashboard con el botón «Reautorizar Google» cuando la autorización vence).
 
 `python app.py drive-tree`: muestra las carpetas del nivel raíz y un nivel inferior, con sus IDs, para elegir la carpeta de arranque.
@@ -81,7 +88,7 @@ El programa no cambia automáticamente de proveedor si falla el seleccionado. As
 
 `python app.py run --apply --review-only --watch-seconds 300`: revisa Gmail cada cinco minutos y aplica el mismo flujo semiasistido. Usa `Ctrl+C` para detenerlo.
 
-`python app.py run --apply`: procesa el buzón y realiza los envíos y la creación de carpetas. Ejecútalo periódicamente con el programador de tareas. `gmail_query` controla el periodo y los remitentes; la configuración actual revisa 30 días para Diego y el remitente de pruebas. El estado se guarda en `quotes.sqlite3` para no repetir correos.
+`python app.py run --apply`: procesa el buzón y crea las carpetas de los casos con alcance completo, pero **nunca envía correos al cliente** (R8, U-77): las preguntas quedan en «Correo por revisar» y se envían solo desde el dashboard, después de que una persona las revise; la línea de comandos avisa de esto al arrancar. Ejecútalo periódicamente con el programador de tareas. `gmail_query` controla el periodo y los remitentes; la configuración actual revisa 30 días para Diego y el remitente de pruebas. El estado se guarda en `quotes.sqlite3` para no repetir correos.
 
 La tabla se guarda en JSON en SQLite e incluye actividad, servicio o técnica candidata, ubicación, magnitud, unidad, entregable, plazo o restricción, fuente y estado de confirmación. El analizador recibe los mensajes externos del hilo y el texto extraído de TXT, CSV, JSON, XML, KML, KMZ, PDF con texto, DOCX y XLSX. Las imágenes incrustadas de firmas se registran como ignoradas y no bloquean el caso. DWG/DXF, formatos no soportados, archivos dañados y PDF escaneados quedan en revisión; la ficha indica el archivo, el motivo y los datos que no se pudieron confirmar.
 
@@ -106,7 +113,7 @@ python -m ruff check .
 python -m mypy
 ```
 
-`check.bat` corre lint, tipos, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `anka/web/server.py` (manejadores HTTP) y `anka/cli/`.
+`check.bat` corre lint, tipos, tests y cobertura en un solo paso, igual que el CI (`.github/workflows/ci.yml`). `check.bat quick` corre solo ruff, mypy, `check_spec` y las pruebas rápidas para revisar mientras trabajas (no cierra un cambio; ver `docs/ESTANDAR_CAMBIOS.md`). El CI además audita las dependencias con `pip-audit` (solo como paso del workflow). El piso de cobertura está en `pyproject.toml` (`fail_under`); súbelo cuando mejore y no lo bajes para hacer pasar un cambio. Las zonas con menos cobertura son `anka/web/server.py` (manejadores HTTP) y `anka/cli/`.
 
 En los tests, parchea cada nombre en el módulo que lo **usa** (por ejemplo `anka.servicios.pipeline.services`), no en el que lo define. Los tests que tocan datos parchean `settings.DATA_DIR` (`anka.infra.settings`).
 

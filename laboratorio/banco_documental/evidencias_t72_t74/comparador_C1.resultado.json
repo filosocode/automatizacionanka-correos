@@ -1,0 +1,44 @@
+{
+  "casos": [
+    {
+      "caso": "C1",
+      "documento": "solicitud_01.pdf",
+      "actividades_esperadas": 5,
+      "actividades_obtenidas": 5,
+      "actividades_encontradas": 5,
+      "actividades_con_valor_y_unidad_correctos": 5,
+      "errores_criticos": 0,
+      "errores_no_criticos": 3,
+      "no_evaluables": 0,
+      "sin_errores_criticos": true,
+      "hallazgos": [
+        {
+          "gravedad": "no_critico",
+          "codigo": "faltante_sin_pregunta",
+          "ref": "C1-F2",
+          "detalle": "La nota 6 dice que el sistema de coordenadas se definirá en la reunión de inicio; puede proponerse uno."
+        },
+        {
+          "gravedad": "no_critico",
+          "codigo": "revision_interna_omitida",
+          "ref": "C1-I2",
+          "detalle": "Decidir la lectura de «2,350 km»: 2,35 km por separador decimal."
+        },
+        {
+          "gravedad": "no_critico",
+          "codigo": "pregunta_de_mas",
+          "ref": "C1",
+          "detalle": "Preguntó por «entregables», que el documento sí trae."
+        }
+      ]
+    }
+  ],
+  "actividades_esperadas": 5,
+  "actividades_obtenidas": 5,
+  "actividades_con_valor_y_unidad_correctos": 5,
+  "exhaustividad": "5/5",
+  "precision": "5/5",
+  "errores_criticos": 0,
+  "errores_no_criticos": 3,
+  "no_evaluables": 0
+}

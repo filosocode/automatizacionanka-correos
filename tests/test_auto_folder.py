@@ -149,7 +149,7 @@ class SendCreatesTheFolderTests(unittest.TestCase):
         self.seed()
         message = case_actions.send_dashboard_reply("t-1", "Hola.")
         self.assertIn("Correo enviado", message)
-        self.assertIn("No creé la carpeta", message)
+        self.assertIn("Todavía no se creó la carpeta", message)
         quote = self.quote()
         self.assertEqual(quote["status"], QuoteStatus.READY_REVIEW)
         self.assertTrue(quote["sent_at"])
@@ -159,7 +159,7 @@ class SendCreatesTheFolderTests(unittest.TestCase):
     def test_an_email_address_is_never_used_as_the_client_folder_name(self):
         self.seed(client="cliente@example.com")
         message = case_actions.send_dashboard_reply("t-1", "Hola.")
-        self.assertIn("No creé la carpeta", message)
+        self.assertIn("Todavía no se creó la carpeta", message)
         self.assertEqual(self.drive.created, [])
         self.assertEqual(self.quote()["status"], QuoteStatus.READY_REVIEW)
 
@@ -177,7 +177,7 @@ class SendCreatesTheFolderTests(unittest.TestCase):
             with self.assertLogs("anka.servicios.case_actions", "ERROR"):
                 message = case_actions.send_dashboard_reply("t-1", "Hola.")
         self.assertIn("Correo enviado", message)
-        self.assertIn("No creé la carpeta", message)
+        self.assertIn("Todavía no se creó la carpeta", message)
         self.assertEqual(self.quote()["status"], QuoteStatus.READY_REVIEW)
 
     def test_only_cases_with_enough_information_trigger_the_folder(self):

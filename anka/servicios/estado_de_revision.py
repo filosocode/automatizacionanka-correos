@@ -15,7 +15,7 @@ from anka.infra.logging_setup import get_logger
 from anka.dominio.errores import ModoNoPermitido
 from anka.infra.modes import ensure_local_or_api_mode
 from anka.infra.settings import load_config
-from anka.infra.store import connect
+from anka.infra.store import lectura
 
 
 
@@ -29,14 +29,11 @@ MODE_CHECK_SECONDS = 5  # cada cuánto se revisa el modo activo mientras el bot 
 
 
 def _quote_snapshot() -> dict[str, tuple]:
-    db = connect()
-    try:
+    with lectura() as db:
         return {
             row["thread_id"]: (row["status"], row["updated_at"])
             for row in db.execute("SELECT thread_id, status, updated_at FROM quotes")
         }
-    finally:
-        db.close()
 
 
 def read_last_check() -> dict | None:
@@ -92,12 +89,9 @@ def _ago(iso: str) -> str:
 
 def latest_case_activity() -> str:
     """Marca de tiempo de la actividad más reciente de cualquier caso."""
-    db = connect()
-    try:
+    with lectura() as db:
         row = db.execute(
             "SELECT MAX(COALESCE(updated_at, first_seen_at)) AS ts FROM quotes").fetchone()
-    finally:
-        db.close()
     return row["ts"] or ""
 
 
@@ -105,10 +99,11 @@ def describe_check(result: dict) -> str:
     """Frase que cuenta cómo salió la última revisión de Gmail."""
     when = result["at"][11:19]
     if result.get("error"):
-        return f"La revisión de las {when} falló: {result['error']}"
+        return (f"No se pudo buscar correos a las {when}. Prueba otra vez en un momento; si sigue igual, "
+                f"avisa al equipo de sistemas. Detalle: {result['error']}")
     return (
-        f"Gmail revisado a las {when} en {result['seconds']} s: "
-        f"{result['new']} solicitudes nuevas, {result['updated']} actualizadas."
+        f"Se buscaron correos a las {when} (tardó {result['seconds']} s): "
+        f"{result['new']} nuevos, {result['updated']} cambiados."
     )
 
 
@@ -117,18 +112,20 @@ def sync_status_text() -> str:
     try:
         mode = load_config().get("active_mode", "local")
     except ErrorDeAnka:
-        return "Sin configuración de motor."
+        return "Falta la configuración del programa que lee los correos."
     if mode == "chatgpt_work":
         last = latest_case_activity()
         tail = f" Último caso actualizado: {last[:16].replace('T', ' ')} ({_ago(last)})." if last else ""
-        return "Motor ChatGPT Work. " + bridge_state()[1] + tail
+        return "Programa que lee los correos: ChatGPT Work. " + bridge_state()[1] + tail
     label = "Ollama" if mode == "local" else "API de OpenAI"
     last_check = read_last_check()
     if last_check:
         text = describe_check(last_check)
-        return f"Motor {label}. {text} ({_ago(last_check['at'])}). El botón Actualizar correo revisa al instante."
+        return (f"Programa que lee los correos: {label}. {text} ({_ago(last_check['at'])}). "
+                "El botón «Buscar correos nuevos» lo hace al instante.")
     return (
-        f"Motor {label}. Aún no se ha revisado Gmail desde este panel. La revisión periódica "
+        f"Programa que lee los correos: {label}. Aún no se han buscado correos desde este panel. "
+        "La búsqueda automática "
         "solo ocurre si el piloto (Piloto borradores Gmail.bat) está abierto, cada 5 min."
     )
 

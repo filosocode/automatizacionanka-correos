@@ -9,6 +9,7 @@ Cubre: T-12
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
 import ast
+import re
 import unittest
 from pathlib import Path
 
@@ -18,6 +19,15 @@ PACKAGE = ROOT / "anka"
 LEVEL = {"dominio": 0, "infra": 1, "servicios": 2, "web": 3, "cli": 4}
 # Excepciones a la regla «web y cli no se importan entre sí».
 ENTRY_POINTS = {"app.py", "supervisor.py", "work_dashboard_sync.py", "check_spec.py"}
+
+
+# Tope de líneas por módulo (U-52): la deuda no crece sin freno. Un módulo que ya lo pasaba tiene aquí su tope propio,
+# congelado en lo que mide hoy: solo puede bajar. Partirlo es la salida; subir el tope no lo es.
+MAX_LINEAS = 800
+TOPES_CONGELADOS = {"anka.web.pantalla_caso": 1100}
+# Los únicos módulos que escriben en la tabla `quotes` (U-52): el repositorio y la capa de la base.
+ESCRIBEN_EN_QUOTES = {"anka.servicios.repositorio", "anka.infra.store"}
+_ESCRITURA_EN_QUOTES = re.compile(r"(UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM|REPLACE\s+INTO)\s+quotes", re.I)
 
 
 def modules():
@@ -153,6 +163,35 @@ class LayerRules(unittest.TestCase):
                     silent.append(f"{dotted}:{node.lineno}")
         self.assertEqual(silent, [], "except Exception sin registrar, relanzar ni usar el error")
 
+    def test_no_module_grows_past_the_size_budget(self):
+        # Cubre: U-52
+        """Ningún módulo pasa de 800 líneas; los que ya pasaban tienen un tope congelado que solo puede bajar."""
+        grandes = []
+        for dotted, path in modules():
+            lineas = len(path.read_text(encoding="utf-8").splitlines())
+            if lineas > TOPES_CONGELADOS.get(dotted, MAX_LINEAS):
+                grandes.append(f"{dotted}: {lineas} líneas (tope {TOPES_CONGELADOS.get(dotted, MAX_LINEAS)})")
+        self.assertEqual(grandes, [], "Parte el módulo en piezas con un solo motivo para cambiar")
+
+    def test_the_frozen_budgets_are_not_stale(self):
+        # Cubre: U-52
+        """Un tope congelado que ya sobra se quita o se baja: la deuda pagada no se vuelve a permitir."""
+        medidas = {dotted: len(path.read_text(encoding="utf-8").splitlines()) for dotted, path in modules()}
+        for dotted, tope in TOPES_CONGELADOS.items():
+            self.assertIn(dotted, medidas)
+            self.assertGreater(medidas[dotted], MAX_LINEAS, f"{dotted} ya cabe en {MAX_LINEAS}: quita su tope")
+            self.assertLessEqual(medidas[dotted], tope)
+            self.assertGreater(medidas[dotted], tope - 150, f"{dotted} bajó mucho: baja su tope a {medidas[dotted] + 50}")
+
+    def test_only_the_repository_and_the_store_write_to_the_quotes_table(self):
+        # Cubre: U-52
+        """Quien cambia un caso lo hace por `RepositorioDeCasos` (o por `infra.store` en migraciones y altas)."""
+        ofensores = []
+        for dotted, path in modules():
+            if dotted not in ESCRIBEN_EN_QUOTES and _ESCRITURA_EN_QUOTES.search(path.read_text(encoding="utf-8")):
+                ofensores.append(dotted)
+        self.assertEqual(ofensores, [], "Mueve esa escritura a anka/servicios/repositorio.py")
+
     def test_the_package_never_depends_on_the_tests(self):
         for dotted, path in modules():
             for target, _ in imports_of(path):
@@ -187,7 +226,7 @@ class Organization(unittest.TestCase):
 
     def test_the_root_stays_tidy(self):
         allowed_folders = {"anka", "tests", "docs", "spec", "tools", "skills", "evaluacion", "archivo_local",
-                           "simulaciones", "__pycache__", ".github", ".claude", ".venv", ".git", ".uv-cache",
+                           "simulaciones", "laboratorio", "__pycache__", ".github", ".claude", ".venv", ".git", ".uv-cache",
                            ".ruff_cache", ".mypy_cache", "htmlcov"}
         for path in ROOT.iterdir():
             if path.is_dir():

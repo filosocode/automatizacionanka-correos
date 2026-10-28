@@ -4,17 +4,27 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+import threading
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, cast
-from datetime import datetime
 from pathlib import Path
 
 from anka.dominio.analisis import Analisis
-from anka.dominio.status import QuoteStatus, sql_in
+from anka.dominio.caso import VERSION_DEL_RESUMEN, load_analysis, resumen_de_analisis
+from anka.dominio.preguntas import conservar_rondas
+from anka.dominio.reloj import ahora_iso, clave_de_orden
+from anka.dominio.tabla_acumulada import describir, integrar_seguimiento
+from anka.dominio.status import ESTADOS_CON_RESPUESTA_SUGERIDA, QuoteStatus, sql_in
 from anka.infra import settings
+from anka.infra.recepcion_store import (
+    migration_recepcion_auditoria, migration_recepcion_gmail, migration_recepcion_segura,
+)
+from anka.infra.trabajos_work_store import migration_trabajos_work
 
 
 QUOTES_EXTRA_COLUMNS = ("first_seen_at", "updated_at", "draft_id", "draft_body", "sent_at")
@@ -185,7 +195,7 @@ def add_table_version(db: sqlite3.Connection, thread_id: str, activities: list, 
            (thread_id, version, source, activities_json, digest, summary, reason, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (thread_id, version, source, text, hashlib.sha256(text.encode("utf-8")).hexdigest(),
-         summary, reason, datetime.now().astimezone().isoformat(timespec="seconds")))
+         summary, reason, ahora_iso("seconds")))
     return version
 
 
@@ -245,7 +255,7 @@ def _migration_11_one_case_per_message(db: sqlite3.Connection) -> None:
 
     Antes cada correo creaba un aviso por cada caso del mismo remitente y confirmar uno dejaba los otros pendientes.
     """
-    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    now = ahora_iso("seconds")
     db.execute("""UPDATE dashboard_notifications SET read_at=?
                   WHERE kind='possible_update' AND read_at IS NULL AND EXISTS (
                       SELECT 1 FROM case_links p WHERE p.state='pending'
@@ -260,7 +270,7 @@ def _migration_11_one_case_per_message(db: sqlite3.Connection) -> None:
 
 
 def _migration_12_mail_operations(db: sqlite3.Connection) -> None:
-    db.execute('''CREATE TABLE mail_operations (
+    db.execute('''CREATE TABLE IF NOT EXISTS mail_operations (
         operation_key TEXT PRIMARY KEY, thread_id TEXT NOT NULL, recipient TEXT NOT NULL,
         message_id TEXT NOT NULL UNIQUE, state TEXT NOT NULL CHECK(state IN ('pending', 'sent')),
         gmail_id TEXT NOT NULL, created_at TEXT NOT NULL, error TEXT NOT NULL)''')
@@ -268,15 +278,117 @@ def _migration_12_mail_operations(db: sqlite3.Connection) -> None:
 
 def _migration_13_project_dismissals(db: sqlite3.Connection) -> None:
     """Pares de hilos que una persona dijo que NO son el mismo proyecto (siempre con el id menor primero)."""
-    db.execute('''CREATE TABLE project_dismissals (
+    db.execute('''CREATE TABLE IF NOT EXISTS project_dismissals (
         thread_id TEXT NOT NULL, other_thread_id TEXT NOT NULL, decided_at TEXT NOT NULL,
         PRIMARY KEY (thread_id, other_thread_id), CHECK (thread_id < other_thread_id))''')
 
 
 def _migration_14_analysis_failures(db: sqlite3.Connection) -> None:
-    db.execute('''CREATE TABLE analysis_failures (
+    db.execute('''CREATE TABLE IF NOT EXISTS analysis_failures (
         thread_id TEXT PRIMARY KEY, failures INTEGER NOT NULL, last_error TEXT NOT NULL,
         first_at TEXT NOT NULL, last_at TEXT NOT NULL, next_retry_at TEXT NOT NULL)''')
+
+
+def _migration_15_work_rejections(db: sqlite3.Connection) -> None:
+    """Los análisis de Work que no se pudieron leer: solo motivo, campos y fecha, nunca contenido del cliente (T-28)."""
+    db.execute('''CREATE TABLE IF NOT EXISTS work_rejections (
+        draft_id TEXT NOT NULL, message_id TEXT NOT NULL, thread_id TEXT NOT NULL, day TEXT NOT NULL,
+        at TEXT NOT NULL, cause TEXT NOT NULL, fields TEXT NOT NULL, reason TEXT NOT NULL, dismissed_at TEXT,
+        PRIMARY KEY (draft_id, message_id))''')
+    db.execute("CREATE INDEX IF NOT EXISTS idx_work_rejections_day ON work_rejections(day)")
+
+
+def _migration_16_orphan_metadata(db: sqlite3.Connection) -> None:
+    """Quita de `quote_metadata` las filas sin caso, para activar las claves foráneas (U-42); queda la copia previa."""
+    db.execute("DELETE FROM quote_metadata WHERE thread_id NOT IN (SELECT thread_id FROM quotes)")
+
+
+def _migration_17_indices(db: sqlite3.Connection) -> None:
+    """Índices de lo que más se consulta: la lista de casos, el seguimiento y el marcador de cambios (U-48).
+
+    Solo aceleran las lecturas; no cambian ningún dato. `IF NOT EXISTS` por si otro proceso llegó antes."""
+    for sentencia in (
+        # la lista ordena por «lo más reciente»; la expresión es la misma de `RepositorioDeCasos._filas` y del marcador
+        "CREATE INDEX IF NOT EXISTS idx_quotes_recientes ON quotes(COALESCE(updated_at, first_seen_at, '') DESC, "
+        "thread_id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_quotes_estado ON quotes(status, updated_at)",
+        "CREATE INDEX IF NOT EXISTS idx_quotes_codigo ON quotes(quote_code)",
+        # «último correo recibido» y «recordatorios enviados» de todos los casos; el MAX del marcador
+        "CREATE INDEX IF NOT EXISTS idx_case_events_tipo ON case_events(kind, occurred_at)",
+        "CREATE INDEX IF NOT EXISTS idx_case_events_registrado ON case_events(recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_case_changes_estado ON case_changes(state, occurred_at)",
+        "CREATE INDEX IF NOT EXISTS idx_case_links_estado ON case_links(state, occurred_at)",
+        "CREATE INDEX IF NOT EXISTS idx_case_links_mensaje ON case_links(message_id)",
+        "CREATE INDEX IF NOT EXISTS idx_notifications_sin_leer ON dashboard_notifications(read_at, kind, thread_id)",
+    ):
+        db.execute(sentencia)
+
+
+def _migration_19_texto_del_envio(db: sqlite3.Connection) -> None:
+    """Guarda el texto que la persona revisó junto a la reserva del envío (U-59).
+
+    Si el envío queda incierto, quien lo reconcilia después (el lanzador, o la persona) puede completar el caso con
+    el texto que de verdad se mandó, sin pedirlo otra vez. Las filas anteriores quedan con el texto vacío."""
+    columnas = {fila[1] for fila in db.execute("PRAGMA table_info(mail_operations)")}
+    if "body" not in columnas:
+        db.execute("ALTER TABLE mail_operations ADD COLUMN body TEXT NOT NULL DEFAULT ''")
+
+
+def _migration_20_anclas_de_la_cadena(db: sqlite3.Connection) -> None:
+    """Ancla el último hecho de la cadena de huellas de cada caso (U-60).
+
+    Sin ella, borrar los últimos hechos pasaba por íntegro. Se llena con lo que ya hay; `record_event` la mantiene."""
+    db.execute('''CREATE TABLE IF NOT EXISTS event_anchors (
+        thread_id TEXT PRIMARY KEY, last_id INTEGER NOT NULL, last_hash TEXT NOT NULL, total INTEGER NOT NULL)''')
+    db.execute('''INSERT OR IGNORE INTO event_anchors (thread_id, last_id, last_hash, total)
+                  SELECT e.thread_id, e.id, e.hash, (SELECT COUNT(*) FROM case_events c WHERE c.thread_id = e.thread_id)
+                  FROM case_events e
+                  WHERE e.id = (SELECT MAX(id) FROM case_events m WHERE m.thread_id = e.thread_id)''')
+
+
+def resumenes_pendientes(db: sqlite3.Connection) -> dict[str, tuple[str, dict[str, Any]]]:
+    """Los casos sin resumen para las listas (o con uno de una versión anterior): `{hilo: (análisis, resumen)}` (U-49).
+
+    Solo lee: devuelve también el análisis con que se calculó, para guardar el resumen solo si no cambió."""
+    pendientes = {}
+    for fila in db.execute("SELECT thread_id, analysis_json FROM quotes "
+                           "WHERE resumen_json IS NULL OR resumen_v IS NOT ?", (VERSION_DEL_RESUMEN,)).fetchall():
+        texto = fila["analysis_json"]
+        pendientes[fila["thread_id"]] = (texto, resumen_de_analisis(load_analysis(texto)))
+    return pendientes
+
+
+def guardar_resumenes(db: sqlite3.Connection, pendientes: dict[str, tuple[str, dict[str, Any]]]) -> int:
+    """Guarda los resúmenes calculados; un caso cuyo análisis cambió mientras tanto se deja para la próxima (U-49).
+
+    Quien llama ya tiene el candado de escritura. Devuelve cuántos guardó."""
+    guardados = 0
+    for hilo, (texto, resumen) in pendientes.items():
+        guardados += db.execute(
+            "UPDATE quotes SET resumen_json=?, resumen_v=? WHERE thread_id=? AND analysis_json=?",
+            (json.dumps(resumen, ensure_ascii=False, separators=(",", ":")), VERSION_DEL_RESUMEN, hilo, texto),
+        ).rowcount
+    return guardados
+
+
+def _migration_18_resumen_de_casos(db: sqlite3.Connection) -> None:
+    """Resumen de cada caso para las listas, sin tocar su análisis (U-49).
+
+    Dos columnas nuevas (`resumen_json`, `resumen_v`), un disparador que borra el resumen cuando cambia
+    `analysis_json` (así nunca queda uno viejo, lo escriba quien lo escriba) y el relleno de los casos que ya existen.
+    Idempotente: las columnas y el disparador solo se crean si faltan, y el relleno solo toca casos sin resumen."""
+    existentes = {fila["name"] for fila in db.execute("PRAGMA table_info(quotes)").fetchall()}
+    if "resumen_json" not in existentes:
+        db.execute("ALTER TABLE quotes ADD COLUMN resumen_json TEXT")
+    if "resumen_v" not in existentes:
+        db.execute("ALTER TABLE quotes ADD COLUMN resumen_v INTEGER")
+    db.execute("""CREATE TRIGGER IF NOT EXISTS trg_quotes_resumen_vencido
+                  AFTER UPDATE OF analysis_json ON quotes
+                  WHEN NEW.analysis_json IS NOT OLD.analysis_json
+                  BEGIN
+                      UPDATE quotes SET resumen_json = NULL, resumen_v = NULL WHERE thread_id = NEW.thread_id;
+                  END""")
+    guardar_resumenes(db, resumenes_pendientes(db))
 
 
 # Para cambiar el esquema: agrega una función al final de esta lista. Nunca edites ni
@@ -296,8 +408,36 @@ MIGRATIONS = (
     _migration_12_mail_operations,
     _migration_13_project_dismissals,
     _migration_14_analysis_failures,
+    _migration_15_work_rejections,
+    _migration_16_orphan_metadata,
+    _migration_17_indices,
+    _migration_18_resumen_de_casos,
+    _migration_19_texto_del_envio,
+    _migration_20_anclas_de_la_cadena,
+    migration_recepcion_gmail,
+    migration_recepcion_segura,
+    migration_recepcion_auditoria,
+    migration_trabajos_work,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
+
+
+SEGUNDOS_DE_UNA_COPIA_RECIENTE = 300       # una copia previa más nueva que esto es de otro proceso que migra a la vez
+
+
+def _hace_falta_copia(backup: Path) -> bool:
+    """¿Hay que (re)hacer la copia previa a migrar? Sí si no existe o si es vieja: la de un intento anterior que falló
+    guarda un estado que la base ya pudo dejar atrás (U-60, B3-17). Una de hace minutos es de un proceso hermano."""
+    try:
+        return time.time() - backup.stat().st_mtime > SEGUNDOS_DE_UNA_COPIA_RECIENTE
+    except FileNotFoundError:
+        return True
+
+
+def _rotar_copia(backup: Path) -> None:
+    """La copia vieja no se pierde: pasa a `.bak-vN.anterior` (una sola, la más reciente de las viejas)."""
+    if backup.exists():
+        os.replace(backup, backup.with_name(backup.name + ".anterior"))
 
 
 def migrate(db: sqlite3.Connection, db_path: Path | None = None) -> None:
@@ -319,15 +459,27 @@ def migrate(db: sqlite3.Connection, db_path: Path | None = None) -> None:
     ).fetchone()
     if has_data and db_path is not None:
         backup = db_path.with_name(f"{db_path.name}.bak-v{current}")
-        if not backup.exists():
-            target = sqlite3.connect(backup)
+        if _hace_falta_copia(backup):
+            temporal = backup.with_name(f"{backup.name}.{os.getpid()}-{threading.get_ident()}.tmp")
+            target = sqlite3.connect(temporal)
             try:
                 db.backup(target)
             finally:
                 target.close()
+            try:
+                if _hace_falta_copia(backup):          # otro proceso pudo llegar antes mientras se copiaba
+                    _rotar_copia(backup)
+                    os.replace(temporal, backup)
+                else:
+                    temporal.unlink(missing_ok=True)
+            except OSError:
+                temporal.unlink(missing_ok=True)
     for version in range(current + 1, SCHEMA_VERSION + 1):
-        db.execute("BEGIN")
+        db.execute("BEGIN IMMEDIATE")      # un solo proceso migra a la vez (U-42)
         try:
+            if db.execute("PRAGMA user_version").fetchone()[0] >= version:
+                db.rollback()              # otro proceso ya hizo este paso mientras esperábamos
+                continue
             MIGRATIONS[version - 1](db)
             db.execute(f"PRAGMA user_version = {version}")
         except BaseException:
@@ -335,6 +487,15 @@ def migrate(db: sqlite3.Connection, db_path: Path | None = None) -> None:
             raise
         db.commit()
 
+
+# Un análisis que se declara incompleto y no trae respuesta preparada (ni borrador de una persona ni texto de Work) no
+# tiene nada que anunciar como «respuesta sugerida» (T-50, D-154). `json_valid` evita que un análisis dañado rompa la
+# apertura de la base: ese caso se sigue derivando como siempre.
+_SIN_RESPUESTA_PREPARADA = """(CASE WHEN json_valid(analysis_json)
+        THEN json_extract(analysis_json, '$.analysis_complete') IS 0
+             AND TRIM(COALESCE(draft_body, ''), ' ' || char(9, 10, 13)) = ''
+             AND TRIM(COALESCE(json_extract(analysis_json, '$.work_reply.text'), ''), ' ' || char(9, 10, 13)) = ''
+        ELSE 0 END)"""
 
 # Novedades que se derivan de los casos guardados: (tipo, título, mensaje, fecha, condición sobre el caso).
 _DERIVED_NOTIFICATIONS = (
@@ -344,8 +505,7 @@ _DERIVED_NOTIFICATIONS = (
     ("draft_suggested", "Respuesta sugerida lista para revisar",
      "Revisa el destinatario y el texto antes de guardarlo en Gmail o enviarlo.",
      "COALESCE(updated_at, first_seen_at)",
-     "status IN " + sql_in(QuoteStatus.REVIEW_PENDING, QuoteStatus.REVIEW,
-                           QuoteStatus.READY_REVIEW, QuoteStatus.DRAFT_CREATED)),
+     "status IN " + sql_in(*ESTADOS_CON_RESPUESTA_SUGERIDA) + f" AND NOT {_SIN_RESPUESTA_PREPARADA}"),
 )
 
 
@@ -366,7 +526,8 @@ def _derive_notifications(db: sqlite3.Connection) -> None:
         if missing:
             db.execute(f"""INSERT OR IGNORE INTO dashboard_notifications
                           (thread_id, kind, source_key, title, message, created_at)
-                          SELECT thread_id, ?, last_inbound_id, ?, ?, {created} {base}""",
+                          SELECT thread_id, ?, last_inbound_id, ?, ?, {created} {base}
+                          ORDER BY q.rowid""",             # el orden de siempre, aunque un índice cambie el recorrido
                        (kind, title, message))
 
 
@@ -419,13 +580,68 @@ def connect() -> sqlite3.Connection:
     return open_db(settings.DATA_DIR)
 
 
+BUSY_TIMEOUT_MS = 15000
+
+
+def begin_immediate(db: sqlite3.Connection) -> None:
+    """Candado de escritura antes de leer lo que se va a modificar (U-42); si ya hay transacción, ya lo tiene."""
+    if not db.in_transaction:
+        db.execute("BEGIN IMMEDIATE")
+
+
+@contextmanager
+def transaccion(inmediata: bool = True) -> Iterator[sqlite3.Connection]:
+    """Una unidad de trabajo: abre la base (o comparte la de la petición), confirma al terminar bien y revierte si algo
+    falla (U-64).
+
+    Es la forma de escribir en los servicios, en vez de `connect()` + `commit()` + `close()` repartidos: lo que pasa
+    dentro es todo o nada. Por defecto toma el candado de escritura al entrar (`inmediata`), así lo que se lee para
+    decidir no cambia antes de escribir; con `inmediata=False` el candado llega con la primera escritura."""
+    db = connect()
+    try:
+        if inmediata:
+            begin_immediate(db)
+        yield db
+        db.commit()
+    except BaseException:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@contextmanager
+def lectura() -> Iterator[sqlite3.Connection]:
+    """Una conexión para solo leer: se cierra sola y, si el bloque dejó algo sin confirmar, se descarta."""
+    db = connect()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def _activar_wal(db: sqlite3.Connection) -> None:
+    """Pasa la base a WAL. Si otro proceso la abre a la vez el cambio de modo no espera solo: se reintenta."""
+    limite = time.monotonic() + BUSY_TIMEOUT_MS / 1000
+    while db.execute("PRAGMA journal_mode").fetchone()[0].lower() != "wal":
+        try:
+            db.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:
+            if time.monotonic() > limite:
+                raise
+            time.sleep(0.05)
+
+
 def open_db(data_dir: Path) -> sqlite3.Connection:
-    """Abre (y migra si hace falta) la base SQLite de una carpeta de datos."""
+    """Abre (y migra si hace falta) la base SQLite de una carpeta de datos, en WAL y con espera de 15 s (U-42)."""
     data_dir.mkdir(parents=True, exist_ok=True)
     db_path = data_dir / "quotes.sqlite3"
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=BUSY_TIMEOUT_MS / 1000)
     db.row_factory = sqlite3.Row
     try:
+        db.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+        db.execute("PRAGMA foreign_keys=ON")
+        _activar_wal(db)
         migrate(db, db_path)
         _derive_notifications(db)
         db.commit()
@@ -441,7 +657,7 @@ def add_dashboard_notification(db: sqlite3.Connection, thread_id: str, kind: str
 
     `leida=True` es para lo que la propia persona hizo: queda en la tabla (constancia) pero no suma al contador (U-25).
     """
-    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    now = ahora_iso("seconds")
     db.execute("""INSERT OR IGNORE INTO dashboard_notifications
                   (thread_id, kind, source_key, title, message, created_at, read_at)
                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
@@ -458,7 +674,7 @@ def record_event(db: sqlite3.Connection, thread_id: str, kind: str, source: str,
     """
     if not db.in_transaction:
         db.execute("BEGIN IMMEDIATE")  # que dos procesos no encadenen sobre el mismo hecho
-    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    now = ahora_iso("seconds")
     when = occurred_at or now
     last = db.execute("SELECT hash FROM case_events WHERE thread_id=? ORDER BY id DESC LIMIT 1",
                       (thread_id,)).fetchone()
@@ -470,11 +686,19 @@ def record_event(db: sqlite3.Connection, thread_id: str, kind: str, source: str,
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (thread_id, kind, source, ref, summary, when, now,
                          actor_email, actor_name, prev, digest))
+    if cursor.rowcount > 0:
+        db.execute("""INSERT INTO event_anchors (thread_id, last_id, last_hash, total) VALUES (?, ?, ?, 1)
+                      ON CONFLICT(thread_id) DO UPDATE SET last_id=excluded.last_id, last_hash=excluded.last_hash,
+                                                           total=event_anchors.total + 1""",
+                   (thread_id, cursor.lastrowid, digest))
     return cursor.rowcount > 0
 
 
 def verify_chain(db: sqlite3.Connection, thread_id: str) -> tuple[bool, int]:
-    """(íntegro, cantidad de hechos). Falso si algún hecho fue alterado o quitado."""
+    """(íntegro, cantidad de hechos). Falso si algún hecho fue alterado o quitado, también los últimos (U-60).
+
+    La ancla guarda el último hecho que se anotó: si la cola de la cadena desaparece, su huella ya no coincide con la
+    ancla y se detecta, cosa que la cadena sola no podía."""
     prev = ""
     rows = db.execute(
         "SELECT kind, source, ref, summary, occurred_at, actor_email, prev_hash, hash "
@@ -485,6 +709,9 @@ def verify_chain(db: sqlite3.Connection, thread_id: str) -> tuple[bool, int]:
         if row["prev_hash"] != prev or row["hash"] != expected:
             return False, len(rows)
         prev = row["hash"]
+    ancla = db.execute("SELECT last_hash, total FROM event_anchors WHERE thread_id=?", (thread_id,)).fetchone()
+    if ancla and (prev != ancla["last_hash"] or len(rows) < ancla["total"]):
+        return False, len(rows)
     return True, len(rows)
 
 
@@ -510,25 +737,35 @@ def register_change(db: sqlite3.Connection, thread_id: str, message_id: str, sen
 
 def case_events(db: sqlite3.Connection, thread_id: str) -> list[sqlite3.Row]:
     """Seguimiento del caso en orden cronológico."""
-    return db.execute(
+    filas = db.execute(
         "SELECT kind, source, ref, summary, occurred_at, actor_email, actor_name, hash FROM case_events "
-        "WHERE thread_id=? ORDER BY occurred_at, id", (thread_id,)).fetchall()
+        "WHERE thread_id=? ORDER BY id", (thread_id,)).fetchall()
+    filas.sort(key=lambda fila: clave_de_orden(fila["occurred_at"])[0])      # por instante, no por texto (U-62)
+    return filas
 
 
 def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, recipient: str,
          analysis: Analisis, folder_id: str | None = None,
          sent_message_id: str | None = None) -> None:
     """Crea o actualiza el caso (estado, destinatario, análisis) conservando lo que ya tenía, como la primera vista."""
-    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    now = ahora_iso("seconds")
     received_at = analysis.get("received_at") or now
+    begin_immediate(db)      # leer y escribir bajo el mismo candado: el puente no pisa al dashboard (U-42)
     previous = db.execute(
-        "SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)
+        "SELECT analysis_json, first_seen_at, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)
     ).fetchone()
+    resumen_de_la_tabla = ""
     if previous:
         try:
             old = json.loads(previous["analysis_json"])
         except (TypeError, ValueError):
             old = {}
+        conservar_rondas(old, analysis, last_id)       # T-59: lo que se le preguntó al cliente no se pierde
+        suma = integrar_seguimiento(old, analysis, previous["first_seen_at"], previous["last_inbound_id"], last_id)
+        resumen_de_la_tabla = describir(suma) if suma else ""
+        if suma and (suma.aplicado or suma.revisar):
+            record_event(db, thread_id, "table_merge", "analisis", f"merge-{last_id}", resumen_de_la_tabla,
+                         str(analysis.get("received_at") or ""))
         if old.get("manual_edit"):
             # la edicion manual prevalece; lo nuevo del modelo queda para revisar
             if analysis.get("activities") != old.get("activities"):
@@ -559,5 +796,5 @@ def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, reci
             add_table_version(
                 db, thread_id, activities, "model",
                 "Tabla original del modelo" if first
-                else f"El modelo actualizó la tabla ({len(activities)} actividades)")
+                else resumen_de_la_tabla or f"El modelo actualizó la tabla ({len(activities)} actividades)")
     db.commit()

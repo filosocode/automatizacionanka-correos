@@ -1,1 +1,8 @@
 <div class='empty'>{{ text }}</div>
+{% if salidas | default(false) %}<div class="toolbar salidas">
+  {% if volver_caso | default('') %}<a class="button secondary" href="/case?thread_id={{ volver_caso | urlencode }}">Volver al caso</a>{% endif %}
+  <a class="button secondary" href="/">← Mis casos</a>
+  {% if reautorizar | default(false) %}<form method="post" action="/google/reautorizar">
+    <button type="submit" data-confirm="Se abrirá una ventana de Google. Entra con tu cuenta y pulsa «Permitir». ¿Seguimos?">Volver a conectar Google</button>
+  </form>{% endif %}
+</div>{% endif %}
