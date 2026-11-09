@@ -308,11 +308,12 @@ class RetornosDeWorkConLaTablaAcumulada(Contexto):
         self.assertEqual([a["activity"] for a in parcial["activities"]], ["Levantamiento topográfico", "Batimetría"])
         self.assertEqual(parcial["activities"][1]["quantity"], "5")
 
-    def test_un_nombre_distinto_no_se_fusiona_sino_que_se_revisa(self):
-        despues = self.seguimiento([fila("Levantamiento topográfico y altimétrico", "10", "ha", "confirmado",
+    def test_un_nombre_parecido_se_junta_con_su_fila_y_se_revisa_el_dato_que_cambia(self):
+        # U-92: ya no se propone como actividad aparte; la fila conserva su nombre y la cantidad distinta se revisa
+        despues = self.seguimiento([fila("Levantamiento topográfico y altimétrico", "12", "ha", "confirmado",
                                          entregable="Plano")])
-        self.assertEqual(despues["revision_de_tabla"][0]["tipo"], "sustitucion_ambigua")
-        self.assertEqual(len(despues["activities"]), 2)
+        self.assertEqual(despues["revision_de_tabla"][0]["tipo"], "dato_distinto")
+        self.assertEqual([a["activity"] for a in despues["activities"]], ["Levantamiento topográfico", "Batimetría"])
 
     def test_la_eliminacion_con_la_nota_del_prompt_se_detecta_y_no_se_aplica_sola(self):
         despues = self.seguimiento([fila("Batimetría", servicio="Batimetría", ubicacion="Embalse",

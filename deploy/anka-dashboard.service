@@ -1,0 +1,16 @@
+[Unit]
+Description=Anka - dashboard de cotizaciones (modo api)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=anka
+WorkingDirectory=/opt/anka
+# Claves y dominio: archivo privado (chmod 600), nunca en el repositorio.
+EnvironmentFile=/etc/anka/anka.env
+ExecStart=/opt/anka/.venv/bin/python app.py review-ui --no-browser --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

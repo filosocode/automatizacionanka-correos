@@ -10,6 +10,7 @@ local en `cola_del_piloto.py`. La edición de la tabla vive en `ediciones.py` y 
 from __future__ import annotations
 
 from datetime import datetime
+from hashlib import sha256
 
 from anka.dominio.analisis import Analisis
 from anka.dominio.caso import CLIENT_TYPES, SECTORS, Caso, load_analysis, timestamp
@@ -204,7 +205,7 @@ def thread_events(thread_id: str) -> list[Evento]:
 
 
 def change_marker() -> str:
-    """Cambia cuando se añade, edita o borra cualquier caso (para refrescar el dashboard)."""
+    """Incluye recepción y avance de trabajos, incluso antes de existir un análisis."""
     with lectura() as db:
         row = db.execute(
             "SELECT COUNT(*) AS n, MAX(COALESCE(updated_at, first_seen_at, '')) AS ts, "
@@ -212,6 +213,15 @@ def change_marker() -> str:
             f"AND kind IN ({_TIPOS_QUE_CUENTAN})) AS unread, "
             "(SELECT COUNT(*) || MAX(recorded_at) FROM case_events) AS ev FROM quotes"
         ).fetchone()
-    return f"{row['n']}|{row['ts'] or ''}|{row['unread']}|{row['ev']}"
+        recepcion = [tuple(r) for r in db.execute(
+            "SELECT state,disposition,error_kind,COUNT(*),MAX(updated_at),MAX(detected_at),SUM(attempts) "
+            "FROM recepcion_mensajes GROUP BY state,disposition,error_kind ORDER BY state,disposition,error_kind")]
+        trabajos = [tuple(r) for r in db.execute(
+            "SELECT state,last_error,COUNT(*),MAX(updated_at),SUM(attempts) FROM trabajos_work "
+            "GROUP BY state,last_error ORDER BY state,last_error")]
+        avisos = db.execute("SELECT COUNT(*), MAX(id) FROM recepcion_eventos "
+                            "WHERE event_kind IN ('aviso_work_intentado', 'aviso_work_enviado')").fetchone()
+    avance = sha256(repr((recepcion, trabajos, tuple(avisos))).encode()).hexdigest()[:16]
+    return f"{row['n']}|{row['ts'] or ''}|{row['unread']}|{row['ev']}|{avance}"
 
 

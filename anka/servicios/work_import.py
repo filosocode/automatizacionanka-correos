@@ -171,7 +171,7 @@ def _work_analysis(payload: dict) -> Analisis:
         reply_text = ""  # un registro interno bloqueado no propone un correo para enviar al cliente
     modelo = _declarado(payload.get("model"), MAX_MODELO)
     version = _declarado(payload.get("skill_version"), MAX_VERSION)
-    raw_activities = payload.get("activities", [])
+    raw_activities = _work_activities(payload)
     unit_warnings = []
     unit_dependencies = []
     if isinstance(raw_activities, list):

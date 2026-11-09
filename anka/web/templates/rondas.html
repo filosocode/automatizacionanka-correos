@@ -8,7 +8,7 @@
       {% else %}Sin identificador del mensaje.{% endif %}</p>
     <ol class="preguntas-ronda">
       {% for pregunta in ronda.preguntas %}<li><span class="estado-pregunta {{ pregunta.clase }}">{{ pregunta.titulo }}</span> {{ pregunta.texto or '(sin texto)' }}
-        <span class="meta">— {{ pregunta.ayuda }}</span></li>
+        <span class="meta">— {{ pregunta.ayuda }}</span>{% if pregunta.evidencia_id %} <a href="https://mail.google.com/mail/u/0/#all/{{ pregunta.evidencia_id | urlquote }}" target="_blank" rel="noopener">Ver soporte</a>{% endif %}</li>
       {% else %}<li class="meta">Esta ronda no guardó el texto de las preguntas.</li>
       {% endfor %}
     </ol>
@@ -16,7 +16,7 @@
       {% if ronda.respuesta_id %}<a href="https://mail.google.com/mail/u/0/#all/{{ ronda.respuesta_id | urlquote }}" target="_blank" rel="noopener">Ver la respuesta</a>
       {% elif ronda.respuesta_mensaje %}Mensaje: {{ ronda.respuesta_mensaje }} (sin enlace: no parece un identificador de Gmail).
       {% else %}Sin identificador del mensaje.{% endif %}
-      El expediente no relaciona cada respuesta con cada pregunta; lo que contestó está en la pestaña «Conversación».</p>
+      Consulta el estado de cada pregunta arriba; «Sin confirmar» requiere revisión de la respuesta en «Conversación».</p>
     {% elif ronda.historica %}<p class="meta">Registro anterior a las rondas: no se sabe si el cliente respondió.</p>
     {% else %}<p class="meta"><strong>Sin respuesta registrada todavía.</strong></p>{% endif %}
   </section>

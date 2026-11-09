@@ -36,11 +36,11 @@
     {"a": "Acme Norte", "b": "Acme", "igual": false},
     {"a": "SA Pedro Ingeniería", "b": "Pedro Ingeniería", "igual": false}
   ],
-  "anios": [
-    {"carpeta_padre": "2026", "fecha_solicitud": "2026-12-31T23:00:00-05:00", "bloquea": false},
-    {"carpeta_padre": "2026", "fecha_solicitud": "2027-01-05T09:00:00-05:00", "bloquea": true},
-    {"carpeta_padre": "2025", "fecha_solicitud": "2026-02-01T09:00:00-05:00", "bloquea": true},
-    {"carpeta_padre": "Cotizaciones", "fecha_solicitud": "2030-01-01T00:00:00-05:00", "bloquea": false}
+  "padres": [
+    {"carpeta_padre": "Proyectos", "bloquea": false},
+    {"carpeta_padre": "2026", "bloquea": true},
+    {"carpeta_padre": "2025", "bloquea": true},
+    {"carpeta_padre": "Cotizaciones", "bloquea": false}
   ],
   "cambios": [
     {"id": "sin_codigo_en_el_caso", "descripcion": "El caso aún no tiene T: el cliente escribe libremente", "codigo_del_caso": null, "contacto": "ana@empresa.co", "de": "Ana Reyes <ana@empresa.co>", "cuerpo": "Cambiar el plazo a 30 días", "anterior_a_la_t": false, "esperado": "aplica"},

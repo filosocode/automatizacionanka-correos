@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 import re
 import secrets
 import urllib.parse
@@ -40,6 +41,14 @@ POST_FORM_PATTERN = re.compile(r'(<form\b[^>]*\bmethod="post"[^>]*>)', re.IGNORE
 
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+VARIABLE_HOSTS_PERMITIDOS = "ANKA_HOSTS_PERMITIDOS"
+
+
+def hosts_permitidos() -> set[str]:
+    """Nombres de Host aceptados: los locales y, para un despliegue web (U-85), los de `ANKA_HOSTS_PERMITIDOS`
+    (nombres de dominio separados por comas, sin puerto ni esquema). Sin la variable, solo los locales."""
+    extra = {nombre.strip().lower() for nombre in os.environ.get(VARIABLE_HOSTS_PERMITIDOS, "").split(",")}
+    return LOCAL_HOSTS | {nombre for nombre in extra if nombre and "/" not in nombre and ":" not in nombre}
 
 
 def add_csrf_tokens(content: str) -> str:
@@ -54,7 +63,7 @@ def is_local_host_header(value: str, puerto: int | None = None) -> bool:
     value = (value or "").lower()
     tiene_puerto = value.count(":") == 1 or value.startswith("[") and "]:" in value
     hostname, _, escrito = value.rpartition(":") if tiene_puerto else (value, "", "")
-    if hostname not in LOCAL_HOSTS:
+    if hostname not in hosts_permitidos():
         return False
     if puerto is not None and tiene_puerto:
         return escrito.isascii() and escrito.isdigit() and int(escrito) == puerto

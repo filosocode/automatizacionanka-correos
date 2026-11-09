@@ -15,12 +15,14 @@ from collections.abc import Sequence
 from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
-from anka.dominio.reloj import ahora, ahora_iso
+from anka.dominio.reloj import ahora, ahora_iso, instante
 from anka.dominio.errores import ErrorDeAnka, ErrorDeValidacion, codigo_de_error
 from anka.dominio.status import (
     QuoteStatus,
 )
-from anka.servicios.drive_layout import DriveLayoutError, create_project_folder, trash_project_folder, year_mismatch
+from anka.servicios.drive_layout import (
+    DriveLayoutError, create_project_folder, nombre_de_solicitud, padre_invalido, trash_project_folder,
+)
 from anka.infra.google_services import es_fallo_externo, services
 from anka.dominio.correo import (
     comprobar_texto_para_el_cliente,
@@ -29,8 +31,9 @@ from anka.dominio.correo import (
     reply_email,
     valid_email_address,
 )
-from anka.infra.mail import own_addresses, send_reply
+from anka.infra.mail import es_hilo_no_encontrado, own_addresses, send_reply
 from anka.dominio.preguntas import anotar_envio, en_el_correo, hay_pendientes_internos
+from anka.dominio.work_contract import motivo_de_insuficiencia_documental
 from anka.dominio.reception import (
     question_email, reception_questions, safe_folder_name,
 )
@@ -61,9 +64,16 @@ def resolve_case_recipient(thread_id: str) -> dict:
     config = load_config()
     gmail, _ = services()
     account_addresses = own_addresses(config, gmail)
-    thread = gmail.users().threads().get(
-        userId="me", id=thread_id, format="full"
-    ).execute()
+    try:
+        thread = gmail.users().threads().get(
+            userId="me", id=thread_id, format="full"
+        ).execute()
+    except Exception as exc:
+        if es_hilo_no_encontrado(exc):   # U-89: no es un fallo del sistema; el correo ya no está en Gmail
+            raise ErrorDeValidacion(
+                "Este correo ya no está en Gmail (¿lo borraste?), así que no se puede responder desde aquí. "
+                "Si lo necesitas, restáuralo en Gmail o pide al cliente que lo envíe de nuevo.") from exc
+        raise
     inbound = inbound_messages(thread, account_addresses)
     if not inbound:
         raise ErrorDeValidacion("No se encontró un mensaje entrante del cliente en esta conversación.")
@@ -72,7 +82,8 @@ def resolve_case_recipient(thread_id: str) -> dict:
     if not valid_email_address(recipient):
         raise ErrorDeValidacion("Gmail no nos dio una dirección para responder. Ábrelo en Gmail y revisa.")
     with transaccion() as db:
-        fila = db.execute("SELECT analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        fila = db.execute("SELECT analysis_json, recipient, updated_at FROM quotes WHERE thread_id=?",
+                          (thread_id,)).fetchone()
         if not fila:
             raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
         analysis = json.loads(fila["analysis_json"])      # el de ahora, no el de antes de hablar con Gmail (U-42)
@@ -80,7 +91,9 @@ def resolve_case_recipient(thread_id: str) -> dict:
         actualizar_caso(db, thread_id,
             recipient=recipient,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
-            updated_at=ahora().isoformat(timespec='seconds'))
+            updated_at=(ahora().isoformat(timespec='seconds')
+                        if str(fila["recipient"] or "").strip().casefold() != recipient.strip().casefold()
+                        else fila["updated_at"]))
     return {"quote": get_quote(thread_id), "gmail": gmail, "thread": thread,
             "account_addresses": account_addresses}
 
@@ -308,7 +321,10 @@ def send_dashboard_reply(thread_id: str, body: str, to: str = "", change_id: int
                     thread_id, message_id, body, recipient, _status_after_reply(quote['status'], len(hechas)),
                     previous['created_at'], hechas))
             envios.confirmar(previous['operation_key'], message_id)
-            raise ErrorDeValidacion('Este correo ya se envió; no lo enviamos otra vez.')
+            cuando = str(previous.get('created_at') or '')[:16].replace('T', ' ')
+            raise ErrorDeValidacion(
+                f'Este correo ya se envió a {recipient}' + (f' el {cuando}' if cuando else '')
+                + '. No lo enviamos otra vez; si quieres mandar otro, cambia el texto.')
         raise ErrorDeValidacion('Gmail aún no confirma si el correo salió. No lo enviamos de nuevo; '
                          'mira en Gmail antes de intentar otra vez.')
     duplicate = _already_sent(quote, body, recipient)
@@ -481,6 +497,31 @@ def con_codigo_final(body: str, suggested: str, number: str) -> str:
     return body
 
 
+def _comprobar_drive_antes_de_emitir() -> None:
+    """Falla antes de emitir la T si la carpeta de Drive no se podrá crear por la configuración (U-102).
+
+    La T no se deshace (D-08): no debe emitirse para descubrir después que `drive_parent_id` falta o apunta a la carpeta
+    de un año. Si Drive no responde no se bloquea nada: la carpeta queda pendiente con su motivo, como siempre.
+    """
+    try:
+        parent = load_config().get("drive_parent_id")
+    except ErrorDeAnka:
+        return        # sin config.json no se puede comprobar: el resto del flujo lo avisa como siempre
+    if not parent:
+        raise ErrorDeValidacion(
+            "La T no se emitió: falta drive_parent_id en config.json (la carpeta «Proyectos» de Drive). "
+            "Defínelo, o usa «Solo emitir la T» si la carpeta se creará aparte.")
+    try:
+        aviso = padre_invalido(services()[1], parent)
+    except ErrorDeAnka:
+        raise
+    except Exception:
+        log.warning("No se pudo comprobar la carpeta de Drive antes de emitir la T", exc_info=True)
+        return
+    if aviso:
+        raise ErrorDeValidacion("La T no se emitió. " + aviso)
+
+
 def issue_code_and_notify(thread_id: str, number: str, body: str, suggested_number: str = "") -> str:
     """Emite la T y, en el mismo paso: crea la carpeta en Drive (con los documentos del cliente y la tabla) y envía
     al cliente el correo con el código, las instrucciones y el proceso.
@@ -496,6 +537,7 @@ def issue_code_and_notify(thread_id: str, number: str, body: str, suggested_numb
     number = comprobar_numero(thread_id, number)
     quote = case_email_context(thread_id)[0]
     _recipient(thread_id, quote, "")
+    _comprobar_drive_antes_de_emitir()
     parts = [assign_code(thread_id, number).split(" Revisa el correo")[0]]
     parts.append(auto_create_project_folder(thread_id))      # carpeta, documentos del cliente y tabla
     try:
@@ -671,19 +713,29 @@ def _create_case_folder(db: sqlite3.Connection, gmail: ClienteGmail, drive: Clie
                         new_client: bool, auto: bool, allow_similar_project: bool,
                         account_addresses: set[str]) -> str:
     """Crea la carpeta del proyecto en Drive para un caso con alcance completo y la llena."""
+    if motivo := motivo_de_insuficiencia_documental(analysis):
+        raise ErrorDeValidacion(motivo)
     parent = config.get("drive_parent_id")
     if not parent:
         raise ErrorDeAnka("Para aprobar alcance completo define drive_parent_id en config.json.")
     client = _resolve_client(db, thread_id, analysis, recipient, client_name, auto)
-    mismatch = year_mismatch(drive, parent, analysis.get("received_at", ""))
+    mismatch = padre_invalido(drive, parent)
     if mismatch:
         raise ErrorDeAnka(mismatch)
-    request_name = safe_folder_name(
-        analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion"),
-    )
+    # U-102: con la T emitida la carpeta es `T&E{número} {proyecto}` y el año y el mes salen de esa emisión; sin T (la
+    # alternativa manual) se conserva el nombre anterior y se usa la fecha de hoy.
+    codigo = db.execute("SELECT quote_code, code_assigned_at FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+    if codigo and codigo[0]:
+        request_name = nombre_de_solicitud(str(codigo[0]), analysis.get("project_name"))
+        emitida = instante(codigo[1])
+    else:
+        request_name = safe_folder_name(
+            analysis["project_name"], thread_id, config.get("folder_prefix", "Cotizacion"),
+        )
+        emitida = None
     try:
         result = create_project_folder(
-            drive, parent, client, request_name, create_client=new_client,
+            drive, parent, client, request_name, emitida=emitida, create_client=new_client,
             auto_create_client=auto,
             attachment_names=[
                 str(item.get("filename") or "") for item in analysis.get("attachments", [])

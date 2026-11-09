@@ -22,7 +22,7 @@ from anka.dominio.status import (
 from anka.dominio.decision import Action, Decision, decide_analysis, decide_prefilter
 from anka.infra.logging_setup import SENSITIVE, get_logger
 from anka.servicios.drive_layout import (
-    AmbiguousClient, ClientNotFound, create_project_folder, year_mismatch,
+    AmbiguousClient, ClientNotFound, create_project_folder, padre_invalido,
 )
 from anka.servicios.drive_contents import populate_project_folder
 from anka.infra.google_services import services
@@ -40,7 +40,7 @@ from anka.infra.mail import (
     own_addresses,
 )
 from anka.dominio.reception import (
-    attachment_report, automated_noise_reason, draft_body_with_review_note,
+    agregar_pregunta_de_ubicacion, attachment_report, automated_noise_reason, draft_body_with_review_note,
     mentions_commercial_terms,
 )
 from anka.dominio.reintentos import analisis_de_fallo, motivo_legible
@@ -49,6 +49,9 @@ from anka.servicios.lectura_por_tramos import analizar_hilo
 from anka.infra.modes import (
     ensure_local_or_api_mode,
 )
+from anka.dominio.tabla_acumulada import anclar_filas
+from anka.dominio.verificacion_de_evidencia import marcar_cifras_sin_respaldo
+from anka.infra import registro_de_uso
 from anka.infra.presupuesto_ocr import presupuesto_de_caso
 from anka.infra.settings import load_config
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
@@ -204,11 +207,23 @@ class RevisorDeHilos:
             blocked = [item for item in attachments
                        if item.get("status") in {"bloqueado", "lectura_parcial"}]
             required = config["required_fields"]
-            analysis = analizar_hilo(inbound, required, config["llm"], attachments)
+            tabla = _tabla_vigente(row)
+            with registro_de_uso.medir(config["llm"]) as medicion:   # U-91: tokens y costo de este análisis
+                try:
+                    analysis = analizar_hilo(inbound, required, config["llm"], attachments, tabla)
+                finally:
+                    registro_de_uso.anotar(thread_id, medicion)
+            if tabla:   # diagnóstico sin nombres: qué número de fila dijo el modelo para cada actividad
+                numeros = [a.get("fila_existente") for a in analysis.get("activities") or [] if isinstance(a, dict)]
+                log.info("%s: seguimiento con %d filas vigentes; el modelo devolvió %d actividades, fila_existente %s",
+                         thread_id, len(tabla), len(numeros), numeros)
+            anclar_filas(analysis.get("activities"), tabla)   # U-94: cada fila conserva el nombre de la que actualiza
             analysis["received_at"] = message_datetime(last)
             analysis["routing"] = routing
             analysis["email"] = email
             analysis["attachments"] = attachment_report(attachments, analysis, required)
+            if not tabla:   # U-95: solo en el primer análisis; en un seguimiento decide el modelo y nunca se insiste
+                agregar_pregunta_de_ubicacion(analysis, attachments)
             pistas = pistas_de_area("\n\n".join(message_text(m.get("payload", {})) for m in inbound), attachments)
             analysis["areas_calculadas"] = pistas["areas_calculadas"]   # T-125, T-126: pistas, no entran en la tabla
             analysis["diferencias_de_area"] = pistas["diferencias_de_area"]
@@ -221,6 +236,8 @@ class RevisorDeHilos:
                     limpiar_cantidad_y_unidad(row)
                 if isinstance(row, dict) and "estado" in row:
                     row["estado"] = normalize_estado(row["estado"])  # R12
+            marcar_cifras_sin_respaldo(   # U-93: una cifra que ningún documento respalda no queda confirmada
+                analysis, "\n\n".join(message_text(m.get("payload", {})) for m in inbound), attachments)
             if self.db:
                 # R11: con T asignada, la tabla solo cambia por el contacto registrado y citando el código
                 sender_name, sender_email = parseaddr(header(last, "From"))
@@ -297,7 +314,7 @@ class RevisorDeHilos:
     def _create_project_folder_or_hold(
         self, thread_id: str, last: dict, recipient: str, d: Decision, thread: dict,
     ) -> None:
-        """Crea `Año/Cliente/Solicitud` solo si el cliente es seguro; si no, lo deja para una persona.
+        """Crea `Año/Mes/Cliente/Solicitud/anexos` solo si el cliente es seguro; si no, lo deja para una persona.
 
         Nunca crea una carpeta de cliente por cuenta propia (ver drive_layout).
         """
@@ -306,10 +323,10 @@ class RevisorDeHilos:
         parent = self.config["drive_parent_id"]
         hold: tuple[str, str] | None = None  # (código genérico, mensaje completo)
         folder: dict | None = None
-        mismatch = year_mismatch(self.drive, parent, d.analysis.get("received_at", ""))
+        mismatch = padre_invalido(self.drive, parent)
         client = confirmed_client(db, thread_id, d.analysis, recipient)
         if mismatch:
-            hold = ("año de la carpeta padre", mismatch)
+            hold = ("carpeta padre", mismatch)
         elif not client:
             hold = ("cliente sin confirmar",
                     "No hay un cliente confirmado para este remitente. Indica la carpeta del cliente.")
@@ -374,6 +391,20 @@ def _skip_reason(row: Sequence[Any] | None, last_id: str, gmail_drafts: bool) ->
     if gmail_drafts and row[1] == QuoteStatus.REVIEW_PENDING:
         return None
     return ""
+
+
+def _tabla_vigente(row: Sequence[Any] | None) -> list[dict] | None:
+    """Las actividades que el caso ya tiene, para que un seguimiento las actualice en vez de rehacerlas (U-90)."""
+    if not row or len(row) < 3:
+        return None
+    try:
+        previo = json.loads(row[2] or "{}")
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(previo, dict) or "analysis_failure" in previo:
+        return None
+    actividades = [a for a in previo.get("activities") or [] if isinstance(a, dict)]
+    return actividades or None
 
 
 def _rescued(row: Sequence[Any] | None) -> bool:

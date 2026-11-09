@@ -2,6 +2,10 @@
 
 El sistema puede trabajar en tres escenarios. Solo uno debe estar activo procesando Gmail.
 
+Los borradores internos de Work se retiran automáticamente después de confirmar su importación al dashboard.
+Antes se guarda y verifica una copia recuperable en `evidence/work_importado`, incluida en los respaldos locales.
+Si la importación o el respaldo fallan, el borrador permanece. Los borradores dirigidos al cliente se conservan.
+
 ## Regla principal
 
 No correr dos orquestadores al mismo tiempo sobre la misma cuenta de Gmail.
@@ -132,6 +136,46 @@ Véase [configuración y prueba](WORK_DRIVE_OCR.md). La tarea de Work debe actua
 El bot extrae texto y cobertura verificable de TXT, CSV, JSON, XML, KML/KMZ, GeoJSON, GPX, planes QGroundControl (.plan/.waypoints), DJI WPML en KMZ, PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT/ODS/ODP, RTF, HTML, imágenes y documentos compatibles dentro de ZIP. El OCR local inspecciona imágenes, páginas PDF escaneadas y figuras incrustadas; formatos Office antiguos se convierten con LibreOffice cuando está instalado. Shapefiles se leen desde ZIP cuando incluyen .shp, .shx y .dbf. Las capturas inline de firma no bloquean el análisis. DWG/DXF, OCR ilegible, gráficos estructurados y todo contenido que no pueda convertirse quedan identificados para revisión manual.
 
 Una referencia a trabajos anteriores sin su alcance adjunto se registra como dependencia pendiente. Las cifras o requisitos incompatibles entre fuentes se registran como contradicciones. Ambos casos impiden crear automáticamente la carpeta del proyecto hasta que comercial o técnica los resuelva.
+
+## Recepción visible antes del análisis (2026-11-04)
+
+La portada muestra los correos pendientes desde que el receptor los registra en SQLite, sin esperar el retorno de Work.
+La recepción se consulta sin crear análisis provisionales: se muestra una fila por hilo y las respuestas a solicitudes
+existentes no aumentan el total de solicitudes. Las notificaciones automáticas excluidas por las reglas de elegibilidad
+no se cuentan. Al conciliar el mensaje, el bloque de recepción deja paso a la solicitud analizada.
+
+«Esperando análisis de Work» significa que el trabajo fue publicado y aún no llegó el resultado; no demuestra que Work
+esté ejecutándolo. Los errores registrados muestran «Requiere atención». Los cambios en recepción y trabajos actualizan
+el marcador del dashboard para que la página se refresque, respetando formularios en edición. La aparición depende del
+siguiente sondeo del receptor (normalmente 60 segundos), no del instante exacto de entrega en Gmail.
+
+Cada recepción muestra el último avance, su tiempo transcurrido y «Qué sigue». «Ver seguimiento y archivos» permanece
+plegado y permite consultar fechas registradas, adjuntos esperados, reintentos y el trabajo publicado en Drive.
+El tiempo se actualiza en el navegador cada minuto sin recargar; tras `work_coordination_alert_minutes` sin resultado
+desde la publicación aparece «Más tiempo del esperado». Es un aviso de espera, no una prueba de que Work falló o
+empezó a analizar. Abrir el correo original respeta la cuenta receptora registrada. Ver un nombre de adjunto no se
+presenta como prueba de lectura o validación técnica. No se crean correos, análisis ni carpetas desde esta vista.
+
+## Piloto por evento Gmail (2026-11-04; pendiente de prueba de entrega)
+
+La tarea Work `ANKA | Analista — Piloto por evento Gmail` (`6aeb67ed088c8191961cc871142f9c5f`) quedó activa,
+en sustitución de la tarea horaria `6ad7e2a2417c81918da16b787c775481`, que se conserva pausada para recuperación.
+El servicio aceptó el evento Gmail con filtro de remitente `91andresmunoz@gmail.com`, sin filtro de asunto. Tras detectar
+un correo de prueba sin el corchete inicial se retiró `subject_match` tanto del disparador como de las instrucciones:
+se acepta cualquier asunto, incluso vacío; la clasificación comercial depende del contenido y T-52. El panel de Work
+muestra «Supervisando», desencadenador Gmail y únicamente la condición de remitente. La cuenta vinculada no se expone
+en esa vista: confirmar la entrega mediante un correo
+manual nuevo antes de considerar validado el disparador.
+
+El evento solo despierta Work. El prompt exige perfil y destinatario `ankacomercialia@gmail.com`, el mensaje exacto
+del evento y el trabajo correspondiente publicado por Python. Si el trabajo aún no existe, espera 60 segundos entre
+reconsultas, como máximo cinco minutos, con una herramienta de espera disponible; si no puede esperar o no aparece
+el trabajo, informa la limitación y no inventa un análisis. Python mantiene su ciclo de coordinación de 60 segundos.
+El piloto procesa una solicitud por ejecución y se prueba de una en una; la entrega de eventos agrupados, la espera,
+la deduplicación y la importación automática aún requieren verificación real. No activar ambas tareas a la vez.
+El correo `1a1a798d36a042e8` quedó excluido por el antiguo filtro y se solicitó su recuperación puntual; esa ejecución
+manual no demuestra entrega del evento. Al pasar a producción habrá que definir el alcance de remitentes de clientes;
+la restricción a la cuenta de prueba no es una configuración de producción.
 
 ## Copias de seguridad y secretos (U-78)
 

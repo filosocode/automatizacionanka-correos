@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from decimal import Decimal, InvalidOperation
 
 from anka.dominio.errores import ErrorDeValidacion
-from anka.dominio.analisis import Actividad
+from anka.dominio.analisis import Actividad, Analisis
 
 from collections.abc import Mapping, Sequence
 from copy import copy
@@ -131,6 +132,44 @@ def _dejar_pendiente(row: dict, motivo: str, unidad: str) -> None:
         row["notes"] = f"{notas} {nota}".strip()
 
 
+def normalizar_tablas(analysis: Analisis) -> None:
+    """Aplica las mismas reglas de magnitud al análisis y a su propuesta en los tres modos."""
+    for tabla in (analysis.get("activities"), analysis.get("pending_model_activities")):
+        for fila in tabla or []:
+            if isinstance(fila, dict):
+                limpiar_cantidad_y_unidad(cast(dict[str, Any], fila))
+
+
+def _area_equivalente(row: dict, quantity: str, unit: str) -> bool:
+    """Separa solo dos áreas parentéticas cuya equivalencia exacta se puede comprobar."""
+    patron = r"([\d.,]+)\s*(m²|m2|ha|km²|km2)\s*\(\s*([\d.,]+)\s*(m²|m2|ha|km²|km2)\s*\)"
+    partes = re.fullmatch(patron, quantity, re.IGNORECASE)
+    if not partes:
+        return False
+    a, ua, b, ub = partes.groups()
+    if any(len(re.sub(r"\D", "", n)) > 20 for n in (a, b)):
+        return False
+    ua, ub = unidad_canonica(ua), unidad_canonica(ub)
+    unidades = unidades_en_cantidad(unit)
+    if (unit and not unidades) or (unidades and (ua not in unidades or not unidades <= {ua, ub})):
+        return False
+    def numero(token: str) -> Decimal:
+        if re.fullmatch(r"\d{1,3}(?:\.\d{3})+(?:,\d+)?", token):
+            token = token.replace(".", "")
+        return Decimal(token.replace(",", "."))
+    factores = {"m²": Decimal(1), "ha": Decimal(10000), "km²": Decimal(1000000)}
+    try:
+        primero, segundo = numero(a), numero(b)
+        if ua == ub or primero <= 0 or primero * factores[ua] != segundo * factores[ub]:
+            return False
+    except (InvalidOperation, KeyError):
+        return False
+    literal = f"Magnitud original: {quantity}; unidad original: {unit or 'no indicada'}."
+    row["quantity"], row["unit"] = format(primero, "f"), ua
+    row["notes"] = " ".join(filter(None, (str(row.get("notes") or "").strip(), literal)))
+    return True
+
+
 def limpiar_cantidad_y_unidad(row: dict) -> None:
     """Evita que la unidad aparezca dos veces: el modelo suele escribir «544.5 ha» en la cantidad y «ha» en la unidad.
 
@@ -148,6 +187,8 @@ def limpiar_cantidad_y_unidad(row: dict) -> None:
         return _dejar_pendiente(row, "La cantidad que venía era un valor en dinero, no una medida.", "no indicado")
     if quantity and not tiene_cifra(quantity) and quantity.casefold() not in _SIN_DATO:
         return _dejar_pendiente(row, "En la cantidad no venía una cifra.", unit or quantity)
+    if _area_equivalente(row, quantity, unit):
+        return
     if quantity and unit:
         _quitar_unidad_repetida(row, quantity, unit)
     if row.get("unit"):

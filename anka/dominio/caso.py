@@ -327,10 +327,11 @@ def status_label(status: Any, assessment: Mapping[str, Any]) -> str:
 
 # --- Por qué Work propone un cambio: lo que el panel de la propuesta le muestra a la persona (T-61) -------------------
 
-_CAMPOS_DE_PROPUESTA = ("quantity", "unit", "ubicacion", "entregable", "plazo_restriccion")
+_CAMPOS_DE_PROPUESTA = ("quantity", "unit", "ubicacion", "entregable", "plazo_restriccion", "notes", "fuente")
 _ETIQUETAS_DE_CAMPO = {
     "quantity": "Cantidad", "unit": "Unidad", "ubicacion": "Ubicación", "entregable": "Entregable",
-    "plazo_restriccion": "Plazo o restricción", "servicio_tecnica": "Servicio o técnica", "estado": "Estado"}
+    "plazo_restriccion": "Plazo o restricción", "servicio_tecnica": "Servicio o técnica", "estado": "Estado",
+    "notes": "Notas", "fuente": "Fuente"}
 _GMAIL_EN_FUENTE = re.compile(r"\bGmail ([0-9a-f]{10,32})\b")
 
 

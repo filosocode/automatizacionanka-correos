@@ -50,6 +50,7 @@ def extract_message_attachments(gmail: ClienteGmail, message: dict) -> list[Adju
         record: Adjunto = {
             "filename": part["filename"],
             "mime_type": part["mime_type"],
+            "size_bytes": part.get("size", 0),
             "source_message_id": message.get("id", "no-indicado"),
         }
         if is_inline_signature_image(part):
@@ -151,6 +152,13 @@ def es_error_de_cuota(exc: Exception) -> bool:
     texto = str(exc)
     return exc.resp.status == 429 or (exc.resp.status == 403 and any(
         marca in texto for marca in ("Quota exceeded", "rateLimitExceeded", "userRateLimitExceeded")))
+
+
+def es_hilo_no_encontrado(exc: Exception) -> bool:
+    """Si Gmail dice que el hilo no existe (404): se borró o ya no es de esta cuenta."""
+    from googleapiclient.errors import HttpError
+
+    return isinstance(exc, HttpError) and exc.resp.status == 404
 
 
 def candidate_thread_ids(gmail: ClienteGmail, query: str) -> list[str]:

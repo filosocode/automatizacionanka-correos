@@ -98,7 +98,7 @@ class FlujoTests(unittest.TestCase):
         for parche in (
             patch.object(settings, "DATA_DIR", Path(self.temp.name)),
             patch("anka.servicios.pipeline.load_config", return_value=test_config()),
-            patch("anka.servicios.pipeline.services", return_value=(self.gmail, FakeDriveTree({"Minera Sur": {}}))),
+            patch("anka.servicios.pipeline.services", return_value=(self.gmail, FakeDriveTree.de_clientes({"Minera Sur": {}}))),
         ):
             parche.start()
             self.addCleanup(parche.stop)

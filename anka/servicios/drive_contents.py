@@ -1,6 +1,6 @@
 """Contenido de la carpeta de una solicitud en Drive.
 
-Según la plantilla de Drive ("Leer" en `Año/Cliente/Solicitud`), la carpeta lleva:
+Según la plantilla de Drive (U-102: `año/mes/cliente/solicitud/anexos`), la subcarpeta `anexos` lleva:
   - el PDF de alcance y toda la documentación que envió el cliente (PDF, Word, Excel, KMZ, KML,
     DWG, shapefile, imágenes, comprimidos...),
   - una tabla en Sheet que resume lo que piden (la tabla de actividades).
@@ -23,7 +23,7 @@ from typing import Any
 from anka.dominio.hoja import build_case_workbook
 from anka.servicios.hoja_de_calculo import publicar
 from anka.servicios.repositorio import RepositorioDeCasos
-from anka.servicios.drive_layout import clean_folder_name
+from anka.servicios.drive_layout import carpeta_de_anexos, clean_folder_name
 from anka.infra.google_services import list_file_names
 from anka.infra.logging_setup import get_logger
 from anka.dominio.correo import (
@@ -116,8 +116,9 @@ def populate_project_folder(
     gmail: ClienteGmail, drive: ClienteDrive, thread: dict, folder_id: str, quote: Mapping[str, Any] | None,
     own_addresses: set[str],
 ) -> ContentReport:
-    """Copia a `folder_id` todos los adjuntos del cliente y crea la tabla de actividades (Sheet)."""
+    """Copia los adjuntos del cliente a `anexos` (dentro de `folder_id`) y crea ahí la tabla de actividades (Sheet)."""
     report = ContentReport()
+    folder_id = carpeta_de_anexos(drive, folder_id)["id"]
     present = {name.casefold() for name in list_file_names(drive, folder_id)}
     try:
         attachments = client_attachments(gmail, thread, own_addresses)

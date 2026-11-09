@@ -1,3 +1,12 @@
+{% if control is defined %}
+<section class="notice" aria-label="Control de lectura">
+  <strong>{{ control.estado }}</strong>
+  {% if control.motivos %}<ul>{% for motivo in control.motivos %}<li>{{ motivo }}</li>{% endfor %}</ul>
+  <p class="meta">Revisa las fuentes antes de cerrar el alcance. Leer el archivo completo no garantiza que todos sus datos sean correctos.</p>
+  {% elif control.estado == 'Lectura completa' %}<p class="meta">La cobertura está declarada como completa. Confirma cantidades, unidades y fuentes antes de cerrar el alcance.</p>
+  {% else %}<p class="meta">Comprueba cantidades, unidades y fuentes en los documentos originales.</p>{% endif %}
+</section>
+{% endif %}
 {% if preflight or audit.get('verification') %}
 <details class="notice"{% if blocked %} open{% endif %}>
   <summary><strong>Lectura y aplicabilidad</strong></summary>

@@ -22,6 +22,8 @@ from tests.test_app import complete_analysis, test_config
 def technical_analysis() -> dict:
     analysis = complete_analysis()
     analysis["attachments"] = [{"filename": "plano.dwg", "status": "bloqueado", "detail": "plano CAD"}]
+    # T-133: estos escenarios de decisión parten de una revisión documental personal ya registrada.
+    analysis["reading_review"] = {"at": "2026-11-03T10:00:00-05:00", "files": ["plano.dwg"]}
     return analysis
 
 

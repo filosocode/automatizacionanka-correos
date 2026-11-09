@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -109,3 +110,66 @@ def actividad_con_area(actividad: Mapping[str, Any], descripcion: str, hectareas
     previa = str(actividad.get("notes") or "").strip()
     return {**actividad, "quantity": texto, "unit": "ha", "estado": "pendiente",   # type: ignore[typeddict-item]
             "notes": f"{previa} {nota}".strip()}
+
+
+# Solo lo que cubre TODA la franja del archivo: el vuelo. Un levantamiento a pie (estación total) cubre solo las
+# zonas que el pliego nombra, no el polígono entero (U-101).
+_SE_MIDE_POR_AREA = ("lidar", "fotogrametr", "aerofotogrametr", "ortofoto", "dron", "rpas")
+_SE_MIDE_POR_LONGITUD_O_PUNTOS = ("nivelacion", "control", "inventario", "catastro", "red", "redes", "tuberia",
+                                  "tuberias", "alcantarillado", "acueducto", "perfil", "estacion", "detalle",
+                                  "detalles", "poligonal")
+
+
+def _palabras(texto: Any) -> list[str]:
+    plano = unicodedata.normalize("NFD", str(texto or "").casefold())
+    return re.findall(r"[a-z0-9]+", "".join(c for c in plano if unicodedata.category(c) != "Mn"))
+
+
+def se_mide_por_area(nombre: Any, servicio: Any = "") -> bool:
+    """¿La actividad cubre toda la franja del archivo (vuelo LiDAR, fotogrametría, ortofoto, dron)? (U-101)
+
+    Se mira solo el nombre y el servicio: «Levantamiento LiDAR y fotogrametría» sí; «Levantamiento de detalles con
+    estación total», «Nivelación geométrica», «Control horizontal» o «Inventario de redes» no. Ante la duda, no.
+    """
+    palabras = _palabras(nombre) + _palabras(servicio)
+    if any(p in _SE_MIDE_POR_LONGITUD_O_PUNTOS for p in palabras):
+        return False
+    return any(p.startswith(prefijo) for p in palabras for prefijo in _SE_MIDE_POR_AREA)
+
+
+def poner_areas_solas(actividades: Any, areas: Any, diferencias: Any) -> list[str]:
+    """Pone el área del único polígono del cliente como cantidad de las actividades de área que no la traen (U-101).
+
+    Solo cuando el archivo es la ÚNICA fuente: un solo polígono y ninguna diferencia con lo que el correo o un documento
+    escriben. Entra como cualquier área calculada (D-189): en ha, `pendiente` y con la nota de que es aproximada. Nunca
+    cambia una cantidad escrita ni crea filas. Devuelve los nombres de las actividades que cambió.
+    """
+    if not isinstance(actividades, list) or not isinstance(areas, list) or len(areas) != 1 or diferencias:
+        return []
+    area = areas[0]
+    hectareas = float(area.get("area_ha") or 0) if isinstance(area, Mapping) else 0.0
+    if hectareas <= 0:
+        return []
+    descripcion = f"polígono «{area.get('poligono')}» de {area.get('archivo')} (la única fuente del área)"
+    puestas: list[str] = []
+    for posicion, fila in enumerate(actividades):
+        if (isinstance(fila, Mapping) and sin_cantidad(fila.get("quantity"))
+                and se_mide_por_area(fila.get("activity"), fila.get("servicio_tecnica"))):
+            actividades[posicion] = actividad_con_area(fila, descripcion, hectareas)
+            puestas.append(str(fila.get("activity") or ""))
+    return puestas
+
+
+def areas_solas_del_caso(analisis: Mapping[str, Any]) -> str:
+    """Aplica `poner_areas_solas` a la tabla del caso y a su propuesta pendiente; devuelve la frase del historial.
+
+    La propuesta se completa igual para que adoptarla no borre la cantidad. Sin cambios devuelve una cadena vacía.
+    """
+    areas, diferencias = analisis.get("areas_calculadas"), analisis.get("diferencias_de_area")
+    puestas = poner_areas_solas(analisis.get("activities"), areas, diferencias)
+    poner_areas_solas(analisis.get("pending_model_activities"), areas, diferencias)
+    if not puestas or not isinstance(areas, list):
+        return ""
+    area = areas[0]
+    return (f"Se puso el área de {area.get('archivo')} ({float(area.get('area_ha') or 0):.4f} ha) como cantidad de: "
+            f"{'; '.join(puestas)}. Es aproximada y queda pendiente de confirmar.")

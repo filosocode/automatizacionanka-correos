@@ -463,7 +463,8 @@ def _soltar(job_id: str, token: str, when: str, error: str, nuevo: str | None = 
 
 def publicar_trabajo(drive: ClienteDrive, job_id: str, folder_id: str,
                      reloj: Callable[[], float] = time.time, paquete_version: str = "",
-                     solo_su_hoja: bool = False) -> dict[str, Any]:
+                     solo_su_hoja: bool = False,
+                     publicar_vistas: Callable[[dict[str, Any]], str] | None = None) -> dict[str, Any]:
     """Publica (o actualiza) la hoja del trabajo en la carpeta de laboratorio. Nunca elige entre archivos ambiguos.
 
     `paquete_version`: versión efectiva con la que se publica (queda en el evento; la de creación no se toca).
@@ -484,7 +485,10 @@ def publicar_trabajo(drive: ClienteDrive, job_id: str, folder_id: str,
         if solo_su_hoja and _archivo_guardado(drive, trabajo) is None:
             _soltar(job_id, token, when, "republicacion_sin_su_hoja")
             return {"resultado": "identidad_divergente", "job_id": job_id}
-        contenido = construir_libro_del_trabajo(_con_clasificacion(trabajo, paquete_version))
+        datos = _con_clasificacion(trabajo, paquete_version)
+        if publicar_vistas is not None:
+            datos["manifiesto_visual_drive_id"] = publicar_vistas(trabajo)
+        contenido = construir_libro_del_trabajo(datos)
         resultado, archivo = _publicar_en_drive(drive, trabajo, folder_id, contenido)
     except Exception as exc:                       # Drive o red: no se sabe qué quedó hecho; se verifica al reintentar
         _soltar(job_id, token, when, f"error_de_drive:{type(exc).__name__}")

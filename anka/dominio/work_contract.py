@@ -596,6 +596,10 @@ def lectura_sin_verificar(analysis: Analisis) -> bool:
         return False
     if archivos_ilegibles(analysis):          # T-110: un adjunto que Work no pudo leer no es una lectura verificada
         return True
+    if any(_plain(a.get("coverage")) in _INCOMPLETE or _plain(a.get("visual_interpretation")) in
+           {"no_certificada", "uncertified", "no_validada", "sin_validar", "pendiente"}
+           for a in analysis.get("attachments") or [] if a.get("status") != "ignorado"):
+        return True
     audit = analysis.get("reading_audit") or {}
     if audit.get("verification"):
         return bool(audit["verification"] == "incompleta")
@@ -646,6 +650,9 @@ def motivo_de_insuficiencia_documental(analysis: Analisis) -> str:
                     "archivo tú y, si ya lo revisaste, pulsa «Ya revisé estos archivos yo»; o pregúntale al cliente.")
         return ("No se pudo comprobar que Work leyó todos los archivos, así que todavía no se puede confirmar que "
                 "alcanza. Pide un análisis nuevo o, si ya los revisaste tú, pulsa «Ya revisé estos archivos yo».")
+    control = control_documental(analysis)
+    if control["bloquea"]:
+        return "Antes de confirmar que alcanza: " + "; ".join(control["motivos"])
     if not ilegibles:
         return ""
     actividades = [a for a in analysis.get("activities") or [] if isinstance(a, dict)]
@@ -653,6 +660,36 @@ def motivo_de_insuficiencia_documental(analysis: Analisis) -> str:
         return (f"Revisaste {cuales}, pero la tabla no tiene ninguna actividad con cantidad. Corrige la tabla con "
                 "lo que leíste antes de confirmar que alcanza.")
     return ""
+
+
+def control_documental(analysis: Analisis) -> dict[str, Any]:
+    """Estado visible de lectura y bloqueos conservadores, sin certificar comprensión (T-133)."""
+    conflictos = [str(c.get("details") or c.get("topic") or "Resolver contradicción pendiente")
+                  for c in analysis.get("contradictions", []) if c.get("status", "pendiente") == "pendiente"]
+    adjuntos = [a for a in analysis.get("attachments") or [] if a.get("status") != "ignorado"]
+    visuales = [str(a.get("filename") or "Adjunto") for a in adjuntos
+                if _plain(a.get("visual_interpretation")) in
+                {"no_certificada", "uncertified", "no_validada", "sin_validar", "pendiente"}]
+    parciales = [str(a.get("filename") or "Adjunto") for a in adjuntos
+                 if _plain(a.get("coverage")) in _INCOMPLETE or _plain(a.get("status")) in _INCOMPLETE]
+    pendientes: list[str] = []
+    if not analysis.get("reading_review"):
+        pendientes.extend(f"Revisar visualmente {n}" for n in visuales)
+        pendientes.extend(f"Completar o revisar la lectura de {n}" for n in parciales if n not in visuales)
+    motivos = [*conflictos, *pendientes]
+    if conflictos:
+        estado = "Datos contradictorios"
+    elif visuales and not analysis.get("reading_review"):
+        estado = "Requiere revisión visual"
+    elif motivos or (lectura_sin_verificar(analysis) and not analysis.get("reading_review")):
+        estado = "Lectura pendiente"
+    elif analysis.get("reading_review"):
+        estado = "Lectura revisada por una persona"
+    elif adjuntos and all(a.get("coverage") == "completa" for a in adjuntos):
+        estado = "Lectura completa"
+    else:
+        estado = "Lectura sin verificar"
+    return {"estado": estado, "motivos": motivos, "pendientes_lectura": pendientes, "bloquea": bool(motivos)}
 
 
 ENCABEZADO_INTERNO = "[REVISAR ANTES DE ENVIAR - BORRAR ESTA SECCION]"

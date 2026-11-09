@@ -1,0 +1,33 @@
+{% if recibidas %}
+<section class="section" aria-labelledby="recepcion-titulo">
+  <div class="section-head"><h2 id="recepcion-titulo">Recibidas · pendientes de análisis ({{ recibidas|length }})</h2></div>
+  <p class="meta">El correo ya llegó. Aquí verás qué sigue antes de que esté lista la tabla.</p>
+  <ol class="queue">
+    {% for item in recibidas %}
+    <li class="queue-row" data-recepcion-avance="{{ item.ultimo_iso }}" data-alerta-min="{{ item.umbral }}" data-espera-work="{{ 'true' if item.estado == 'Esperando análisis de Work' else 'false' }}">
+      <span class="rank" aria-hidden="true">{{ loop.index }}</span>
+      <div><strong>{{ item.subject or 'Correo sin asunto' }}</strong>
+        <div class="meta">{{ item.sender }}</div>
+        <p><span class="badge">{{ item.estado }}</span> <time class="meta" datetime="{{ item.ultimo_iso }}" title="Último avance: {{ item.ultimo }}" data-tiempo-avance>{{ item.tiempo }}</time> <span class="badge warn" data-demora-avance{% if not item.demora %} hidden{% endif %}>Más tiempo del esperado</span></p>
+        <div class="meta"><strong>Qué sigue:</strong> <span data-siguiente-avance>{{ item.siguiente }}</span></div>
+        {% if item.existente %}<div class="meta">Respuesta de una solicitud existente</div>{% endif %}
+        <details class="more">
+          <summary>Ver seguimiento y archivos</summary>
+          <ol class="timeline">
+            <li>Correo registrado: {{ item.fecha }}</li>
+            {% if item.preparado_at %}<li>Trabajo preparado: {{ item.preparado_at[:16]|replace('T',' ') }}</li>{% endif %}
+            {% if item.published_at %}<li>Disponible para Work: {{ item.published_at[:16]|replace('T',' ') }}. Aún sin resultado recibido.</li>{% endif %}
+            {% if item.estado == 'Requiere atención' %}<li>Aviso registrado: {{ item.ultimo }}. <a href="/operacion">Revisar el aviso</a></li>{% endif %}
+          </ol>
+          <p class="meta">{{ item.detalle }}{% if item.demora %} El aviso aparece tras {{ item.umbral }} minutos sin resultado.{% endif %}</p>
+          {% if item.archivos %}<p><strong>Adjuntos recibidos ({{ item.archivos|length }}):</strong></p><ul>{% for nombre in item.archivos %}<li>{{ nombre }}</li>{% endfor %}</ul><p class="meta">Registrados en Gmail; esto no confirma que ya se hayan leído o validado.</p>{% else %}<p class="meta">Sin adjuntos registrados.</p>{% endif %}
+          {% if item.reintentos %}<p class="meta">Reintentos registrados: {{ item.reintentos }}.</p>{% endif %}
+          {% if item.sheet_file_id %}<p><a href="https://docs.google.com/spreadsheets/d/{{ item.sheet_file_id|urlquote }}" target="_blank" rel="noopener">Ver trabajo de análisis en Drive</a></p>{% endif %}
+        </details>
+      </div>
+      {% if item.existente %}<a class="button secondary" href="/case?thread_id={{ item.thread_id|urlencode }}">Ver solicitud</a>{% else %}<a class="button secondary" href="{{ item.gmail }}" target="_blank" rel="noopener">Ver correo<span class="solo-lectores"> (se abre en una pestaña nueva)</span></a>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}

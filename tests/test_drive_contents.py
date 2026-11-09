@@ -58,8 +58,8 @@ def quote():
 # Cubre: R10, F1-07
 class PopulateTests(unittest.TestCase):
     def setUp(self):
-        self.drive = FakeDriveTree({"Minera Sur": {"Solicitud": {}}})
-        self.folder = self.drive.folder_id("Minera Sur/Solicitud")
+        self.drive = FakeDriveTree.de_clientes({"Minera Sur": {"Solicitud": {}}})
+        self.folder = self.drive.folder_id(FakeDriveTree.ruta_del_mes() + "/Minera Sur/Solicitud")
         self.thread, data = make_thread()
         self.gmail = FakeGmail(self.thread, data)
 
@@ -125,7 +125,7 @@ class FolderCreationFillsItTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self.drive = FakeDriveTree({"Minera Sur": {}})
+        self.drive = FakeDriveTree.de_clientes({"Minera Sur": {}})
         self.thread, data = make_thread()
         self.gmail = FakeGmail(self.thread, data)
         for p in (patch.object(settings, "DATA_DIR", Path(self._tmp.name)),
@@ -146,8 +146,11 @@ class FolderCreationFillsItTests(unittest.TestCase):
         self.assertIn("alcance.pdf", names)
         self.assertTrue(any(n.startswith("Tabla de actividades") for n in names))
         self.assertIn("En la carpeta", message)
-        self.assertEqual({parent for parent, *_ in self.drive.uploads}, {self.drive.folder_id(
-            "Minera Sur/" + next(f["name"] for f in self.drive.children(self.drive.folder_id("Minera Sur"))))})
+        mes = FakeDriveTree.ruta_del_mes()
+        solicitud = next(f["name"] for f in self.drive.children(self.drive.folder_id(f"{mes}/Minera Sur")))
+        # U-102: todo va a la subcarpeta `anexos` de la solicitud
+        self.assertEqual({parent for parent, *_ in self.drive.uploads},
+                         {self.drive.folder_id(f"{mes}/Minera Sur/{solicitud}/anexos")})
 
     def test_a_failure_filling_the_folder_does_not_undo_the_folder(self):
         with patch("anka.servicios.case_actions.populate_project_folder", side_effect=RuntimeError("boom")), \

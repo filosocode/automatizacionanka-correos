@@ -101,7 +101,10 @@ def set_mode(mode: str) -> str:
     if mode not in ACTIVE_MODES:
         raise ErrorDeAnka("Usa local, api o chatgpt_work.")
     config = load_config()
-    if mode == Modo.API and not os.getenv("OPENAI_API_KEY"):
+    if mode == Modo.API and config.get("llm", {}).get("provider") == "gemini":
+        if not os.getenv("GEMINI_API_KEY"):
+            raise ErrorDeAnka("No se cambió a API: falta la variable de entorno GEMINI_API_KEY.")
+    elif mode == Modo.API and not os.getenv("OPENAI_API_KEY"):
         raise ErrorDeAnka(
             "No se cambió a API: aún no hay clave de OpenAI. Cuando la tengas, ejecuta en "
             "PowerShell: setx OPENAI_API_KEY \"tu_clave\"; cierra y vuelve a abrir el "
@@ -117,11 +120,11 @@ def set_mode(mode: str) -> str:
         message = "Modo local activado: Ollama y bot Python. "
         automation_active = False
     elif mode == Modo.API:
-        config.setdefault("llm", {})["provider"] = "openai"
-        config["llm"].setdefault("model", "gpt-4.1-mini")
-        message = (
-            "Modo API activado: el análisis usa la API de OpenAI y genera costo. "
-        )
+        if config.setdefault("llm", {}).get("provider") != "gemini":    # un proveedor Gemini elegido se conserva
+            config["llm"]["provider"] = "openai"
+            config["llm"].setdefault("model", "gpt-4.1-mini")
+        proveedor = "Gemini" if config["llm"]["provider"] == "gemini" else "OpenAI"
+        message = f"Modo API activado: el análisis usa la API de {proveedor} y genera costo. "
         automation_active = False
     else:
         message = (

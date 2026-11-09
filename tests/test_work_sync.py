@@ -142,10 +142,10 @@ class BridgeTests(unittest.TestCase):
         cache = {}
         self.run_sync(gmail, cache)
         self.run_sync(gmail, cache)
-        self.assertEqual(gmail.gets, 1)
+        self.assertEqual(gmail.gets, 2)  # lectura inicial y comprobación de limpieza
         gmail.items["d1"] = draft_message(payload(summary="nuevo"), message_id="gm2")
         self.assertEqual(self.run_sync(gmail, cache)["updated"], 1)
-        self.assertEqual(gmail.gets, 2)
+        self.assertEqual(gmail.gets, 4)
 
     def test_invalid_draft_is_rejected_not_a_failure_and_is_not_marked_processed(self):
         # Cubre: T-28
@@ -166,7 +166,7 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(gmail.gets, 1)
         gmail.items["d1"] = draft_message(payload(), message_id="gm2")   # alguien lo corrigió: mensaje nuevo
         result = self.run_sync(gmail, cache)
-        self.assertEqual((gmail.gets, len(result["rejected"]), result["updated"]), (2, 0, 1))
+        self.assertEqual((gmail.gets, len(result["rejected"]), result["updated"]), (3, 0, 1))
         self.assertEqual(len(quotes.all_quotes()), 1)
 
     def test_a_draft_with_broken_json_is_rejected_without_stopping_the_others(self):

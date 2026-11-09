@@ -83,7 +83,7 @@ class Rondas(VistaBase):
         self.assertEqual(html.count("Sin confirmar</span>"), 3)
         self.assertIn("no es lo mismo que resuelta", texto)
         self.assertNotRegex(texto, r"(?i)respondida")
-        self.assertIn("no relaciona cada respuesta con cada pregunta", texto)
+        self.assertIn("Sin confirmar» requiere revisión de la respuesta", texto)
         self.assertIn(" open", html.split(">")[0])
 
     def test_varias_rondas_se_conservan_en_orden_cronologico(self):
@@ -163,7 +163,7 @@ class SinEscrituras(VistaBase):
         self.guardar(rondas_de_preguntas=[CON_RESPUESTA],
                      preguntas_enviadas={"en": "2026-10-19T16:20:00-05:00", "mensaje": ENVIADO, "preguntas": TEXTOS})
         html = self.pagina()
-        self.assertIn('id="respuesta"', html)
+        self.assertNotIn('id="cuerpo-correo"', html)
         self.assertIn("Preguntas enviadas al cliente", html)
 
 

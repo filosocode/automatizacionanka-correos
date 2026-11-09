@@ -136,7 +136,7 @@ class AislamientoTests(Base):
         })
         resultado = self.importar(gmail)
         self.assertEqual(resultado["resultado"], "importado")
-        self.assertEqual(gmail.draft_gets, ["dT"])                    # los demás hilos ni se leen
+        self.assertEqual(gmail.draft_gets, ["dT", "dT"])  # importación y comprobación de limpieza                    # los demás hilos ni se leen
         self.assertEqual(gmail.message_gets, [ID])
         self.assertEqual(self.casos(), [ID])
 
@@ -145,7 +145,7 @@ class AislamientoTests(Base):
         roto = con_cuerpo(cuerpo, hilo="B", gmail_id="gB")
         gmail = GmailAislado({"dB": roto, "dT": borrador(gmail_id="gT")})
         self.importar(gmail)
-        self.assertEqual(gmail.draft_gets, ["dT"])
+        self.assertEqual(gmail.draft_gets, ["dT", "dT"])  # importación y comprobación de limpieza
         self.assertEqual(self.casos(), [ID])
         with lectura() as db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM work_rejections").fetchone()[0], 0)
@@ -354,7 +354,7 @@ class LineaDeComandosTests(unittest.TestCase):
         self.assertEqual(codigo, 0)
         resultado = json.loads(salida.strip().splitlines()[-1])
         self.assertEqual(resultado["resultado"], "importado")
-        self.assertEqual(gmail.draft_gets, ["dT"])
+        self.assertEqual(gmail.draft_gets, ["dT", "dT"])  # importación y comprobación de limpieza
         self.assertFalse((self.datos / "work_sync_heartbeat.json").exists())
         self.assertFalse((self.datos / "work_dashboard_sync_state.json").exists())
 

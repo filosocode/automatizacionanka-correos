@@ -37,7 +37,7 @@ def es_modo_work(config: Mapping[str, object]) -> bool:
 class ConfigLlm(TypedDict, total=False):
     """El motor de análisis: Ollama (local) u OpenAI (API)."""
 
-    provider: str          # ollama | openai
+    provider: str          # ollama | openai | gemini
     model: str
     base_url: str          # solo Ollama
     timeout_seconds: float
@@ -45,6 +45,8 @@ class ConfigLlm(TypedDict, total=False):
     chunk_chars: int       # tamaño de un tramo al leer documentos largos (por defecto 30 000 caracteres)
     num_ctx_max: int       # solo Ollama: tope de la ventana que se puede pedir (lo que admite el modelo)
     num_ctx: int           # solo Ollama: tokens de contexto; Ollama usa 4096 por defecto y recorta el prompt
+    fallback_models: list[str]  # solo Gemini: modelos que se prueban, en orden, si el elegido falla (404, 429, 5xx)
+    precios: dict[str, float]   # opcional, USD por millón de tokens {"entrada": x, "salida": y}; sin ellos no hay costo
 
 
 class Configuracion(TypedDict, total=False):
@@ -58,7 +60,7 @@ class Configuracion(TypedDict, total=False):
     llm: ConfigLlm
     required_fields: list[str]        # datos indispensables para cotizar (los pide al cliente si faltan)
     commercial_filter_terms: list[str]
-    drive_parent_id: str              # carpeta del año vigente en Drive
+    drive_parent_id: str              # carpeta «Proyectos» en Drive (año y mes se crean dentro, U-102)
     folder_prefix: str                # prefijo de la carpeta de cada solicitud
     work_sync_account: str            # cuenta de Gmail que lee el puente de Work
     work_drive_enabled: bool          # preparación automática de expedientes; desactivada por defecto
@@ -75,6 +77,7 @@ class Configuracion(TypedDict, total=False):
     work_dispatch_message_id: str     # el único mensaje del primer piloto
     work_general_bridge_enabled: bool  # puente general de borradores (T-56); apagado por defecto, autorización expresa
     work_coordination_enabled: bool   # coordinación automática Python-Work (T-55); desactivada por defecto
+    work_ready_notice_enabled: bool   # aviso interno del piloto al publicar un trabajo
     work_coordination_folder_id: str  # raíz con PENDIENTES y CERRADOS
     work_coordination_since: str      # fecha y hora ISO con zona: lo detectado antes nunca se procesa
     work_coordination_interval_seconds: int   # cada cuánto corre un ciclo (60-3600)

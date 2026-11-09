@@ -89,10 +89,12 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `attachments` | Coordinación de la extracción: elige el lector por formato, recorta y explica la cobertura. |
+| `vistas_pdf` | Representaciones PNG de páginas, separadas de la interpretación del PDF. |
 | `lectores_zip` | ZIP: apertura acotada (`zip_acotado`, base de todo Office/OpenDocument), OCR incrustado y shapefiles. |
 | `lectores_office` | Word, Excel (`.xlsx`, `.xls`), PowerPoint y OpenDocument. |
 | `lectores_pdf` | PDF: texto nativo y OCR por página. |
 | `cache_hallazgos` | Caché en disco, con tope, de los hallazgos extraídos por tramo. |
+| `registro_de_uso` | Tokens de cada llamada al modelo y libro `uso_del_modelo.jsonl` (U-91). |
 | `lectores_imagen` | OCR y conversión externa de documentos antiguos. |
 | `presupuesto_ocr` | Presupuesto de segundos de OCR por archivo y por caso y política de no hacer OCR a lo escaneado (U-55). |
 
@@ -138,7 +140,7 @@ La descripción es la primera frase de su docstring.
 | `drive_contents` | Contenido de la carpeta de una solicitud en Drive. |
 | `desempeno` | Desempeño del análisis con el uso real: agrupa los casos por versión del prompt y modelo y mide las correcciones (T-35). |
 | `evaluacion` | Evaluar el análisis con solicitudes reales del histórico: muestrear, guardar fichas, validarlas y medir (T-34). |
-| `drive_layout` | Estructura de carpetas de Drive: Año / Cliente / Solicitud. |
+| `drive_layout` | Estructura de carpetas de Drive: año / mes / cliente / solicitud / anexos. |
 | `ediciones` | Edición de la tabla de actividades por una persona: motivos, diferencias entre versiones y guardado. |
 | `estado_operativo` | Lo registrado sobre la recepción de mensajes y los trabajos Work para el panel de solo lectura `/operacion` (T-61). |
 | `estado_de_revision` | Estado de la revisión de Gmail: cuándo fue la última, cuánto tardó, qué cambió y cómo se cuenta a la persona. |
@@ -157,6 +159,10 @@ La descripción es la primera frase de su docstring.
 | `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
 | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
 | `work_import` | Importación del borrador de ChatGPT Work al dashboard (`dashboard_upsert`). |
+| `aviso_work` | Aviso interno de un trabajo publicado, con recuperación de envíos inciertos: un correo de la cuenta de Anka a sí misma, nunca al cliente (R8). |
+| `recepcion_visible` | Proyección de recepción para la portada. No crea análisis ni modifica estados. |
+| `work_visual` | Publica evidencia de PDF y KML/KMZ antes de exponer la hoja a Work. |
+| `limpieza_work` | Retira borradores internos tras verificar el análisis persistido y conservar una copia recuperable `.eml`; no toca borradores externos ni importaciones fallidas. |
 | `cancelaciones` | Cancela un mensaje de prueba con una lápida persistente que nada reactiva (T-83, D-179). |
 | `trabajos_work` | Crea el trabajo de un mensaje pendiente, publica su hoja en Drive sin duplicar (reclamo en SQLite, marca `appProperties`, adopta antes de crear, verifica después) y cierra el trabajo al importar (T-49, D-153). |
 | `despacho` | Despacho a Work (T-53): una pasada que asegura `PENDIENTES`/`CERRADOS`, crea y publica el trabajo elegible del mensaje del piloto, reintenta y archiva los conciliados. |

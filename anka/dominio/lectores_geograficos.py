@@ -19,6 +19,8 @@ from anka.dominio.attachments import (
     KML_GEOMETRIES,
 )
 from anka.dominio.areas_calculadas import lineas_del_total, linea_de_area, linea_sin_area
+from anka.dominio.areas_calculadas import areas_calculadas_del_texto
+from anka.dominio.areas_declaradas import diferencias_de_area
 from anka.dominio.geometria import area_del_poligono, geodesic_length_m, valid_lonlat
 from anka.dominio.lectores_texto import Unreadable
 from anka.dominio.xml_tolerante import parsear_xml
@@ -226,6 +228,11 @@ def _kml_placemark_lines(
     for geometry in geometries or [placemark]:
         lines.extend(_kml_geometry_lines(geometry, all_coordinates))
         lines.extend(_kml_area_lines(label, geometry, areas_m2 if areas_m2 is not None else []))
+    calculadas = areas_calculadas_del_texto("elemento KML", "\n".join(lines))
+    for diferencia in diferencias_de_area(description, calculadas):
+        lines.append(f"VALIDACIÓN PENDIENTE: elemento «{label}», descripción declara {diferencia['escrita']}; "
+                     f"geometría calcula aproximadamente {diferencia['calculada_ha']:.4f} ha. "
+                     "Confirmar con el solicitante; no sustituir el área declarada por la calculada.")
     return lines
 
 

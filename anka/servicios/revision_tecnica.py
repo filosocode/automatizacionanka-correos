@@ -14,7 +14,9 @@ from uuid import uuid4
 
 from anka.dominio.caso import load_analysis
 from anka.dominio.errores import ErrorDeValidacion
-from anka.dominio.preguntas import DESCARTAR, candidatas, con_decisiones, decidir, internas, para_el_cliente
+from anka.dominio.preguntas import (
+    DESCARTAR, candidatas, con_decisiones, decidir, internas, para_el_cliente, preguntas_escritas,
+)
 from anka.dominio.reception import reception_assessment
 from anka.dominio.status import QuoteStatus
 from anka.dominio.work_contract import archivos_sin_verificar, lectura_sin_verificar, motivo_de_insuficiencia_documental
@@ -96,6 +98,8 @@ def seguir_sin_respuesta(thread_id: str) -> str:
             raise ErrorDeValidacion(
                 "Solo se puede seguir sin respuesta un caso que espera al cliente y aún no tiene T.")
         analysis = load_analysis(row["analysis_json"])
+        if motivo := motivo_de_insuficiencia_documental(analysis):
+            raise ErrorDeValidacion(motivo)
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         analysis["manual_review"] = {"decision": "sufficient", "at": now, "questions": [], "sin_respuesta": True}
         cambiar_estado(db, thread_id, QuoteStatus.READY_REVIEW, "seguir_sin_respuesta", updated_at=now,
@@ -122,13 +126,13 @@ def volver_a_decidir(thread_id: str, accion: str) -> str:
         if not row:
             raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
         analysis = load_analysis(row["analysis_json"])
-        if accion == "suficiente" and (motivo := motivo_de_insuficiencia_documental(analysis)):
-            raise ErrorDeValidacion(motivo)          # T-110: la misma protección que en la decisión técnica
         decision = analysis.get("manual_review") or {}
         enviado = bool(row["sent_at"]) and str(row["sent_at"]) >= str(decision.get("at") or "")
         if (row["status"] not in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED)
                 or decision.get("decision") != "ask_client" or enviado):
             raise ErrorDeValidacion("Ya no puedes cambiar la decisión: el correo con las preguntas ya salió.")
+        if accion == "suficiente" and (motivo := motivo_de_insuficiencia_documental(analysis)):
+            raise ErrorDeValidacion(motivo)
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         if accion == "reconsiderar":
             analysis.pop("manual_review", None)         # las elecciones (`preguntas`) se conservan
@@ -214,7 +218,7 @@ def resolve_technical_review(
             por_dentro = len(internas(decididas))
             descartadas = sum(1 for p in decididas if p.get("decision") == DESCARTAR)
         else:
-            questions = [line.strip()[:500] for line in questions_text.splitlines() if line.strip()][:10]
+            questions = preguntas_escritas(questions_text)      # U-99: sin el resumen pegado, una pregunta por línea
         if decision == "ask_client" and not questions:
             raise ErrorDeValidacion("Escribe al menos una pregunta para el cliente o elige «Con esto alcanza».")
         if decision == "ask_client" and elecciones is None:

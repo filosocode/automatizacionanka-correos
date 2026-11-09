@@ -139,6 +139,22 @@ class ConfiguracionTests(unittest.TestCase):
 
 
 class DespachoTests(Base):
+    def test_aviso_espera_publicacion_aunque_la_preparacion_se_retrase(self):
+        self.fila('T1', 'm1')
+        aviso = MagicMock(return_value='enviado')
+        self.coordinador.avisar_work = aviso
+        self.drive.fallar_listado = ErrorHttp(500)
+        self.ciclo()
+        aviso.assert_not_called()
+
+        self.t += 7 * 60
+        self.drive.fallar_listado = None
+        self.ciclo()
+        aviso.assert_called_once()
+        publicado = aviso.call_args.args[0]
+        self.assertEqual(publicado['state'], 'publicado')
+        self.assertTrue(publicado['sheet_file_id'])
+
     def test_un_mensaje_elegible_nuevo_se_publica_y_repetir_no_duplica(self):
         self.fila("T1", "m1")
         primero = self.ciclo()
@@ -403,7 +419,7 @@ class IntegracionConLaImportacionRealTests(Base):
             self.ciclo()
         self.assertEqual(self.estado_de("m1"), "conciliado")
         self.assertEqual(self.padres(self.hojas()[0]), self.drive.id_de("CERRADOS"))
-        self.assertEqual(gmail.draft_gets, ["dT"])
+        self.assertEqual(gmail.draft_gets, ["dT", "dT"])  # importación y comprobación de limpieza
 
 
 class SeguridadTests(Base):

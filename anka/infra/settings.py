@@ -34,7 +34,7 @@ ACTIVE_MODES = {"local", "api", "chatgpt_work"}
 KNOWN_CONFIG_KEYS = {
     "active_mode", "gmail_query", "own_addresses", "test_sender_addresses", "forwarded_reply_policy", "llm",
     "required_fields", "commercial_filter_terms", "drive_parent_id", "folder_prefix",
-    "work_sync_account",
+    "work_sync_account", "work_ready_notice_enabled",
     "work_drive_enabled", "work_drive_parent_id", "work_drive_query",
     "ocr_segundos_por_archivo", "ocr_segundos_por_caso", "ocr_omitir_escaneados",
     "gmail_reception_enabled", "gmail_reception_interval_seconds",
@@ -42,11 +42,18 @@ KNOWN_CONFIG_KEYS = {
     *coordinacion_work.CLAVES,
 }
 FORWARDED_POLICIES = {"internal_reviewer", "original_sender"}
-PROVIDERS = {"ollama", "openai"}
+PROVIDERS = {"ollama", "openai", "gemini"}
+PROVEEDORES_DE_API = {"openai", "gemini"}      # los que usa el modo api
 
 
 def _is_text_list(value: object) -> bool:
     return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _aviso_de_work_problems(config: Mapping[str, Any]) -> list[str]:
+    if isinstance(config.get("work_ready_notice_enabled", False), bool):
+        return []
+    return ["work_ready_notice_enabled debe ser booleano."]
 
 
 def validate_config(config: Mapping[str, Any]) -> list[str]:
@@ -79,6 +86,7 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
     problems.extend(_work_drive_problems(config))
     problems.extend(_work_dispatch_problems(config))
     problems.extend(coordinacion_work.problemas_de_configuracion(config))
+    problems.extend(_aviso_de_work_problems(config))
     problems.extend(_ocr_problems(config))
     if config.get("forwarded_reply_policy", "internal_reviewer") not in FORWARDED_POLICIES:
         problems.append("forwarded_reply_policy debe ser 'internal_reviewer' u 'original_sender'.")
@@ -146,11 +154,11 @@ def _engine_problems(engine: dict, mode: str) -> list[str]:
     problems: list[str] = []
     provider = engine.get("provider")
     if provider not in PROVIDERS:
-        problems.append("llm.provider debe ser 'ollama' o 'openai'.")
+        problems.append("llm.provider debe ser 'ollama', 'openai' o 'gemini'.")
     elif mode == "local" and provider != "ollama":
         problems.append("active_mode 'local' requiere llm.provider 'ollama'.")
-    elif mode == "api" and provider != "openai":
-        problems.append("active_mode 'api' requiere llm.provider 'openai'.")
+    elif mode == "api" and provider not in PROVEEDORES_DE_API:
+        problems.append("active_mode 'api' requiere llm.provider 'openai' o 'gemini'.")
     if "model" in engine and (not isinstance(engine["model"], str) or not engine["model"].strip()):
         problems.append("llm.model debe ser un texto no vacío.")
     base_url = engine.get("base_url")

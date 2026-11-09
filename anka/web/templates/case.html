@@ -122,7 +122,7 @@
 <form method="post" id="visto" action="/notifications/seen" hidden><input type="hidden" name="thread_id" value="{{ thread_id }}"></form>
 <div class="caso-cabecera">
   <div>
-    <a class="atras" href="/">← Mis casos</a>
+    <a class="atras" href="/">← Solicitudes de cotización</a>
     <h1>{{ project_name }}</h1>
     <div class="sub">{{ review.client_name }} · {{ review.recipient }}{% if recibido %} · recibido el {{ recibido }}{% endif %}</div>
   </div>
@@ -130,7 +130,7 @@
 </div>
 {% if restaurado %}<div class="notice error" role="alert"><span class="solo-lectores">Error: </span>No pudimos terminar lo que pediste. <strong>Lo que escribiste sigue aquí</strong>: míralo y pulsa el botón otra vez.</div>{% endif %}
 {{ stepper }}
-{{ next_step }}
+<div id="accion-actual">{{ next_step }}</div>
 {% if sin_analisis %}<section class="section ahora-sin-analisis" id="sin-analisis" aria-labelledby="sin-analisis-titulo">
   <h2 id="sin-analisis-titulo">Este caso aún no tiene análisis de Work</h2>
   <p>Work dejó el análisis, pero Anka no pudo leerlo. Por eso el caso solo tiene lo que se comprueba en el correo: quién escribió, el asunto y la fecha. No hay actividades ni preguntas. Nada se envía al cliente sin que lo revises.</p>
@@ -151,24 +151,31 @@
 </section>
 {% endif %}
 {% if reading_review_note %}<div class="notice" id="lectura-revisada-nota">{{ reading_review_note }}</div>{% endif %}
+{% macro decision_actual() %}
 {% if can_resolve %}
 <section class="section decision-arriba ahora" id="decision">
   <div class="eyebrow">Ahora</div>
   <h2>Revisa y decide cómo seguir</h2>
+  {% if envios_inciertos and email == 'technical' %}<div class="notice" id="envio-incierto" role="status"><strong>Hay un correo sin confirmar.</strong>
+    <p>Antes de enviar otro, comprueba en Gmail si el anterior salió. La aplicación también intenta verificarlo.</p>
+    <form method="post" action="/mark-sent"><input type="hidden" name="thread_id" value="{{ thread_id }}">
+      <button type="submit" class="secondary" data-confirm="Dejarás constancia de que comprobaste el envío en Gmail. No se enviará nada. ¿Lo marcamos como enviado?">Ya salió: marcar como enviado</button>
+    </form></div>{% endif %}
+  <p class="nota">Antes de decidir: <a href="#alcance">comprueba la tabla</a> y <a href="#attachments-review">revisa sus fuentes y dudas</a>. Si un dato se contradice o no se pudo leer, resuélvelo antes de confirmar.</p>
   {{ nota_de_ronda() }}
-  {% if summary %}<p class="resumen"><b>Qué pide:</b> {{ summary | truncate(320) }}</p>{% endif %}
   {% if lo_que_falta %}<p class="nota">{{ lo_que_falta }}</p>{% endif %}
-  <form method="post" action="/review-decision" class="decision-form">
+  <form method="post" action="/review-decision" class="decision-form" id="decision-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <fieldset class="opciones"><legend class="solo-lectores">Cómo seguir con este caso</legend>
       <label class="opcion"><input type="radio" name="decision" value="sufficient" required{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}>
         <span><strong>Con esto alcanza</strong>
         <small>Ya tengo lo necesario para cotizar.</small></span></label>
-      <label class="opcion"><input type="radio" name="decision" value="ask_client" required>
+      <label class="opcion"><input type="radio" name="decision" value="ask_client" required{% if precargadas %} checked{% endif %}>
         <span><strong>Hay que preguntarle al cliente</strong>
         <small>Elijo qué preguntas y armo el correo.</small></span></label>
     </fieldset>
-    <div class="preguntas-bloque">
+    {% if ya_pedidas %}<div class="notice" id="ya-pedidas"><strong>Esto ya se lo pedimos al cliente y aún no lo envía.</strong><ul>{% for p in ya_pedidas %}<li>{{ p.texto }} <small>(se pidió el {{ p.ya_pedida }})</small></li>{% endfor %}</ul>No las volvimos a poner abajo para no insistir. <a class="button secondary" id="volver-a-pedir" href="/case?thread_id={{ thread_id | urlquote }}&amp;template=preguntas&amp;preguntas={{ ya_pedidas | map(attribute='texto') | join('\n') | urlquote }}#preguntas-bloque">Volver a pedirlo</a></div>{% endif %}
+    <div class="preguntas-bloque" id="preguntas-bloque">
       <label>Preguntas para el cliente (una por línea)
         <textarea name="questions" class="caja-media" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">{{ cuadro_preguntas }}</textarea>
       </label>
@@ -183,20 +190,30 @@
     {% if sin_actividades %}<p class="nota" id="sin-actividades">«Confirmar que alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».</p>{% endif %}
     <p class="nota elige-opcion">Elige una opción para continuar. Nada se envía al cliente en este paso.</p>
   </form>
+  {% if preguntas_sugeridas and not armar_preguntas %}<details class="more"><summary>Ver preguntas sugeridas</summary>
+    <p class="nota">El análisis sugiere {{ preguntas_sugeridas | length }} preguntas para el cliente.</p>
+    <a class="button secondary" id="usar-sugeridas" href="/case?thread_id={{ thread_id | urlquote }}&amp;template=preguntas&amp;preguntas={{ preguntas_sugeridas | join('\n') | urlquote }}#respuesta">Usar las preguntas sugeridas</a>
+  </details>{% endif %}
 </section>
 {% endif %}
-{% if slot == 'correo' %}{{ bloque_respuesta(true) }}{% endif %}
-{% if slot == 'codigo' %}{{ code_panel }}{% endif %}
+{% endmacro %}
+
+{% if slot == 'codigo' %}<div id="paso-codigo">{{ code_panel }}</div>{% endif %}
 {% if slot not in ('aviso', 'lectura') %}{{ avisos_extra }}{% endif %}
 {{ project_panel }}
 <div class="layout">
   {{ proposal_panel }}
-  {{ rondas_panel }}
-  {{ edit_note }}
-  <section class="section actividades">
+  {% if edit_note %}<details class="more"><summary>Último cambio del alcance</summary>{{ edit_note }}</details>{% endif %}
+  <section class="section actividades" id="alcance">
     {% if analysis_blocked %}<h2>Actividades detectadas</h2>{% endif %}
     {{ activities_editor }}
   </section>
+  {{ decision_actual() }}
+  <details class="more analisis-original" id="analisis-original"><summary>Ver análisis original y guía de revisión</summary>
+    <p>{{ summary }}</p><p class="nota"><a href="#p-conv">Revisa el correo</a>, comprueba cantidades y fuentes, y decide cómo seguir. Nada se envía al cliente sin tu aprobación.</p>
+  </details>
+  {% if slot == 'correo' %}{{ bloque_respuesta(true) }}{% endif %}
+  {% if rondas_panel %}<details class="more historial-preguntas"><summary>Ver preguntas enviadas y respuestas</summary>{{ rondas_panel }}</details>{% endif %}
   {{ followup }}
   {% if manual_review %}<div class="notice">{{ manual_review }}</div>{% endif %}
   <section class="tabs" data-tabs>

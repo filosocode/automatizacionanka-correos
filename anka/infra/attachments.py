@@ -230,6 +230,8 @@ def _motivos_de_lectura_parcial(text: str) -> list[str]:
         reasons.append("OCR omitido por tiempo: se agotó el presupuesto de segundos de OCR; lectura parcial")
     if "SISTEMA DE COORDENADAS NO DECLARADO" in text:
         reasons.append("shapefile sin .prj; revisar referencia espacial antes de interpretar coordenadas")
+    if "VALIDACIÓN PENDIENTE:" in text:
+        reasons.append("validación documental pendiente; revisar las discrepancias indicadas con su fuente")
     return reasons
 
 

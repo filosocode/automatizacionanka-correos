@@ -779,8 +779,8 @@ class UxFixesTests(Base):
         self.set_status(QuoteStatus.REVIEW_PENDING)
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = paginas.render_index()
-        self.assertIn("Mis casos", page)
-        self.assertIn("esperan algo de ti. El primero es el más urgente", page)
+        self.assertIn("Solicitudes de cotización", page)
+        self.assertIn("esperan algo de ti. La primera es la más urgente", page)
         self.assertIn("Correo por revisar", page)
         self.assertIn("Ver números y resumen", page)                           # las gráficas quedan plegadas
         self.assertLess(page.index("Correo por revisar"), page.index("Ver números y resumen"))

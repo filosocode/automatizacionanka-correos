@@ -37,8 +37,8 @@ class EncabezadoCompacto(unittest.TestCase):
         self.assertIn("header .settings-box { position: absolute;", css)
         layout = (PLANTILLAS / "layout.html").read_text(encoding="utf-8")
         self.assertIn('<details class="settings" id="ajustes"><summary>Ajustes</summary>', layout)
-        # El nombre accesible del logo no depende del texto «Mis casos» que se oculta a la vista.
-        self.assertIn('aria-label="Anka, mis casos', layout)
+        # El nombre accesible del logo no depende del texto «Solicitudes de cotización» que se oculta a la vista.
+        self.assertIn('aria-label="Anka, solicitudes de cotización', layout)
         self.assertIn("font-size: .875rem", CSS)                 # sin texto menor de 14 px (U-37)
         self.assertNotRegex(css, r"font-size:\s*(?:[0-9]|1[0-3])px")
 
@@ -99,7 +99,7 @@ class FallosAnunciadosComoAlerta(unittest.TestCase):
     # Cubre: U-58
     def test_el_mensaje_con_aviso_error_se_dibuja_como_alerta(self):
         with patch("anka.web.paginas.load_config", return_value={"active_mode": "local"}):
-            pagina = paginas.page("Mis casos", "", server._mensaje({"message": ["No se pudo"], "aviso": ["error"]}))
+            pagina = paginas.page("Solicitudes de cotización", "", server._mensaje({"message": ["No se pudo"], "aviso": ["error"]}))
         self.assertIn('role="alert"', pagina)
 
 

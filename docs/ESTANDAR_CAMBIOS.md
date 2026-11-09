@@ -35,7 +35,7 @@ Solo uno de los tres puede estar activo sobre la misma cuenta de Gmail (ver `MOD
 
 Prueban, sin red ni servicios externos:
 
-- que las señales de descarte, los sufijos societarios, la ruta de Drive y los indicadores de comportamiento (`crear_cliente_automatico`, `bloquear_si_anio_distinto`…) del código coinciden con el bloque de reglas;
+- que las señales de descarte, los sufijos societarios, la ruta de Drive y los indicadores de comportamiento (`crear_cliente_automatico`, `bloquear_si_padre_es_un_anio`…) del código coinciden con el bloque de reglas;
 - que `SKILL.md` declara la misma versión, contiene la frase de cada regla y enlaza la fuente única;
 - que los casos compartidos producen la decisión esperada en Python;
 - que Ollama y API dejan el mismo resultado para el mismo correo y envían el mismo esquema a su servicio;

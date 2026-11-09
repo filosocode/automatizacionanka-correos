@@ -3,6 +3,7 @@
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
 import io
+import json
 import tempfile
 import unittest
 import urllib.parse
@@ -47,6 +48,17 @@ class Base(unittest.TestCase):
     def caso(self):
         return quotes.get_quote("t-1")
 
+    def resolver_contradiccion(self):
+        # T-133: dejar de preguntar no resuelve una contradicción; el escenario positivo exige resolverla antes.
+        analisis = self.caso()["analysis"]
+        analisis["contradictions"][0]["status"] = "resuelta"
+        db = store.connect()
+        try:
+            db.execute("UPDATE quotes SET analysis_json=? WHERE thread_id='t-1'", (json.dumps(analisis),))
+            db.commit()
+        finally:
+            db.close()
+
     def eventos(self):
         db = store.connect()
         try:
@@ -85,6 +97,7 @@ class VolverAtras(Base):
 
     def test_giving_up_on_asking_marks_the_information_as_sufficient(self):
         self.elegir({PUNTO: dominio.PREGUNTAR})
+        self.resolver_contradiccion()
         mensaje = quotes.volver_a_decidir("t-1", "suficiente")
         caso = self.caso()
         self.assertEqual(caso["status"], QuoteStatus.READY_REVIEW)
@@ -188,6 +201,7 @@ class EnLaPantalla(Base):
 
     def test_giving_up_lands_on_issuing_the_code(self):
         self.elegir({PUNTO: dominio.PREGUNTAR})
+        self.resolver_contradiccion()
         respuesta = self.pedir({"thread_id": "t-1", "accion": "suficiente"})
         self.assertTrue(respuesta["location"].endswith("#emitir-t"))
         self.assertEqual(self.caso()["status"], QuoteStatus.READY_REVIEW)

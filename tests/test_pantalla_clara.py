@@ -128,7 +128,7 @@ class Accesibilidad(unittest.TestCase):
 
     def test_la_navegacion_marca_la_pagina_actual_y_hay_salto_al_contenido(self) -> None:
         # Cubre: U-80
-        html = self.pagina("Mis casos")
+        html = self.pagina("Solicitudes de cotización")
         marca = html[html.index('<a class="brand"'):html.index("</a>", html.index('<a class="brand"'))]
         self.assertIn('aria-current="page"', marca)                               # la marca es la entrada (U-32)
         self.assertEqual(html[html.index("<header>"):html.index("</header>")].count('aria-current="page"'), 1)

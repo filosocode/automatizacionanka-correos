@@ -9,7 +9,7 @@ El texto vigente de cada regla, con su versión y su bloque legible por máquina
 | R1 | Descarte | Solo se descarta sin analizar el ruido evidente (señales inequívocas de automatización en todos los mensajes). |
 | R2 | Adjuntos | Un adjunto ilegible nunca descarta un hilo: va a revisión manual. |
 | R3 | Trazabilidad del descarte | Todo descarte guarda su motivo y puede rescatarse. |
-| R4 | Estructura de Drive | `{año}/{cliente}/{solicitud}`; no se crea nada si el año no coincide con la carpeta padre. |
+| R4 | Estructura de Drive | `{año}/{mes}/{cliente}/{solicitud}/anexos` dentro de «Proyectos»; año y mes salen de la emisión de la T; la solicitud se llama `T&E{número} {proyecto}`; no se crea nada si la carpeta padre es la de un año. |
 | R5 | Cliente | Comparación sin mayúsculas, tildes ni sufijos societarios; varias parecidas ⇒ decide una persona. |
 | R6 | Cliente nuevo | Nunca se crea la carpeta de un cliente nuevo sin confirmación de una persona. |
 | R7 | Carpeta del proyecto | Solo con un cliente confirmado cuya carpeta ya existe. |

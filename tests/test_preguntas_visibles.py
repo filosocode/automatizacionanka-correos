@@ -62,7 +62,8 @@ class LosSelectoresSiempreSalen(Base):
         self.assertEqual(decision.count('name="q_id"'), 0)            # un solo cuadro, no una tarjeta por pregunta (U-31)
         cuadro = decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1]
         lineas = [linea for linea in cuadro.splitlines() if linea.strip()]
-        self.assertEqual(len(lineas), 3)                             # las sugeridas para el cliente, ya escritas
+        # las 3 sugeridas para el cliente, ya escritas, y la de la actividad con datos faltantes (U-103.8)
+        self.assertEqual(len(lineas), 4)
 
     def test_el_aviso_de_sin_candidatas_solo_sale_si_de_verdad_no_hay(self) -> None:
         # Cubre: U-30

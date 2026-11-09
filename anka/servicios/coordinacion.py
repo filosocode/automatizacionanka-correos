@@ -18,6 +18,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -53,9 +54,13 @@ class Coordinador:
 
     def __init__(self, drive: ClienteDrive, importar: Importar, bloqueo: Path | None = None,
                  reloj: Callable[[], float] = time.time, fecha: Callable[[], datetime] = _ahora,
-                 puente_activo: Callable[[], bool] = other_bridge_running, paquete_version: str = "") -> None:
+                 puente_activo: Callable[[], bool] = other_bridge_running, paquete_version: str = "",
+                 publicar_vistas: Callable[[str, dict[str, Any]], str] | None = None,
+                 avisar_work: Callable[[dict[str, Any]], str] | None = None) -> None:
         self.drive = drive
         self.paquete_version = paquete_version
+        self.publicar_vistas = publicar_vistas
+        self.avisar_work = avisar_work
         self.importar = importar
         self.reloj = reloj
         self.fecha = fecha
@@ -99,6 +104,13 @@ class Coordinador:
         self._alertar(plan, alcance, informe)
         if carpetas is not None:
             self._despachar(plan, alcance, carpetas, informe)
+            if self.avisar_work is not None:
+                for trabajo in trabajos_work.trabajos_por_estado([PUBLICADO], plan.desde, alcance):
+                    try:
+                        if self.avisar_work(trabajo) == 'envio_por_verificar':
+                            informe['errores'].append('aviso_work_por_verificar')
+                    except Exception as exc:
+                        informe['errores'].append(f'aviso_work:{type(exc).__name__}')
         if informe["errores"]:
             informe["resultado"] = "con_errores"
         return informe
@@ -217,10 +229,12 @@ class Coordinador:
         cola = [(t["thread_id"], t["message_id"], t["job_id"] if t["state"] == PUBLICADO else "")
                 for t in recuperables + a_reintentar]
         cola += [(m["thread_id"], m["message_id"], "") for m in trabajos_work.mensajes_nuevos(plan.desde, alcance)]
+        publicar_vistas = (partial(self.publicar_vistas, carpetas[despacho.NOMBRE_CERRADOS])
+                           if self.publicar_vistas is not None else None)
         for hilo, mensaje, recuperando in cola[:plan.max_publicar]:
             try:
                 publicacion = despacho.despachar_mensaje(self.drive, Alcance(hilo, mensaje), carpetas, self.reloj,
-                                                      self.paquete_version)
+                                                      self.paquete_version, publicar_vistas)
             except Exception as exc:
                 informe["errores"].append(f"despachar:{type(exc).__name__}")
                 log.warning("No se pudo despachar un mensaje (%s)", type(exc).__name__)

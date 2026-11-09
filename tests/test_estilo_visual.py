@@ -103,7 +103,7 @@ class FuenteYLogoPropios(unittest.TestCase):
     def test_la_cabecera_lleva_el_logo(self):
         html = request("GET", "/archive")["body"].decode("utf-8")
         self.assertRegex(html, r'<img class="brand-logo" src="/static/logo-anka\.png" alt="Anka"')
-        self.assertIn("Anka, mis casos", html)
+        self.assertIn("Anka, solicitudes de cotización", html)
 
 
 # Cubre: U-36

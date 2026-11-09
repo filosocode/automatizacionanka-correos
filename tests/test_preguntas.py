@@ -162,7 +162,10 @@ class CasoCompletoTests(unittest.TestCase):
             parche.start()
             self.addCleanup(parche.stop)
         db = store.open_db(Path(self.temp.name))
-        store.save(db, "t-1", "m-1", QuoteStatus.REVIEW, "cliente@empresa.co", analisis_de_work())
+        analisis = analisis_de_work()
+        # T-133: se prueban preguntas y envíos después de revisar personalmente el adjunto parcial.
+        analisis["reading_review"] = {"at": "2026-11-03T10:00:00-05:00", "files": ["parque.kmz"]}
+        store.save(db, "t-1", "m-1", QuoteStatus.REVIEW, "cliente@empresa.co", analisis)
         db.close()
 
     def caso(self):

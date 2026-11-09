@@ -107,7 +107,8 @@ def _archivar(drive: ClienteDrive, trabajo: dict[str, Any], cerrados: str) -> st
 
 
 def _despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str, str],
-                       reloj: Callable[[], float], paquete: str = "") -> dict[str, Any]:
+                       reloj: Callable[[], float], paquete: str = "",
+                       publicar_vistas: Callable[[dict[str, Any]], str] | None = None) -> dict[str, Any]:
     """Crea (si hace falta) y publica en PENDIENTES el trabajo del mensaje del alcance."""
     existentes = [t for t in trabajos_work.trabajos_del_mensaje(alcance.thread_id, alcance.message_id)
                   if t["job_type"] == TIPO_ANALIZAR and t["contract_version"] == VERSION_DEL_CONTRATO]
@@ -136,7 +137,7 @@ def _despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str
             return {"resultado": "cancelado", "job_id": trabajo["job_id"]}
     try:
         publicacion = trabajos_work.publicar_trabajo(drive, trabajo["job_id"], carpetas[NOMBRE_PENDIENTES], reloj,
-                                                     paquete_version=paquete)
+                                                     paquete_version=paquete, publicar_vistas=publicar_vistas)
     except TrabajoRechazado:
         actual = trabajos_work.obtener(trabajo["job_id"])
         if actual is not None and actual["state"] == CANCELADO:    # se canceló entre crear y publicar: no es un error
@@ -146,9 +147,10 @@ def _despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str
 
 
 def despachar_mensaje(drive: ClienteDrive, alcance: Alcance, carpetas: dict[str, str],
-                      reloj: Callable[[], float] = time.time, paquete: str = "") -> dict[str, Any]:
+                      reloj: Callable[[], float] = time.time, paquete: str = "",
+                      publicar_vistas: Callable[[dict[str, Any]], str] | None = None) -> dict[str, Any]:
     """Crea (si hace falta) y publica en PENDIENTES el trabajo de un mensaje (lo usa la coordinación, T-55)."""
-    return _despachar_mensaje(drive, alcance, carpetas, reloj, paquete)
+    return _despachar_mensaje(drive, alcance, carpetas, reloj, paquete, publicar_vistas)
 
 
 def archivar_trabajo(drive: ClienteDrive, trabajo: dict[str, Any], cerrados: str) -> str:

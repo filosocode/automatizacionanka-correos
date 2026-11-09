@@ -36,7 +36,8 @@ class Base(unittest.TestCase):
 
     def crear(self, thread_id: str = "t-1", estado: QuoteStatus = QuoteStatus.REVIEW,
               actividades: list[dict] | None = None, adjuntos: list[dict] | None = None,
-              lectura_pendiente: str = "", preguntas: list[str] | None = None, proyecto: str = "") -> None:
+              lectura_pendiente: str = "", preguntas: list[str] | None = None, proyecto: str = "",
+              ultimas: list[str] | None = None) -> None:
         analisis = complete_analysis(location="")
         if proyecto:
             analisis["project_name"] = proyecto
@@ -46,6 +47,8 @@ class Base(unittest.TestCase):
             analisis["attachments"] = adjuntos
         if preguntas is not None:
             analisis["other_questions"] = preguntas
+        if ultimas is not None:
+            analisis["ultimas_preguntas"] = ultimas
         if lectura_pendiente:
             analisis["engine"] = "chatgpt_work"
             analisis["reading_audit"] = {"verification": "incompleta", "attachment_files_pending": [lectura_pendiente]}
@@ -102,7 +105,7 @@ class OrdenDeLectura(Base):
         # Cubre: U-31
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
-        orden = ['class="process-step', 'id="decision"', "Actividades detectadas", 'role="tablist"', 'id="p-conv"',
+        orden = ['class="process-step', "Actividades detectadas", 'id="decision"', 'role="tablist"', 'id="p-conv"',
                  'id="attachments-review"', 'id="p-hist"', 'id="p-det"']
         posiciones = [pagina.index(titulo) for titulo in orden]
         self.assertEqual(posiciones, sorted(posiciones))
@@ -206,32 +209,78 @@ class YaRevisePrimero(Base):
 
 
 class TablaDelPrototipo(Base):
+    # Cubre: U-103
     def filas(self, cuantas: int, incompletas: tuple[int, ...] = ()) -> list[dict]:
         return [actividad(f"Actividad {n}", "pendiente" if n in incompletas else "confirmado")
                 | ({"notes": "Falta el método de validación altimétrica."} if n in incompletas else {})
                 for n in range(1, cuantas + 1)]
 
     def vista(self, pagina: str) -> str:
-        inicio = pagina.index('class="act-resumen"')
+        inicio = pagina.index('class="act-resumen')
         return pagina[inicio:pagina.index("</table>", inicio)]
 
-    def test_la_vista_compacta_tiene_tres_columnas_con_etiqueta_y_motivo(self) -> None:
-        # Cubre: U-31
-        self.crear(actividades=self.filas(3, incompletas=(2,)))
+    def test_solo_salen_las_por_completar_y_contradictorias_en_dos_columnas(self) -> None:
+        # Cubre: U-31, U-83, U-103
+        filas = self.filas(4, incompletas=(2,))
+        filas[2]["estado"] = "contradictorio"
+        self.crear(actividades=filas)
         vista = self.vista(pantalla_caso.render_case("t-1"))
-        for titulo in ("Actividad", "Cantidad", "Estado"):
+        self.assertEqual(vista.count("<th "), 3)          # con la decisión pendiente se suma «¿Preguntar?» (U-103.6)
+        for titulo in ("Actividad", "Qué hace falta", "¿Preguntar?"):
             self.assertIn(f'<th scope="col">{titulo}</th>', vista)
-        self.assertEqual(vista.count("<th "), 3)
-        self.assertIn("10 ha", vista)
-        self.assertIn(">Completa<", vista)
-        self.assertIn(">Por completar<", vista)
-        self.assertIn("Falta el método de validación altimétrica.", vista)
+        self.assertEqual(vista.count('class="fila-resumen'), 2)
+        self.assertIn("Actividad 2", vista)
+        self.assertIn("Actividad 3", vista)
+        self.assertNotIn("Actividad 1", vista)
+        self.assertNotIn("Actividad 4", vista)
+        self.assertNotIn(">Completa<", vista)
+        self.assertIn("fila-resumen falta contradictorio", vista)
+
+    def test_dice_puntualmente_que_falta(self) -> None:
+        # Cubre: U-103
+        pendiente = actividad("Levantamiento", "pendiente") | {"ubicacion": "no indicado", "plazo_restriccion": "", "notes": ""}
+        contradictoria = actividad("Curvas de nivel", "contradictorio") | {"notes": "El correo dice 10 ha y el KMZ 12 ha."}
+        sin_nota = actividad("Batimetría", "contradictorio") | {"notes": ""}
+        self.crear(actividades=[pendiente, contradictoria, sin_nota])
+        vista = self.vista(pantalla_caso.render_case("t-1"))
+        self.assertIn("Falta ubicación, plazo.", vista)
+        self.assertIn("El correo dice 10 ha y el KMZ 12 ha.", vista)
+        self.assertIn("Hay información que no coincide", vista)
+
+    def test_la_nota_larga_se_acorta_y_sin_nada_que_decir_pide_confirmar(self) -> None:
+        # Cubre: U-103
+        completa = {"plazo_restriccion": "30 días"}
+        larga = actividad("Levantamiento", "pendiente") | completa | {"notes": "Revisar el acceso. " * 30}
+        vacia = actividad("Replanteo", "pendiente") | completa | {"notes": ""}
+        self.crear(actividades=[larga, vacia])
+        vista = self.vista(pantalla_caso.render_case("t-1"))
+        celda = vista.split('data-etiqueta="Qué hace falta">')[1].split("</td>")[0]
+        self.assertIn("…", celda)
+        self.assertNotIn("Revisar el acceso. " * 15, celda)
+        self.assertIn("Falta confirmar la actividad.", vista)
+
+    def test_sin_filas_por_completar_una_linea_y_ninguna_tabla(self) -> None:
+        # Cubre: U-103
+        self.crear(actividades=self.filas(3))
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn("Todas las actividades están completas.", pagina)
+        self.assertNotIn('id="tabla-resumen"', pagina)
+        self.assertIn("3 actividades · todas completas", pagina)
+
+    def test_sin_extras_en_la_vista_de_lectura(self) -> None:
+        # Cubre: U-103
+        self.crear(actividades=self.filas(11, incompletas=(10, 11)))
+        pagina = pantalla_caso.render_case("t-1")
+        lectura = pagina[pagina.index('class="acts-head"'):pagina.index('id="editar-tabla"')]
+        for retirado in ("Ver todas", "Ver detalle y fuentes", "Cómo leer esta tabla", "ficha-alcance", "<textarea", "<form"):
+            self.assertNotIn(retirado, lectura)
+        self.assertEqual(lectura.count('class="fila-resumen'), 2)
 
     def test_editar_tabla_abre_la_tabla_completa_de_siempre(self) -> None:
-        # Cubre: U-31
-        self.crear(actividades=self.filas(2))
+        # Cubre: U-31, U-103
+        self.crear(actividades=self.filas(2, incompletas=(1,)))
         pagina = pantalla_caso.render_case("t-1")
-        cabecera = pagina[pagina.index('class="acts-head"'):pagina.index('class="act-resumen"')]
+        cabecera = pagina[pagina.index('class="acts-head"'):pagina.index('class="act-resumen')]
         self.assertIn("<h2>Actividades detectadas</h2>", cabecera)
         # Botones reales (no casillas ocultas): «Corregir la tabla» dice si está abierta (U-37)
         self.assertIn('<button type="button" class="button secondary" id="agregar-fila" aria-controls="editar-tabla">+ Agregar</button>', cabecera)
@@ -246,38 +295,81 @@ class TablaDelPrototipo(Base):
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
         self.assertIn(".editor-tabla:target, .editor-tabla:has(:target)", css)
         self.assertIn(".editor-tabla.abierto { display: block; }", css)
-        # el formulario y el cuadro de exportación están dentro del panel que se abre; fuera solo queda la vista compacta
+        # el formulario y el cuadro de exportación están dentro del panel que se abre; fuera solo queda la vista de lectura
         self.assertGreater(pagina.index('action="/activities"'), pagina.index('id="editar-tabla"'))
         self.assertGreater(pagina.index('id="hoja-google"'), pagina.index('action="/activities"'))
         self.assertEqual(pagina.count("<details"), pagina.count("</details>"))
         self.assertEqual(pagina.count("<div"), pagina.count("</div>"))
 
-    def test_con_mas_de_ocho_se_ven_ocho_y_ver_todas(self) -> None:
-        # Cubre: U-31
+    def test_con_la_decision_pendiente_cada_fila_trae_su_casilla_y_el_cuadro_ya_trae_las_marcadas(self) -> None:
+        # Cubre: U-103
+        pendiente = actividad("Batimetría del lago", "pendiente") | {"ubicacion": "no indicado", "plazo_restriccion": ""}
+        con_nota = actividad("Replanteo", "pendiente") | {"plazo_restriccion": "30 días", "notes": "No dice cuántos lotes."}
+        contradictoria = actividad("Curvas", "contradictorio") | {"notes": "10 ha en el correo y 12,4 ha en el KMZ"}
+        self.crear(actividades=[pendiente, con_nota, contradictoria])
+        pagina = pantalla_caso.render_case("t-1")
+        vista = self.vista(pagina)
+        self.assertIn('<th scope="col">¿Preguntar?</th>', vista)
+        self.assertEqual(vista.count('name="preguntar_fila"'), 3)
+        self.assertEqual(vista.count('form="decision-form"'), 3)
+        self.assertIn('id="decision-form"', pagina)
+        self.assertEqual(vista.count(" checked"), 1)               # solo la pendiente con datos esenciales vacíos
+        self.assertIn('aria-label="Preguntar al cliente por Batimetría del lago"', vista)
+        pregunta = "¿Podría indicar la ubicación y el plazo de «Batimetría del lago»?"
+        self.assertIn(pregunta, pagina[pagina.index('name="questions"'):pagina.index("</textarea>", pagina.index('name="questions"'))])
+        self.assertIn('value="Replanteo: No dice cuántos lotes. ¿Nos lo pueden aclarar?"', vista)
+        self.assertIn('value="Curvas: 10 ha en el correo y 12,4 ha en el KMZ. ¿Cuál es el dato correcto?"', vista)
+
+    def test_sin_decision_pendiente_la_tabla_no_trae_casillas(self) -> None:
+        # Cubre: U-103
+        self.crear(actividades=self.filas(2, incompletas=(1,)), estado=QuoteStatus.WAITING)
+        vista = self.vista(pantalla_caso.render_case("t-1"))
+        self.assertNotIn("preguntar_fila", vista)
+        self.assertEqual(vista.count("<th "), 2)
+
+    def test_lo_que_la_persona_escribio_en_el_cuadro_no_se_reescribe(self) -> None:
+        # Cubre: U-103
+        pendiente = actividad("Batimetría", "pendiente") | {"ubicacion": "no indicado"}
+        self.crear(actividades=[pendiente], ultimas=["Mi propia pregunta"])
+        pagina = pantalla_caso.render_case("t-1")
+        cuadro = pagina[pagina.index('name="questions"'):pagina.index("</textarea>", pagina.index('name="questions"'))]
+        self.assertIn("Mi propia pregunta", cuadro)
+        self.assertNotIn("ubicación", cuadro)
+        self.assertNotIn(" checked", self.vista(pagina))
+
+    def test_el_resumen_duplicado_se_retiro_y_los_archivos_siguen_diciendose(self) -> None:
+        # Cubre: U-103
+        self.crear(actividades=self.filas(2, incompletas=(2,)), adjuntos=[adjunto("planos.dwg", "bloqueado")])
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertNotIn("Por resolver", pagina)
+        self.assertNotIn("Resumen de la solicitud", pagina)
+        self.assertNotIn("actividad por completar", pagina)
+        self.assertIn("Faltan: 1 archivo por revisar (planos.dwg).", pagina)
+        self.assertLess(pagina.index('id="alcance"'), pagina.index('id="decision"'))
+        self.assertLess(pagina.index('id="decision"'), pagina.index('id="analisis-original"'))
+
+    def test_sin_javascript_las_casillas_marcadas_se_suman_al_cuadro_sin_repetir(self) -> None:
+        # Cubre: U-103
+        from anka.web import acciones
+        recibido: dict = {}
+
+        def decidir(thread_id, decision, preguntas, **_):
+            recibido.update(decision=decision, preguntas=preguntas)
+            return "ok"
+
+        formulario = {"thread_id": ["t-1"], "decision": ["ask_client"], "questions": ["¿Cuál es el plazo de «A»?"],
+                      "preguntar_fila": ["¿Cual es el plazo de «A»?", "¿Podría indicar la ubicación de «B»?"]}
+        with patch.object(acciones, "resolve_technical_review", decidir):
+            acciones._post_review_decision(formulario)
+        self.assertEqual(recibido["preguntas"], "¿Cuál es el plazo de «A»?\n¿Podría indicar la ubicación de «B»?")
+        with patch.object(acciones, "resolve_technical_review", decidir):
+            acciones._post_review_decision(formulario | {"decision": ["sufficient"], "questions": [""]})
+        self.assertEqual(recibido["preguntas"], "")          # solo se suman cuando se decide preguntar
+
+    def test_el_editor_siempre_trae_todas_las_filas(self) -> None:
+        # Cubre: U-103
         self.crear(actividades=self.filas(11))
-        pagina = pantalla_caso.render_case("t-1")
-        self.assertEqual(pagina.count('class="fila-resumen extra"'), 3)
-        self.assertIn("Ver todas (11)", pagina)
-        self.assertIn('id="ver-todas"', pagina)
-
-    def test_las_incompletas_nunca_quedan_escondidas(self) -> None:
-        # Cubre: U-31
-        self.crear(actividades=self.filas(11, incompletas=(10, 11)))
-        pagina = pantalla_caso.render_case("t-1")
-        self.assertEqual(pagina.count('class="fila-resumen extra"'), 1)
-        for fila in pagina.split('<tr class="fila-resumen extra">')[1:]:
-            self.assertIn(">Completa<", fila.split("</tr>")[0])
-
-    def test_hasta_ocho_no_hay_ver_todas_y_el_editor_siempre_trae_todas(self) -> None:
-        # Cubre: U-31
-        self.crear(actividades=self.filas(8))
-        pagina = pantalla_caso.render_case("t-1")
-        self.assertNotIn("Ver todas", pagina)
-        self.assertNotIn('class="fila-resumen extra"', pagina)
-        self.crear("t-2", actividades=self.filas(11))
-        grande = pantalla_caso.render_case("t-2")
-        self.assertIn("name='a10_activity'", grande)
-        self.assertNotIn('class="act-row extra"', grande)
+        self.assertIn("name='a10_activity'", pantalla_caso.render_case("t-1"))
 
 
 def tarjeta(pagina: str) -> str:
@@ -428,7 +520,7 @@ class IgualAlPrototipo(Base):
         self.crear(actividades=[actividad("Planimetría", "confirmado"), actividad("Altimetría", "pendiente")],
                    adjuntos=[adjunto("solicitud.pdf"), adjunto("planos.dwg", "bloqueado")])
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        frase = "Faltan: 1 actividad por completar y 1 archivo por revisar (planos.dwg). Míralo en la tabla y en la pestaña «Archivos»."
+        frase = "Faltan: 1 archivo por revisar (planos.dwg). Míralo en la pestaña «Archivos»."
         self.assertIn(frase, decision)
         self.assertLess(decision.index(frase), decision.index('class="opciones"'))
 
@@ -454,13 +546,14 @@ class CabeceraDelPrototipo(Base):
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
         cabecera = pagina[pagina.index('class="caso-cabecera"'):pagina.index('class="section stepper"')]
-        self.assertIn("← Mis casos", cabecera)
+        self.assertIn("← Solicitudes de cotización", cabecera)
         self.assertIn("Proyecto Norte", cabecera)
         self.assertIn("cliente@empresa.co", cabecera)
         self.assertIn("recibido el", cabecera)
         self.assertIn('class="badge"', cabecera)
         self.assertNotIn("Levantamiento topográfico solicitado.", cabecera)       # el resumen largo ya no va aquí
-        self.assertIn("<b>Qué pide:</b> Levantamiento topográfico solicitado.", tarjeta(pagina))
+        self.assertNotIn("<b>Qué pide:</b>", tarjeta(pagina))
+        self.assertIn("Ver análisis original", pagina)
 
 
 class UnaSolaTarjetaAhora(Base):
@@ -503,7 +596,7 @@ class CorreoComoPrototipo(Base):
         self.crear(estado=QuoteStatus.REVIEW_PENDING)
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn('<section class="section ahora" id="respuesta">', pagina)
-        self.assertLess(pagina.index('id="respuesta"'), pagina.index("Actividades detectadas"))
+        self.assertGreater(pagina.index('id="respuesta"'), pagina.index("Actividades detectadas"))
         correo = pagina[pagina.index('class="correo-form"'):]
         correo = correo[:correo.index("</form>")]
         self.assertIn('<span class="para">cliente@empresa.co</span>', correo)
@@ -532,7 +625,7 @@ class CorreoAmigable(Base):
     def test_solo_dos_botones_y_los_avisos_largos_ya_no_estan(self) -> None:
         # Cubre: U-31
         pagina = self.correo()
-        tarjeta_correo = pagina[pagina.index('id="respuesta"'):pagina.index("Actividades detectadas")]
+        tarjeta_correo = pagina[pagina.index('id="respuesta"'):]
         self.assertEqual(tarjeta_correo.count('formaction="/send"'), 1)
         self.assertEqual(tarjeta_correo.count('formaction="/draft"'), 1)
         for sobrante in ("Respuesta sugerida lista", "Recepción completa", "Revisa el destinatario", "Antes de enviar te pedimos",
@@ -659,7 +752,7 @@ class TodoEstadoTieneAviso(Base):
 
     def test_los_estados_que_antes_quedaban_vacios_dicen_que_paso_y_que_hacer(self) -> None:
         # Cubre: U-31
-        esperado = {QuoteStatus.IGNORED: ("Descartada", "/discarded"), QuoteStatus.MISSING: ("Ya no está en Gmail", "Volver a Mis casos"),
+        esperado = {QuoteStatus.IGNORED: ("Descartada", "/discarded"), QuoteStatus.MISSING: ("Ya no está en Gmail", "Volver a Solicitudes de cotización"),
                     QuoteStatus.SENDING: ("El correo no salió", "#respuesta"),
                     QuoteStatus.RESPONSE_SENT: ("Respuesta enviada", "template=libre#respuesta")}
         for estado, (titulo, destino) in esperado.items():
@@ -701,7 +794,7 @@ class PaginaPrincipalEsLaLista(Base):
         separados = {frozenset(par) for par in (("t-a", "t-b"), ("t-a", "t-c"), ("t-b", "t-c"))}     # tres proyectos distintos
         with patch("anka.web.paginas.separated_project_pairs", return_value=separados):
             pagina = self.lista()
-        self.assertIn('<h1 class="titulo-principal">Mis casos</h1>', pagina)
+        self.assertIn('<h1 class="titulo-principal">Solicitudes de cotización</h1>', pagina)
         self.assertGreaterEqual(pagina.count('class="queue-row"'), 2)
         for hilo in ("t-a", "t-b"):
             self.assertIn(f"/case?thread_id={hilo}", pagina)
@@ -776,18 +869,18 @@ class UnaSolaListaEnElCamino(Base):
         with patch("anka.web.paginas.unread_thread_count", return_value=0):
             admin = paginas.render_requests()
         self.assertIn("<title>Administrar casos - Anka</title>", admin)
-        self.assertIn('<a class="atras" href="/">← Mis casos</a>', admin)
+        self.assertIn('<a class="atras" href="/">← Solicitudes de cotización</a>', admin)
         self.assertIn("Exportar todo a Excel", admin)
         self.assertIn('href="/requests">Administrar casos (eliminar, exportar)</a>', admin)
 
     def test_descartadas_regresa_a_mis_casos(self) -> None:
         # Cubre: U-32
         from anka.web import paginas
-        self.assertIn('<a class="button secondary" href="/">← Mis casos</a>', paginas.render_discarded())
+        self.assertIn('<a class="button secondary" href="/">← Solicitudes de cotización</a>', paginas.render_discarded())
 
 
 class MisCasos(Base):
-    def pagina(self, titulo: str = "Mis casos", cuenta: int = 2) -> str:
+    def pagina(self, titulo: str = "Solicitudes de cotización", cuenta: int = 2) -> str:
         from anka.web import paginas
         with patch("anka.web.paginas.unread_thread_count", return_value=cuenta):
             return paginas.page(titulo, "<p>x</p>")
@@ -802,7 +895,7 @@ class MisCasos(Base):
         self.assertIn('href="/"', marca)
         self.assertIn("2 con novedades", marca)
         self.assertIn("<span class='nav-count'>2</span>", marca)
-        self.assertIn("<title>(2) Mis casos - Anka</title>", html)
+        self.assertIn("<title>(2) Solicitudes de cotización - Anka</title>", html)
         self.assertIn("document.querySelector('.brand .nav-count')", JS)
 
     def test_lo_raro_queda_fuera_del_camino(self) -> None:
@@ -820,10 +913,10 @@ class MisCasos(Base):
     def test_volver_lleva_a_mis_casos(self) -> None:
         # Cubre: U-32
         self.crear()
-        self.assertIn('<a class="atras" href="/">← Mis casos</a>', pantalla_caso.render_case("t-1"))
+        self.assertIn('<a class="atras" href="/">← Solicitudes de cotización</a>', pantalla_caso.render_case("t-1"))
         self.crear("t-m", estado=QuoteStatus.MISSING)
         aviso = pantalla_caso.render_case("t-m")
-        self.assertIn('href="/">Volver a Mis casos</a>', aviso)
+        self.assertIn('href="/">Volver a Solicitudes de cotización</a>', aviso)
 
 
 class CssOrdenado(Base):
@@ -855,7 +948,7 @@ class CssOrdenado(Base):
     def test_pantalla_angosta_y_movimiento_reducido(self) -> None:
         # Cubre: U-31
         css = self.css()
-        self.assertIn('.tablist [role="tab"], button.enlace, .seg, .ayuda, .acts-head .button, summary, .ver-todas-boton { width: auto; }', css)
+        self.assertIn('.tablist [role="tab"], button.enlace, .seg, .ayuda, .acts-head .button, summary { width: auto; }', css)
         self.assertIn(".act-table .act-main > td[data-etiqueta]::before { content: attr(data-etiqueta);", css)
         self.assertIn("@media (prefers-reduced-motion: reduce)", css)
         self.crear(actividades=[actividad("Planimetría", "confirmado")])

@@ -11,25 +11,25 @@
 <link rel="stylesheet" href="/static/style.HUELLA.css">
 <noscript>
 <style>
-.editor-tabla { display: block; } .fila-resumen.extra { display: table-row !important; } .ver-todas-boton, #agregar-fila, #editar-boton { display: none; }
+.editor-tabla { display: block; } #agregar-fila, #editar-boton { display: none; }
 </style>
 </noscript>
 </head>
-<body>
+<body data-fondo="simple">
 <canvas id="particulas" aria-hidden="true" hidden="">
 </canvas>
 <a class="skip-link" href="#contenido">
 Saltar al contenido
 </a>
 <header>
-<a class="brand" href="/" aria-label="Anka, mis casos: 10 con novedades">
+<a class="brand" href="/" aria-label="Anka, solicitudes de cotización: 10 con novedades">
 <img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38">
 <div>
 <strong>
 Anka
 </strong>
 <span>
-Mis casos
+Solicitudes de cotización
 </span>
 </div>
 <span class="nav-count">
@@ -142,7 +142,7 @@ Actualizar la página
 <div class="caso-cabecera">
 <div>
 <a class="atras" href="/">
-← Mis casos
+← Solicitudes de cotización
 </a>
 <h1>
 Proyecto Hostil
@@ -239,6 +239,7 @@ Pendiente
 </li>
 </ol>
 </section>
+<div id="accion-actual">
 <div class="next-step aviso-ahora info" hidden="">
 <span class="marca-paso">
 Ahora
@@ -255,6 +256,8 @@ Al emitir la T damos el proyecto por recibido.
 Emitir la T
 </a>
 </div>
+</div>
+<div id="paso-codigo">
 <section class="section code-panel ahora" id="emitir-t">
 <div class="eyebrow">
 Ahora
@@ -396,8 +399,9 @@ Guardar datos comerciales
 </form>
 </details>
 </section>
+</div>
 <div class="layout">
-<section class="section actividades">
+<section class="section actividades" id="alcance">
 <div class="acts-head">
 <div>
 <h2>
@@ -416,49 +420,30 @@ Corregir la tabla
 </button>
 </div>
 </div>
-<div class="scroll-x" id="tabla-resumen" data-todas="no">
-<table class="act-resumen">
-<thead>
-<tr>
+<div class="scroll-x alcance-lectura" id="tabla-resumen">
+<table class="act-resumen" role="table" aria-label="Actividades por completar o contradictorias">
+<caption class="solo-lectores">
+Actividades que todavía no están completas y lo que hace falta en cada una.
+</caption>
+<thead role="rowgroup">
+<tr role="row">
 <th scope="col">
 Actividad
 </th>
 <th scope="col">
-Cantidad
-</th>
-<th scope="col">
-Estado
+Qué hace falta
 </th>
 </tr>
 </thead>
-<tbody>
-<tr class="fila-resumen">
-<td>
-Levantamiento topográfico
-</td>
-<td>
-10 ha
-</td>
-<td>
-<span class="chip confirmado">
-Completa
-</span>
-</td>
-</tr>
-<tr class="fila-resumen falta">
-<td>
+<tbody role="rowgroup">
+<tr class="fila-resumen falta pendiente" role="row">
+<td role="cell" data-etiqueta="Actividad">
+<strong>
 Batimetría
+</strong>
 </td>
-<td>
-10 ha
-</td>
-<td>
-<span class="chip pendiente">
-Por completar
-</span>
-<span class="faltan">
-Falta ubicación
-</span>
+<td role="cell" data-etiqueta="Qué hace falta">
+Falta ubicación.
 </td>
 </tr>
 </tbody>
@@ -834,6 +819,20 @@ Si escribes directo en la hoja, el cambio se pierde en la próxima actualizació
 </div>
 </div>
 </section>
+<details class="more analisis-original" id="analisis-original">
+<summary>
+Ver análisis original y guía de revisión
+</summary>
+<p>
+Levantamiento topográfico solicitado.
+</p>
+<p class="nota">
+<a href="#p-conv">
+Revisa el correo
+</a>
+, comprueba cantidades y fuentes, y decide cómo seguir. Nada se envía al cliente sin tu aprobación.
+</p>
+</details>
 <section class="tabs" data-tabs="">
 <div class="tablist" role="tablist" aria-label="Más información del caso">
 <button type="button" role="tab" id="t-conv" aria-controls="p-conv" aria-selected="true">
@@ -951,6 +950,14 @@ Sin extractos registrados
 </table>
 </div>
 </details>
+<section class="notice" aria-label="Control de lectura">
+<strong>
+Lectura sin verificar
+</strong>
+<p class="meta">
+Comprueba cantidades, unidades y fuentes en los documentos originales.
+</p>
+</section>
 <h3 class="subhead">
 Qué falta resolver
 </h3>

@@ -1,0 +1,13 @@
+# Caddy delante del dashboard de Anka: HTTPS automático y contraseña (U-85, docs/DESPLIEGUE_VPS.md).
+# Cambia anka.tudominio.com por tu dominio (con un registro DNS tipo A hacia la IP de la VPS).
+# Genera el hash de la contraseña con:  caddy hash-password
+anka.tudominio.com {
+	encode gzip
+
+	basic_auth {
+		# usuario  hash-bcrypt-generado-por-caddy
+		anka REEMPLAZA_CON_EL_HASH
+	}
+
+	reverse_proxy 127.0.0.1:8765
+}

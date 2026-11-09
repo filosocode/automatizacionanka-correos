@@ -17,25 +17,28 @@ from anka.dominio.status import QuoteStatus
 from tests.test_app import FakeGmail, complete_analysis, encoded_message, test_config
 
 REQUEST = "Cotizacion - Parque Solar Llanos 8 - abc12345"
+MES = FakeDriveTree.ruta_del_mes()   # `2026/11-Noviembre`: el árbol de prueba pone los clientes ahí (U-102)
+BASE = f"Proyectos/{MES}"
 
 
 # Cubre: F1-07, R9
 class DriveLayoutAutoTests(unittest.TestCase):
     def test_new_client_without_similar_folders_is_created_automatically(self):
-        drive = FakeDriveTree({"Minera Sur": {}})
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {}})
         result = drive_layout.create_project_folder(
             drive, drive.root_id, "Solaris Energy", REQUEST, auto_create_client=True)
         self.assertTrue(result.client_created)
-        self.assertEqual(drive.created, ["2026/Solaris Energy", f"2026/Solaris Energy/{REQUEST}"])
+        self.assertEqual(drive.created, [f"{BASE}/Solaris Energy", f"{BASE}/Solaris Energy/{REQUEST}",
+                                         f"{BASE}/Solaris Energy/{REQUEST}/anexos"])
 
     def test_without_auto_a_new_client_still_needs_confirmation(self):
-        drive = FakeDriveTree({"Minera Sur": {}})
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {}})
         with self.assertRaises(drive_layout.ClientNotFound):
             drive_layout.create_project_folder(drive, drive.root_id, "Solaris Energy", REQUEST)
         self.assertEqual(drive.created, [])
 
     def test_similar_client_folder_blocks_the_automatic_creation(self):
-        drive = FakeDriveTree({"Solaris Energy Colombia": {}})
+        drive = FakeDriveTree.de_clientes({"Solaris Energy Colombia": {}})
         with self.assertRaises(drive_layout.SimilarClient) as caught:
             drive_layout.create_project_folder(
                 drive, drive.root_id, "Solaris Energy", REQUEST, auto_create_client=True)
@@ -43,25 +46,25 @@ class DriveLayoutAutoTests(unittest.TestCase):
         self.assertEqual(drive.created, [])
 
     def test_a_person_confirming_a_new_client_overrides_the_similar_check(self):
-        drive = FakeDriveTree({"Solaris Energy Colombia": {}})
+        drive = FakeDriveTree.de_clientes({"Solaris Energy Colombia": {}})
         result = drive_layout.create_project_folder(
             drive, drive.root_id, "Solaris Energy", REQUEST, create_client=True)
         self.assertTrue(result.client_created)
 
     def test_recurring_client_gets_a_new_request_folder_next_to_the_others(self):
-        drive = FakeDriveTree({"Minera Sur": {"Cotizacion - Batimetría Embalse - 99999999": {}}})
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {"Cotizacion - Batimetría Embalse - 99999999": {}}})
         result = drive_layout.create_project_folder(
             drive, drive.root_id, "minera sur", REQUEST, auto_create_client=True)
         self.assertFalse(result.client_created)
-        self.assertEqual(drive.created, [f"2026/Minera Sur/{REQUEST}"])
+        self.assertEqual(drive.created, [f"{BASE}/Minera Sur/{REQUEST}", f"{BASE}/Minera Sur/{REQUEST}/anexos"])
 
     def test_same_request_folder_is_reused_not_duplicated(self):
-        drive = FakeDriveTree({"Minera Sur": {REQUEST: {}}})
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {REQUEST: {"anexos": {}}}})
         drive_layout.create_project_folder(drive, drive.root_id, "Minera Sur", REQUEST, auto_create_client=True)
         self.assertEqual(drive.created, [])
 
     def test_a_similar_project_name_is_not_duplicated(self):
-        drive = FakeDriveTree({"Minera Sur": {"Cotizacion - Parque Solar Llanos 8 Fase 1 - 11111111": {}}})
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {"Cotizacion - Parque Solar Llanos 8 Fase 1 - 11111111": {}}})
         with self.assertRaises(drive_layout.SimilarProject) as caught:
             drive_layout.create_project_folder(
                 drive, drive.root_id, "Minera Sur", REQUEST, auto_create_client=True)
@@ -69,8 +72,8 @@ class DriveLayoutAutoTests(unittest.TestCase):
         self.assertEqual(drive.created, [])
 
     def test_the_same_attachment_in_another_folder_marks_it_as_the_same_project(self):
-        drive = FakeDriveTree({"Minera Sur": {"Cotizacion - Estudio vial - 22222222": {}}})
-        drive.add_file(drive.folder_id("Minera Sur/Cotizacion - Estudio vial - 22222222"), "ET Topografia Llanos 8.pdf")
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {"Cotizacion - Estudio vial - 22222222": {}}})
+        drive.add_file(drive.folder_id(f"{MES}/Minera Sur/Cotizacion - Estudio vial - 22222222"), "ET Topografia Llanos 8.pdf")
         with self.assertRaises(drive_layout.SimilarProject) as caught:
             drive_layout.create_project_folder(
                 drive, drive.root_id, "Minera Sur", REQUEST, auto_create_client=True,
@@ -78,15 +81,15 @@ class DriveLayoutAutoTests(unittest.TestCase):
         self.assertIn("mismo archivo", str(caught.exception))
 
     def test_a_person_can_force_a_distinct_project(self):
-        drive = FakeDriveTree({"Minera Sur": {"Cotizacion - Parque Solar Llanos 8 Fase 1 - 11111111": {}}})
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {"Cotizacion - Parque Solar Llanos 8 Fase 1 - 11111111": {}}})
         drive_layout.create_project_folder(
             drive, drive.root_id, "Minera Sur", REQUEST, auto_create_client=True, allow_similar_project=True)
-        self.assertEqual(drive.created, [f"2026/Minera Sur/{REQUEST}"])
+        self.assertEqual(drive.created, [f"{BASE}/Minera Sur/{REQUEST}", f"{BASE}/Minera Sur/{REQUEST}/anexos"])
 
     def test_unrelated_projects_do_not_block(self):
-        drive = FakeDriveTree({"Minera Sur": {"Cotizacion - Batimetría Embalse La Esperanza - 33333333": {}}})
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {"Cotizacion - Batimetría Embalse La Esperanza - 33333333": {}}})
         drive_layout.create_project_folder(drive, drive.root_id, "Minera Sur", REQUEST, auto_create_client=True)
-        self.assertEqual(len(drive.created), 1)
+        self.assertEqual(len(drive.created), 2)   # la solicitud y su `anexos`
 
 
 # Cubre: F1-07, R9
@@ -94,7 +97,7 @@ class SendCreatesTheFolderTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self.drive = FakeDriveTree({"Minera Sur": {}})
+        self.drive = FakeDriveTree.de_clientes({"Minera Sur": {}})
         self.gmail = FakeGmail({"id": "t-1", "messages": [
             encoded_message("m-1", "cliente@example.com", "Solicito cotización.", 1, subject="Solicitud")]})
         for p in (
@@ -126,13 +129,13 @@ class SendCreatesTheFolderTests(unittest.TestCase):
         quote = self.quote()
         self.assertEqual(quote["status"], QuoteStatus.READY)
         self.assertTrue(quote["folder_id"])
-        self.assertEqual(len(self.drive.created), 1)
+        self.assertEqual(len(self.drive.created), 2)   # la solicitud y su `anexos`
 
     def test_a_brand_new_client_name_creates_its_folder_too(self):
         self.seed(client="Solaris Energy")
         case_actions.send_dashboard_reply("t-1", "Hola.")
         self.assertEqual(self.quote()["status"], QuoteStatus.READY)
-        self.assertEqual(self.drive.created[0], "2026/Solaris Energy")
+        self.assertEqual(self.drive.created[0], f"{BASE}/Solaris Energy")
 
     def test_a_recurring_sender_is_recognised_from_another_case(self):
         self.seed()
@@ -143,7 +146,7 @@ class SendCreatesTheFolderTests(unittest.TestCase):
         db.close()
         case_actions.send_dashboard_reply("t-1", "Hola.")
         self.assertEqual(self.quote()["status"], QuoteStatus.READY)
-        self.assertTrue(self.drive.created[0].startswith("2026/Minera Sur/"))
+        self.assertTrue(self.drive.created[0].startswith(f"{BASE}/Minera Sur/"))
 
     def test_without_a_client_the_email_still_goes_out_and_the_reason_is_shown(self):
         self.seed()
@@ -164,7 +167,7 @@ class SendCreatesTheFolderTests(unittest.TestCase):
         self.assertEqual(self.quote()["status"], QuoteStatus.READY_REVIEW)
 
     def test_a_similar_client_leaves_the_case_open_with_the_reason(self):
-        self.drive = FakeDriveTree({"Solaris Energy Colombia": {}})
+        self.drive = FakeDriveTree.de_clientes({"Solaris Energy Colombia": {}})
         self.seed(client="Solaris Energy")
         message = case_actions.send_dashboard_reply("t-1", "Hola.")
         self.assertIn("parecida", message)

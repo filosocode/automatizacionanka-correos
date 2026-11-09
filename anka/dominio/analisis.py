@@ -26,6 +26,7 @@ class Actividad(TypedDict, total=False):
     fuente: str
     estado: str          # confirmado | pendiente | contradictorio (R12)
     notes: str
+    fila_existente: int  # solo del modelo: número de la fila vigente que actualiza (0 = nueva); no se guarda (U-94)
 
 
 class Campo(TypedDict, total=False):
@@ -116,6 +117,7 @@ class Adjunto(TypedDict, total=False):
     reviewed_sections: list[str]
     blocked_fields: list[str]
     mime_type: str
+    size_bytes: int      # tamaño que informa Gmail; el modelo lo recibe para no tomar un archivo grande por vacío
     source_message_id: str
     text: str            # texto extraído; no se guarda en el análisis, solo viaja hasta el modelo
     evidence: list[EvidenciaAdjunto]

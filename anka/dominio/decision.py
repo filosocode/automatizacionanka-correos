@@ -17,7 +17,7 @@ from anka.dominio.status import (
     QuoteStatus,
 )
 from anka.dominio.reception import (
-    question_email, reception_questions, safe_folder_name,
+    actividades_sin_confirmar, preguntas_de_pendientes, question_email, reception_questions, safe_folder_name,
     unresolved_scope_issues,
 )
 
@@ -159,6 +159,10 @@ def decide_analysis(
             questions=reception_questions(analysis, required),
         )
     questions = reception_questions(analysis, required)
+    if not questions and not analysis.get("manual_review") and actividades_sin_confirmar(analysis):
+        # U-87: con actividades sin confirmar el alcance no está cerrado; no se salta a la T. Se piden los datos
+        # (borrador que una persona revisa) salvo que el comercial ya haya decidido gestionarlo él mismo.
+        questions = preguntas_de_pendientes(analysis)
     if questions:
         return _decide_ask_client(thread_id, analysis, logs, questions, recipient, is_forwarded,
                                   gmail_drafts=gmail_drafts)

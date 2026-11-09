@@ -129,6 +129,9 @@ def construir_libro_del_trabajo(trabajo: Mapping[str, Any]) -> bytes:
     contexto = trabajo.get("contexto_previo")
     if isinstance(contexto, contexto_previo.Contexto):
         filas.append(("instruccion_de_seguimiento", contexto_previo.INSTRUCCION_DE_SEGUIMIENTO))
+    manifiesto_visual = trabajo.get("manifiesto_visual_drive_id")
+    if manifiesto_visual:
+        filas.append(("manifiesto_visual_drive_id", str(manifiesto_visual)))
     principal.append(["campo", "valor"])
     for fila in filas:
         principal.append(list(fila))
@@ -221,6 +224,9 @@ def _senal_de_automatizacion(fila: Mapping[str, Any], remitentes: Sequence[str])
     """La señal de ruido del mensaje: la que guardó el receptor o, si no hay, la que se ve en el remitente guardado.
 
     Con varios remitentes solo cuenta si TODOS son automáticos (R1)."""
+    # La señal específica prevalece sobre «remitente_no_reply» guardada durante la recepción.
+    if remitentes and all(_es_notificacion_de_chatgpt(r) for r in remitentes):
+        return SENAL_NOTIFICACION_DE_CHATGPT
     try:
         evidencia = json.loads(str(fila.get("evidence_json") or "{}"))
     except ValueError:

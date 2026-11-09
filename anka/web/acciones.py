@@ -15,6 +15,7 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.web import formularios_pendientes as pendientes
 from anka.web.seguridad import es_mensaje_para_la_persona
 from anka.dominio.activities import parse_activities_form
+from anka.dominio.preguntas import sumar_preguntas
 from anka.infra.modes import (
     set_mode,
 )
@@ -188,8 +189,11 @@ def _post_review_decision(form: Form) -> str:
     decision = field(form, "decision")
     ids = [i.strip() for i in form.get("q_id", []) if i.strip()]
     elecciones = {i: (field(form, f"q_decision_{i}"), field(form, f"q_text_{i}")) for i in ids} if ids else None
+    preguntas = field(form, "questions")
+    if decision == "ask_client":   # sin JavaScript, las casillas de la tabla se suman al cuadro (U-103.9)
+        preguntas = sumar_preguntas(preguntas, form.get("preguntar_fila", []))
     message = _guidance(lambda: resolve_technical_review(
-        thread_id, decision, field(form, "questions"),
+        thread_id, decision, preguntas,
         elecciones=elecciones, nuevas=field(form, "q_nuevas")))
     # Tras decidir, directo al paso que sigue: el correo, o la emisión de la T; guardar decisiones no cambia de paso.
     anchor = {"ask_client": "#respuesta", "sufficient": "#emitir-t"}.get(decision, "")

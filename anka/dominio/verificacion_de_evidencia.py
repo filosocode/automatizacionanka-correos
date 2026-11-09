@@ -246,3 +246,60 @@ def avisos_de(resultado: dict | None) -> list[str]:
     resto = len(resultado["diferencias"]) - len(mostrados)
     return ["Comprobación de fuentes: " + texto for texto in mostrados] + (
         [f"Comprobación de fuentes: {resto} diferencia(s) más; ver el detalle del caso."] if resto else [])
+
+
+# --- Una cifra que ningún documento respalda no queda «confirmada» (U-93) -------------------------------------
+
+_CONTRADICE = frozenset({"CONTRADICTORIA_VALOR", "CONTRADICTORIA_UNIDAD"})
+_COBERTURA = {"extraido": "completa", "lectura_parcial": "parcial"}
+
+
+def _cifra_ausente(fila: dict, exp: _Expediente) -> bool:
+    """¿La cantidad de la fila no aparece en ningún texto del caso y todos los textos se pudieron leer?"""
+    if exp.sin_texto:
+        return False
+    tokens = [valores(t) for t in NUMERO.findall(str(fila.get("quantity") or ""))]
+    tokens = [t for t in tokens if t]
+    return bool(tokens) and all(not (posibles & exp.numeros()) for posibles in tokens)
+
+
+def textos_del_analisis(correo: str, adjuntos: list[Any]) -> dict:
+    """El expediente que `comprobar_tabla` espera, armado con lo que el análisis ya leyó."""
+    return {"correo": correo, "adjuntos": [
+        {"filename": str(a.get("filename") or ""), "source_id": str(a.get("filename") or ""),
+         "coverage": _COBERTURA.get(str(a.get("status") or ""), "no_legible"), "text": str(a.get("text") or "")}
+        for a in adjuntos if isinstance(a, dict)]}
+
+
+def marcar_cifras_sin_respaldo(analysis: Any, correo: str, adjuntos: list[Any]) -> list[str]:
+    """Comprueba la tabla contra los textos y baja a «pendiente» lo confirmado sin cifra respaldada (U-93).
+
+    Devuelve los nombres de las actividades marcadas. Un fallo aquí nunca frena el análisis; con lectura por OCR,
+    parcial o ilegible la comprobación no concluye nada y la fila no se toca.
+    """
+    marcadas: list[str] = []
+    try:
+        textos = textos_del_analisis(correo, adjuntos)
+        resultado = comprobar_tabla(analysis, textos)
+        if not resultado:
+            return marcadas
+        analysis["evidence_check"] = resultado
+        filas = analysis.get("activities") or []
+        expediente = _Expediente(textos)
+        indices = {n for n, f in enumerate(filas, 1) if isinstance(f, dict) and _cifra_ausente(f, expediente)}
+        indices |= {int(o.get("actividad") or 0) for o in resultado.get("observaciones") or []
+                    if o.get("estado") in _CONTRADICE}
+        for numero in sorted(indices):
+            if not 1 <= numero <= len(filas):
+                continue
+            fila = filas[numero - 1]
+            if not isinstance(fila, dict) or str(fila.get("estado") or "").strip().lower() != "confirmado":
+                continue
+            fila["estado"] = "pendiente"
+            nota = (f"Verificación automática: la cantidad «{fila.get('quantity')}» no coincide con los documentos "
+                    "leídos; confírmala con el cliente.")
+            fila["notes"] = f"{str(fila.get('notes') or '').strip()} {nota}".strip()
+            marcadas.append(str(fila.get("activity") or ""))
+    except Exception:
+        log.warning("No se pudo verificar las cifras de la tabla", exc_info=True)
+    return marcadas

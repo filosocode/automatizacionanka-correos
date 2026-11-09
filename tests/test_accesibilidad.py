@@ -127,7 +127,7 @@ class Campos(unittest.TestCase):
     def test_etiquetas_visibles_y_obligatorios(self) -> None:
         # Cubre: U-37
         self.assertNotIn('class="solo-lectores" for="buscar-casos"', plantilla("index.html"))
-        self.assertIn('<label for="buscar-casos">Buscar un caso</label>', plantilla("index.html"))
+        self.assertIn('<label for="buscar-casos">Buscar una solicitud</label>', plantilla("index.html"))
         caso = plantilla("case.html")
         self.assertNotIn('class="solo-lectores" for="cuerpo-correo"', caso)
         self.assertIn('Carpeta del cliente <span class="meta">(obligatorio)</span>', caso)

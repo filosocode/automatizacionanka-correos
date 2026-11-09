@@ -190,7 +190,7 @@ Todo lo descartado queda en la pestaña **Descartadas** del dashboard con su mot
 
 ## Estructura de Drive
 
-Las carpetas siguen la convención `Año / Cliente / Solicitud`. `drive_parent_id` en `config.json` es la carpeta **del año vigente** (por ejemplo `2026`); al cambiar de año hay que apuntarlo a la nueva (si la solicitud es de otro año que la carpeta padre, el sistema no crea nada y avisa). Dentro de ella:
+Las carpetas siguen la convención `Proyectos / Año / Mes / Cliente / T&E<número> <proyecto> / anexos`. `drive_parent_id` en `config.json` es la carpeta **«Proyectos»** (no la de un año: si apunta a una carpeta llamada `2026` el sistema no crea nada y avisa). El año y el mes (`2026`, `11-Noviembre`) se crean solos con la fecha en que se emite la T, y dentro de `anexos` van los archivos del cliente y la tabla de actividades. Dentro de ella:
 
 - La carpeta del **cliente** se busca por nombre sin importar mayúsculas, tildes ni sufijos como S.A.S. o Ltda. Si hay una sola coincidencia se reutiliza; si hay varias parecidas, decide una persona. **Nunca se crea una carpeta de cliente por cuenta propia.**
 - La carpeta de la **solicitud** (`Cotizacion - <proyecto> - <id>`) se crea sola solo cuando el cliente está confirmado: lo confirmó una persona en ese hilo, o en otro hilo del mismo remitente. Si no, el caso queda en "Información suficiente para revisión interna" con el motivo, y en la pantalla del caso aparece **Carpeta del proyecto en Drive**: se escribe la carpeta del cliente, se marca "cliente nuevo" solo si hay que crearla, y se pulsa **Crear carpeta del proyecto**. Así los siguientes correos de ese remitente se resuelven solos.

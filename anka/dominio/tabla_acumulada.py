@@ -4,7 +4,9 @@ Lógica pura y determinista, sin base de datos ni Gmail. Un seguimiento no es un
 no la elimina, y lo que contradice o sustituye algo ya informado no se aplica solo; queda como propuesta para revisar.
 
 Reglas, en orden:
-1. Dos filas son la misma actividad si su nombre coincide sin tildes, mayúsculas ni puntuación. Nada más se fusiona.
+1. Dos filas son la misma actividad si su nombre coincide sin tildes, mayúsculas ni puntuación, o si, sin pareja por
+   nombre, se parecen muchísimo (≥ 70 % de palabras en común, o un nombre contenido en el otro con la misma cantidad)
+   y es la mejor pareja posible (U-92). Nada más se fusiona.
 2. Una fila anterior que la nueva no menciona se conserva tal cual.
 3. Una fila nueva sin pareja ni parecido se agrega.
 4. De una pareja, la nueva **llena** un dato vacío o **reemplaza** uno que no estaba confirmado (si la fila nueva no es
@@ -21,6 +23,7 @@ import unicodedata
 from collections.abc import Mapping
 from typing import Any, NamedTuple
 
+from anka.dominio.activities import ACTIVITY_COLUMNS
 from anka.dominio.reloj import instante
 
 
@@ -30,6 +33,10 @@ _ELIMINACION = re.compile(
     r"\bya no se requiere\b|\bno se requiere\b|\bse elimina\b|\beliminar\b|\bcancel(?:a|ar|ada|ado|an)\b|"
     r"\bse descarta\b|\bdescartar\b|\bexcluir\b|\bse excluye\b|\bsin este (?:servicio|alcance)\b")
 _PARECIDO_MINIMO = 0.5
+_MISMA_ACTIVIDAD = 0.7      # U-92: un nombre reformulado por el modelo con tanto en común es la misma actividad
+_VENTAJA_MINIMA = 0.1      # U-92: para juntar por descarte, la pareja debe superar en esto a cualquier otra candidata
+_MISMO_DATO = 0.6           # U-92: un texto reformulado (mismos números, casi las mismas palabras) no es otro dato
+_CAMPOS_DE_TEXTO = ("ubicacion", "entregable", "plazo_restriccion", "servicio_tecnica")
 
 Fila = dict[str, Any]       # una fila de la tabla (`Actividad`), sin exigir sus claves
 
@@ -73,6 +80,44 @@ def _parecidas(a: Fila, b: Fila) -> bool:
     return bool(union) and len(palabras_a & palabras_b) / len(union) >= _PARECIDO_MINIMO
 
 
+def _jaccard(a: set[str], b: set[str]) -> float:
+    union = a | b
+    return len(a & b) / len(union) if union else 0.0
+
+
+def _numeros(texto: object) -> set[str]:
+    return set(re.findall(r"\d+(?:[.,]\d+)?", _plano(texto)))
+
+
+def _palabras_de(texto: object) -> set[str]:
+    return {p for p in _plano(texto).split() if len(p) > 2}
+
+
+def _siglas(texto: object) -> set[str]:
+    """Las siglas y formatos del texto (DWG, PDF, KMZ, IDU…): cambiar una es cambiar el dato, no reescribirlo."""
+    return set(re.findall(r"(?<![A-Za-zÁÉÍÓÚÑáéíóúñ])[A-ZÁÉÍÓÚÑ]{2,6}(?![A-Za-zÁÉÍÓÚÑáéíóúñ])", str(texto or "")))
+
+
+def _reformulado(antes: object, ahora: object) -> bool:
+    """¿`ahora` dice lo mismo que `antes` con otras palabras? Mismos números y palabras en común (U-92)."""
+    if _numeros(antes) != _numeros(ahora) or _siglas(antes) != _siglas(ahora):
+        return False
+    previas, nuevas = _palabras_de(antes), _palabras_de(ahora)
+    if previas < nuevas:
+        return False                    # lo nuevo solo agrega: es un dato más, no una reformulación
+    return nuevas <= previas or _jaccard(previas, nuevas) >= _MISMO_DATO   # solo acorta, o casi las mismas palabras
+
+
+def _detalle_del_cambio(antes: Fila, despues: Fila) -> str:
+    """Qué campos cambiaron en una fila, con el valor de antes y el de ahora, para el historial (U-96)."""
+    def corto(valor: object) -> str:
+        texto = " ".join(str(valor or "").split())
+        return texto if len(texto) <= 160 else texto[:157] + "..."
+    campos = [c for c in (*CAMPOS_DE_DATO, "estado", "notes") if _plano(antes.get(c)) != _plano(despues.get(c))]
+    etiqueta = dict(ACTIVITY_COLUMNS)
+    return "; ".join(f"{etiqueta.get(c, c)}: «{corto(antes.get(c))}» → «{corto(despues.get(c))}»" for c in campos)
+
+
 def _pide_eliminar(fila: Fila) -> bool:
     return bool(_ELIMINACION.search(_plano(fila.get("notes")) + " " + _plano(fila.get("estado"))))
 
@@ -99,6 +144,12 @@ def _pareja(anterior: Fila, nueva: Fila, revisar: list[dict[str, str]],
         antes, ahora = anterior.get(campo), nueva.get(campo)
         if _vacio(ahora) or _plano(antes) == _plano(ahora):
             continue
+        if campo in _CAMPOS_DE_TEXTO and not _vacio(antes) and _reformulado(antes, ahora):
+            continue                                  # U-92: el modelo lo escribió de otra forma; el dato es el mismo
+        if (campo in _CAMPOS_DE_TEXTO and _plano(anterior.get("estado")) != "confirmado"
+                and (_clave(anterior), campo) not in protegidos):
+            seguros[campo] = str(ahora)               # U-96: en una fila sin confirmar, el texto nuevo se aplica solo
+            continue
         if _vacio(antes) or (reemplaza and (_clave(anterior), campo) not in protegidos):
             seguros[campo] = str(ahora)
         else:
@@ -107,7 +158,17 @@ def _pareja(anterior: Fila, nueva: Fila, revisar: list[dict[str, str]],
     vigente.update(seguros)
     propuesta = copy.deepcopy(vigente)
     propuesta.update(conflictos)
+    notas = str(nueva.get("notes") or "").strip()
+    if notas and notas != str(anterior.get("notes") or "").strip():
+        sin_pendientes = not conflictos and (_clave(anterior), "notes") not in protegidos
+        if _plano(anterior.get("estado")) != "confirmado" and sin_pendientes:
+            vigente["notes"] = propuesta["notes"] = notas      # U-92: en una fila pendiente la nota es el comentario
+        else:
+            propuesta["notes"] = notas
+            conflictos["notes"] = notas
     for campo, valor in conflictos.items():
+        if campo == "notes":
+            continue
         revisar.append({"tipo": "dato_distinto", "actividad": nombre, "campo": campo,
                         "anterior": str(anterior.get(campo) or ""), "propuesto": valor, "fuente": fuente})
     if _plano(nueva.get("estado")) == "contradictorio":
@@ -116,12 +177,92 @@ def _pareja(anterior: Fila, nueva: Fila, revisar: list[dict[str, str]],
                         "propuesto": "contradictorio", "fuente": fuente})
     elif not conflictos and confirma and _plano(anterior.get("estado")) == "pendiente":
         vigente["estado"] = propuesta["estado"] = "confirmado"
+    if "notes" in conflictos:
+        revisar.append({"tipo": "dato_distinto", "actividad": nombre, "campo": "notes",
+                        "anterior": str(anterior.get("notes") or ""), "propuesto": notas, "fuente": fuente})
     cambio = vigente != anterior
     if cambio and fuente:
         vigente["fuente"] = propuesta["fuente"] = _fuente_sumada(str(anterior.get("fuente") or ""), fuente)
     elif conflictos and fuente:
         propuesta["fuente"] = _fuente_sumada(str(anterior.get("fuente") or ""), fuente)
     return vigente, propuesta, cambio
+
+
+def _mismo_alcance(a: Fila, b: Fila) -> bool:
+    """¿Las dos filas dicen la misma cantidad, o alguna no dice ninguna? (U-92)"""
+    cantidad_a, cantidad_b = a.get("quantity"), b.get("quantity")
+    return _vacio(cantidad_a) or _vacio(cantidad_b) or _numeros(cantidad_a) == _numeros(cantidad_b)
+
+
+def _puntaje_de_nombres(anterior: Fila, nueva: Fila) -> float:
+    """Qué tanto se parecen los nombres de dos filas.
+
+    Un nombre corto contenido en otro largo con la misma cantidad («Control Horizontal» y «Control horizontal GNSS»)
+    cuenta como la misma actividad (U-92)."""
+    a, b = _palabras(anterior), _palabras(nueva)
+    puntaje = _jaccard(a, b)
+    corto, largo = (a, b) if len(a) <= len(b) else (b, a)
+    if len(corto) >= 2 and corto <= largo and _mismo_alcance(anterior, nueva):
+        return max(puntaje, _MISMA_ACTIVIDAD)
+    return puntaje
+
+
+def anclar_filas(nuevas: Any, vigente: list[dict] | None) -> int:
+    """Devuelve a cada fila nueva el nombre de la fila vigente que el modelo dijo actualizar (`fila_existente`) (U-94).
+
+    La fila vigente se identifica por su posición (1, 2, 3…), que no cambia aunque el modelo reescriba los nombres.
+    Un número inválido, repetido o sin fila vigente se ignora: esa fila sigue el camino de siempre. El campo
+    `fila_existente` se quita de todas las filas porque no forma parte de la tabla. Devuelve cuántas se ancló.
+    """
+    if not isinstance(nuevas, list):
+        return 0
+    usadas: set[int] = set()
+    ancladas = 0
+    for fila in nuevas:
+        if not isinstance(fila, dict):
+            continue
+        numero = fila.pop("fila_existente", 0)
+        if isinstance(numero, bool) or not isinstance(numero, int) or numero in usadas:
+            continue
+        if not vigente or not 1 <= numero <= len(vigente) or not isinstance(vigente[numero - 1], dict):
+            continue
+        nombre = str(vigente[numero - 1].get("activity") or "")
+        if nombre:
+            usadas.add(numero)
+            fila["activity"] = nombre
+            ancladas += 1
+    return ancladas
+
+
+def _parejas_por_parecido(previas: list[tuple[int, Fila]], candidatas: list[Fila], emparejadas: dict[int, int],
+                          sin_pareja: list[int]) -> list[tuple[int, int]]:
+    """Parejas (índice anterior, índice nuevo) de nombres reformulados: las más parecidas primero (U-92)."""
+    posibles = sorted(
+        ((_puntaje_de_nombres(f, candidatas[n]), i, n)
+         for i, f in previas if i not in emparejadas for n in sin_pareja
+         if _clave(candidatas[n]) and not _pide_eliminar(candidatas[n])),
+        key=lambda t: (-t[0], t[1], t[2]))
+    usadas_i: set[int] = set()
+    usadas_n: set[int] = set()
+    parejas: list[tuple[int, int]] = []
+    for puntaje, i, n in posibles:
+        if puntaje < _MISMA_ACTIVIDAD:
+            break
+        if i not in usadas_i and n not in usadas_n:
+            usadas_i.add(i)
+            usadas_n.add(n)
+            parejas.append((i, n))
+    # por descarte: lo que sobra se junta si cada una es la mejor candidata de la otra y con ventaja clara
+    quedan = [(p, i, n) for p, i, n in posibles if i not in usadas_i and n not in usadas_n and p >= _PARECIDO_MINIMO]
+    for puntaje, i, n in quedan:
+        if i in usadas_i or n in usadas_n:
+            continue
+        rivales = [p for p, a, b in quedan if (a == i) != (b == n)]
+        if all(puntaje - otro >= _VENTAJA_MINIMA for otro in rivales):
+            usadas_i.add(i)
+            usadas_n.add(n)
+            parejas.append((i, n))
+    return parejas
 
 
 def integrar(anterior: list[Any], nueva: list[Any],
@@ -141,6 +282,9 @@ def integrar(anterior: list[Any], nueva: list[Any],
             emparejadas[libre] = n
         else:
             sin_pareja.append(n)               # sin pareja por nombre, o el mismo nombre repetido
+    for i, n in _parejas_por_parecido(previas, candidatas, emparejadas, sin_pareja):
+        emparejadas[i] = n
+        sin_pareja.remove(n)
     quitar: list[int] = []
     for i, n in emparejadas.items():
         fila = candidatas[n]
@@ -152,7 +296,8 @@ def integrar(anterior: list[Any], nueva: list[Any],
         nuevo_vigente, nuevo_propuesto, cambio = _pareja(anterior[i], fila, revisar, protegidos)
         vigente[i], propuesta[i] = nuevo_vigente, nuevo_propuesto
         if cambio:
-            aplicado.append(f"se actualizó «{anterior[i].get('activity', '')}»")
+            detalle = _detalle_del_cambio(anterior[i], nuevo_vigente)
+            aplicado.append(f"se actualizó «{anterior[i].get('activity', '')}» ({detalle})")
     vistas = {_clave(f) for _, f in previas}
     for n in sin_pareja:
         fila = candidatas[n]
@@ -222,7 +367,7 @@ def _pendiente_de(anterior: Mapping[str, Any]) -> tuple[list[tuple[str, str, Fil
     propuesta = [f for f in pendiente if isinstance(f, dict)]
     parejas = _emparejar(base, propuesta)
     datos = [(_clave(fila), campo, propuesta[i], propuesta[i].get(campo))
-             for fila, i in parejas if i is not None for campo in CAMPOS_DE_DATO
+             for fila, i in parejas if i is not None for campo in (*CAMPOS_DE_DATO, "notes")
              if not _vacio(propuesta[i].get(campo)) and _plano(propuesta[i].get(campo)) != _plano(fila.get(campo))]
     emparejadas = {i for _, i in parejas if i is not None}
     sobrantes = [f for i, f in enumerate(propuesta) if i not in emparejadas]

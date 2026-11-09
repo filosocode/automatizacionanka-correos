@@ -10,7 +10,7 @@ Estas reglas valen **igual en los tres modos** de operación:
 
 Si una regla cambia, se cambia **aquí primero**, se sube la versión y se actualizan el código y la skill. Las pruebas `tests/test_paridad_modos.py` fallan si alguno de los tres se separa. El procedimiento completo está en `docs/ESTANDAR_CAMBIOS.md`.
 
-**Versión de las reglas: 9**
+**Versión de las reglas: 10**
 
 ## Reglas
 
@@ -24,13 +24,13 @@ relaciones visuales pendientes se marca parcial en todos los modos; no se convie
 | R1 | Se descarta sin analizar **solo ruido evidente**: todos los mensajes del cliente en el hilo deben tener una señal inequívoca de automatización (remitente no-reply, `List-Unsubscribe`, `Auto-Submitted`, `Precedence` masivo, spam de Gmail). Un remitente humano nunca se descarta por esta vía, aunque Gmail lo ponga en Promociones. Un aviso automático que mencione una cotización sí se analiza. |
 | R2 | Un adjunto ilegible nunca descarta un hilo: si el texto no parece una solicitud pero hay adjuntos que no se pudieron leer, el caso va a revisión manual. |
 | R3 | Todo descarte guarda su motivo y puede revisarse y rescatarse por una persona. |
-| R4 | La estructura de Drive es `{año}/{cliente}/{solicitud}`. La carpeta padre configurada es la del año vigente. No se crean carpetas si la solicitud es de un año distinto al de la carpeta padre. |
-| R5 | Los clientes se comparan sin importar mayúsculas, tildes ni sufijos societarios al final (S.A.S., Ltda., S.A., Inc., Corp., etc.). Si exactamente una carpeta de cliente coincide, se reutiliza; si hay varias parecidas, decide una persona. |
+| R4 | La estructura de Drive es `{año}/{mes}/{cliente}/{solicitud}/anexos` dentro de la carpeta padre configurada (la carpeta «Proyectos», no la de un año). El año y el mes (por ejemplo `11-Noviembre`) se crean solos con la fecha en que se emite la T. La carpeta de la solicitud se llama `T&E{número} {proyecto}` desde que se emite la T y no se renombra al aprobarse (el número es el mismo). No se crea nada si la carpeta padre configurada es la de un año. |
+| R5 | Los clientes se comparan sin importar mayúsculas, tildes ni sufijos societarios al final (S.A.S., Ltda., S.A., Inc., Corp., etc.). Si exactamente una carpeta de cliente coincide, se reutiliza; si hay varias parecidas, decide una persona. El cliente se busca en todos los meses del año y del anterior: si ya existe en otro mes, el mes en curso crea su carpeta con el mismo nombre sin pedir confirmación. |
 | R6 | Nunca se crea una carpeta de cliente nueva sin confirmación de una persona (la única excepción es R9). |
 | R7 | La carpeta del proyecto solo se crea sola con un cliente confirmado (por una persona, en este hilo o en otro hilo del mismo remitente) cuya carpeta ya existe. Si no, el caso queda esperando aprobación. |
 | R8 | Los correos al cliente siempre son borradores con revisión humana, hasta que la medición con correos reales justifique otra cosa. |
 | R9 | Cuando una persona envía desde el dashboard la respuesta de un caso con información suficiente, la carpeta del proyecto se crea sola con el cliente que ya tiene el caso (el confirmado por una persona o el del mismo remitente). Si ese cliente no tiene carpeta y no existe ninguna igual ni parecida, se crea también la carpeta del cliente. Si hay una carpeta de cliente parecida, o una solicitud del cliente con nombre parecido o con el mismo archivo adjunto, no se crea nada y decide una persona. Esto lo hace el dashboard (Python) igual en los tres modos; ChatGPT Work nunca crea carpetas. |
-| R10 | Al crear la carpeta del proyecto se llena con el contenido de la plantilla de Drive: toda la documentación que envió el cliente (PDF, Word, Excel, KMZ, KML, DWG, shapefile, imágenes y demás adjuntos; solo se omiten los logos incrustados en firmas) y una hoja de Google con la tabla de actividades. No se pisa ningún archivo existente y un fallo al copiar no deshace la carpeta. Lo hace el código Python (dashboard y piloto); ChatGPT Work no crea ni llena carpetas. El PDF de alcance generado con el resumen queda pendiente. |
+| R10 | Al crear la carpeta del proyecto se llena, dentro de su subcarpeta `anexos`, con el contenido de la plantilla de Drive: toda la documentación que envió el cliente (PDF, Word, Excel, KMZ, KML, DWG, shapefile, imágenes y demás adjuntos; solo se omiten los logos incrustados en firmas) y una hoja de Google con la tabla de actividades. No se pisa ningún archivo existente y un fallo al copiar no deshace la carpeta. Lo hace el código Python (dashboard y piloto); ChatGPT Work no crea ni llena carpetas. El PDF de alcance generado con el resumen queda pendiente. |
 | R11 | Antes de la T el cliente puede escribir sin código. Cuando una persona acepta el proyecto en el dashboard se asigna la **T** (`T` + año de 2 cifras + consecutivo de 3, p. ej. `T26145`; al aprobarse pasa a `T&E26145`, mismo número); ni Work ni Python generan ni inventan el código. Desde la T, la tabla de actividades **solo se actualiza con un mensaje posterior a la T** que venga del **contacto registrado** (quien escribió primero) **y** cite el código del caso. Un mensaje de otra persona, de otro dominio o sin el código **no modifica la tabla**: lo que propone queda como propuesta pendiente y el dashboard avisa. Quien analiza informa `requested_by_email`, `requested_by_name` y `cited_codes`; el dashboard valida. Una edición del comercial en el dashboard no pide validación ni envía correos: solo deja historial. Los correos a quien no es el contacto registrado nunca incluyen el código. |
 | R12 | El estado de cada actividad es exactamente `confirmado`, `pendiente` o `contradictorio`, sin texto añadido. Solo es `confirmado` si todos los datos esenciales de esa fila (ubicación, magnitud y unidad, entregable, plazo o restricción y, cuando aplique, método y precisión) están explícitos en el correo o los adjuntos; si falta alguno es `pendiente` y en `notes` se anota qué falta, la fuente revisada y el siguiente paso. `contradictorio` cuando las fuentes discrepan sobre uno o más parámetros; `notes` debe aclarar que el conflicto se refiere al parámetro y no necesariamente a toda la actividad, enumerar valores y fuentes con localizadores, indicar qué decisión falta y qué rol debe resolverla (cliente/contratante o equipo técnico de Anka). No se inventan responsables nominales. Las diferencias que correspondan al criterio técnico de Anka o a archivos ilegibles/parciales pasan primero a revisión interna; no se preguntan al cliente antes de esa revisión. El dashboard normaliza cualquier otro texto a uno de los tres valores. |
 | R13 | Un caso que espera la respuesta del cliente muestra cuánto lleva esperando (en días hábiles). A los 3 días hábiles sin respuesta se marca para recordar y a los 7 para **llamar al cliente**. Una persona puede activar, caso por caso (apagado por defecto), hasta **2 recordatorios automáticos** (a 1 y 3 días hábiles del correo con las preguntas), solo de lunes a viernes de 8:00 a 17:00, con texto fijo y neutro (sin cifras ni el código de la oferta) y solo al contacto registrado. Se detienen en cuanto el cliente responde por cualquier vía, o si una persona pausa el seguimiento o anota que ya habló con el cliente. Los envía el dashboard, no Work. Es la única excepción a R8. |
@@ -41,17 +41,17 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
 
 ```json reglas
 {
-  "version": 9,
+  "version": 10,
   "descarte": {
     "senales": ["remitente_no_reply", "list_unsubscribe", "auto_submitted", "precedence_masivo", "spam_gmail"],
     "requiere_todos_los_mensajes": true,
     "remitente_humano_nunca": true
   },
   "drive": {
-    "ruta": "{año}/{cliente}/{solicitud}",
+    "ruta": "{año}/{mes}/{cliente}/{solicitud}/anexos",
     "sufijos_societarios": ["s a s", "s a", "s l", "e u", "sas", "ltda", "sa", "sl", "eu", "inc", "corp", "llc", "cia"],
     "crear_cliente_automatico": false,
-    "bloquear_si_anio_distinto": true,
+    "bloquear_si_padre_es_un_anio": true,
     "proyecto_requiere_cliente_confirmado": true
   },
   "correo_al_cliente": {"envio_automatico": false},
@@ -75,13 +75,13 @@ Las pruebas leen este bloque y lo comparan con el código y con `SKILL.md`. No l
     "R1": "solo ruido evidente",
     "R2": "un adjunto ilegible nunca descarta",
     "R3": "todo descarte guarda su motivo",
-    "R4": "{año}/{cliente}/{solicitud}",
+    "R4": "{año}/{mes}/{cliente}/{solicitud}/anexos",
     "R5": "sin importar mayúsculas, tildes ni sufijos societarios",
     "R6": "nunca crees una carpeta de cliente nueva sin confirmación",
     "R7": "la carpeta del proyecto solo se crea con un cliente confirmado",
     "R8": "los correos al cliente siempre son borradores",
     "R9": "al enviar la respuesta desde el dashboard",
-    "R10": "se llena con el contenido de la plantilla de Drive",
+    "R10": "con el contenido de la plantilla de Drive",
     "R11": "solo se actualiza con un mensaje posterior a la T",
     "R12": "enumera valores y fuentes con localizadores",
     "R13": "los recordatorios por falta de respuesta los envía el dashboard"

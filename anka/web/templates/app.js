@@ -48,6 +48,7 @@
 
   const lienzo = document.getElementById('particulas');
   if (!lienzo || !window.requestAnimationFrame || !window.matchMedia) return;
+  if (document.body.dataset.fondo === 'simple') return;
   const OPACIDAD = 0.6, OPACIDAD_LINEA = 0.35, INTENSIDAD = 0.7, MAX_DPR = 2;
   const COLORES = { claro: ['#2f4d73', '#f47c27'], oscuro: ['#8fb0dc', '#f9a668'] };   // el oscuro aclara el azul: #2f4d73 casi no se ve sobre #0d1117
   const INTERVALO = 1000 / NODOS.fps;
@@ -191,13 +192,22 @@ document.addEventListener('submit', event => {
   const completar = document.getElementById('completar-tabla');
   if (editor && agregar && completar) completar.addEventListener('click', evento => { evento.preventDefault(); agregar.click(); });
   if (editor && agregar && location.hash === '#editar-tabla') agregar.click();
-  // Mostrar u ocultar las filas de más en el resumen de actividades.
-  const verTodas = document.getElementById('ver-todas'), resumen = document.getElementById('tabla-resumen');
-  if (verTodas && resumen) verTodas.addEventListener('click', () => {
-    const abrir = verTodas.getAttribute('aria-expanded') !== 'true';
-    verTodas.setAttribute('aria-expanded', String(abrir));
-    resumen.dataset.todas = abrir ? 'si' : 'no';
-  });
+  // Las casillas «¿Preguntar?» de la tabla ponen o quitan su pregunta en el cuadro único de preguntas (U-103.7).
+  const cuadroPreguntas = document.querySelector('textarea[name="questions"]');
+  const clave = texto => texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  document.querySelectorAll('input[name="preguntar_fila"]').forEach(casilla => casilla.addEventListener('change', () => {
+    if (!cuadroPreguntas) return;
+    const lineas = cuadroPreguntas.value.split('\n');
+    if (casilla.checked) {
+      if (!lineas.some(linea => clave(linea) === clave(casilla.value))) {
+        cuadroPreguntas.value = (cuadroPreguntas.value.trim() ? cuadroPreguntas.value.replace(/\s+$/, '') + '\n' : '') + casilla.value;
+      }
+      const preguntar = document.querySelector('input[name="decision"][value="ask_client"]');
+      if (preguntar && !preguntar.disabled) preguntar.checked = true;
+    } else {
+      cuadroPreguntas.value = lineas.filter(linea => clave(linea) !== clave(casilla.value)).join('\n');
+    }
+  }));
   // Esc cierra el menú Ajustes y devuelve el foco a su título.
   const ajustes = document.getElementById('ajustes');
   if (ajustes) ajustes.addEventListener('keydown', evento => {
@@ -749,4 +759,26 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
     const avisos = new EventSource('/eventos');
     avisos.onmessage = () => poll();
   }
+})();
+
+// El tiempo de espera avanza sin recargar la página ni interrumpir lo que se está leyendo.
+(() => {
+  const filas = document.querySelectorAll('[data-recepcion-avance]');
+  if (!filas.length) return;
+  function actualizar() {
+    filas.forEach(fila => {
+      const fecha = Date.parse(fila.dataset.recepcionAvance);
+      if (!Number.isFinite(fecha)) return;
+      const minutos = Math.max(0, Math.floor((Date.now() - fecha) / 60000));
+      const horas = Math.floor(minutos / 60), resto = minutos % 60;
+      fila.querySelector('[data-tiempo-avance]').textContent = minutos < 1 ? 'Hace menos de un minuto' :
+        minutos < 60 ? `Hace ${minutos} min` : `Hace ${horas} h${resto ? ` ${resto} min` : ''}`;
+      const demora = fila.dataset.esperaWork === 'true' && minutos >= Number(fila.dataset.alertaMin);
+      fila.querySelector('[data-demora-avance]').hidden = !demora;
+      if (demora) fila.querySelector('[data-siguiente-avance]').textContent =
+        'Revisar la tarea de análisis: aún no ha entregado un resultado.';
+    });
+  }
+  actualizar();
+  setInterval(actualizar, 60000);
 })();

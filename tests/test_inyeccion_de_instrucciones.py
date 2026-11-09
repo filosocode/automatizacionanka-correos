@@ -97,8 +97,10 @@ class LaSalidaNoActuaSola(unittest.TestCase):
 
     def test_solo_el_envio_de_la_persona_y_los_recordatorios_hablan_con_gmail_send(self):
         """R8: los únicos módulos con `.send(` son el que envía lo que una persona revisó, el envío de la librería de
-        correo y los recordatorios opcionales de R13."""
-        permitidos = {"anka/infra/mail.py", "anka/servicios/case_actions.py", "anka/servicios/followup_reminders.py"}
+        correo, los recordatorios opcionales de R13 y el aviso interno del piloto de Work, que Anka se envía a su
+        propia cuenta (From = To) y nunca al cliente."""
+        permitidos = {"anka/infra/mail.py", "anka/servicios/aviso_work.py", "anka/servicios/case_actions.py",
+                      "anka/servicios/followup_reminders.py"}
         encontrados = set()
         for ruta in (RAIZ / "anka").rglob("*.py"):
             arbol = ast.parse(ruta.read_text(encoding="utf-8"))

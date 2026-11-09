@@ -4,32 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>
-(10) Mis casos - Anka
+(10) Solicitudes de cotización - Anka
 </title>
 <script src="/static/tema.HUELLA.js">
 </script>
 <link rel="stylesheet" href="/static/style.HUELLA.css">
 <noscript>
 <style>
-.editor-tabla { display: block; } .fila-resumen.extra { display: table-row !important; } .ver-todas-boton, #agregar-fila, #editar-boton { display: none; }
+.editor-tabla { display: block; } #agregar-fila, #editar-boton { display: none; }
 </style>
 </noscript>
 </head>
-<body>
+<body data-fondo="simple">
 <canvas id="particulas" aria-hidden="true" hidden="">
 </canvas>
 <a class="skip-link" href="#contenido">
 Saltar al contenido
 </a>
 <header>
-<a class="brand" href="/" aria-current="page" aria-label="Anka, mis casos: 10 con novedades">
+<a class="brand" href="/" aria-current="page" aria-label="Anka, solicitudes de cotización: 10 con novedades">
 <img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38">
 <div>
 <strong>
 Anka
 </strong>
 <span>
-Mis casos
+Solicitudes de cotización
 </span>
 </div>
 <span class="nav-count">
@@ -141,10 +141,10 @@ Mensaje de prueba
 <div class="page-head">
 <div>
 <h1 class="titulo-principal">
-Mis casos
+Solicitudes de cotización
 </h1>
 <p>
-10 casos · 9 esperan algo de ti. El primero es el más urgente.
+10 solicitudes · 9 esperan algo de ti. La primera es la más urgente.
 </p>
 </div>
 </div>
@@ -341,7 +341,7 @@ Ver caso
 <form class="filtro-casos" method="get" action="/" role="search" data-filtro-etapas="">
 <div class="buscar-casos">
 <label for="buscar-casos">
-Buscar un caso
+Buscar una solicitud
 </label>
 <div class="buscar-fila">
 <input id="buscar-casos" name="q" type="search" value="" placeholder="Buscar por proyecto, cliente o servicio">
@@ -351,7 +351,7 @@ Buscar
 </div>
 </div>
 <p id="n-visibles" class="solo-lectores" role="status">
-4 casos a la vista
+4 solicitudes a la vista
 </p>
 <div class="chips" role="group" aria-label="Filtrar por etapa">
 <button type="submit" name="etapa" value="atender" class="chip-filter" data-etapa="atender" aria-pressed="true">
@@ -477,11 +477,11 @@ Decidir cómo seguir
 </li>
 </ol>
 <div id="sin-casos" class="empty" hidden="">
-No hay casos con esos filtros.
+No hay solicitudes con esos filtros.
 </div>
 <details class="more">
 <summary>
-Ver números y resumen (10 casos)
+Ver números y resumen (10 solicitudes)
 </summary>
 <div class="grid kpis">
 <div class="kpi">
@@ -569,7 +569,7 @@ Batimetría
 <section class="section">
 <div class="section-head">
 <h2>
-Etapa de los casos
+Etapa de las solicitudes
 </h2>
 <span class="meta">
 Ahora

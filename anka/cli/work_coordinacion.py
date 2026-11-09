@@ -23,6 +23,7 @@ from anka.dominio.configuracion import es_modo_work
 from anka.dominio.coordinacion_work import ALERTA, Plan, instante, plan_desde_config
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra import settings
+from anka.infra.drive_exchange import DriveExchange
 from anka.infra.google_services import services
 from anka.infra.instancia_unica import leer_informacion
 from anka.infra.logging_setup import get_logger
@@ -31,6 +32,8 @@ from anka.servicios import trabajos_work
 from anka.servicios.coordinacion import NOMBRE_DEL_CANDADO, Coordinador
 from anka.servicios.recepcion import CUENTA, PENDIENTE
 from anka.servicios.work_import import dashboard_upsert
+from anka.servicios.work_visual import publicar_vistas
+from anka.servicios.aviso_work import avisar
 
 log = get_logger(__name__)
 
@@ -56,7 +59,9 @@ def nuevo_coordinador() -> Coordinador:
     def importar(thread_id: str, message_id: str) -> dict[str, Any]:
         return importar_aislado(gmail, subir, instantaneas, thread_id, message_id, {cuenta})
 
-    return Coordinador(drive, importar, paquete_version=paquete_work.version_del_paquete())
+    return Coordinador(drive, importar, paquete_version=paquete_work.version_del_paquete(),
+                       publicar_vistas=partial(publicar_vistas, gmail, DriveExchange(drive)),
+                       avisar_work=partial(avisar, gmail) if config.get('work_ready_notice_enabled') is True else None)
 
 
 def ejecutar_un_ciclo(config: Mapping[str, Any] | None = None) -> dict[str, Any]:

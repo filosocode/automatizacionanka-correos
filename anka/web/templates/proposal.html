@@ -6,7 +6,8 @@
     {% for change in changes %}<li><span class="chip {{ change.kind }}">{{ {'nueva': 'Nueva', 'quitar': 'Se quitaría'}.get(change.kind, 'Distinta') }}</span> {{ change.activity }}{% if change.detail %} · {{ change.detail }}{% endif %}</li>
     {% endfor %}
   </ul>
-  {% if grupos %}<div class="motivos-propuesta" aria-label="Por qué Work propone estos cambios">
+  {% if grupos %}<details class="detalle-propuesta"><summary>Ver el detalle de cada cambio y su respaldo</summary>
+  <div class="motivos-propuesta" aria-label="Por qué Work propone estos cambios">
     {% for grupo in grupos %}<section class="motivos-actividad">
       <h3>{{ grupo.actividad or 'Actividad sin nombre' }}</h3>
       <ul class="lista-motivos">
@@ -24,7 +25,8 @@
       </ul>
     </section>
     {% endfor %}
-  </div>{% endif %}
+  </div>
+  </details>{% endif %}
   <form method="post" action="/proposal">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
     <div class="toolbar">

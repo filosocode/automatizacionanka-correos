@@ -52,7 +52,7 @@ class BuscarEnTodosLosCasos(Base):
         pagina = paginas.render_index(q="obra 449 de")
         self.assertEqual(pagina.count('class="queue-row"'), 1)
         self.assertIn("/case?thread_id=t-0449", pagina)
-        self.assertIn("1 caso a la vista", pagina)
+        self.assertIn("1 solicitud a la vista", pagina)
         self.assertNotIn("Se muestran", pagina)
         self.assertNotIn("Ver 200 más", pagina)
 
@@ -62,7 +62,7 @@ class BuscarEnTodosLosCasos(Base):
         self.assertEqual(paginas.render_index(q="OBRA 7 DE PRUEBA").count('class="queue-row"'), 1)
         vacia = paginas.render_index(q="no existe esto")
         self.assertEqual(vacia.count('class="queue-row"'), 0)
-        self.assertIn("Ningún caso coincide", vacia)
+        self.assertIn("Ninguna solicitud coincide", vacia)
         self.assertNotRegex(vacia, r'<div id="sin-casos" class="empty" hidden>')            # el aviso se ve sin JavaScript
         self.assertRegex(paginas.render_index(), r'<div id="sin-casos" class="empty" hidden>')
 
@@ -71,7 +71,7 @@ class BuscarEnTodosLosCasos(Base):
         self.sembrar(450)
         pagina = paginas.render_index(q="obra")
         self.assertEqual(pagina.count('class="queue-row"'), 200)
-        self.assertRegex(pagina, r'id="n-visibles" class="solo-lectores" role="status">450 casos a la vista<')
+        self.assertRegex(pagina, r'id="n-visibles" class="solo-lectores" role="status">450 solicitudes a la vista<')
         self.assertIn("Se muestran 200 de 450 casos.", pagina)
         self.assertIn('href="/?q=obra&amp;etapa=atender&amp;mostrar=400"', pagina)      # «Ver más» conserva la búsqueda
         segunda = paginas.render_index(q="obra", etapa="atender", mostrar=400)
@@ -88,7 +88,7 @@ class BuscarEnTodosLosCasos(Base):
         self.db.commit()
         esperando = paginas.render_index(etapa="esperando")
         self.assertEqual(esperando.count('class="queue-row"'), 5)
-        self.assertIn("5 casos a la vista", esperando)
+        self.assertIn("5 solicitudes a la vista", esperando)
         self.assertRegex(esperando, r'value="esperando" class="chip-filter" data-etapa="esperando" aria-pressed="true"')
         todos = paginas.render_index(etapa="todos")
         self.assertEqual(todos.count('class="queue-row"'), 200)
@@ -110,7 +110,7 @@ class BuscarEnTodosLosCasos(Base):
         self.sembrar(5)
         pagina = paginas.render_index(q="obra")
         self.assertIn('<form class="filtro-casos" method="get" action="/" role="search" data-filtro-etapas>', pagina)
-        self.assertIn('<label for="buscar-casos">Buscar un caso</label>', pagina)
+        self.assertIn('<label for="buscar-casos">Buscar una solicitud</label>', pagina)
         self.assertIn('id="buscar-casos" name="q" type="search" value="obra"', pagina)
         # el primer botón del formulario es «Buscar» (lo que envía la tecla Intro) y conserva la etapa elegida
         primer_boton = re.search(r"<button[^>]*>", pagina[pagina.index("filtro-casos"):]).group(0)  # type: ignore[union-attr]

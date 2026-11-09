@@ -48,7 +48,7 @@ def _en_python(modo, estado, ultimo_mensaje):
     config = test_config() | {"active_mode": modo}
     with tempfile.TemporaryDirectory() as temp, patch.object(settings, "DATA_DIR", Path(temp)), \
             patch("anka.servicios.pipeline.load_config", return_value=config), \
-            patch("anka.servicios.pipeline.services", return_value=(gmail, FakeDriveTree({"Minera Sur": {}}))), \
+            patch("anka.servicios.pipeline.services", return_value=(gmail, FakeDriveTree.de_clientes({"Minera Sur": {}}))), \
             patch("anka.servicios.pipeline.analizar_hilo", return_value=complete_analysis()):
         db = store.connect()
         _semilla(db, estado, ultimo_mensaje)

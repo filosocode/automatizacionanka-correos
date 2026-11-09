@@ -2,6 +2,7 @@
 
 | Documento | Para quién | Qué contiene |
 |---|---|---|
+| [RESULTADO_PILOTO_ANKA_02_2026-11-03.md](RESULTADO_PILOTO_ANKA_02_2026-11-03.md) | Quien evalúa el piloto | Evidencia, resultados supervisados y mejoras pendientes |
 | [ENTREGA_V1_0.md](ENTREGA_V1_0.md) | Quien recibe y opera la V1.0 | Estado, matriz de aceptación, limitaciones, operación y revisión humana de la entrega supervisada |
 | [WORK_DRIVE_OCR.md](WORK_DRIVE_OCR.md) | Quien configura Work | Preparación automática de adjuntos de Gmail y extracción OCR en Drive |
 | `INVESTIGACION_MEJORAS.md` (borrador local, si existe) | Quien desarrolla | Investigación local previa; no forma parte de esta implementación |
@@ -15,6 +16,7 @@
 | [`PILOTO_6C_ACTIVACION.md`](PILOTO_6C_ACTIVACION.md) | Quien autorice el piloto automático de un solo mensaje ficticio | Verificar, activar, supervisar y desactivar el coordinador T-55 con puntos de parada y reversión |
 | [`TAREA_WORK_COLA.md`](TAREA_WORK_COLA.md) | Quien vaya a crear la tarea de Work que recoge un trabajo por ejecución | Texto propuesto (no es una tarea creada): qué hace Work y qué hace Python con PENDIENTES y CERRADOS (T-53) |
 | [`paquete_work/`](paquete_work/) | Quien mantenga el paquete que Work lee desde Drive | Fuentes del paquete de referencia del contrato (T-54): LEEME, T-52, formato de retorno e instrucciones de una ejecución |
+| [`DESPLIEGUE_VPS.md`](DESPLIEGUE_VPS.md) | Quien publique el dashboard en un servidor | Borrador sin probar: HTTPS con Caddy, contraseña, servicio y copias (U-85) |
 | [`PILOTO_ACEPTACION.md`](PILOTO_ACEPTACION.md) | Quien prueba | Checklist de la prueba de aceptación en Work |
 | [`PRUEBA_MANUAL_T41.md`](PRUEBA_MANUAL_T41.md) | Quien prueba | Lista de pasos de la prueba en Work que falta de T-41: KMZ, ZIP y adjunto grande |
 | [`PLAN_PILOTO_LECTURA.md`](PLAN_PILOTO_LECTURA.md) | Dueño del proyecto y quien revisa | Plan del piloto supervisado de lectura: qué se mide, criterios de decisión y herramienta de cobertura |

@@ -212,13 +212,15 @@ class TablaAcumulada(Contexto):
         self.assertEqual([a["activity"] for a in despues["pending_model_activities"]], ["Levantamiento topográfico"])
         self.assertEqual(despues["revision_de_tabla"][0]["tipo"], "eliminacion_pedida")
 
-    def test_una_sustitucion_ambigua_conserva_las_dos_versiones_sin_fusionar(self):
-        despues = self.seguimiento([fila("Levantamiento topográfico del predio", "10", "ha", "confirmado",
+    def test_un_nombre_parecido_se_junta_con_su_fila_y_la_cantidad_distinta_queda_como_propuesta(self):
+        despues = self.seguimiento([fila("Levantamiento topográfico del predio", "12", "ha", "confirmado",
                                          entregable="Plano", fuente="correo 2")])
         self.assertEqual([a["activity"] for a in despues["activities"]], ["Levantamiento topográfico", "Batimetría"])
         self.assertEqual([a["activity"] for a in despues["pending_model_activities"]],
-                         ["Levantamiento topográfico", "Batimetría", "Levantamiento topográfico del predio"])
-        self.assertEqual(despues["revision_de_tabla"][0]["tipo"], "sustitucion_ambigua")
+                         ["Levantamiento topográfico", "Batimetría"])
+        self.assertEqual(despues["pending_model_activities"][0]["quantity"], "12")
+        self.assertEqual(despues["activities"][0]["quantity"], "10")
+        self.assertEqual(despues["revision_de_tabla"][0]["tipo"], "dato_distinto")
 
     def test_dos_filas_con_el_mismo_nombre_pero_distintas_se_marcan_como_duplicadas(self):
         despues = self.seguimiento([

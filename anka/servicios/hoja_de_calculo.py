@@ -23,7 +23,7 @@ from anka.dominio.errores import ErrorDeAnka
 from anka.dominio.hoja import build_case_workbook
 from anka.infra.google_services import services
 from anka.infra.logging_setup import get_logger
-from anka.servicios.drive_layout import clean_folder_name
+from anka.servicios.drive_layout import carpeta_de_anexos, clean_folder_name
 from anka.servicios.repositorio import RepositorioDeCasos
 
 log = get_logger(__name__)
@@ -134,7 +134,8 @@ def sincronizar_hoja(
         caso, repo.versiones_de_tabla(thread_id), repo.primer_mensaje(thread_id),
         datetime.now().astimezone().strftime("%Y-%m-%d %H:%M"))
     proyecto = (caso.analysis or {}).get("project_name") or "Solicitud"
-    resultado = publicar(drive, caso.folder_id, nombre_de_hoja(proyecto), contenido, caso.sheet_id, caso.sheet_modified)
+    destino = carpeta_de_anexos(drive, caso.folder_id)["id"]      # la hoja vive en `anexos` (U-102)
+    resultado = publicar(drive, destino, nombre_de_hoja(proyecto), contenido, caso.sheet_id, caso.sheet_modified)
     repo.guardar_hoja(thread_id, resultado.id, resultado.modificada)
     url = f"https://docs.google.com/spreadsheets/d/{resultado.id}"
     mensaje = ("Hoja de Google creada en la carpeta del proyecto." if resultado.creada

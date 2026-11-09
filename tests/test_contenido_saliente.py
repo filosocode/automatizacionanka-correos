@@ -61,9 +61,11 @@ class Caracterizacion(Base):
         rutas = {str(p.relative_to(RAIZ)).replace("\\", "/"): p.read_text(encoding="utf-8")
                  for p in (RAIZ / "anka").rglob("*.py")}
         con_escritura = sorted(ruta for ruta, texto in rutas.items() if patron.search(texto))
-        self.assertEqual(con_escritura, ["anka/infra/mail.py", "anka/servicios/case_actions.py",
-                                         "anka/servicios/followup_reminders.py"])
+        self.assertEqual(con_escritura, ["anka/infra/mail.py", "anka/servicios/aviso_work.py",
+                                         "anka/servicios/case_actions.py", "anka/servicios/followup_reminders.py"])
         for ruta in con_escritura:
+            if ruta == "anka/servicios/aviso_work.py":
+                continue   # aviso interno de la cuenta de Anka a sí misma (From = To): no sale al cliente
             self.assertIn("reply_email(", rutas[ruta], ruta)
 
 
@@ -141,6 +143,36 @@ class ProteccionDeContenido(Base):
         with patch("anka.servicios.case_actions.reply_email", distinto), self.assertRaises(ErrorDeAnka):
             case_actions.save_dashboard_draft("t-1", "Hola, recibimos su solicitud.")
         self.assert_nada_salio(antes)
+
+    # Cubre: U-84
+    def test_destinatario_distinto_si_actualiza_la_version_del_caso(self):
+        with store.transaccion() as db:
+            db.execute("UPDATE quotes SET updated_at='2026-01-01T00:00:00-05:00' WHERE thread_id='t-1'")
+        for cabecera in self.gmail.thread["messages"][0]["payload"]["headers"]:
+            if cabecera["name"].casefold() == "from":
+                cabecera["value"] = "nuevo@example.com"
+        caso = case_actions.resolve_case_recipient("t-1")["quote"]
+        self.assertEqual(caso["recipient"], "nuevo@example.com")
+        self.assertNotEqual(caso["updated_at"], "2026-01-01T00:00:00-05:00")
+        self.assertEqual(self.gmail.envios_pedidos(), 0)
+
+    # Cubre: U-84
+    def test_rechazo_con_reloj_distinto_no_cambia_la_version_del_caso(self):
+        with store.transaccion() as db:
+            db.execute("UPDATE quotes SET updated_at='2026-01-01T00:00:00-05:00' WHERE thread_id='t-1'")
+        antes = self.lo_que_cambio()
+        original = reply_email
+
+        def alterado(thread, recipient, body, own=None, **kw):
+            return original(thread, recipient, body + "\nTexto no aprobado.", own, **kw)
+
+        with patch("anka.servicios.case_actions.reply_email", alterado):
+            with self.assertRaises(ErrorDeAnka):
+                case_actions.send_dashboard_reply("t-1", "Hola, recibimos su solicitud.")
+            self.assert_nada_salio(antes)
+            with self.assertRaises(ErrorDeAnka):
+                case_actions.save_dashboard_draft("t-1", "Hola, recibimos su solicitud.")
+            self.assert_nada_salio(antes)
 
     def test_un_cambio_posterior_a_la_aprobacion_es_otro_envio_con_otra_huella(self):
         with patch.object(case_actions, "_send_through_gmail", side_effect=[{"id": "g-1"}, {"id": "g-2"}]) as enviar:

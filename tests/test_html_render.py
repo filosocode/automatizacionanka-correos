@@ -241,6 +241,18 @@ class Pages(unittest.TestCase):
 
 # Cubre: U-01
 class GoldenTests(Pages):
+    # Cubre: U-82, U-103
+    def test_guia_enlaza_evidencia_alcance_y_siguiente_accion_sin_enviar(self):
+        for name, html in self.pages.items():
+            if not name.startswith("case_") or name == "case_no_existe":
+                continue
+            with self.subTest(name=name):
+                self.assertNotIn('aria-label="Guía de revisión del caso"', html)     # la guía de tres pasos se retiró (U-103.10)
+                self.assertIn('id="analisis-original"', html)
+                self.assertIn('href="#p-conv"', html)
+                self.assertIn('id="alcance"', html)
+                self.assertIn("Nada se envía al cliente sin tu aprobación.", html)
+
     def test_every_page_matches_its_snapshot(self):
         update = os.getenv("UPDATE_GOLDEN") == "1"
         GOLDEN_DIR.mkdir(exist_ok=True)

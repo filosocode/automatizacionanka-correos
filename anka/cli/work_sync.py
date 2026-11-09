@@ -1,4 +1,4 @@
-"""Puente de solo lectura: importa al dashboard los borradores que Work deja en Gmail. Nunca envía ni modifica Gmail."""
+"""Importa los borradores de Work al dashboard y retira los internos respaldados. Nunca envía correos."""
 from __future__ import annotations
 from anka.infra.clientes_google import ClienteGmail
 import argparse
@@ -39,6 +39,7 @@ from anka.infra.work_heartbeat import other_bridge_running, wait_for_next_cycle,
 from anka.servicios.lectura_de_adjuntos import verificar_lectura
 from anka.dominio.cancelacion_work import MensajeCancelado
 from anka.servicios.work_import import dashboard_upsert
+from anka.servicios.limpieza_work import retirar_importado
 
 MOTIVO_MAX = 300
 SIN_BLOQUE = "Borrador de Anka sin el bloque obligatorio"
@@ -448,12 +449,12 @@ def importar_aislado(gmail: ClienteGmail, upsert: Callable[[str], None], instant
     par = (thread_id, message_id)
     resultado: dict[str, Any] = {"thread_id": thread_id, "message_id": message_id, "borradores": [],
                                  "ignorados": [], "rechazados": []}
-    candidatos: list[tuple[str, int, tuple[dict, str]]] = []
+    candidatos: list[tuple[str, int, tuple[dict, str], str]] = []
     for draft in _list_drafts(gmail):
         if draft.get("message", {}).get("threadId") != thread_id:
             continue                                  # otro hilo: ni se descarga
         try:
-            _, stamp, found = _leer_borrador(gmail, draft, {}, instantaneas, propias, par)
+            id_borrador, stamp, found = _leer_borrador(gmail, draft, {}, instantaneas, propias, par)
         except Exception as exc:                      # Gmail no respondió: sin origen verificado no se importa
             return {**resultado, "resultado": "error_de_origen", "borrador": draft["id"],
                     "error": type(exc).__name__}
@@ -461,7 +462,7 @@ def importar_aislado(gmail: ClienteGmail, upsert: Callable[[str], None], instant
             lista = "ignorados" if found.causa in ("mensaje_ajeno", "sin_bloque") else "rechazados"
             resultado[lista].append({"borrador": draft["id"], "causa": found.causa})
         elif isinstance(found, tuple):
-            candidatos.append((draft["id"], stamp, found))
+            candidatos.append((draft["id"], stamp, found, id_borrador or ""))
         else:
             resultado["ignorados"].append({"borrador": draft["id"], "causa": "sin_bloque"})
     resultado["borradores"] = [item[0] for item in candidatos]
@@ -469,15 +470,18 @@ def importar_aislado(gmail: ClienteGmail, upsert: Callable[[str], None], instant
         return {**resultado, "resultado": "ambiguo"}
     if not candidatos:
         return {**resultado, "resultado": "rechazado" if resultado["rechazados"] else "sin_borrador"}
-    draft_id, stamp, (payload, raw) = candidatos[0]
+    draft_id, stamp, (payload, raw), id_borrador = candidatos[0]
+    codificado = _codificar_para_importar(payload, raw, stamp)
     try:
-        upsert(_codificar_para_importar(payload, raw, stamp))
+        upsert(codificado)
     except MensajeCancelado:
         return {**resultado, "resultado": "mensaje_cancelado"}      # T-83: la lápida del mensaje manda
     except (Exception, SystemExit) as exc:
         log.warning("Importación aislada fallida (%s)", type(exc).__name__, exc_info=True)
         return {**resultado, "resultado": "fallo_de_importacion", "error": type(exc).__name__}
-    return {**resultado, "resultado": "importado", "avisos": len(payload.get("_avisos_del_puente", []))}
+    retirado = retirar_importado(gmail, codificado, propias, id_borrador)
+    return {**resultado, "resultado": "importado", "borrador_retirado": retirado,
+            "avisos": len(payload.get("_avisos_del_puente", []))}
 
 
 def sync_once(gmail: ClienteGmail, upsert: Callable[[str], None], checkpoint: Path,
@@ -515,11 +519,14 @@ def sync_once(gmail: ClienteGmail, upsert: Callable[[str], None], checkpoint: Pa
         if not _hace_falta_importar(state, thread, origin, digest):
             continue
         try:
-            upsert(_codificar_para_importar(payload, raw, stamp))
+            codificado = _codificar_para_importar(payload, raw, stamp)
+            upsert(codificado)
             state[thread] = digest
             state.setdefault("_origins", {})[thread] = origin
             _anotar_minimo(minimos, pendientes_minimos, thread)
             _guardar_estado(checkpoint, state)
+            id_borrador = cache.get(payload.get("draft_id"), ("",))[0]
+            retirar_importado(gmail, codificado, propias, id_borrador)
             updated += 1
             print(f"Dashboard actualizado: {thread}", flush=True)
         except MensajeCancelado:
@@ -585,7 +592,7 @@ def _pide_importacion_aislada(parser: argparse.ArgumentParser, args: argparse.Na
 
 
 def main() -> None:
-    """Importa los borradores de Work al dashboard una vez (`--once`) o cada N segundos, solo leyendo Gmail."""
+    """Importa al dashboard una vez o cada N segundos y retira solo borradores internos importados y respaldados."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--seconds", type=int, default=30)
@@ -611,7 +618,7 @@ def main() -> None:
     cache: dict = {}
     seen: set[str] = set()
     gmail = None
-    print("Sincronización Work activa. Solo lectura de Gmail y escritura en dashboard local.", flush=True)
+    print("Sincronización Work activa. Importación y limpieza de borradores internos respaldados.", flush=True)
     while True:
         config = load_config()
         if not es_modo_work(config):

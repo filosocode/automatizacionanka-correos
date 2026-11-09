@@ -1,13 +1,14 @@
 """Seguridad menor del dashboard y de la lectura de archivos (U-61): avisos de la dirección, origen, puerto, formato de
 `gmail_url`, tope de píxeles, ZIP acotados, `base_url` ajeno y auditoría de dependencias.
 
-Cubre: U-61
+Cubre: U-61, U-85
 """
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
 import ast
 import io
+import os
 import unittest
 import zipfile
 from pathlib import Path
@@ -112,6 +113,26 @@ class PuertoDelHost(unittest.TestCase):
             antes = atender("GET", "/", cabeceras={"Host": "127.0.0.1:9999"})[0]
             post = atender("POST", "/mode", formulario(mode="local"), {"Host": "127.0.0.1:9999"})[0]
         self.assertEqual((antes, post), (403, 403))
+
+
+# Cubre: U-85
+class HostsPermitidosPorConfiguracion(unittest.TestCase):
+    def test_sin_la_variable_un_dominio_se_rechaza(self):
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop(seguridad.VARIABLE_HOSTS_PERMITIDOS, None)
+            self.assertFalse(seguridad.is_local_host_header("anka.example.com"))
+
+    def test_con_la_variable_se_acepta_el_dominio_y_siguen_los_locales(self):
+        with patch.dict("os.environ", {seguridad.VARIABLE_HOSTS_PERMITIDOS: "Anka.example.com, otro.example.com"}):
+            self.assertTrue(seguridad.is_local_host_header("anka.example.com", 8765))
+            self.assertTrue(seguridad.is_local_host_header("otro.example.com"))
+            self.assertTrue(seguridad.is_local_host_header("127.0.0.1:8765", 8765))
+            self.assertFalse(seguridad.is_local_host_header("anka.example.com:9999", 8765))
+            self.assertFalse(seguridad.is_local_host_header("evil.example"))
+
+    def test_entradas_con_puerto_o_ruta_se_ignoran(self):
+        with patch.dict("os.environ", {seguridad.VARIABLE_HOSTS_PERMITIDOS: "malo.example:80,x.example/ruta,,"}):
+            self.assertEqual(seguridad.hosts_permitidos(), seguridad.LOCAL_HOSTS)
 
 
 # Cubre: U-61

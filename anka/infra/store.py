@@ -15,8 +15,10 @@ from typing import Any, cast
 from pathlib import Path
 
 from anka.dominio.analisis import Analisis
+from anka.dominio.areas_calculadas import areas_solas_del_caso
 from anka.dominio.caso import VERSION_DEL_RESUMEN, load_analysis, resumen_de_analisis
 from anka.dominio.preguntas import conservar_rondas
+from anka.dominio.activities import normalizar_tablas
 from anka.dominio.reloj import ahora_iso, clave_de_orden
 from anka.dominio.tabla_acumulada import describir, integrar_seguimiento
 from anka.dominio.status import ESTADOS_CON_RESPUESTA_SUGERIDA, QuoteStatus, sql_in
@@ -25,7 +27,6 @@ from anka.infra.recepcion_store import (
     migration_recepcion_auditoria, migration_recepcion_gmail, migration_recepcion_segura,
 )
 from anka.infra.trabajos_work_store import migration_trabajos_work
-
 
 QUOTES_EXTRA_COLUMNS = ("first_seen_at", "updated_at", "draft_id", "draft_body", "sent_at")
 
@@ -743,12 +744,12 @@ def case_events(db: sqlite3.Connection, thread_id: str) -> list[sqlite3.Row]:
     filas.sort(key=lambda fila: clave_de_orden(fila["occurred_at"])[0])      # por instante, no por texto (U-62)
     return filas
 
-
 def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, recipient: str,
          analysis: Analisis, folder_id: str | None = None,
          sent_message_id: str | None = None) -> None:
     """Crea o actualiza el caso (estado, destinatario, análisis) conservando lo que ya tenía, como la primera vista."""
     now = ahora_iso("seconds")
+    normalizar_tablas(analysis)
     received_at = analysis.get("received_at") or now
     begin_immediate(db)      # leer y escribir bajo el mismo candado: el puente no pisa al dashboard (U-42)
     previous = db.execute(
@@ -756,10 +757,7 @@ def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, reci
     ).fetchone()
     resumen_de_la_tabla = ""
     if previous:
-        try:
-            old = json.loads(previous["analysis_json"])
-        except (TypeError, ValueError):
-            old = {}
+        old = load_analysis(previous["analysis_json"])
         conservar_rondas(old, analysis, last_id)       # T-59: lo que se le preguntó al cliente no se pierde
         suma = integrar_seguimiento(old, analysis, previous["first_seen_at"], previous["last_inbound_id"], last_id)
         resumen_de_la_tabla = describir(suma) if suma else ""
@@ -772,6 +770,8 @@ def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, reci
                 analysis["pending_model_activities"] = analysis.get("activities") or []
             analysis["activities"] = old.get("activities", [])
             analysis["manual_edit"] = old["manual_edit"]
+    if not analysis.get("manual_edit") and (nota := areas_solas_del_caso(analysis)):   # U-101
+        record_event(db, thread_id, "table_merge", "analisis", f"area-{last_id}", nota, received_at)
     routing = analysis.get("routing") or {}
     contact = (routing.get("original_sender_email") or recipient or "").strip().casefold()
     db.execute("""INSERT INTO quotes (

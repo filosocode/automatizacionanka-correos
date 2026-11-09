@@ -1,5 +1,32 @@
 # Requisitos
 
+### U-103 · La tabla del caso solo muestra lo que falta
+**Estado: implementado** (pruebas en `tests/test_pantalla_por_pasos.py`, clase `TablaDelPrototipo`). Decisiones: D-194 y D-195. Reemplaza la vista de lectura de U-31.3 y de U-83 (cuatro columnas, ficha, «Ver todas»); el editor completo de U-14 no cambia.
+
+**Motivo.** La revisión de UX de 2026-11-09 señaló la tabla de actividades como lo más recargado del caso: cuatro columnas, una ficha por fila, «Ver todas», ayuda en prosa y las confirmadas mezcladas con lo que sí exige acción. El comercial solo necesita saber qué actividad le falta resolver y qué dato.
+
+1. **Dos columnas: «Actividad» y «Qué hace falta».** Una fila por cada actividad **«Por completar»** o **«Contradictoria»**. Las «Completa» no se dibujan en esta vista.
+2. **Qué hace falta, puntual y en una línea.** En «Por completar»: «Falta ubicación, cantidad, …» con los datos esenciales de R12 vacíos o «No indicado» (ubicación, cantidad, unidad, entregable, plazo); si no falta ninguno, lo que dicen las notas; si tampoco hay notas, «Falta confirmar la actividad». En «Contradictoria»: las notas (el parámetro y las fuentes en conflicto) o, sin notas, «Hay información que no coincide: revísala en «Corregir la tabla»». Las notas se acortan a unos 160 caracteres; completas siguen en el editor. No se muestra la etiqueta de estado ni las fuentes por fila: una fila contradictoria lleva una franja de color distinta de la pendiente.
+3. **Encabezado.** Título, la línea «N actividades · M por completar» (o «todas completas») y, a la derecha, «+ Agregar» y «Corregir la tabla». Si no hay filas por mostrar, en lugar de la tabla una sola línea: «Todas las actividades están completas.». Sin actividades detectadas no hay tabla.
+4. **Sin extras.** Sin «Ver todas», sin ficha «Ver detalle y fuentes», sin «Cómo leer esta tabla» ni nota de lectura sobre la tabla. «Corregir la tabla» abre el editor con **todas** las actividades, con «Cómo leer los estados», «Más datos», guardado con motivo, exportación e historial, como antes.
+5. En pantallas angostas cada fila es una tarjeta con las etiquetas «Actividad» y «Qué hace falta». La tabla conserva su nombre accesible.
+
+6. **Tercera columna «¿Preguntar?»**, solo cuando el caso espera la decisión de revisión técnica (la tarjeta «Ahora» trae el cuadro de preguntas). Una casilla por fila, con el nombre accesible «Preguntar al cliente por {actividad}». Con otro estado o con la lectura pendiente la tabla sigue con dos columnas.
+7. **La casilla alimenta el cuadro único.** Marcada significa «su pregunta está en el cuadro «Preguntas para el cliente»» (U-31.5, D-94: sigue habiendo un solo cuadro y ningún selector por pregunta en el contrato). Marcar agrega la línea al cuadro y elige «Hay que preguntarle al cliente»; desmarcar la quita; lo que la persona edite a mano en el cuadro no se reescribe. La pregunta sale así: pendiente con datos esenciales vacíos, «¿Podría indicar la ubicación y el plazo de «{actividad}»?»; pendiente con solo notas, «{actividad}: {nota}. ¿Nos lo pueden aclarar?»; contradictoria, «{actividad}: {nota}. ¿Cuál es el dato correcto?». No se inventa ningún dato: todo sale de los datos esenciales (R12) y de las notas. Las tres redacciones se pueden editar en el cuadro.
+8. **Marcadas de entrada** las filas pendientes con datos esenciales vacíos (el cliente puede responderlas). **Sin marcar** las contradictorias (R12: las diferencias de criterio técnico de Anka pasan primero a revisión interna) y las pendientes sin un dato concreto. Nada sale sin revisión (R8): la casilla solo prepara el cuadro.
+9. **Sin duplicados.** Una pregunta igual (sin distinguir mayúsculas ni signos) a una que ya está en el cuadro no se agrega otra vez, y una que ya se le pidió al cliente y sigue sin respuesta (U-98) no se marca sola. Sin JavaScript, al enviar la decisión las casillas marcadas se suman al cuadro con la misma regla.
+10. **Una sola vez lo que falta.** Desaparecen la línea «Por resolver: Faltan: N actividades por completar…» del resumen y la repetición en «Ahora»: la tabla ya lo dice. La frase «Faltan:» de «Ahora» queda solo para lo que la tabla no muestra (archivos por revisar o por leer, y lo pendiente del cliente tras su respuesta). La tarjeta «Resumen de la solicitud» (resumen en una línea, enlaces «Revisar alcance · Ver archivos y fuentes · Siguiente acción») se retira: el orden es pasos → tabla → «Ahora», y «Ver análisis original y guía de revisión» queda plegado después de «Ahora». Reemplaza la guía de tres pasos de U-82.
+
+**Pruebas.** E-103a · Con actividades confirmadas y pendientes solo aparecen las no confirmadas. E-103b · Todas confirmadas: la línea «Todas las actividades están completas.» y ninguna tabla. E-103c · «Falta …» lista los datos esenciales vacíos; contradictoria muestra sus notas. E-103d · El editor sigue trayendo todas las filas. E-103e · Con la decisión pendiente, cada fila trae su casilla; las pendientes con datos faltantes vienen marcadas y su pregunta está en el cuadro; las contradictorias, no. E-103f · Marcar y desmarcar agrega y quita la línea; una pregunta repetida no se agrega. E-103g · Sin JavaScript, enviar «Hay que preguntarle al cliente» con casillas marcadas suma sus preguntas al cuadro. E-103h · La pantalla no dice «Por resolver» ni «Faltan: N actividades»; los archivos por revisar sí se dicen en «Ahora».
+
+### T-134 · Revisión clara y pendientes coherentes
+
+La solicitud presenta resumen breve, tabla, pendientes y acción en ese orden. Los detalles técnicos y notas extensas quedan desplegables y el fondo no distrae. Una pregunta resuelta con evidencia en la última ronda respondida no vuelve a proponerse; los conteos y textos usan las mismas candidatas, sin duplicar faltantes ya clasificados como internos. El correo anterior no aparece como listo para reenviar mientras se revisa una respuesta nueva. «Información validada» requiere validación efectiva del expediente, no solo una evaluación de recepción suficiente. No se borran borradores ni historial y se preserva cualquier texto recuperado de un formulario fallido.
+
+### T-133 · Control documental antes de confirmar suficiencia
+
+El dashboard muestra «Datos contradictorios», «Requiere revisión visual», «Lectura pendiente» o «Lectura completa» según evidencia disponible; sin evidencia dice «Lectura sin verificar». Una lectura completa no certifica comprensión. La confirmación de suficiencia se rechaza ante contradicciones pendientes o cobertura parcial/visual sin revisión personal registrada. La revisión personal no resuelve contradicciones por sí sola. Los lectores conservan fuentes y señalan discrepancias entre área declarada y calculada de un mismo elemento KML (tolerancia de T-126), conteos explícitos de predios frente a inventarios Excel identificados, hojas ocultas y fórmulas sin valor. No se infieren métodos técnicos ni se modifican cantidades. Se reutiliza el OCR/visión disponible: no se instala ni activa un modelo visual nuevo. La validación de interpretación de Work sigue requiriendo prueba independiente.
+
 Cada requisito tiene un identificador estable. Las reglas operativas **R1 a R13** viven en
 `skills/anka-cotizaciones-correo/references/reglas_operativas.md` y cuentan como requisitos con su propio id.
 `check_spec.py` comprueba que **todo requisito tenga al menos una prueba** (etiqueta `Cubre:` en los
@@ -58,7 +85,7 @@ Detecta la respuesta del cliente (en el mismo hilo o en otro), avisa, reconcilia
 persona editó, y permite dar la información por suficiente.
 
 ### F1-07 · Carpeta en Drive
-Crea la carpeta del proyecto con la estructura `{año}/{cliente}/{solicitud}` y su contenido (R4 a R10), sin crear
+Crea la carpeta del proyecto con la estructura `{año}/{mes}/{cliente}/{solicitud}/anexos` y su contenido (R4 a R10; ver U-102), sin crear
 carpetas de cliente por error.
 
 ## Transversales
@@ -687,7 +714,7 @@ la carpeta de Drive.
 2. **Los cuatro pasos reales arriba**, los de siempre: «Revisar y aclarar», «Información validada», «T emitida» y «T&E aprobada», con «Paso N de 4». No cambia
    ningún estado ni transición (`transiciones.json`, `STATUS_LABELS` y `_case_stage` quedan como están). La carpeta de Drive no es un paso: se crea al emitir la T
    (ver el requisito de emisión) y se anota en «T emitida» («carpeta creada»).
-3. **«Actividades detectadas» siempre visible**, con la tabla del prototipo: una vista compacta de tres columnas (Actividad, Cantidad, Estado) y, en el estado, una etiqueta («Completa»,
+3. **«Actividades detectadas» siempre visible** (la vista de lectura la redefine U-103: dos columnas y solo lo que falta; lo que sigue describe la versión anterior), con la tabla del prototipo: una vista compacta de cuatro columnas (Actividad, Cantidad, Entregable, Estado; ampliación U-83) y, en el estado, una etiqueta («Completa»,
    «Por completar», «Contradictoria») y el motivo en letra pequeña cuando falta algo. Encima, la línea «N actividades · M por completar» (o «todas completas»). Con más de 8 filas se ven 8
    y «Ver todas (N)»; las incompletas siempre se ven. La cabecera de la tarjeta lleva el título, el resumen y, a la derecha, «+ Agregar» y «Editar tabla»; las filas incompletas llevan una franja de color. «Editar tabla» abre la tabla completa de siempre (las 10 columnas, con «Más datos»); allí siguen el guardado con motivo,
    «Quitar», la exportación y el historial de cambios de U-21. Lo que cambia es qué se ve primero; qué se guarda, no.
@@ -721,7 +748,7 @@ la carpeta de Drive.
     opciones grandes elegibles (no botones sueltos): «Con esto alcanza» y «Hay que preguntarle al cliente» (no hay una tercera: guardar decisiones por pregunta ya no existe en la pantalla). Las opciones son tarjetas sin círculo de selección, con una línea de explicación, y **no viene ninguna marcada**: el cuadro de preguntas aparece al elegir «Hay que preguntarle al cliente» (reemplaza lo que U-30 decía de marcarla de entrada). Hay un botón por opción, que aparece al elegirla: «Confirmar que alcanza» (pide confirmación, U-80.3) y «Preparar el correo». Sin JavaScript el formulario funciona igual. Los pasos se dibujan como una barra de avance: hechos y actual en el color de la
     marca, pendientes en gris, y el actual con el texto en negrita.
 
-14. **Encabezado del prototipo.** «← Mis casos» (U-32), el nombre del proyecto, una línea «cliente · correo · recibido el …» y la insignia del estado. El párrafo largo de resumen sale del
+14. **Encabezado del prototipo.** «← Solicitudes de cotización» (U-32), el nombre del proyecto, una línea «cliente · correo · recibido el …» y la insignia del estado. El párrafo largo de resumen sale del
     encabezado: en la decisión pasa a la tarjeta como «Qué pide:» (máximo unas 320 letras).
 15. **La tarjeta «Ahora» existe en todos los pasos.** Es una sola, la primera tras los pasos: la decisión (revisar), el correo por enviar, la emisión de la T o el aviso del estado
     (esperando al cliente, T emitida, carpeta lista). Lleva la etiqueta «Ahora», no se pega al desplazarse (reemplaza esa parte de U-09) y, si otra tarjeta ya dice lo mismo, el aviso de
@@ -743,7 +770,7 @@ la carpeta de Drive.
     no se pudo leer»), una frase de qué pasó y qué hacer, el botón «Ver el caso» cuando el caso existe, y el identificador del borrador, el hilo y el motivo técnico plegados en «Ver el detalle técnico».
 20. **Ningún estado se queda sin tarjeta «Ahora» (D-88).** Todo caso muestra una tarjeta o un aviso de siguiente paso. Los que antes no tenían: «Descartada» (cómo rescatarla), «Hilo no
     disponible», «Respuesta enviada» sin espera (cómo escribir otro correo), «Envío interrumpido» (revisar antes de reenviar) y, para cualquier otro, el nombre del estado, «Este caso no necesita nada
-    de ti ahora» y «Volver a Mis casos».
+    de ti ahora» y «Volver a Solicitudes de cotización».
 
 21. **Lo escrito no se pierde si la acción falla (D-89).** En enviar, guardar borrador, emitir la T, decidir con preguntas y guardar la tabla, lo que la persona escribió se guarda en memoria
     (nunca en disco, 15 minutos, hasta 50 casos, sin el token de seguridad) antes de procesarlo. Si la acción falla con un aviso o con un error del servidor, al volver al caso el mensaje, el número de
@@ -778,9 +805,9 @@ la carpeta de Drive.
 - E3a · Enviar el formulario con «Con esto alcanza» o con «Hay que preguntarle al cliente» deja el mismo estado e historial que antes; con preguntas, el caso pasa a «Revisa el correo» con ellas.
 - E3b · No hay una tarjeta ni un selector por pregunta: hay un cuadro `questions` con las sugeridas una por línea, que solo incluye las que el análisis sugiere para el cliente; las internas se cuentan en una línea.
 - E3b · Con el cuadro vacío, «Continuar» pide escribir al menos una pregunta. Lo escrito se conserva al volver a decidir antes de enviar (U-27).
-- E3b · La vista compacta de actividades tiene tres columnas con etiqueta y motivo; «Editar tabla» abre la tabla completa y guardar funciona como antes.
+- E3b · La vista compacta de actividades muestra solo las por completar o contradictorias en dos columnas (U-103); «Editar tabla» abre la tabla completa y guardar funciona como antes.
 - E3b · Mientras la tarjeta «Ahora» con la decisión está en la página, el aviso «Falta tu decisión de revisión técnica» no se dibuja (lo dice la tarjeta) y no se queda pegado arriba.
-- E4 · El encabezado muestra «← Mis casos», el proyecto, «cliente · correo · recibido el …» y la insignia del estado; no trae el párrafo de resumen.
+- E4 · El encabezado muestra «← Solicitudes de cotización», el proyecto, «cliente · correo · recibido el …» y la insignia del estado; no trae el párrafo de resumen.
 - E4 · Cada paso tiene su tarjeta «Ahora»: revisar (decisión con «Qué pide»), correo (formulario), información validada (emisión de la T), y aviso para esperando, T emitida y carpeta; nunca dos.
 - E4 · El aviso de siguiente paso no se pega al desplazarse y no se dibuja junto a una tarjeta que ya dice lo mismo.
 - E4 · La tarjeta de correo trae «Para», «Mensaje (puedes editarlo)», la línea de cuántas preguntas lleva, «Enviar al cliente» (principal, con confirmación y resumen) y «Guardar borrador en Gmail»; enviar y guardar hacen lo mismo que antes.
@@ -804,7 +831,7 @@ la carpeta de Drive.
 
 **Vacíos abiertos:** ninguno que bloquee la etapa 1. Prueba manual en Work: no aplica (Work no cambia).
 
-### U-32 · Una sola entrada, «Mis casos», sin barra de pestañas
+### U-32 · Una sola entrada, «Solicitudes de cotización», sin barra de pestañas
 **Estado: en implementación, pasos 1 y 2** (pruebas en `tests/test_pantalla_por_pasos.py`). Decisiones: D-91, D-92, D-93. Reemplaza lo que U-80.6 decía de la navegación; no quita ninguna función de U-11, U-13, U-16, U-19 ni U-25.
 
 **Motivo.** La persona responsable del producto no quiere la barra «Resumen / Solicitudes / Descartadas / Archivo»: pide un flujo amigable, práctico, sin tantas variaciones ni desvíos. Tres agentes de
@@ -812,27 +839,27 @@ evaluación (UX, técnico y gestión, 2026-10-14) encontraron que Resumen y Soli
 con identificadores ilegibles) es de auditoría. La persona respondió que rescata descartados «casi nunca» y que Archivo y estadísticas los consulta solo ella, casi nunca.
 
 **Qué debe cumplirse (paso 1)**
-1. **Sin barra de pestañas.** El encabezado trae la marca, que es el enlace a «Mis casos» (la página de inicio, antes «Resumen») con el contador de casos con novedades, y a la derecha el tema, el estado
-   del puente, «Ajustes» y «Revisar ahora». La página de inicio se titula «Mis casos» y sigue mostrando «Qué hacer hoy», las novedades, el aviso de borradores y los contadores.
+1. **Sin barra de pestañas.** El encabezado trae la marca, que es el enlace a «Solicitudes de cotización» (la página de inicio, antes «Resumen») con el contador de casos con novedades, y a la derecha el tema, el estado
+   del puente, «Ajustes» y «Revisar ahora». La página de inicio se titula «Solicitudes de cotización» y sigue mostrando «Qué hacer hoy», las novedades, el aviso de borradores y los contadores.
 2. **Lo raro, fuera del camino.** «Descartadas» es un enlace discreto al pie de toda página («Correos descartados»); «Casos eliminados (archivo)» vive dentro de «Ajustes». Las direcciones `/requests`, `/discarded` y
-   `/archive` no cambian, y desde «Mis casos» se sigue llegando a la lista completa.
-3. **Un solo «volver».** Desde un caso, «← Mis casos» lleva a la entrada; los avisos de los casos sin acción dicen «Volver a Mis casos».
-4. **Accesibilidad.** La marca lleva `aria-current="page"` en «Mis casos»; su nombre accesible dice cuántos casos tienen novedades.
+   `/archive` no cambian, y desde «Solicitudes de cotización» se sigue llegando a la lista completa.
+3. **Un solo «volver».** Desde un caso, «← Solicitudes de cotización» lleva a la entrada; los avisos de los casos sin acción dicen «Volver a Solicitudes de cotización».
+4. **Accesibilidad.** La marca lleva `aria-current="page"` en «Solicitudes de cotización»; su nombre accesible dice cuántos casos tienen novedades.
 
-**Paso 2 (pedido por la persona el mismo día, D-92): la página principal es la lista de casos.** La página de inicio («Mis casos», con el título grande) lista todos los casos, uno por fila, del más urgente al menos y,
+**Paso 2 (pedido por la persona el mismo día, D-92): la página principal es la lista de casos.** La página de inicio («Solicitudes de cotización», con el título grande) lista todos los casos, uno por fila, del más urgente al menos y,
 a igual urgencia, el más reciente; un proyecto con varios hilos ocupa una sola fila. Cada fila dice el proyecto, el cliente, en qué paso está (con los nombres de U-31.7) y trae un botón con verbo («Aclarar», «Decidir», «Emitir la T»,
-«Abrir») que lleva al caso; desde el caso, «← Mis casos» regresa a la lista. Encima de la lista, chips de etapa que son los contadores de antes («Por atender», «Esperando al cliente», «Listas para la T», «En cotización») y «Todos»;
+«Abrir») que lleva al caso; desde el caso, «← Solicitudes de cotización» regresa a la lista. Encima de la lista, chips de etapa que son los contadores de antes («Por atender», «Esperando al cliente», «Listas para la T», «En cotización») y «Todos»;
 al entrar está elegido «Por atender» si hay casos que esperan a la persona y «Todos» si no. Las novedades y el aviso de borradores de Work van en la misma página; las estadísticas siguen plegadas. Un cuadro «Buscar» (proyecto, cliente o servicio) filtra la lista, junto con los chips. Eliminar casos en lote y exportar a Excel, que se usan poco, viven en «Administrar casos» (`/requests`), al que se llega
 desde «Ajustes»: ya no hay un botón «Buscar o exportar» ni dos listas en el camino. Reemplaza lo de U-11 sobre la cola de cinco casos y el botón «Ver los N en Solicitudes».
 
 **Casos de aceptación**
 - E1 · El encabezado no tiene `<nav>` ni los enlaces «Resumen», «Solicitudes» y «Archivo»; la marca enlaza a `/` y marca la página actual; el contador de novedades está en la marca.
-- E1 · La página de inicio se titula «Mis casos»; toda página trae «Correos descartados» al pie; «Ajustes» trae «Casos eliminados (archivo)»; las tres direcciones antiguas siguen existiendo.
-- E1 · «← Mis casos» en el caso y «Volver a Mis casos» en los avisos llevan a `/`.
-- E2 · «Mis casos» lista todos los casos (no solo cinco), ordenados por urgencia y luego por fecha, con un solo botón con verbo por fila; un proyecto con varios hilos ocupa una fila; el título es un `h1` grande.
+- E1 · La página de inicio se titula «Solicitudes de cotización»; toda página trae «Correos descartados» al pie; «Ajustes» trae «Casos eliminados (archivo)»; las tres direcciones antiguas siguen existiendo.
+- E1 · «← Solicitudes de cotización» en el caso y «Volver a Solicitudes de cotización» en los avisos llevan a `/`.
+- E2 · «Solicitudes de cotización» lista todos los casos (no solo cinco), ordenados por urgencia y luego por fecha, con un solo botón con verbo por fila; un proyecto con varios hilos ocupa una fila; el título es un `h1` grande.
 - E2 · Los chips de etapa traen el número de casos de cada una y «Todos»; al entrar está elegido «Por atender» si hay casos por atender y «Todos» si no; elegir un chip muestra solo esas filas y, si no hay, dice que no hay casos en esa etapa.
 - E2 · El cuadro «Buscar» filtra las filas por proyecto, cliente o servicio, junto con el chip elegido; si nada coincide dice «No hay casos con esos filtros». No hay botón «Buscar o exportar».
-- E2 · «Ajustes» trae «Administrar casos (eliminar, exportar)» que lleva a `/requests`, que se titula «Administrar casos» y trae «← Mis casos»; las novedades y el aviso de borradores de Work siguen en la página principal.
+- E2 · «Ajustes» trae «Administrar casos (eliminar, exportar)» que lleva a `/requests`, que se titula «Administrar casos» y trae «← Solicitudes de cotización»; las novedades y el aviso de borradores de Work siguen en la página principal.
 
 ### U-33 · Lo que se le pide al cliente se lee como una petición, sin etiquetas internas
 **Estado: dashboard implementado; ajuste de la skill de Work pendiente de prueba manual en Work** (pruebas en `tests/test_preguntas_al_cliente.py`). Decisión: D-94. Acota U-26 y U-31.5.
@@ -864,7 +891,7 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 
 **Qué debe cumplirse**
 1. **Errores con salida.** Una acción del dashboard que falla por un `ErrorDeAnka` o un `ValueError` de Anka (no solo las que ya lo atrapaban) vuelve al caso con el mensaje y conserva lo escrito (U-31); `/mode` con un modo inválido y `/link` con un número ilegible no dan 500. Un `ErrorDeAnka` que llega
-   al servidor se muestra sin la frase «avisa con el código de error» (su texto ya dice qué hacer); un fallo inesperado la conserva. Las páginas de aviso (400, 403, 404, 500) ofrecen «Volver al caso» cuando se sabe cuál es y siempre «← Mis casos»; si la causa fue la autorización de Google ofrecen además el botón «Volver a conectar Google»,
+   al servidor se muestra sin la frase «avisa con el código de error» (su texto ya dice qué hacer); un fallo inesperado la conserva. Las páginas de aviso (400, 403, 404, 500) ofrecen «Volver al caso» cuando se sabe cuál es y siempre «← Solicitudes de cotización»; si la causa fue la autorización de Google ofrecen además el botón «Volver a conectar Google»,
    que pide confirmar y solo entonces abre la ventana de Google (D-27). Un caso inexistente en `GET /case` responde 404 con esa salida; un `config.json` incompleto al abrir un caso dice qué falta, en vez de un error genérico.
 2. **La T no se consume en falso.** Antes de asignar la T (D-08) «Emitir la T» comprueba el número (formato, caso sin código, número no repetido), la autorización de Google y el destinatario. Si algo falla ahí, no se asigna nada. Si después de emitir el correo no sale, la T queda, el mensaje dice la causa real
    (sin culpar a Gmail si fue la autorización) y el texto revisado vuelve al cuadro de «Respuesta al cliente». El diálogo de confirmación muestra el número tecleado y el destinatario, y avisa si el número no es el sugerido o si su año no es el actual.
@@ -876,7 +903,7 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 
 **Casos de aceptación**
 - E1 · Con Google sin autorización, `/send`, `/draft` y `/approve` redirigen al caso con el mensaje (303) y el texto escrito sigue disponible; `/mode` con «inventado» y `/link` con «abc» no devuelven 500.
-- E1 · `GET /case?thread_id=no-existe` es 404 y trae «← Mis casos»; un `ErrorDeAnka` en una acción es 500 sin «código de error» y con «Volver al caso»; un `RuntimeError` conserva el código y no muestra su detalle; un `AutorizacionDeGoogle` trae el botón «Volver a conectar Google» con confirmación.
+- E1 · `GET /case?thread_id=no-existe` es 404 y trae «← Solicitudes de cotización»; un `ErrorDeAnka` en una acción es 500 sin «código de error» y con «Volver al caso»; un `RuntimeError` conserva el código y no muestra su detalle; un `AutorizacionDeGoogle` trae el botón «Volver a conectar Google» con confirmación.
 - E2 · Sin Google, sin destinatario o con un número inválido, `issue_code_and_notify` falla y el caso sigue sin T; si el envío falla después, la T queda, el aviso lleva «⚠» y la causa, y el texto vuelve a la respuesta. El botón de emitir lleva los datos para el resumen (`data-resumen="emision"`, `data-para`, `data-sugerido`, `data-anio`).
 - E3 · El script de la página contiene `puedeRecargar()` con las cuatro condiciones y el aviso lleva `role="status"`.
 - E4 · Con una marca vieja `send_dashboard_reply` lanza «Este caso cambió desde que abriste la pantalla» sin llamar a Gmail; con la vigente o sin marca sigue su camino; la pantalla trae la marca en un campo oculto.
@@ -1050,14 +1077,14 @@ Fuera de alcance: guardar un borrador desde el dashboard sobre un caso `ready` o
 ### U-48 · El dashboard sigue ágil con cientos y miles de casos (Ola B1 del plan de backend)
 **Estado: implementado** (pruebas en `tests/test_rendimiento.py`); lo que quedó pendiente se cerró en U-49. Decisión: D-113 (ajustada por D-114). No cambia ningún texto ni estado, salvo el pie «Ver más» de las listas largas. No toca R8, D-27 ni la paridad de los tres modos.
 
-**Motivo.** Con 500 casos sintéticos, abrir «Mis casos» o un caso tardaba 2,3 a 5 s (la agrupación de proyectos comparaba todos contra todos con `difflib`), ocho pestañas a la vez 44 s, exportar todo a Excel 63 s, y cada página repetía ~48 KB de CSS. Cada pestaña con avisos en vivo consultaba la base una vez por segundo.
+**Motivo.** Con 500 casos sintéticos, abrir «Solicitudes de cotización» o un caso tardaba 2,3 a 5 s (la agrupación de proyectos comparaba todos contra todos con `difflib`), ocho pestañas a la vez 44 s, exportar todo a Excel 63 s, y cada página repetía ~48 KB de CSS. Cada pestaña con avisos en vivo consultaba la base una vez por segundo.
 
 **Qué debe cumplirse**
 1. **Agrupar proyectos sin comparar todos contra todos.** `agrupar` solo compara los pares que comparten un documento (mismo nombre y texto leído) o una palabra del nombre del proyecto con los mismos números; los demás nunca podían parecerse. Los grupos, su orden y su motivo son **idénticos** a los de comparar todos los pares (`agrupar_lento`, que las pruebas conservan como referencia). La comparación de nombres descarta antes lo que no puede llegar a 0,85 y recuerda sus respuestas.
 2. **El resultado se recuerda mientras nada cambie.** Las listas y el panel «Parece el mismo proyecto» usan `agrupar_en_cache`: la clave es el marcador de cambios (`change_marker`), los pares «No es el mismo proyecto» y los datos que leen las fichas (cliente confirmado, código, nombre y adjuntos de cada caso). Si cualquiera cambia, se recalcula. Se recuerdan posiciones, no casos: lo que se devuelve siempre contiene los casos recién leídos.
 3. **Excel lineal.** `build_workbook` escribe en modo de solo escritura: el tiempo crece en línea recta con las filas. Conserva el contenido celda por celda y el formato esencial: encabezado en negrita blanca sobre verde, color por estado de actividad, texto ajustado y arriba, filtro, primera fila y primeras cuatro columnas fijas y anchos de columna.
 4. **Índices en la base.** La migración 17 crea (con `IF NOT EXISTS`) los índices de la lista de casos (orden por «más reciente»), del estado, del código T, de los eventos por tipo y por fecha de registro, de los cambios y vínculos por estado y de las novedades sin leer. Solo aceleran lecturas: ningún dato cambia (la derivación de novedades conserva su orden de siempre con `ORDER BY rowid`).
-5. **Listas de a 200.** «Mis casos» y «Administrar casos» muestran las primeras 200 filas (un grupo de proyecto cuenta como una). Si hay más, debajo de la lista aparece «Se muestran N de M casos.» y el enlace «Ver K más» (`?mostrar=N+200`, que vuelve a mostrar todo lo anterior y, desde U-49, conserva la búsqueda y los filtros: ya no miran solo lo mostrado). Con 200 o menos casos la página es la de siempre. Los números de las etapas y el resumen cuentan todos los casos. El pie usa solo palabras ya permitidas (sin sinónimos retirados de D-97).
+5. **Listas de a 200.** «Solicitudes de cotización» y «Administrar casos» muestran las primeras 200 filas (un grupo de proyecto cuenta como una). Si hay más, debajo de la lista aparece «Se muestran N de M casos.» y el enlace «Ver K más» (`?mostrar=N+200`, que vuelve a mostrar todo lo anterior y, desde U-49, conserva la búsqueda y los filtros: ya no miran solo lo mostrado). Con 200 o menos casos la página es la de siempre. Los números de las etapas y el resumen cuentan todos los casos. El pie usa solo palabras ya permitidas (sin sinónimos retirados de D-97).
 6. **Respuestas más livianas.** Si el navegador acepta `gzip`, el HTML, el JSON y el CSS de 1 KB o más se envían comprimidos (`Content-Encoding: gzip`, `Vary: Accept-Encoding`); los demás tipos (Excel, imágenes, fuente, canal de avisos) no. `/api/casos`, `/api/casos/{id}` y `/openapi.json` salen en JSON compacto. El servidor habla HTTP/1.1 (la conexión se reutiliza; cada respuesta lleva su longitud, el canal de avisos `Connection: close` y un `POST` rechazado antes de leer su cuerpo cierra la conexión).
 7. **Archivos fijos con caché.** `/static/…` lleva `ETag`; con `If-None-Match` igual responde `304` sin cuerpo. El CSS compartido ya no va dentro de cada página: es `/static/style.<huella>.css`, donde la huella es la del contenido, con `Cache-Control: public, max-age=31536000, immutable`. La fuente y el logo siguen con `max-age=86400`. Lo demás (páginas, JSON, `303`, `/eventos`) sigue con `no-store`. La lista de nombres es fija: cualquier otro nombre es `404`.
 8. **Un solo cálculo por segundo para los avisos en vivo.** Todas las pestañas conectadas a `/eventos` leen el marcador de `MarcadorCompartido`, que consulta la base como máximo una vez por segundo sin importar cuántas pestañas haya.
@@ -1067,7 +1094,7 @@ Fuera de alcance: guardar un borrador desde el dashboard sobre un caso `ready` o
 - E2 · Cambiar el nombre, el cliente confirmado, el código o un par separado de un caso recalcula los grupos; sin cambios, la segunda llamada no vuelve a comparar.
 - E3 · El Excel nuevo y el anterior tienen las mismas celdas, el mismo filtro y los mismos estilos esenciales; 3 000 filas se escriben en menos de 8 s.
 - E4 · Una base en el esquema 16 pasa al 17 sin perder datos y las consultas de la lista, de los eventos recibidos y del marcador usan los índices (`EXPLAIN QUERY PLAN`).
-- E5 · Con 450 casos, «Mis casos» y «Administrar casos» muestran 200 filas y «Ver 200 más»; con `?mostrar=400`, 400 y «Ver 50 más»; con 150, ni pie ni enlace.
+- E5 · Con 450 casos, «Solicitudes de cotización» y «Administrar casos» muestran 200 filas y «Ver 200 más»; con `?mostrar=400`, 400 y «Ver 50 más»; con 150, ni pie ni enlace.
 - E6 · Con `Accept-Encoding: gzip`, la página y `/api/casos` llegan comprimidas y descomprimen al mismo contenido; sin esa cabecera, sin comprimir. `/static/<css con huella>` responde `304` con su `ETag`.
 - E7 · Veinte lecturas seguidas del marcador compartido consultan la base una vez; pasado el segundo, otra.
 
@@ -1089,11 +1116,11 @@ Fuera de alcance: guardar un borrador desde el dashboard sobre un caso `ready` o
 8. **Los scripts se comprueban.** `node --check` pasa por `app.js` y `tema.js` y, por si reaparece uno, por todo `<script>` en línea de las páginas; otra prueba exige que ninguna página lo tenga.
 
 **Casos de aceptación**
-- F1 · Con 5 000 casos sintéticos, `listar()` tarda menos de 0,4 s en una máquina de desarrollo (meta ~0,25 s; antes ~0,8 s) y listar una página de «Mis casos» no interpreta ningún análisis completo (`AnalisisPerezoso.cargado` sigue en falso).
+- F1 · Con 5 000 casos sintéticos, `listar()` tarda menos de 0,4 s en una máquina de desarrollo (meta ~0,25 s; antes ~0,8 s) y listar una página de «Solicitudes de cotización» no interpreta ningún análisis completo (`AnalisisPerezoso.cargado` sigue en falso).
 - F2 · `listar()` y `listar(completo=True)` son iguales campo por campo; leer `activities` de un caso de la lista da lo mismo que en el detalle.
 - F3 · Una base en el esquema 17 pasa al 18 sin perder datos, con todos los resúmenes puestos; correr la migración dos veces deja lo mismo; cambiar el análisis de un caso borra su resumen y la lista siguiente lo recalcula.
 - F4 · Con 450 casos, buscar `q=obra 449` encuentra un caso que no estaba entre las 200 primeras; la etapa filtra antes de paginar; el enlace «Ver más» conserva los filtros; el contador dice el total real.
-- F5 · La página de «Mis casos» no lleva `<script>` en línea ni `onclick`; carga `tema` y `app` con huella; la CSP de las páginas no tiene `'unsafe-inline'` en `script-src`; `/static/app.<huella>.js` responde `304` con su `ETag`.
+- F5 · La página de «Solicitudes de cotización» no lleva `<script>` en línea ni `onclick`; carga `tema` y `app` con huella; la CSP de las páginas no tiene `'unsafe-inline'` en `script-src`; `/static/app.<huella>.js` responde `304` con su `ETag`.
 
 ### U-50 · Errores de la API con una sola forma (Ola B2 del plan de backend)
 **Estado: implementado** (pruebas en `tests/test_errores_de_api.py`). Decisión: D-115. No cambia ninguna página HTML ni ningún texto de la persona. No toca R8, D-27 ni la paridad de los tres modos.
@@ -1186,8 +1213,8 @@ Fuera de alcance: guardar un borrador desde el dashboard sobre un caso `ready` o
 **Estado: implementado** (pruebas en `tests/test_cabecera_y_filas.py`). Decisión: D-123. Respeta los textos únicos de D-97, el estilo ANKA y la accesibilidad de U-37; no cambia R8, D-27 ni los tres modos.
 
 **Qué debe cumplirse**
-1. **Encabezado en una barra (≤ 600 px).** El logo, «Buscar correos nuevos» y «Ajustes» van en una sola fila (el botón puede partir su texto en dos líneas); «Mis casos» se queda solo para lectores (el enlace del logo ya dice «Anka, mis casos»); el menú de Ajustes se despliega a todo el ancho encima del contenido y sigue plegado hasta abrirlo. Cada control mide al menos 44 px de alto y ningún texto baja de 14 px. Si un chip de estado está visible, baja a una segunda fila.
-2. **Verbo primero.** En las filas de «Mis casos» y de «Administrar casos», la primera línea empieza por lo que hay que hacer: «Revisar el correo · Cliente · Proyecto». El botón de la derecha conserva exactamente el mismo texto (D-97); el verbo repetido en la primera línea es solo visual (`aria-hidden`) para que un lector de pantalla no lo lea dos veces. La segunda línea lleva el código de oferta cuando existe.
+1. **Encabezado en una barra (≤ 600 px).** El logo, «Buscar correos nuevos» y «Ajustes» van en una sola fila (el botón puede partir su texto en dos líneas); «Solicitudes de cotización» se queda solo para lectores (el enlace del logo ya dice «Anka, mis casos»); el menú de Ajustes se despliega a todo el ancho encima del contenido y sigue plegado hasta abrirlo. Cada control mide al menos 44 px de alto y ningún texto baja de 14 px. Si un chip de estado está visible, baja a una segunda fila.
+2. **Verbo primero.** En las filas de «Solicitudes de cotización» y de «Administrar casos», la primera línea empieza por lo que hay que hacer: «Revisar el correo · Cliente · Proyecto». El botón de la derecha conserva exactamente el mismo texto (D-97); el verbo repetido en la primera línea es solo visual (`aria-hidden`) para que un lector de pantalla no lo lea dos veces. La segunda línea lleva el código de oferta cuando existe.
 3. **La marca «Ahora» / «Antes de seguir» es texto.** Es un elemento (`.marca-paso`) en los cuatro avisos de arriba del caso, no contenido generado por CSS, así que un lector de pantalla la lee.
 4. **Todo fallo es alerta.** Las acciones que terminan en fallo sin pasar por la guía (buscar correos nuevos que falla, actualizar la hoja de Google que falla, borrar casos que pide ELIMINAR) se anuncian con `role="alert"` y «Error:» como las demás.
 
@@ -2801,6 +2828,134 @@ Los 18 escenarios (los 13 primeros de la primera versión más los escenarios 14
 12. **Auditoría del cursor.** `cursor_actualizado` se registra solo cuando el `historyId` cambia (con el valor anterior y el nuevo); un sondeo sin novedades solo actualiza `last_success_at` del control. No cambian los eventos de detección, error, `revision_manual` ni recuperación (`hueco_reconstruido_desde_buzon`, `recuperacion_requiere_revision`).
 
 **Casos cubiertos**: primera ejecución sin historial, mensaje nuevo, seguimiento, repetición, reinicio, recuperación de conexión, error, concurrencia entre procesos, cola durable, mensaje propio, cursor vencido, hueco >24 h, período >30 días, overflow >1000, falla de paginación y fencing del propietario vencido (mocks de Gmail y SQLite temporal); destinatarios con `Cc`/`Bcc` vacíos, múltiples y malformados; dos procesos que compiten por el candado, recuperación tras un cierre brusco y liberación solo de lo propio; contadores `history_seen` y `already_registered` en una pasada repetida; el cursor sin cambio no genera evento.
+
+### U-84 · Reverificación de destinatario sin cambios artificiales
+
+Consultar Gmail y volver a verificar la misma dirección del destinatario no cambia `updated_at` del caso. La actualización de la dirección sí invalida la marca previa. Si la dirección no cambió, rechazar un contenido saliente alterado conserva el estado, la marca temporal y la ausencia de borradores, envíos y reservas, con independencia del segundo en que se verifique. Se mantiene la verificación de destinatario contra el hilo real.
+
+### U-83 · Tabla de alcance legible y consultable sin editar
+
+La vista de lectura de las actividades presenta actividad, cantidad con unidad, entregable y estado, sin entrar al editor. Cada actividad ofrece una ficha desplegable con servicio/técnica, ubicación, plazo o restricción, fuente y notas completas, sin truncarlas en esa ficha. Los datos ausentes dicen «No indicado»; los estados conservan su significado y no sustituyen la validación del caso. En pantallas angostas las filas se presentan como tarjetas con etiquetas, manteniendo la semántica accesible y sin ocultar los datos relevantes. Las actividades pendientes permanecen visibles incluso si se pliegan las confirmadas. Corregir y guardar siguen siendo acciones explícitas con historial; consultar una ficha no cambia datos ni envía correos. Esta vista amplía la tabla de tres columnas descrita originalmente en U-31. **Reemplazada por U-103** (2026-11-09): la vista de lectura queda en dos columnas y solo con las actividades por completar o contradictorias.
+
+### U-82 · Orientación sencilla en la pantalla del caso
+
+**La guía de tres pasos con enlaces fue retirada por U-103.10** (los pasos y la tarjeta «Ahora» ya dicen qué sigue). Antes: la pantalla ofrecía una guía de tres pasos con enlaces: revisar el correo y archivos, comprobar la tabla y decidir cómo seguir. Muestra el resumen y los pendientes existentes sin declarar validado lo que solo fue leído. La decisión recuerda contrastar fuentes, cantidades, unidades y contradicciones. Mantiene visibles los bloqueos y conserva los controles de aprobación, las fuentes, la auditoría y el detalle técnico; la guía no ejecuta acciones externas ni cambia estados.
+
+### T-86 · Conciliación de respuestas parciales y magnitudes equivalentes
+
+Cada pregunta enviada conserva un identificador estable derivado de su texto. La conciliación con la auditoría solo resuelve una pregunta mediante correspondencia inequívoca de tema, declaración explícita de respuesta, hallazgo no bloqueante y fuente del mensaje de respuesta analizado; ausencia de preguntas o `do_not_ask` solos nunca bastan. Una respuesta parcial o un dato contradictorio, ambiguo o todavía faltante queda abierto o sin confirmar. La evidencia e identificadores que sustentan la conciliación se conservan con la ronda. Las rondas históricas sin correspondencia permanecen conservadoras.
+
+Al integrar una actividad, la propuesta incluye las notas nuevas y sus fuentes; no modifica esas notas en la tabla vigente hasta la aceptación humana y conserva la versión previa. Una modificación solo de notas en una fila confirmada también debe proponerse para revisión (en una fila pendiente se renueva sola, U-92). Las cantidades expresadas como dos áreas equivalentes entre paréntesis solo se separan en número y unidad si la equivalencia exacta se comprueba aritméticamente. Se conserva el literal original en notas y la fuente; diferencias, operaciones, magnitudes distintas o expresiones ambiguas no se convierten ni suman automáticamente. Esta normalización no confirma la actividad ni cierra faltantes.
+
+### T-85 · Limpieza de borradores internos importados
+
+Después de importar un análisis de Work, Python puede retirar su borrador interno si verifica en SQLite el hecho de importación de ese contenido exacto y que los trabajos del mensaje estén conciliados. Antes conserva y relee una copia `.eml` recuperable con el borrador íntegro y el contrato importado, incluida en el respaldo de evidencia existente. Relee el borrador y conserva cualquier edición posterior, destinatario externo, resultado incierto o importación fallida. Registra el respaldo y la retirada sin enviar correos ni borrar el caso. No retira borradores sin prueba de importación. Un fallo de limpieza no convierte una importación correcta en fallida; el borrador se conserva para recuperación.
+
+### U-85 · Host permitido por configuración para el despliegue web
+
+El dashboard solo acepta Host locales (`127.0.0.1`, `localhost`, `[::1]`) para bloquear el DNS rebinding. Para publicarlo en un servidor detrás de un proxy con HTTPS, la variable de entorno `ANKA_HOSTS_PERMITIDOS` añade nombres de dominio (separados por comas, sin puerto, esquema ni ruta). Sin la variable el comportamiento no cambia; un Host que no esté en la lista sigue rechazado con 403. El comportamiento del puerto no cambia (si el Host trae puerto debe ser el del servidor; detrás del proxy llega sin puerto). Esta variable no sustituye el inicio de sesión, que es un requisito aparte antes de exponer el dashboard.
+
+### U-86 · Gemini como proveedor del modo api
+
+El modo `api` admite `llm.provider: "gemini"` además de `openai`. La clave se lee de la variable de entorno `GEMINI_API_KEY` (nunca de `config.json` ni del repositorio) y `llm.model` elige el modelo (por defecto `gemini-3.6-flash`). Se usa la API REST con el mismo esquema JSON del análisis, sin dependencias nuevas. Un error de la API no revela la clave ni el prompt; una respuesta vacía, bloqueada o cortada por tope de tokens falla con un mensaje claro y el caso queda para revisión, como con los otros proveedores. `set_mode` conserva un proveedor Gemini ya configurado y exige su clave. Los tres modos siguen comportándose igual: solo cambia quién analiza.
+
+### U-87 · Con actividades sin confirmar no se salta a la T
+
+En los modos `local` y `api`, un hilo cuyo análisis deja alguna actividad **pendiente o contradictoria** (según `normalize_estado`, R12) no queda en «alcance completo» ni se ofrece la T: va a «Correo por revisar» con un borrador de preguntas para el cliente. Las preguntas salen de las dudas del propio análisis (`other_questions`) y, por cada actividad sin confirmar, de lo que su nota dice que falta (o de una pregunta genérica por cantidad, ubicación o plazo). Es un borrador: nada sale sin que una persona lo revise (R8). Solo el comercial puede cerrar el caso sin esas respuestas, al gestionarlo él mismo o dar el alcance por completo; esa decisión (`manual_review`) se respeta y el hilo no vuelve a pedir lo que ya resolvió. Un análisis con todas las actividades confirmadas y sin otras preguntas sigue pasando a «alcance completo». No cambia la evaluación de recepción de `chatgpt_work` ni los estados.
+
+### U-88 · El análisis registra documentos citados, opciones abiertas y requisitos generales
+
+La instrucción que recibe el modelo (modos `local` y `api`) pide: (1) registrar como dependencia pendiente, con su nombre exacto, todo documento propio del contrato o del cliente (anexo, capítulo, plano, formato, guía interna) que un adjunto exige cumplir y no está entre las fuentes, y pedirlo en `other_questions`; una norma pública (decreto, resolución, circular) no es dependencia; (2) no elegir cuando el documento deja una opción abierta («0.50 m o cada 0.20 m»): ambas opciones van en `notes` y la actividad queda pendiente; (3) conservar los parámetros de calidad (precisión, tiempos de rastreo, densidad, tolerancias) en `plazo_restriccion`; (4) copiar los requisitos válidos para todo el estudio (personal certificado, calibración, sistema de referencia, informe final, memorias, cronogramas, planos y datos crudos) en `plazo_restriccion` o `entregable` de cada actividad a la que apliquen, sin crear una fila aparte (una fila sin cantidad quedaría siempre pendiente y bloquearía la T, U-87). Es una instrucción al modelo, no una regla verificable por Python: la prueba comprueba que la instrucción la contiene, y su efecto se mide con casos reales.
+
+### U-89 · Un hilo borrado de Gmail no es un error inesperado
+
+Si al responder desde el dashboard Gmail contesta 404 para el hilo del caso (el correo se borró o ya no es de la cuenta), la persona recibe un aviso claro («Este correo ya no está en Gmail… no se puede responder desde aquí») en vez de «Ocurrió un error inesperado». No se envía nada y el caso se conserva. Los demás errores de Gmail siguen siendo inesperados y quedan en el registro con su código.
+
+### U-90 · Un seguimiento actualiza la tabla vigente, no la rehace
+
+En los modos `local` y `api`, cuando un hilo que ya tiene tabla de actividades recibe un mensaje o archivo nuevo, el modelo recibe esa tabla vigente (actividad, cantidad, unidad, estado y notas recortadas) como **datos, no instrucciones**, con la orden de actualizar esas mismas filas conservando exactamente sus nombres, agregar solo actividades realmente distintas y pasar a «confirmado» lo que lo nuevo resuelve. Motivo: la integración (T-59) reconoce una actividad solo por su nombre; si el modelo reformula los nombres en cada análisis, la tabla se llena de duplicados (un caso pasó de 6 a 10 filas con un KMZ). La tabla vigente de un caso con `analysis_failure` o sin actividades no se envía. La integración con la tabla vigente (T-59), las ediciones manuales y R11 no cambian: esto solo reduce los duplicados antes de integrar. Un hilo sin tabla previa se analiza como siempre.
+
+### U-91 · Cada análisis deja constancia de los tokens que gastó
+
+En los modos `local` y `api`, cada análisis de un hilo suma los tokens de entrada y salida de todas las llamadas al proveedor (OpenAI, Gemini u Ollama; los de razonamiento de Gemini cuentan como salida) y deja una línea en el registro («Análisis con <modelo>: N llamadas, X tokens de entrada y Y de salida») y otra en `uso_del_modelo.jsonl`, dentro de la carpeta de datos, con fecha, hilo, proveedor, modelo, llamadas y tokens. Un re-análisis tras una respuesta del cliente suma una línea nueva, así se ve cuánto cuesta cada ronda. El costo en dólares solo se estima si `llm.precios` (`entrada` y `salida`, USD por millón de tokens) está en config.json: el sistema no trae precios propios porque cambian. Un dato de uso ausente o raro cuenta cero y un fallo al escribir el libro se avisa sin frenar el análisis. El texto de los correos no se guarda en el libro.
+
+### U-92 · Un seguimiento no llena la tabla de filas repetidas ni de avisos por reformular
+
+Al integrar la tabla de un seguimiento (T-59), el modelo suele reescribir los nombres y los textos aunque no haya nada nuevo. Para que la persona solo vea lo que de verdad cambió:
+1. **Misma actividad con otro nombre.** Una fila nueva sin pareja por nombre exacto se empareja con la fila vigente más parecida si comparten al menos el 70 % de sus palabras (más de dos letras, sin tildes ni mayúsculas) o si todas las palabras del nombre más corto (al menos dos) están en el otro y la cantidad es la misma o alguna no trae ninguna («Control Horizontal» y «Control horizontal GNSS»); cada fila se empareja una sola vez y gana la pareja más parecida. La fila conserva el nombre vigente. Por debajo del 70 % sigue valiendo la regla anterior: se propone como actividad aparte con el motivo «posible sustitución».
+2. **Mismo dato escrito de otra forma.** En ubicación, entregable, plazo o restricción y servicio o técnica, un texto nuevo que tiene los mismos números que el vigente y solo lo acorta o comparte con él casi todas sus palabras (al menos el 60 %) no es un «dato distinto» y se ignora. No se ignora si lo nuevo solo agrega palabras al texto vigente, ni si cambia un número (un plazo de 30 a 45 días sigue pidiendo revisión). La cantidad y la unidad nunca se tratan como reformulación.
+3. Las notas de una fila que todavía no está confirmada son el comentario del análisis («falta tal dato»): el seguimiento las renueva solo, sin propuesta, salvo que la fila tenga una edición de una persona. En una fila confirmada, un cambio solo de notas se propone y una persona lo acepta (T-86).
+
+### U-93 · Una cifra que ningún documento respalda no queda «confirmada»
+
+En los modos `local` y `api`, al terminar el análisis de un hilo el sistema comprueba cada cantidad de la tabla contra el texto que el propio programa extrajo del correo y de los adjuntos (la verificación contextual de T-66, que antes solo corría con Work) y deja el resultado en `evidence_check`.
+1. Una actividad «confirmada» cuya cantidad no aparece en ningún texto del caso (ni del correo ni de los adjuntos leídos), o que la verificación contextual da por `CONTRADICTORIA_VALOR` o `CONTRADICTORIA_UNIDAD`, baja a «pendiente» y su nota agrega: «Verificación automática: la cantidad «X» no coincide con los documentos leídos; confírmala con el cliente.» Así el filtro de recepción (U-87) la pregunta en vez de saltar a la T.
+2. Con lectura por OCR, parcial o ilegible, la verificación no concluye (T-66, punto 8): la fila no se toca.
+3. Una actividad sin cantidad o que ya estaba pendiente no se modifica, y el sistema nunca cambia la cantidad ni inventa otra.
+4. Un fallo de la comprobación se registra y no frena el análisis.
+
+### U-94 · Cada fila de un seguimiento se identifica por su número, no por su nombre
+
+Reconocer una actividad por su nombre falla porque el modelo no escribe igual dos veces (U-90 y U-92 reducen el problema pero no lo eliminan). En los modos `local` y `api`, cuando un hilo ya tiene tabla:
+1. La tabla vigente viaja al modelo con un número por fila (su posición, 1, 2, 3…) y el modelo debe indicar en `fila_existente` a qué número corresponde cada actividad que devuelve (0 si es realmente nueva). El campo es obligatorio en el esquema y vale 0 en el primer análisis.
+2. Antes de integrar, el programa restituye a cada fila el nombre de la fila vigente que el modelo dijo actualizar; así la integración (T-59) las empareja exactamente y un cambio de redacción no crea filas nuevas ni avisos.
+3. Un número inválido, fuera de rango, repetido o de una fila sin nombre se ignora: esa fila sigue el camino de siempre (U-92). Si aun así quedan filas nuevas sin pareja y filas vigentes sin mencionar que se parecen al menos en un 50 % de sus palabras, se juntan por descarte cuando cada una es la mejor candidata de la otra y supera por al menos 0,1 a cualquier otra posible pareja; si hay empate o duda, se propone como actividad aparte con el motivo «posible sustitución». El registro anota cuántas filas vigentes había y qué número devolvió el modelo para cada actividad (sin nombres).
+4. Para que el modelo no reescriba lo que no cambió, la tabla vigente le llega con todos sus campos (ubicación, servicio o técnica, entregable, plazo o restricción, recortados a 600 caracteres, y las notas a 300) y con la orden de copiar tal cual cada campo que lo nuevo no cambia.
+5. `fila_existente` no forma parte de la tabla: se quita de todas las filas y nunca se guarda. El modelo sigue devolviendo la tabla completa, porque el filtro de recepción (U-87) necesita ver todas las filas.
+
+### U-95 · Sin archivo de ubicación, siempre se pide
+
+Que el sistema pida o no el archivo de ubicación (KML/KMZ o plano del trazado) no depende de que el modelo lo recuerde en esa corrida. Después de cada análisis (modos `local` y `api`), si alguna actividad no trae cantidad, el caso no tiene ningún adjunto geográfico (`.kmz`, `.kml`, `.shp`, `.geojson`, `.gpx`, `.dwg`, `.dxf`, `.gdb`, `.gml` ni un `.zip` que pueda contenerlos) y ninguna de las preguntas del modelo menciona ya la ubicación, la delimitación, el trazado, un KMZ/KML o un polígono, el programa agrega a las preguntas al cliente: «¿Podrían remitir el archivo con la ubicación y delimitación exacta del proyecto (KML/KMZ o plano del trazado)?». Si todas las actividades traen cantidad, o llega el archivo en una respuesta, no se pregunta. La pregunta pasa por la misma revisión humana de siempre (R8). La regla actúa solo en el **primer** análisis de un hilo, como red de seguridad: en un seguimiento decide el modelo, a quien se le ordena no repetir una pregunta que el cliente ya contestó (aunque diga que no tiene el archivo), así que el sistema nunca insiste en un bucle de «envíe el KMZ».
+
+### U-96 · Lo que solo agrega se aplica solo y todo cambio automático deja su detalle
+
+Para no pedirle al comercial decisiones que no lo son y, a la vez, no perder nada:
+1. En ubicación, entregable, plazo o restricción y servicio o técnica, un texto nuevo se aplica solo si la fila **no está confirmada** y el dato no tiene una propuesta pendiente de una persona, ya sea que agregue («…y vías circundantes» → «…y vías circundantes en el KMZ») o que cambie el texto («a lo largo del trazado» → «Polígono del KMZ»): son descripciones, no cifras de alcance. En una fila confirmada, y siempre que cambie la cantidad o la unidad, sigue siendo una propuesta para revisar. Nada se pierde: el valor anterior queda en el historial (punto 3).
+2. Con esa aplicación, las notas de una fila sin confirmar se renuevan solas (U-92, punto 3) porque ya no hay otro cambio pendiente en la fila.
+3. Cada actividad que se actualiza sola deja en el historial del caso qué campos cambiaron, con el valor de antes y el de ahora (recortados a 160 caracteres), con los nombres de columna de la tabla: «se actualizó «X» (Ubicación: «antes» → «ahora»; Notas: «antes» → «ahora»)». Así lo que una regla automática sustituya siempre se puede recuperar.
+4. La excepción de «reescritura» (U-92, punto 2) solo ignora un texto que acorta el vigente o lo repite casi igual con los mismos números; una diferencia pequeña pero de fondo (por ejemplo DWG por PDF) sigue pidiendo revisión.
+
+### U-97 · El archivo de ubicación que llega adjunto cierra su pregunta
+
+Si el cliente responde con un archivo geográfico (KML, KMZ, SHP, GeoJSON, GPX, DWG, DXF, GDB, GML o ZIP) que el sistema pudo leer, la pregunta de la ronda que pedía solo el archivo de ubicación o delimitación pasa a «resuelta», con el nombre del archivo como prueba, aunque el modelo no la audite. Las preguntas que piden el área o la extensión no se cierran por esto: el archivo no prueba una cifra. Vale el archivo que **no estaba al enviar** la ronda, venga en el correo de respuesta o en otro posterior (el cliente a veces manda el archivo en un correo y el texto en otro); cada ronda guarda con qué adjuntos salió. Una ronda anterior a esto solo acepta el archivo del mensaje de respuesta.
+
+### U-98 · No se le pide dos veces lo mismo al cliente
+
+Una pregunta del análisis que pide lo mismo que una de la **última ronda enviada** (se compara qué se pide, sin la cortesía ni el verbo: «¿Podría adjuntar el documento Anexo X?» es «¿Podrían adjuntar el Anexo X?») y que no está resuelta, no se propone de nuevo para el cliente: queda elegida como «no preguntar» y la pantalla dice «Esto ya se lo pedimos al cliente y aún no lo envía», con la fecha en que se pidió. La persona puede insistir escribiéndola en el cuadro. Solo se mira la última ronda.
+
+### U-99 · El texto de una pregunta es una pregunta
+
+En el cuadro de preguntas para el cliente, una línea que trae pegado el encabezado del resumen de la pantalla («Por resolver: Pendiente del cliente: ¿Podrían adjuntar el Anexo?») se limpia y queda solo la pregunta; si después del encabezado no queda ninguna petición («Faltan: 3 actividades…»), se rechaza y explica qué hacer. La nota «Esto ya se lo pedimos al cliente» (U-98) trae el botón «Volver a pedirlo», que pone esas preguntas en el cuadro. Una línea con varias «¿…?» se separa en una pregunta por línea. Las preguntas repetidas y las líneas vacías se ignoran. Lo mismo vale para una pregunta agregada a mano.
+
+Una frase de la tabla que llega al cuadro de preguntas sin ser una pregunta («Falta la cantidad de las manzanas», «No hay una cifra de longitud declarada en el texto. Fuente revisada: PDF y KMZ.») se vuelve la pregunta «¿Podría indicar la cantidad de las manzanas?»: el correo al cliente nunca lleva «Fuente revisada: …» ni «Paso siguiente: …» (son notas de Anka), y «declarada en el texto» no sale. Lo que no encaja en esa forma queda como se escribió. Pasa en el correo, sin importar por dónde llegó el texto, y las sugerencias de «Qué falta» salen con la misma limpieza.
+
+### U-100 · El correo no repite lo que ya pregunta
+
+En el correo al cliente, la lista «también puede adjuntar» no trae el archivo de ubicación si una de las preguntas ya lo pide. Si no queda nada en la lista, no se escribe el bloque. Cuando un envío se detiene por ser un duplicado, el aviso dice a quién y cuándo se envió el correo.
+
+### U-101 · El área del único KMZ se pone sola cuando es la única fuente
+
+Si el cliente mandó **un solo polígono** (un KML/KMZ con un solo polígono) y **ni el correo ni ningún documento** escriben otra área (`diferencias_de_area` vacío), el área del polígono se pone como cantidad de las actividades **que cubren toda la franja** y no traen cantidad: el vuelo (LiDAR, fotogrametría, aerofotogrametría, ortofoto, dron o RPAS). No las de levantamiento a pie (detalles, estación total, poligonal), que cubren solo las zonas que el pliego nombra y no el polígono entero; tampoco las de nivelación, control, inventario, catastro, redes, tuberías, acueducto, alcantarillado ni perfil (ante la duda, no). Esas filas siguen sin cantidad y la extensión se le pregunta al cliente.
+1. **Cómo entra.** Igual que un área elegida por una persona (T-130, D-189): `quantity` en hectáreas con coma decimal, `unit` = `ha`, `estado` = `pendiente` y una nota que dice de qué polígono viene, que es la única fuente y que es aproximada y no la declaró el cliente. Nunca cambia una cantidad escrita ni crea filas.
+2. **Dónde.** Al guardar el caso, **después** de unir la tabla (`store.save`), en los tres modos: solo se rellenan filas que quedaron sin cantidad, así que no pisa lo que una persona escribió. La propuesta pendiente se completa igual. Con una edición manual del caso no se toca.
+3. **Los documentos cuentan como el correo.** Las áreas que escribe un PDF, Word u otro documento (no el propio KML/KMZ) se comparan con los polígonos igual que las del correo (T-126). Una medida que no es el área del proyecto no cuenta: la de una celda, un píxel o una resolución («al menos el 95 % de las celdas de 1 m²», «GSD», «puntos por m²») ni la de menos de 100 m². Si un documento dice otra medida, el archivo no es la única fuente: no se pone nada y el panel avisa «El correo o un documento menciona…».
+4. **Huella.** El historial del caso dice «Se puso el área de X (N ha) como cantidad de: …. Es aproximada y queda pendiente de confirmar.»
+5. **No cambia** con varios polígonos (los elige una persona, T-130), ni el formulario manual, ni el prompt de ningún modelo.
+
+### U-102 · La carpeta de Drive: año / mes / cliente / T&E / anexos
+
+La carpeta del proyecto sigue la convención del equipo de ingeniería: `{drive_parent_id}/{año}/{mes}/{cliente}/T&E{número} {proyecto}/anexos`.
+1. **Padre.** `drive_parent_id` es la carpeta **«Proyectos»**, no la de un año. Si su nombre es un año de cuatro cifras no se crea nada y se avisa (reemplaza el bloqueo por «año distinto»).
+2. **Año y mes.** Se crean solos (`2026`, `11-Noviembre`) con la fecha en que se emite la T (`code_assigned_at`). Sin T (la alternativa manual de Drive) se usa la fecha de hoy.
+3. **Nombre.** Desde que se emite la T la carpeta de la solicitud es `T&E{número} {proyecto}` (por ejemplo `T&E26145 Mina Norte`). **No se renombra al aprobar**: el número es el mismo y solo cambia el prefijo. La etapa (T o T&E) vive en el sistema, no en el nombre; el cliente sigue recibiendo «T26145» hasta que se aprueba y el nombre de la carpeta nunca sale en un correo. Sin T (alternativa manual) se conserva el nombre anterior `<prefijo> - <proyecto> - <id>`.
+4. **`anexos`.** Dentro de la solicitud hay una sola subcarpeta, `anexos`, con los adjuntos del cliente y la hoja «Tabla de actividades». La hoja se sigue actualizando por su id.
+5. **Cliente en varios meses.** El cliente se busca en todos los meses del año y del anterior. Si existe en otro mes, el mes en curso crea su carpeta con el mismo nombre sin pedir confirmación; si no existe ninguno igual ni parecido sigue R6; si hay uno parecido decide una persona (R5).
+6. **Solicitud repetida.** Se busca una solicitud parecida (nombre o mismo adjunto, dentro de `anexos`) en todas las carpetas del cliente de esos meses; si la hay no se crea nada y decide una persona (R9).
+7. **Papelera.** Solo se mueve a la papelera una carpeta que esté en ese nivel bajo la carpeta padre; las creadas con la ruta anterior `{año}/{cliente}/{solicitud}` siguen pudiéndose borrar.
+8. **Antes de emitir la T** se comprueba la configuración de Drive: si falta `drive_parent_id` o apunta a la carpeta de un año, la T no se emite y el aviso dice qué corregir (la T no se deshace, U-34.2). Si Drive no responde no se bloquea nada: la carpeta queda pendiente con su motivo.
+9. **No cambia** el contenido, que sigue sin pisar archivos existentes; ni lo que Work ve: R4 sube a la versión 10 de las reglas.
+
+**Estado: implementado** (pruebas en `tests/test_drive_layout.py`, `tests/test_auto_folder.py` y `tests/test_approve_folder.py`). Decisión: D-193.
 
 ### Plan por incrementos (previsto)
 El plan original por incrementos se mantiene para U-66 a U-76. La solicitud explícita del 2026-10-16 autoriza U-81 (código, migración y pruebas con mocks); no autoriza ejecutar sondeos contra la cuenta real ni activar el ajuste de producción.

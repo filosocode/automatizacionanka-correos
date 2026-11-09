@@ -57,7 +57,7 @@ class Base(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
-        self.drive = FakeDriveTree({"Minera Sur": {}})
+        self.drive = FakeDriveTree.de_clientes({"Minera Sur": {}})
         self.gmail = GmailConEnviados({"id": "t-1", "messages": [
             encoded_message("m-1", "cliente@example.com", "Solicito cotización.", 1, subject="Solicitud")]})
         for parche in (

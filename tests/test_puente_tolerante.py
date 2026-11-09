@@ -70,7 +70,7 @@ class PuenteTests(unittest.TestCase):
         self.assertEqual(gmail.gets, 1)  # y no se vuelve a bajar
         gmail.items["d1"] = draft_message(payload(), message_id="gm2")  # Work lo corrige: otra versión
         tercero = self.sincronizar(gmail, cache)
-        self.assertEqual((tercero["updated"], tercero["rejected"], gmail.gets), (1, [], 2))
+        self.assertEqual((tercero["updated"], tercero["rejected"], gmail.gets), (1, [], 3))  # incluye releer para limpieza
 
     def test_a_draft_with_a_boolean_unresolved_is_not_rejected_but_an_invalid_one_beside_it_is(self):
         gmail = FakeGmail({

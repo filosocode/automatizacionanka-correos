@@ -15,6 +15,11 @@ MAX_POLIGONOS_A_CONTRASTAR = 200   # con cientos de polígonos casi cualquier ci
 MAX_DIFERENCIAS = 10
 _METROS_POR_UNIDAD = {"ha": 1e4, "has": 1e4, "hectarea": 1e4, "hectareas": 1e4,
                       "m2": 1.0, "km2": 1e6}
+MIN_AREA_HA = 0.01          # 100 m²: nadie cotiza un levantamiento por menos; «1 m²» es una celda o una resolución
+# Medidas que no son el área del proyecto sino una exigencia técnica: «celdas de 1 m²», «GSD», «puntos por m²» (U-101).
+_NO_ES_UN_AREA_DE_PROYECTO = re.compile(
+    r"celdas?|c[eé]lulas?|p[ií]xel(?:es)?|pixel(?:es)?|\bGSD\b|resoluci[oó]n|cuadr[ií]culas?|puntos?\s+(?:por|/)|"
+    r"(?:por|/)\s*m\s?2|(?:por|/)\s*m²", re.IGNORECASE)
 _AREA_ESCRITA = re.compile(
     r"(?<![\w.,])(?P<numero>\d+(?:[.,]\d+)*)\s*(?P<unidad>hect[aá]reas?|has?|km\s?2|km²|m\s?2|m²)(?![\w²])",
     re.IGNORECASE)
@@ -54,6 +59,9 @@ def areas_declaradas(texto: str) -> list[tuple[str, list[float]]]:
         if not metros or not lecturas:
             continue
         hectareas = [round(v * metros / 1e4, 6) for v in lecturas]
+        contexto = texto[max(0, m.start() - 60):m.end() + 30]
+        if max(hectareas) < MIN_AREA_HA or _NO_ES_UN_AREA_DE_PROYECTO.search(contexto):
+            continue
         if tuple(hectareas) in vistas:
             continue
         vistas.add(tuple(hectareas))
@@ -62,9 +70,15 @@ def areas_declaradas(texto: str) -> list[tuple[str, list[float]]]:
 
 
 def pistas_de_area(correo: str, adjuntos: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
-    """Las dos pistas de área de un hilo: las calculadas de sus KML/KMZ y lo que el correo dice distinto."""
-    areas = areas_de_los_adjuntos(adjuntos)
-    return {"areas_calculadas": areas, "diferencias_de_area": diferencias_de_area(correo, areas)}
+    """Las dos pistas de área de un hilo: las calculadas de sus KML/KMZ y lo que el correo o un documento dice distinto.
+
+    Los documentos cuentan igual que el correo (U-101): si un PDF escribe otra área, el archivo no es la única fuente.
+    El texto de los archivos geográficos no se compara consigo mismo.
+    """
+    lista = [a for a in adjuntos if isinstance(a, Mapping)]
+    areas = areas_de_los_adjuntos(lista)
+    documentos = "\n\n".join(str(a.get("text") or "") for a in lista if "Polígono «" not in str(a.get("text") or ""))
+    return {"areas_calculadas": areas, "diferencias_de_area": diferencias_de_area(f"{correo}\n\n{documentos}", areas)}
 
 
 def _coincide(declarada: float, calculada: float) -> bool:

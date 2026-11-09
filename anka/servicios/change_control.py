@@ -18,6 +18,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from anka.dominio.analisis import Analisis
+from anka.dominio.work_contract import motivo_de_insuficiencia_documental
 from anka.infra.logging_setup import get_logger
 from anka.infra.store import connect, lectura, record_event, register_change, transaccion
 
@@ -184,11 +185,13 @@ def _validar_numero(db: sqlite3.Connection, thread_id: str, number: str) -> None
     """Las condiciones para asignar la T: número bien formado, caso existente, sin código y sin repetir."""
     if not NUMBER_PATTERN.match(number):
         raise ErrorDeValidacion("Escribe 5 números: 2 del año y 3 del consecutivo (por ejemplo 26145).")
-    row = db.execute("SELECT quote_code FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+    row = db.execute("SELECT quote_code, analysis_json FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
     if not row:
         raise ErrorDeValidacion("Este caso ya no existe. Vuelve a Mis casos.")
     if row["quote_code"]:
         raise ErrorDeValidacion(f"Este caso ya tiene el código {row['quote_code']}.")
+    if motivo := motivo_de_insuficiencia_documental(json.loads(row["analysis_json"])):
+        raise ErrorDeValidacion(motivo)
     if db.execute("SELECT 1 FROM quotes WHERE quote_code=?", (number,)).fetchone():
         raise ErrorDeValidacion(f"El código {number} ya está asignado a otro caso.")
 

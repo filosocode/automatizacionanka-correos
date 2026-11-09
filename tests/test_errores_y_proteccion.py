@@ -84,7 +84,7 @@ class ErroresConSalida(Base):
         estado, _, pagina, _ = atender("GET", "/case?thread_id=no-existe")
         self.assertEqual(estado, 404)
         self.assertIn("La solicitud no existe.", pagina)
-        self.assertIn("← Mis casos", pagina)
+        self.assertIn("← Solicitudes de cotización", pagina)
 
     def test_un_error_de_anka_no_pide_avisar_con_un_codigo(self) -> None:
         # Cubre: U-34
@@ -96,7 +96,7 @@ class ErroresConSalida(Base):
         self.assertIn("Falta la clave de OpenAI", pagina)
         self.assertNotIn("código de error", pagina)
         self.assertIn("Volver al caso", pagina)
-        self.assertIn("← Mis casos", pagina)
+        self.assertIn("← Solicitudes de cotización", pagina)
 
     def test_un_fallo_inesperado_sigue_dando_su_codigo(self) -> None:
         # Cubre: U-34

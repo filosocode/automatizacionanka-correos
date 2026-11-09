@@ -29,6 +29,7 @@ from anka.web.templating import render
 
 from anka.servicios.estado_de_revision import sync_status_text
 from anka.servicios.estado_operativo import estado_operativo
+from anka.servicios.recepcion_visible import solicitudes_en_recepcion
 from anka.servicios import followup_reminders as fup
 from anka.servicios.change_control import (
     code_label, required_messages,
@@ -53,7 +54,7 @@ def page(title: str, body: Markup, message: str = "") -> str:
     except (ErrorDeAnka, OSError, ValueError):
         mode = None
     return render_page(title, body, message, unread_thread_count(), mode,
-                       bool(os.getenv("OPENAI_API_KEY")))
+                       bool(os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY")))
 
 
 def _dashboard_insights(quotes: Sequence[Mapping[str, Any]], services: Counter, clients: Counter) -> Markup:
@@ -211,7 +212,7 @@ def _etapa_valida(etapa: str | None) -> str | None:
 
 
 def _busqueda_de_cola(quote: Mapping[str, Any]) -> str:
-    """El texto en que busca «Mis casos»: proyecto, cliente, código y servicios, sin mayúsculas."""
+    """El texto en que busca «Solicitudes de cotización»: proyecto, cliente, código y servicios, sin mayúsculas."""
     code = quote.get("quote_code")
     return " ".join([str(quote["analysis"].get("project_name") or ""), str(quote["client_name"] or ""),
                      str(code_label(code, quote.get("code_stage") or "T") if code else ""),
@@ -231,11 +232,12 @@ def _grupos(quotes: Sequence[Mapping[str, Any]]) -> list[Grupo]:
 
 
 def render_index(message: str = "", mostrar: int = POR_PAGINA, q: str = "", etapa: str | None = None) -> str:
-    """«Mis casos» (U-32): la lista de todos los casos, del más urgente al menos, con novedades y estadísticas.
+    """«Solicitudes de cotización» (U-32): lista por urgencia, con novedades y estadísticas.
 
     `q` y `etapa` buscan y filtran entre todos los casos en el servidor (U-49); sin `etapa`, entra en «Por atender»
     si hay algo que atender."""
     quotes = all_quotes()
+    recibidas = solicitudes_en_recepcion()
     notifications = unread_notifications(8)
     unread_threads = {item["thread_id"] for item in notifications}
     services = Counter(service for quote in quotes for service in quote["services"])
@@ -260,6 +262,8 @@ def render_index(message: str = "", mostrar: int = POR_PAGINA, q: str = "", etap
     en_lista = {m["thread_id"] for _, g in todas[:max(POR_PAGINA, mostrar)] for m in g.miembros}
     body = render(
         "index.html",
+        recepcion=render("recepcion_visible.html", recibidas=recibidas),
+        recibidas_nuevas=sum(not r['existente'] for r in recibidas),
         sync_text=sync_status_text(),
         work_rejected=_work_rejected_panel(),
         notifications=_notifications_panel(notifications, plegar=bool(notifications) and all(
@@ -280,7 +284,7 @@ def render_index(message: str = "", mostrar: int = POR_PAGINA, q: str = "", etap
               for n, (q, g) in enumerate(visibles, 1)],
         ver_mas=_pagina(len(unidades), mostrar, "/", {"q": q.strip(), "etapa": elegida or "todos"}),
     )
-    return page("Mis casos", body, message)
+    return page("Solicitudes de cotización", body, message)
 
 
 def quote_row(quote: Mapping[str, Any], is_new: bool = False, selectable: bool = False) -> Markup:

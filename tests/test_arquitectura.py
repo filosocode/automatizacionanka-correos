@@ -27,7 +27,7 @@ MAX_LINEAS = 800
 TOPES_CONGELADOS = {"anka.web.pantalla_caso": 1100}
 # Los únicos módulos que escriben en la tabla `quotes` (U-52): el repositorio y la capa de la base.
 ESCRIBEN_EN_QUOTES = {"anka.servicios.repositorio", "anka.infra.store"}
-_ESCRITURA_EN_QUOTES = re.compile(r"(UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM|REPLACE\s+INTO)\s+quotes", re.I)
+_ESCRITURA_EN_QUOTES = re.compile(r"\b(UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM|REPLACE\s+INTO)\s+quotes\b", re.I)
 
 
 def modules():
@@ -226,7 +226,7 @@ class Organization(unittest.TestCase):
 
     def test_the_root_stays_tidy(self):
         allowed_folders = {"anka", "tests", "docs", "spec", "tools", "skills", "evaluacion", "archivo_local",
-                           "simulaciones", "laboratorio", "__pycache__", ".github", ".claude", ".venv", ".git", ".uv-cache",
+                           "simulaciones", "laboratorio", "deploy", "__pycache__", ".github", ".claude", ".venv", ".git", ".uv-cache",
                            ".ruff_cache", ".mypy_cache", "htmlcov"}
         for path in ROOT.iterdir():
             if path.is_dir():

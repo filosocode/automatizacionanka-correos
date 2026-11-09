@@ -19,6 +19,7 @@ from anka.infra.attachments import (
 from anka.dominio.attachments import hermanos_de_shapefile
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra.presupuesto_ocr import presupuesto_de_caso
+from anka.infra.vistas_pdf import vistas_pdf
 
 MAX_PACKET_FILES = 30
 MAX_PACKET_TOTAL_BYTES = 250 * 1024 * 1024
@@ -128,6 +129,14 @@ def _escribir_entradas(entradas: list[Path], sources: list[Path], grupos: dict[s
             raise ErrorDeAnka("La extracción supera 300 MiB de texto; divide los adjuntos en varios paquetes.")
 
         file_id = _safe_stem(source, digest)
+        vistas = None
+        if source.suffix.lower() == '.pdf':
+            def guardar_vista(pagina: int, contenido_png: bytes, index: int = index, file_id: str = file_id) -> str:
+                nombre = f'{index:02d}-{file_id}-p{pagina:03d}.png'
+                (stage / nombre).write_bytes(contenido_png)
+                return nombre
+
+            vistas = vistas_pdf(content, guardar_vista)
         status = "bloqueado" if not extracted else "lectura_parcial" if reason else "extraido"
         text_files = []
         text_segments = []
@@ -161,6 +170,7 @@ def _escribir_entradas(entradas: list[Path], sources: list[Path], grupos: dict[s
             "text_files": text_files,
             "text_segments": text_segments,
             "evidence": build_attachment_evidence(extracted) if extracted else [],
+            **({"vistas_pdf": vistas} if vistas is not None else {}),
         })
 
     manifest = {
@@ -173,7 +183,8 @@ def _escribir_entradas(entradas: list[Path], sources: list[Path], grupos: dict[s
     _write_json(stage / "manifest.json", manifest)
     readme = (
         "# Paquete local de evidencia para ChatGPT Work\n\n"
-        "Adjunta a la misma tarea el manifiesto y todos los archivos `.txt` generados. "
+        "Adjunta a la misma tarea el PDF original, el manifiesto, los textos `.txt` y las vistas `.png` generadas. "
+        "Compara el texto con cada página y registra la revisión visual realizada. "
         "Cada adjunto conserva su nombre original, hash, cobertura, motivo, localizadores y "
         "fragmentos en orden. Evalúa el contenido junto al hilo correcto; no trates un archivo "
         "parcial o bloqueado como dato ausente del cliente. `no_legible` o `parcial` requiere "

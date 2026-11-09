@@ -20,6 +20,7 @@ from anka.infra.google_services import credentials, services
 from anka.infra.llm import check_ollama
 from anka.infra.store import SCHEMA_VERSION, lectura
 from anka.infra.work_heartbeat import bridge_state
+from anka.servicios.drive_layout import padre_invalido
 
 OK, ERROR, NO_APLICA = "ok", "error", "no_aplica"
 
@@ -104,13 +105,17 @@ def _drive(config: Configuracion) -> tuple[str, str]:
     if not parent:
         return NO_APLICA, "No hay drive_parent_id en config.json."
     _, drive = services()
-    drive.files().get(fileId=parent, fields="id").execute()
+    if aviso := padre_invalido(drive, parent):      # también comprueba que la carpeta existe (U-102)
+        return ERROR, aviso
     return OK, "Drive responde y la carpeta de arranque existe (consulta de solo lectura)."
 
 
 def _motor(config: Configuracion, modo: str) -> tuple[str, str]:
     if modo == "chatgpt_work":
         return NO_APLICA, "En modo ChatGPT Work el análisis lo hace Work, no Anka."
+    if modo == "api" and config["llm"].get("provider") == "gemini":
+        return ((OK, "Hay una clave de Gemini configurada.") if os.getenv("GEMINI_API_KEY")
+                else (ERROR, "Falta GEMINI_API_KEY."))
     if modo == "api":
         return ((OK, "Hay una clave de OpenAI configurada.") if os.getenv("OPENAI_API_KEY")
                 else (ERROR, "Falta OPENAI_API_KEY."))

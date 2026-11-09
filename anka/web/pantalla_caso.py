@@ -18,12 +18,14 @@ from markupsafe import Markup
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.caso import Caso, timestamp
 from anka.dominio.analisis import Analisis, RevisionManual
-from anka.dominio.activities import huella_de_tabla, normalize_estado, parse_activities_form
+from anka.dominio.activities import huella_de_tabla, parse_activities_form
 from anka.web import formularios_pendientes as pendientes
-from anka.dominio.work_contract import archivos_ilegibles, lectura_sin_verificar, respuesta_utilizable
+from anka.dominio.work_contract import (
+    archivos_ilegibles, control_documental, lectura_sin_verificar, respuesta_utilizable,
+)
 from anka.web.views import (
-    adjunto_no_se_pudo_leer, adjunto_requiere_atencion, areas_calculadas_panel, attachments_panel, cifras_de_pdf_panel,
-    filas_de_hoja_panel, reception_assessment_panel,
+    adjunto_requiere_atencion, areas_calculadas_panel, attachments_panel, cifras_de_pdf_panel,
+    filas_de_hoja_panel, reception_assessment_panel, pendientes_del_alcance, casillas_de_preguntas,
     activities_editor, question_audit_panel, question_quality_panel, review_tasks_panel,
 )
 from anka.dominio.status import (
@@ -33,7 +35,9 @@ from anka.dominio.correo import (
     normalized_address, reply_body_without_quoted_history, split_quoted_reply, valid_email_address,
 )
 from anka.dominio.preguntas import (
-    candidatas, como_peticion, con_decisiones, elegida, en_el_correo, historial_de_rondas, separar)
+    INTERNA, candidatas, como_peticion, con_decisiones, elegida, en_el_correo, historial_de_rondas,
+    pregunta_ya_resuelta, separar,
+)
 from anka.dominio.reception import (
     correo_con_preguntas, reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
 )
@@ -82,10 +86,14 @@ _SUGERENCIA = {"ask_client": "preguntar al cliente", "internal": "resolver inter
 def _preguntas_del_caso(analysis: Analisis, assessment: dict) -> list[dict[str, Any]]:
     """Las preguntas candidatas para los selectores: texto, qué sugirió el análisis y qué está elegido (U-22)."""
     return [
-        {**pregunta, "elegida": elegida(pregunta), "sugerencia": _SUGERENCIA[pregunta["sugerida"]],
+        {**pregunta,
+         # una pregunta que ya se le hizo al cliente no se vuelve a proponer sola (U-98); la persona puede insistir
+         "elegida": (INTERNA if pregunta.get("ya_pedida") and not pregunta.get("decision") else elegida(pregunta)),
+         "sugerencia": _SUGERENCIA[pregunta["sugerida"]],
          "origen_texto": _ORIGEN_DE_PREGUNTA.get(pregunta["origen"], pregunta["origen"]),
          "decidida": bool(pregunta.get("decision"))}
         for pregunta in con_decisiones(candidatas(analysis, assessment), analysis.get("preguntas"))
+        if not pregunta_ya_resuelta(pregunta["texto"], analysis)
     ]
 
 
@@ -486,11 +494,11 @@ def _aviso_de_estado_final(review: Caso, aviso: Callable[..., Markup]) -> Markup
     if review["status"] == QuoteStatus.MISSING:
         return aviso(tone="warn", title="Ya no está en Gmail",
             text=("Esta conversación ya no está en Gmail. Alguien la borró, por eso no se puede responder desde aquí. "
-                  "Puedes volver a Mis casos."),
-            action_href="/", action_label="Volver a Mis casos",
+                  "Puedes volver a Solicitudes de cotización."),
+            action_href="/", action_label="Volver a Solicitudes de cotización",
             formulario={"accion": "/delete", "thread_id": str(review["thread_id"]), "campos": {},
                         "etiqueta": "Borrar este caso", "clase": "secondary",
-                        "confirmar": ("El caso se borrará de «Mis casos». Su historial se conserva "
+                        "confirmar": ("El caso se borrará de «Solicitudes de cotización». Su historial se conserva "
                                       "en «Casos borrados». ¿Lo borramos?"),
                         "escribir_para_confirmar": bool(review.get("quote_code") or review.get("sent_at"))})
     if review["status"] == QuoteStatus.SENDING:
@@ -504,7 +512,8 @@ def _aviso_de_estado_final(review: Caso, aviso: Callable[..., Markup]) -> Markup
             text="No se espera nada del cliente. Si llega un mensaje nuevo, el caso vuelve a tu lista.",
             action_href=f"/case?thread_id={hilo}&template=libre#respuesta", action_label="Escribir otro correo")
     return aviso(tone="info", title=str(review.get("status_label") or "Sin novedades"),
-        text="Este caso no necesita nada de ti ahora.", action_href="/", action_label="Volver a Mis casos")
+        text="Este caso no necesita nada de ti ahora.", action_href="/",
+        action_label="Volver a Solicitudes de cotización")
 
 
 
@@ -566,26 +575,6 @@ _FREE_FORM_TEMPLATES = ("received", "ack", "ask_code", "notify_contact", "verify
                         "te_aprobada")
 
 
-def _lo_que_falta(analysis: Analisis) -> str:
-    """«Faltan: 3 actividades por completar y 2 archivos por revisar (…)»: lo que se mira antes de decidir."""
-    actividades = [a for a in analysis.get("activities", []) if normalize_estado(a.get("estado")) != "confirmado"]
-    archivos = [str(a.get("filename") or "sin nombre") for a in analysis.get("attachments", [])
-                if isinstance(a, Mapping) and adjunto_requiere_atencion(a)]
-    partes = []
-    if actividades:
-        partes.append(f"{len(actividades)} actividad{'' if len(actividades) == 1 else 'es'} por completar")
-    if archivos:
-        nombres = ", ".join(archivos[:3]) + ("…" if len(archivos) > 3 else "")
-        partes.append(f"{len(archivos)} archivo{'' if len(archivos) == 1 else 's'} por revisar ({nombres})")
-    if not partes:
-        return ""
-    ilegibles = [str(a.get("filename") or "sin nombre") for a in analysis.get("attachments", [])
-                 if isinstance(a, Mapping) and adjunto_no_se_pudo_leer(a)]
-    salida = (f" No pudimos leer {', '.join(ilegibles[:3])}{'…' if len(ilegibles) > 3 else ''}: ábrelo tú o pídele "
-              "al cliente un PDF.") if ilegibles else ""
-    return f"Faltan: {' y '.join(partes)}. Míralo en la tabla y en la pestaña «Archivos».{salida}"
-
-
 def _campo(escrito: Mapping[str, list[str]], nombre: str) -> str:
     """El primer valor de un campo del formulario que se guardó, o vacío."""
     return (escrito.get(nombre) or [""])[0]
@@ -596,7 +585,7 @@ def _cuadro_de_preguntas(analysis: Analisis, preguntas: list[dict[str, Any]]) ->
     las inquietudes que el análisis sugiere para el cliente (las internas de Anka no van), una por línea."""
     escritas = analysis.get("ultimas_preguntas")
     if escritas:
-        return "\n".join(str(p) for p in escritas)
+        return "\n".join(str(p) for p in escritas if not pregunta_ya_resuelta(str(p), analysis))
     return "\n".join(como_peticion(p["texto"]) for p in preguntas if p["elegida"] == "ask_client")
 
 
@@ -673,6 +662,8 @@ def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, temp
                    email_allowed: bool, reopened: bool, technical: bool, recipient_error: str,
                    preguntas_escritas: Sequence[str] = ()) -> tuple[str, str, bool]:
     """Qué muestra el cuadro de respuesta: (modo, texto inicial, ¿en blanco?)."""
+    if review["status"] == QuoteStatus.REVIEW and not template:
+        return "technical", "", False
     if email_allowed and review.espera_al_cliente and not template:
         return "waiting", "", False   # ya se escribió: no se ofrece enviar lo mismo otra vez
     if not email_allowed:
@@ -822,7 +813,8 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
                  events: list[Evento], integrity_ok: bool, event_count: int,
                  questions_in_decision: bool = False, slot: str = "aviso",
                  pendiente: tuple[str, Mapping[str, list[str]]] | None = None,
-                 actividades_escritas: list[Any] | None = None, ronda: int = 1) -> dict[str, Any]:
+                 actividades_escritas: list[Any] | None = None, ronda: int = 1,
+                 preguntar: Mapping[int, tuple[str, bool]] | None = None) -> dict[str, Any]:
     """Los paneles de la pantalla del caso, cada uno ya renderizado."""
     proposal = review.get("proposal", [])
     reading_blocked = _reading_is_blocked(analysis)
@@ -844,7 +836,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             abierto=bool(actividades_escritas), base_version=huella_de_tabla(analysis.get("activities", [])),
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
-            ultima=last_manual_version(thread_id))),
+            ultima=last_manual_version(thread_id), preguntar=preguntar)),
         "attachments_panel": attachments_panel(analysis.get("attachments", [])),
         "areas_panel": areas_calculadas_panel(
             analysis.get("areas_calculadas") or [], analysis.get("diferencias_de_area") or [], thread_id,
@@ -855,6 +847,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             analysis.get("filas_de_hoja_sin_cubrir") or [], thread_id, huella_de_tabla(analysis.get("activities", [])),
             analysis.get("activities") or []),
         "reading_panel": render("reading_audit.html", reading=analysis.get("reading_summary") or {},
+                                control=control_documental(analysis),
                                 preflight=analysis.get("DRIVE_PREFLIGHT") or {},
                                 audit=analysis.get("reading_audit") or {},
                                 applicability=analysis.get("applicability") or {},
@@ -869,6 +862,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             contradictions=analysis.get("contradictions", []),
             waiting_for_client=review["status"] == QuoteStatus.RESPONSE_SENT,
             questions_in_decision=questions_in_decision,
+            client_count=sum(p["elegida"] == "ask_client" for p in _preguntas_del_caso(analysis, assessment)),
             decisiones=analysis.get("preguntas") or (),
         )),
         "question_audit": Markup("") if reading_blocked else question_audit_panel(analysis.get("question_audit", [])),
@@ -908,8 +902,9 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     technical = assessment.get("status") == "technical_review"
     reopened = review.reabierto(case_has_links(thread_id))
     email_allowed = review.admite_correo(reabierto=reopened, revision_tecnica=technical)
+    compose_template = ("libre" if not template and pendiente and pendiente[0] in ("/send", "/draft") else template)
     email, email_body, blank_reply = _compose_state(
-        review, analysis, config, template, change_id,
+        review, analysis, config, compose_template, change_id,
         email_allowed=email_allowed, reopened=reopened, technical=technical, recipient_error=recipient_error,
         preguntas_escritas=separar(preguntas_texto) if template == "preguntas" else ())
     change = next((c for c in review.get("changes", []) if c["id"] == change_id), None)
@@ -925,7 +920,11 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     puede_volver = _puede_volver_atras(review, analysis)
     ronda, segunda_ronda = _ronda(review, analysis, case_conversation(thread_id, 50))
     cuadro_preguntas = _cuadro_de_preguntas(analysis, preguntas)
-    lo_que_falta = "" if reading_blocked else _lo_que_falta(analysis)
+    precargadas = ""
+    if template == "preguntas" and espera_decision and preguntas_texto.strip():
+        # «Volver a pedirlo» / «Usar las sugeridas»: las preguntas llegan por el enlace y van al cuadro de esta pantalla
+        precargadas = cuadro_preguntas = "\n".join(separar(preguntas_texto))
+    lo_que_falta = "" if reading_blocked else pendientes_del_alcance(analysis)
     plegar_respuesta = bool(review.get("quote_code")) or (
         review.informacion_validada and review["status"] not in {QuoteStatus.IGNORED, QuoteStatus.MISSING})
     puede_emitir = (review.informacion_validada and not review.get("quote_code")
@@ -958,6 +957,11 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
             restaurado = actividades_escritas is not None
         if not restaurado:
             pendientes.limpiar(thread_id)
+    preguntar = None   # U-103.6 a 103.9: casillas de la tabla que preparan el cuadro único de preguntas
+    if espera_decision and slot == "decision" and not actividades_escritas:
+        preguntar, cuadro_preguntas = casillas_de_preguntas(
+            analysis.get("activities", []), cuadro_preguntas, [p["texto"] for p in preguntas if p.get("ya_pedida")],
+            nuevo=not (analysis.get("ultimas_preguntas") or restaurado or precargadas))
     archivos = analysis.get("attachments", [])
     por_revisar = sum(1 for a in archivos if isinstance(a, Mapping) and adjunto_requiere_atencion(a))
     etiqueta_archivos = f"Archivos ({len(archivos)})" + (f" · {por_revisar} por revisar" if por_revisar else "")
@@ -995,13 +999,14 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         armar_preguntas=_preguntas_para_armar(analysis, template, preguntas_texto, puede_volver),
         asunto_respuesta=_asunto_de_respuesta(thread_id),
         email=email, email_body=email_body, recipient_error=recipient_error, blank_reply=blank_reply,
-        sufficient=not reading_blocked and assessment.get("status") == "sufficient_for_internal_review",
+        sufficient=not reading_blocked and review.informacion_validada,
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
         envios_inciertos=pendientes_del_hilo(thread_id),
         can_resolve=espera_decision, preguntas_sugeridas=sugeridas,
         puede_volver=puede_volver,
-        preguntas=preguntas, cuadro_preguntas=cuadro_preguntas, lo_que_falta=lo_que_falta,
-        n_internas=sum(1 for p in preguntas if p["elegida"] == "internal"),
+        preguntas=preguntas, cuadro_preguntas=cuadro_preguntas, precargadas=precargadas, lo_que_falta=lo_que_falta,
+        ya_pedidas=[p for p in preguntas if p.get("ya_pedida") and not p.get("decision")],
+        n_internas=sum(1 for p in preguntas if p["elegida"] == "internal" and not p.get("ya_pedida")),
         preguntas_enviadas=(analysis.get("preguntas_enviadas") or {}).get("preguntas"),
         puede_seguir_sin_respuesta=(review["status"] in (QuoteStatus.WAITING, QuoteStatus.RESPONSE_SENT)
                                     and not review.get("quote_code")),
@@ -1012,7 +1017,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count,
                        questions_in_decision=bool(preguntas) and review["status"] == QuoteStatus.REVIEW, slot=slot,
                        pendiente=pendiente if restaurado else None, actividades_escritas=actividades_escritas,
-                       ronda=ronda),
+                       ronda=ronda, preguntar=preguntar),
     )
     return page("Revisar caso", body, message)
 

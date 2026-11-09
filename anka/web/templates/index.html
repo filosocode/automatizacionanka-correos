@@ -1,12 +1,13 @@
 <div class="page-head">
-  <div><h1 class="titulo-principal">Mis casos</h1><p>{% if total %}{{ total }} caso{{ '' if total == 1 else 's' }}{% if action_count %} · {{ action_count }} esperan algo de ti. El primero es el más urgente{% else %} · nada pendiente de tu parte{% endif %}.{% else %}Todavía no hay casos.{% endif %}</p></div>
+  <div><h1 class="titulo-principal">Solicitudes de cotización</h1><p>{% if recibidas_nuevas %}{{ total + recibidas_nuevas }} solicitud{{ '' if total + recibidas_nuevas == 1 else 'es' }} · {{ recibidas_nuevas }} recibida{{ '' if recibidas_nuevas == 1 else 's' }} pendiente{{ '' if recibidas_nuevas == 1 else 's' }} de análisis.{% elif total %}{{ total }} solicitud{{ '' if total == 1 else 'es' }}{% if action_count %} · {{ action_count }} esperan algo de ti. La primera es la más urgente{% else %} · nada pendiente de tu parte{% endif %}.{% else %}Todavía no hay solicitudes de cotización.{% endif %}</p></div>
 </div>
 {{ notifications }}
+{{ recepcion }}
 {% if total %}
 <form class="filtro-casos" method="get" action="/" role="search" data-filtro-etapas>
-  <div class="buscar-casos"><label for="buscar-casos">Buscar un caso</label>
+  <div class="buscar-casos"><label for="buscar-casos">Buscar una solicitud</label>
     <div class="buscar-fila"><input id="buscar-casos" name="q" type="search" value="{{ busqueda }}" placeholder="Buscar por proyecto, cliente o servicio"><button type="submit" name="etapa" value="{{ etapa_actual or 'todos' }}" class="secondary">Buscar</button></div></div>
-  <p id="n-visibles" class="solo-lectores" role="status">{% if coinciden %}{{ coinciden }} caso{{ '' if coinciden == 1 else 's' }} a la vista{% else %}Ningún caso coincide{% endif %}</p>
+  <p id="n-visibles" class="solo-lectores" role="status">{% if coinciden %}{{ coinciden }} solicitud{{ '' if coinciden == 1 else 'es' }} a la vista{% else %}Ninguna solicitud coincide{% endif %}</p>
   <div class="chips" role="group" aria-label="Filtrar por etapa">
     {% for key, label, count in etapas %}<button type="submit" name="etapa" value="{{ key }}" class="chip-filter" data-etapa="{{ key }}" aria-pressed="{{ 'true' if etapa_actual == key else 'false' }}">{{ label }} <b>{{ count }}</b></button>
     {% endfor %}<button type="submit" name="etapa" value="todos" class="chip-filter" data-etapa="" aria-pressed="{{ 'true' if not etapa_actual else 'false' }}">Todos <b>{{ total }}</b></button>
@@ -14,11 +15,11 @@
 </form>
 <ol class="queue" id="casos">{% for row in todo %}{{ row }}{% endfor %}</ol>
 {{ ver_mas }}
-<div id="sin-casos" class="empty"{% if coinciden %} hidden{% endif %}>No hay casos con esos filtros.</div>
-{% else %}<div class='empty'>Todavía no hay casos. Cuando llegue una solicitud por correo aparecerá aquí.</div>{% endif %}
+<div id="sin-casos" class="empty"{% if coinciden %} hidden{% endif %}>No hay solicitudes con esos filtros.</div>
+{% elif not recibidas_nuevas %}<div class='empty'>Todavía no hay solicitudes de cotización. Cuando llegue una solicitud por correo aparecerá aquí.</div>{% endif %}
 {{ work_rejected }}
 <details class="more">
-  <summary>Ver números y resumen ({{ total }} casos)</summary>
+  <summary>Ver números y resumen ({{ total }} {% if recibidas_nuevas %}con análisis disponible{% else %}solicitudes{% endif %})</summary>
   <div class="grid kpis">
     <div class="kpi"><div class="kpi-label">Esperan algo de ti</div><div class="kpi-value">{{ action_count }}</div></div>
     <div class="kpi"><div class="kpi-label">Esperando al cliente</div><div class="kpi-value">{{ waiting }}</div></div>
@@ -27,7 +28,7 @@
   </div>
   <div class="grid dashboard-grid">
     <section class="section"><div class="section-head"><h2>Servicios solicitados</h2><span class="meta">Los 6 más pedidos</span></div>{{ services }}</section>
-    <section class="section"><div class="section-head"><h2>Etapa de los casos</h2><span class="meta">Ahora</span></div>{{ statuses }}</section>
+    <section class="section"><div class="section-head"><h2>Etapa de las solicitudes</h2><span class="meta">Ahora</span></div>{{ statuses }}</section>
     <section class="section"><div class="section-head"><h2>Tipos de cliente</h2><span class="meta">Según quién escribe</span></div>{{ client_types }}</section>
     <section class="section"><div class="section-head"><h2>Lo que se nota</h2></div>{{ insights }}</section>
   </div>

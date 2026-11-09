@@ -393,7 +393,7 @@ class AislamientoTest(unittest.TestCase):
     def test_50_el_codigo_de_produccion_no_importa_el_laboratorio(self) -> None:
         raiz = Path(__file__).resolve().parent.parent / "anka"
         for ruta in raiz.rglob("*.py"):
-            self.assertNotRegex(ruta.read_text(encoding="utf-8"), r"(?m)^\s*(?:from|import)\s+laboratorio", str(ruta))
+            self.assertNotRegex(ruta.read_text(encoding="utf-8"), r"(?m)^\s*(?:from|import)\s+laboratorio\b", str(ruta))
 
     # Cubre: T-71
     def test_51_los_datos_no_se_modifican_al_construir_referencias(self) -> None:

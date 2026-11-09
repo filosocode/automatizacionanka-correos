@@ -107,7 +107,7 @@ class SegundaRonda(Base):
         self.assertIn("El cliente respondió (ronda 2): revisa lo que faltaba.", pagina)
         self.assertIn("<li>¿Datum?</li>", pagina)
         self.assertIn("· ronda 2", pagina)                                        # sub-línea del paso 1
-        self.assertLess(pagina.index('id="ronda-aviso"'), pagina.index("Actividades detectadas"))
+        self.assertGreater(pagina.index('id="ronda-aviso"'), pagina.index("Actividades detectadas"))
 
     def test_la_primera_ronda_no_lleva_aviso_de_respuesta(self) -> None:
         # Cubre: U-40
@@ -246,7 +246,7 @@ class Callejones(Base):
         self.assertIn('action="/delete"', aviso)
         self.assertIn("Borrar este caso", aviso)
         self.assertIn("data-confirm=", aviso)
-        self.assertIn("Volver a Mis casos", aviso)
+        self.assertIn("Volver a Solicitudes de cotización", aviso)
 
     def test_un_plano_que_no_se_pudo_leer_dice_que_hacer(self) -> None:
         # Cubre: U-40
