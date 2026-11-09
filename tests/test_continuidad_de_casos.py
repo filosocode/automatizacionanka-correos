@@ -26,7 +26,8 @@ RESPUESTA = "2026-09-03T09:00:00-05:00"
 def fila(nombre, cantidad="", unidad="", estado="pendiente", **extra):
     return {"activity": nombre, "servicio_tecnica": extra.pop("servicio", "Topografía"),
             "ubicacion": extra.pop("ubicacion", "Bogotá"), "quantity": cantidad, "unit": unidad,
-            "entregable": extra.pop("entregable", ""), "plazo_restriccion": "no indicado",
+            "entregable": extra.pop("entregable", ""),
+            "plazo_restriccion": extra.pop("plazo", "30 días" if estado == "confirmado" else "no indicado"),
             "fuente": extra.pop("fuente", "correo 1"), "estado": estado, "notes": extra.pop("notes", ""), **extra}
 
 
@@ -160,7 +161,7 @@ class PreguntasEnviadas(Contexto):
 class TablaAcumulada(Contexto):
     def test_una_respuesta_que_aclara_un_dato_lo_completa_y_conserva_todo_lo_demas(self):
         despues = self.seguimiento([fila("Batimetría", "5", "km", "confirmado", servicio="Batimetría",
-                                         ubicacion="Embalse", fuente="correo 2")])
+                                         ubicacion="Embalse", entregable="Batimetría del embalse", fuente="correo 2")])
         nombres = [a["activity"] for a in despues["activities"]]
         self.assertEqual(nombres, ["Levantamiento topográfico", "Batimetría"])
         batimetria = despues["activities"][1]

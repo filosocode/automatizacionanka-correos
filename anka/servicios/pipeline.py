@@ -55,6 +55,7 @@ from anka.infra import registro_de_uso
 from anka.infra.presupuesto_ocr import presupuesto_de_caso
 from anka.infra.settings import load_config
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
+from anka.dominio.estado_coherente import reconciliar_estados
 from anka.servicios.change_control import apply_guard, find_codes
 from email.utils import parseaddr
 from anka.infra.store import connect, save
@@ -236,6 +237,7 @@ class RevisorDeHilos:
                     limpiar_cantidad_y_unidad(row)
                 if isinstance(row, dict) and "estado" in row:
                     row["estado"] = normalize_estado(row["estado"])  # R12
+            reconciliar_estados(analysis.get("activities") or [])   # U-104: el estado cuenta lo mismo que los datos
             marcar_cifras_sin_respaldo(   # U-93: una cifra que ningún documento respalda no queda confirmada
                 analysis, "\n\n".join(message_text(m.get("payload", {})) for m in inbound), attachments)
             if self.db:

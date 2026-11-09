@@ -219,16 +219,18 @@ class TablaDelPrototipo(Base):
         inicio = pagina.index('class="act-resumen')
         return pagina[inicio:pagina.index("</table>", inicio)]
 
-    def test_solo_salen_las_por_completar_y_contradictorias_en_dos_columnas(self) -> None:
+    def test_solo_salen_las_por_completar_y_contradictorias_con_su_estado(self) -> None:
         # Cubre: U-31, U-83, U-103
         filas = self.filas(4, incompletas=(2,))
         filas[2]["estado"] = "contradictorio"
         self.crear(actividades=filas)
         vista = self.vista(pantalla_caso.render_case("t-1"))
-        self.assertEqual(vista.count("<th "), 3)          # con la decisión pendiente se suma «¿Preguntar?» (U-103.6)
-        for titulo in ("Actividad", "Qué hace falta", "¿Preguntar?"):
+        self.assertEqual(vista.count("<th "), 4)          # con la decisión pendiente se suma «¿Preguntar?» (U-103.6)
+        for titulo in ("Actividad", "Qué hace falta", "Estado", "¿Preguntar?"):
             self.assertIn(f'<th scope="col">{titulo}</th>', vista)
         self.assertEqual(vista.count('class="fila-resumen'), 2)
+        self.assertIn('<span class="chip contradictorio">Contradictoria</span>', vista)
+        self.assertIn('<span class="chip pendiente">Por completar</span>', vista)
         self.assertIn("Actividad 2", vista)
         self.assertIn("Actividad 3", vista)
         self.assertNotIn("Actividad 1", vista)
@@ -250,13 +252,13 @@ class TablaDelPrototipo(Base):
     def test_la_nota_larga_se_acorta_y_sin_nada_que_decir_pide_confirmar(self) -> None:
         # Cubre: U-103
         completa = {"plazo_restriccion": "30 días"}
-        larga = actividad("Levantamiento", "pendiente") | completa | {"notes": "Revisar el acceso. " * 30}
+        larga = actividad("Levantamiento", "pendiente") | completa | {"notes": "Revisar el acceso al predio " + "por la vía veredal y la finca vecina " * 8}
         vacia = actividad("Replanteo", "pendiente") | completa | {"notes": ""}
         self.crear(actividades=[larga, vacia])
         vista = self.vista(pantalla_caso.render_case("t-1"))
         celda = vista.split('data-etiqueta="Qué hace falta">')[1].split("</td>")[0]
         self.assertIn("…", celda)
-        self.assertNotIn("Revisar el acceso. " * 15, celda)
+        self.assertLess(len(celda), 220)
         self.assertIn("Falta confirmar la actividad.", vista)
 
     def test_sin_filas_por_completar_una_linea_y_ninguna_tabla(self) -> None:
@@ -325,7 +327,7 @@ class TablaDelPrototipo(Base):
         self.crear(actividades=self.filas(2, incompletas=(1,)), estado=QuoteStatus.WAITING)
         vista = self.vista(pantalla_caso.render_case("t-1"))
         self.assertNotIn("preguntar_fila", vista)
-        self.assertEqual(vista.count("<th "), 2)
+        self.assertEqual(vista.count("<th "), 3)
 
     def test_lo_que_la_persona_escribio_en_el_cuadro_no_se_reescribe(self) -> None:
         # Cubre: U-103

@@ -521,7 +521,8 @@ class RowStateAndStatusFlowTests(Base):
     def test_work_rows_with_free_text_states_arrive_normalized(self):
         work_import.dashboard_upsert(b64(json.dumps(payload(thread="E1", activities=[
             {"activity": "a", "estado": "confirmado en fuentes; revisión pendiente"},
-            {"activity": "b", "estado": "confirmado"}]))))
+            {"activity": "b", "estado": "confirmado", "ubicacion": "Lote 4", "quantity": "5", "unit": "ha",
+             "entregable": "Plano", "plazo_restriccion": "10 días"}]))))
         states = [r["estado"] for r in quotes.get_quote("E1")["analysis"]["activities"]]
         self.assertEqual(states, ["pendiente", "confirmado"])
 

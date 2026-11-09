@@ -17,6 +17,7 @@ from typing import Any
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ErrorDeAnka, ErrorDeValidacion
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado, unidades_en_cantidad
+from anka.dominio.estado_coherente import reconciliar_estados
 from anka.dominio.correo import decode_websafe, reply_body_without_quoted_history
 from anka.dominio.reception import unresolved_scope_issues
 from anka.dominio.status import QuoteStatus, estado_tras_un_analisis
@@ -111,6 +112,7 @@ def _work_activities(payload: dict) -> list:
             if "estado" in item:
                 item["estado"] = normalize_estado(item["estado"])
             normalized.append(item)
+        reconciliar_estados(normalized)       # U-104: el estado cuenta lo mismo que los datos y la nota
         activities = normalized
     if isinstance(activities, str):
         return [{

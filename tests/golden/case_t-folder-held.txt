@@ -433,6 +433,9 @@ Actividad
 <th scope="col">
 Qué hace falta
 </th>
+<th scope="col">
+Estado
+</th>
 </tr>
 </thead>
 <tbody role="rowgroup">
@@ -444,6 +447,11 @@ Batimetría
 </td>
 <td role="cell" data-etiqueta="Qué hace falta">
 Falta ubicación.
+</td>
+<td role="cell" data-etiqueta="Estado">
+<span class="chip pendiente">
+Por completar
+</span>
 </td>
 </tr>
 </tbody>

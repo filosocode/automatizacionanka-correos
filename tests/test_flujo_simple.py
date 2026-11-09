@@ -181,7 +181,7 @@ class TablaCompacta(Base):
         self.crear_caso(analisis={"activities": [pendiente]})
         pagina = pantalla_caso.render_case("t-1")
         resumen = pagina[pagina.index('id="tabla-resumen"'):pagina.index('id="editar-tabla"')]
-        self.assertIn("Falta ubicación, entregable, plazo", resumen)
+        self.assertIn("Falta ubicación, entregable.", resumen)
         self.assertIn(">Corregir la tabla</button>", pagina)
         self.assertNotIn("Ajustar cajas al texto", pagina)
         editor = pagina[pagina.index('id="editar-tabla"'):]

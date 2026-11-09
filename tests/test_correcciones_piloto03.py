@@ -129,7 +129,7 @@ class ImportacionYAdopcion(RespuestasParciales):
         with tempfile.TemporaryDirectory() as temporal, patch.object(settings, "DATA_DIR", Path(temporal)):
             fila = {"activity": "Topografía", "quantity": "18.400 m² (1,84 ha)",
                     "unit": "m²; ha (misma área)", "estado": "confirmado", "notes": "Confirmar intervalo",
-                    "entregable": "Curvas", "fuente": "PDF p. 1"}
+                    "entregable": "Curvas", "fuente": "PDF p. 1", "ubicacion": "Bogotá", "plazo_restriccion": "30 días"}
             base = {"thread_id": "abcdef112233", "message_id": "abcdef000001",
                     "client_email": "cliente@example.com", "project_name": "Piloto PDF",
                     "received_at": "2026-11-03T11:00:00-05:00",
@@ -145,7 +145,7 @@ class ImportacionYAdopcion(RespuestasParciales):
                 anotar_envio(anterior, "2026-11-03T11:17:00-05:00", "abcdef123456", self.textos, True)
                 db.execute("UPDATE quotes SET analysis_json=?", (json.dumps(anterior),))
             importar(base | self.nuevo | {"message_id": "fedcba654321", "activities": [fila | {
-                "notes": "Intervalo confirmado; fecha y delimitación pendientes", "entregable": "Curvas cada 0,50 m",
+                "notes": "Intervalo confirmado a 0,50 m en el correo posterior", "entregable": "Curvas cada 0,50 m",
                 "fuente": "correo fedcba654321, párrafo 2"}]})
             with store.lectura() as db:
                 a = json.loads(db.execute("SELECT analysis_json FROM quotes").fetchone()[0])

@@ -10,6 +10,8 @@ from typing import Any
 from markupsafe import Markup
 
 from anka.dominio.analisis import Analisis
+from anka.dominio.estado_coherente import datos_que_faltan
+from anka.dominio.lo_que_falta import lo_pendiente, lo_que_dice_la_nota
 from anka.dominio.preguntas import (
     INTERNA, historial_de_rondas, huella_de_pregunta, identificador, limpiar, sumar_preguntas,
 )
@@ -426,27 +428,19 @@ def _sin_cambios(ultima: Mapping[str, Any] | None) -> str:
 _ETIQUETA_DEL_ESTADO = {"confirmado": "Completa", "pendiente": "Por completar", "contradictorio": "Contradictoria"}
 
 
-_DATOS_ESENCIALES = (("ubicacion", "ubicación"), ("quantity", "cantidad"), ("unit", "unidad"),
-                     ("entregable", "entregable"), ("plazo_restriccion", "plazo"))
-
-_LARGO_DE_NOTA = 160
-
-
 def _datos_que_faltan(item: Mapping[str, Any]) -> str:
     """«ubicación, plazo»: los datos esenciales de la fila (R12) vacíos o «no indicado»; vacío si no falta ninguno."""
-    return ", ".join(nombre for clave, nombre in _DATOS_ESENCIALES
-                     if str(item.get(clave) or "").strip().casefold() in ("", "no indicado"))
+    return ", ".join(datos_que_faltan(item))
 
 
 def _que_hace_falta(item: Mapping[str, Any], estado: str) -> str:
     """Lo puntual que falta en una actividad no confirmada, en una línea (U-103)."""
-    nota = " ".join(str(item.get("notes") or "").split())
-    if len(nota) > _LARGO_DE_NOTA:
-        nota = nota[:_LARGO_DE_NOTA].rstrip() + "…"
+    nota = str(item.get("notes") or "")
     if estado == "contradictorio":
-        return nota or "Hay información que no coincide: revísala en «Corregir la tabla»."
+        return lo_que_dice_la_nota(nota) or "Hay información que no coincide: revísala en «Corregir la tabla»."
     faltan = _datos_que_faltan(item)
-    return f"Falta {faltan}." if faltan else nota or "Falta confirmar la actividad."
+    return lo_pendiente(nota) or (f"Falta {faltan}." if faltan else lo_que_dice_la_nota(nota)
+                                  or "Falta confirmar la actividad.")
 
 
 _ARTICULO_DEL_DATO = {"ubicación": "la ubicación", "cantidad": "la cantidad", "unidad": "la unidad",
@@ -510,6 +504,7 @@ def _vista_de_actividades(activities: Sequence[Mapping[str, Any]],
             continue
         pregunta, marcada = (preguntar or {}).get(indice, ("", False))
         filas.append({"actividad": str(item.get("activity") or "Sin nombre"), "estado": estado,
+                      "estado_etiqueta": _ETIQUETA_DEL_ESTADO.get(estado, "Por completar"),
                       "que_falta": _que_hace_falta(item, estado), "pregunta": pregunta, "marcada": marcada})
     return filas
 

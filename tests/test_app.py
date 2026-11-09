@@ -184,7 +184,7 @@ def complete_analysis(location="Bogotá"):
             "quantity": "10",
             "unit": "ha",
             "entregable": "Plano topográfico",
-            "plazo_restriccion": "no indicado",
+            "plazo_restriccion": "30 días",
             "fuente": "correo cliente-1",
             "estado": "confirmado" if location else "pendiente",
             "notes": "",

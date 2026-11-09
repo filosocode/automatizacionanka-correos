@@ -338,6 +338,9 @@ Actividad
 Qué hace falta
 </th>
 <th scope="col">
+Estado
+</th>
+<th scope="col">
 ¿Preguntar?
 </th>
 </tr>
@@ -350,7 +353,12 @@ Qué hace falta
 </strong>
 </td>
 <td role="cell" data-etiqueta="Qué hace falta">
-Falta cantidad, unidad.
+La fila queda pendiente.
+</td>
+<td role="cell" data-etiqueta="Estado">
+<span class="chip pendiente">
+Por completar
+</span>
 </td>
 <td role="cell" class="preguntar" data-etiqueta="¿Preguntar?">
 <input type="checkbox" name="preguntar_fila" value="¿Podría indicar la cantidad y la unidad de «"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>»?" form="decision-form" checked="" aria-label="Preguntar al cliente por "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
