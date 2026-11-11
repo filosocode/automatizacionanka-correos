@@ -15,7 +15,7 @@ RETIRADOS = {
     "enviar ahora": "Enviar al cliente",
     "la información es suficiente": "Con esto alcanza",
 }
-UNICOS = ("Con esto alcanza", "Confirmar que alcanza", "Hay que preguntarle al cliente", "Preparar el correo",
+UNICOS = ("Con esto alcanza", "Redactar el correo",
           "Cambiar las preguntas", "Preparar el correo de nuevo", "Volver a decidir", "No preguntar: con esto alcanza",
           "Enviar al cliente", "Completar la tabla yo")
 

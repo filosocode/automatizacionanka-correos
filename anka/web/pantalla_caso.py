@@ -445,7 +445,7 @@ def _aviso_del_estado(review: Caso, work_mode: bool, hay_correo: bool, oculto: b
                                       "¿Ya hablaste con el cliente?")})
     if label == "Sin respuesta · recordar":
         return aviso(tone="warn", title="El cliente no ha respondido",
-            text="Hace 3 días de trabajo que espera. Envíale un recordatorio o activa los recordatorios automáticos.",
+            text="El cliente aún no ha respondido. Envíale un recordatorio o activa los recordatorios automáticos.",
             action_href="#seguimiento", action_label="Ver seguimiento")
     if hay_correo and review["status"] in (QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED):
         return aviso(tone="info", title="Revisa el correo y envíalo",
@@ -475,8 +475,9 @@ def _aviso_del_estado(review: Caso, work_mode: bool, hay_correo: bool, oculto: b
             action_href="#carpeta", action_label="Ir a la carpeta")
     if label.startswith("Esperando al cliente"):
         return aviso(tone="info", title="Esperando al cliente",
-            text=(f"Nada que hacer: esperando su respuesta ({label}). Si no contesta, a los 3 días de trabajo te "
-                  f"avisamos para enviar un recordatorio y a los {fup.CALL_BUSINESS_DAYS} para llamarlo."),
+            text=(f"Nada que hacer: esperando su respuesta ({label}). Si no contesta, desde {fup.ALERT_BUSINESS_DAYS} "
+                  f"día de trabajo te avisamos para enviar un recordatorio y a los {fup.CALL_BUSINESS_DAYS} "
+                  "para llamarlo."),
             enlace_href="#seguimiento", enlace_label="Ver el seguimiento",
             preguntas=list((review["analysis"].get("preguntas_enviadas") or {}).get("preguntas") or []))
     return _aviso_de_estado_final(review, aviso)

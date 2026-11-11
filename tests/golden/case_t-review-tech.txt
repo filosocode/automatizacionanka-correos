@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/static/style.HUELLA.css">
 <noscript>
 <style>
-.editor-tabla { display: block; } #agregar-fila, #editar-boton { display: none; }
+.editor-tabla { display: block; } #agregar-fila, #editar-boton, .editar-fila { display: none; }
 </style>
 </noscript>
 </head>
@@ -279,6 +279,8 @@ Corregir la tabla
 <input type="hidden" name="thread_id" value="t-review-tech">
 <input type="hidden" name="row_count" value="0">
 <input type="hidden" name="base_version" value="4f53cda18c2baa0c">
+<p class="meta editando-una" id="editando-una" role="status" hidden="">
+</p>
 <details class="more leer-estados">
 <summary>
 Cómo leer los estados
@@ -493,33 +495,6 @@ Faltan: 1 archivo por revisar (plano.dwg). Míralo en la pestaña «Archivos». 
 </p>
 <form method="post" action="/review-decision" class="decision-form" id="decision-form">
 <input type="hidden" name="thread_id" value="t-review-tech">
-<fieldset class="opciones">
-<legend class="solo-lectores">
-Cómo seguir con este caso
-</legend>
-<label class="opcion">
-<input type="radio" name="decision" value="sufficient" required="" disabled="" aria-describedby="sin-actividades">
-<span>
-<strong>
-Con esto alcanza
-</strong>
-<small>
-Ya tengo lo necesario para cotizar.
-</small>
-</span>
-</label>
-<label class="opcion">
-<input type="radio" name="decision" value="ask_client" required="">
-<span>
-<strong>
-Hay que preguntarle al cliente
-</strong>
-<small>
-Elijo qué preguntas y armo el correo.
-</small>
-</span>
-</label>
-</fieldset>
 <div class="preguntas-bloque" id="preguntas-bloque">
 <label>
 Preguntas para el cliente (una por línea)
@@ -528,22 +503,22 @@ Preguntas para el cliente (una por línea)
 </textarea>
 </label>
 <p class="nota">
-Estas son las dudas que encontró el análisis. Borra las que sobren, cambia las que quieras y escribe las tuyas. Con lo que quede preparamos el correo.
+Las preguntas que marques en la tabla (columna «Preguntar al cliente») se agregan aquí. Quita las que sobren, cambia las que quieras y escribe las tuyas. Con lo que quede redactamos el correo y lo revisas antes de enviarlo.
 </p>
 </div>
-<div class="acciones">
-<button type="submit" id="btn-suficiente" class="solo-suficiente" disabled="" aria-describedby="sin-actividades" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
-Confirmar que alcanza
+<div class="acciones" role="group" aria-label="Cómo seguir con este caso">
+<button type="submit" id="btn-preguntar" name="decision" value="ask_client">
+Redactar el correo
 </button>
-<button type="submit" id="btn-preguntar" class="solo-preguntar">
-Preparar el correo
+<button type="submit" id="btn-suficiente" class="secondary" name="decision" value="sufficient" disabled="" aria-describedby="sin-actividades" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
+Con esto alcanza
 </button>
 </div>
 <p class="nota" id="sin-actividades">
 «Confirmar que alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».
 </p>
-<p class="nota elige-opcion">
-Elige una opción para continuar. Nada se envía al cliente en este paso.
+<p class="nota">
+Nada se envía al cliente en este paso: primero ves el correo y lo envías tú.
 </p>
 </form>
 <details class="more">
@@ -722,7 +697,7 @@ Formato no soportado Datos por verificar: ubicación del proyecto.
 </li>
 </ul>
 <p class="meta">
-3 pregunta(s) para el cliente: aparecen en la tarjeta «Ahora» al elegir «Hay que preguntarle al cliente».
+3 pregunta(s) para el cliente: aparecen en la caja de preguntas de la tarjeta «Ahora».
 </p>
 </div>
 <div class="panel" role="tabpanel" id="p-hist" aria-labelledby="t-hist">

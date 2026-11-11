@@ -12,6 +12,28 @@
 5. **Huella.** Cada cambio deja una línea en las notas de la fila («Falta cantidad.» o «Completa: tiene todos los datos esenciales y nada pendiente.»).
 6. **Consecuencia conocida.** Una actividad sin plazo ya no queda «Completa»: el caso pregunta el plazo al cliente, como R12 siempre dijo. Si se quisiera que el plazo no bloquee, se cambia `DATOS_ESENCIALES` en `dominio/estado_coherente.py` (y R12).
 
+### U-106 · Las preguntas al cliente, en una sola caja que se alimenta desde la tabla
+**Estado: implementado** (pruebas en `tests/test_pantalla_por_pasos.py`, clases `TarjetaAhora` y `TablaDelPrototipo`; el aviso, en `tests/test_change_control.py`). Decisión: D-198. Reemplaza las opciones «Con esto alcanza» y «Hay que preguntarle al cliente» de U-31 por una caja y dos botones.
+
+**Motivo.** Elegir primero una opción y luego ver la caja era un paso de más. El comercial quiere un solo lugar, como un chat: ahí van las preguntas que sugiere el modelo y las que él considere, y desde ahí sale el correo.
+
+1. **La caja siempre está.** «Preguntas para el cliente» (una por línea) viene con las que sugirió el análisis. La persona quita, cambia o escribe las suyas.
+2. **Desde la tabla.** La columna «Preguntar al cliente» trae una casilla por fila: marcarla agrega la pregunta de esa actividad a la caja; desmarcarla la quita (U-103.7). Lo que la persona escribió a mano no se reescribe.
+3. **Dos botones.** «Redactar el correo» arma el correo con las preguntas de la caja (plantilla fija, sin modelo: no gasta tokens) para que la persona lo revise y lo envíe; nada sale sin ese paso (R8). «Con esto alcanza» confirma que no hay nada que preguntar y pide confirmación.
+4. **Aviso por falta de respuesta.** Desde **1 día hábil** sin respuesta, la lista y el caso dicen «Sin respuesta · recordar» (R13, antes 3 días). Si la persona anotó que ya habló con el cliente, o activó los recordatorios automáticos, no se avisa; a los 7 días hábiles sigue «Llamar al cliente».
+5. **Todavía no.** Registrar respuestas por llamada u otro medio, y cerrar una pregunta como «No aplica» o «Se asume X», se especifican aparte.
+
+### U-105 · Editar lo pendiente y agregar filas desde la tabla simplificada
+**Estado: implementado** (pruebas en `tests/test_pantalla_por_pasos.py`, clase `EditarDesdeLaTabla`). Decisión: D-197. Reutiliza el editor de U-14.
+
+**Motivo.** El comercial ve solo lo que falta (U-103) y quiere resolverlo ahí mismo: poner el dato que falta, corregir lo contradictorio o agregar una actividad, dejando dicho por qué. Antes debía abrir «Corregir la tabla» y buscar la fila entre todas.
+
+1. **«Editar» en cada fila.** Cada fila de la tabla simplificada (por completar o contradictoria) trae un botón «Editar». Abre el editor mostrando **solo esa actividad**, con «Más datos» (ubicación, entregable, plazo, fuente) ya abierto y el cursor en el primer campo vacío. Una línea avisa «Editando: {actividad}».
+2. **«+ Agregar» abre solo una fila nueva.** Las demás no se ven. Una fila nueva solo se guarda si tiene datos (como siempre).
+3. **«Corregir la tabla» muestra todas** las actividades, como antes.
+4. **El mismo guardado y el mismo motivo.** Es el mismo formulario de U-14: elegir el motivo del cambio, guardar con la versión de la tabla (si alguien más la cambió, se avisa), historial con quién, cuándo y qué, y nada se envía al cliente. Las filas que no se ven no cambian.
+5. **Sin JavaScript** el editor completo se ve siempre y los botones «Editar» no se muestran.
+
 ### U-103 · La tabla del caso solo muestra lo que falta
 **Estado: implementado** (pruebas en `tests/test_pantalla_por_pasos.py`, clase `TablaDelPrototipo`). Decisiones: D-194 y D-195. Reemplaza la vista de lectura de U-31.3 y de U-83 (cuatro columnas, ficha, «Ver todas»); el editor completo de U-14 no cambia.
 
@@ -121,7 +143,7 @@ Cada hecho queda con fecha, autor y enlace al correo, encadenado con huellas; lo
 guardan completos; eliminar un caso no borra su historial; hay un acta de cambios imprimible.
 
 ### T-05 · Seguimiento cuando el cliente tarda
-Muestra el tiempo de espera en días hábiles, alerta a los 3 días y pide llamar a los 7; los recordatorios
+Muestra el tiempo de espera en días hábiles, alerta desde 1 día hábil sin respuesta y pide llamar a los 7; los recordatorios
 automáticos son opcionales por caso (R13).
 
 ### T-06 · Operación
@@ -1001,7 +1023,7 @@ la pantalla se recargaba sola borrando lo que se estaba leyendo o escribiendo; u
 
 **Qué debe cumplirse**
 1. **Correo por revisar.** Visibles: el texto, «Enviar al cliente» (principal) y «Guardar borrador en Gmail». «Cambiar las preguntas», «Volver a decidir» y «No preguntar: con esto alcanza» están en un solo menú plegado «Cambiar de idea» (abierto solo si el correo está en blanco o se acaba de pedir otro con preguntas). La casilla «Esperar su respuesta» solo se ofrece si el correo no hace preguntas y explica qué hace; el servidor ya la entrega oculta cuando el texto trae preguntas. Rearmar el correo editado sigue pidiendo confirmación.
-2. **Esperando al cliente.** Sin botón principal: «Nada que hacer: esperando su respuesta…», con lo que se hará a los 3 y 7 días de trabajo (R13), las preguntas enviadas (plegadas) y el seguimiento como enlace. Si toca llamar, «Ya hablé con el cliente» está en la misma tarjeta (registra la llamada; no envía nada).
+2. **Esperando al cliente.** Sin botón principal: «Nada que hacer: esperando su respuesta…», con lo que se hará desde 1 día y a los 7 días de trabajo (R13), las preguntas enviadas (plegadas) y el seguimiento como enlace. Si toca llamar, «Ya hablé con el cliente» está en la misma tarjeta (registra la llamada; no envía nada).
 3. **Segunda ronda.** Cuando el cliente contestó un correo con preguntas (hay un correo suyo posterior al envío), el paso 1 dice «· ronda N» y la tarjeta «Ahora» de la decisión o del correo abre con «El cliente respondió (ronda N): revisa lo que faltaba.», lo que se le preguntó y lo que sigue pendiente. No hay estados ni eventos nuevos y no se afirma qué respondió: la respuesta está en «Conversación». La tabla va justo debajo de la tarjeta.
 4. **Emitir la T.** Antes del botón, una lista de las 3 cosas que pasan (se crea el código, se crea la carpeta, se envía el correo a quien corresponda); el número dice de dónde sale; el correo va plegado en «Ver o editar el correo»; «Solo emitir la T» es un botón secundario visible; «Corregir el cliente» (el formulario de cliente, tipo y sector) está en el mismo panel. El bloque «Carpeta del proyecto en Drive» sale de este estado y queda en «Más datos» como «Si la carpeta falló: crearla a mano»; si hay un aviso de carpeta pendiente o la T ya está emitida sin carpeta, sigue a la vista. Un campo obligatorio vacío dentro de algo plegado lo abre.
 5. **Avisos con una prioridad.** Una tarjeta principal arriba y, plegada, «y además: N avisos» con el resto (orden en `spec/04-ux.md`). Novedades: una fila por caso. Tema, «Avisarme de novedades» y el selector de quién analiza los correos están dentro de Ajustes; el selector, en «Ajustes avanzados (administración)» con su advertencia y el modo activo dicho en llano.

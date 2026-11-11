@@ -166,29 +166,21 @@
   {% if lo_que_falta %}<p class="nota">{{ lo_que_falta }}</p>{% endif %}
   <form method="post" action="/review-decision" class="decision-form" id="decision-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
-    <fieldset class="opciones"><legend class="solo-lectores">Cómo seguir con este caso</legend>
-      <label class="opcion"><input type="radio" name="decision" value="sufficient" required{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}>
-        <span><strong>Con esto alcanza</strong>
-        <small>Ya tengo lo necesario para cotizar.</small></span></label>
-      <label class="opcion"><input type="radio" name="decision" value="ask_client" required{% if precargadas %} checked{% endif %}>
-        <span><strong>Hay que preguntarle al cliente</strong>
-        <small>Elijo qué preguntas y armo el correo.</small></span></label>
-    </fieldset>
     {% if ya_pedidas %}<div class="notice" id="ya-pedidas"><strong>Esto ya se lo pedimos al cliente y aún no lo envía.</strong><ul>{% for p in ya_pedidas %}<li>{{ p.texto }} <small>(se pidió el {{ p.ya_pedida }})</small></li>{% endfor %}</ul>No las volvimos a poner abajo para no insistir. <a class="button secondary" id="volver-a-pedir" href="/case?thread_id={{ thread_id | urlquote }}&amp;template=preguntas&amp;preguntas={{ ya_pedidas | map(attribute='texto') | join('\n') | urlquote }}#preguntas-bloque">Volver a pedirlo</a></div>{% endif %}
     <div class="preguntas-bloque" id="preguntas-bloque">
       <label>Preguntas para el cliente (una por línea)
         <textarea name="questions" class="caja-media" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">{{ cuadro_preguntas }}</textarea>
       </label>
-      <p class="nota">Estas son las dudas que encontró el análisis. Borra las que sobren, cambia las que quieras y escribe las tuyas. Con lo que quede preparamos el correo.
+      <p class="nota">Las preguntas que marques en la tabla (columna «Preguntar al cliente») se agregan aquí. Quita las que sobren, cambia las que quieras y escribe las tuyas. Con lo que quede redactamos el correo y lo revisas antes de enviarlo.
         {% if n_internas %}{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} el equipo de Anka (están en «Qué falta resolver»).{% endif %}</p>
     </div>
-    <div class="acciones">
-      <button type="submit" id="btn-suficiente" class="solo-suficiente"{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}
-        data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">Confirmar que alcanza</button>
-      <button type="submit" id="btn-preguntar" class="solo-preguntar">Preparar el correo</button>
+    <div class="acciones" role="group" aria-label="Cómo seguir con este caso">
+      <button type="submit" id="btn-preguntar" name="decision" value="ask_client">Redactar el correo</button>
+      <button type="submit" id="btn-suficiente" class="secondary" name="decision" value="sufficient"{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}
+        data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">Con esto alcanza</button>
     </div>
     {% if sin_actividades %}<p class="nota" id="sin-actividades">«Confirmar que alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».</p>{% endif %}
-    <p class="nota elige-opcion">Elige una opción para continuar. Nada se envía al cliente en este paso.</p>
+    <p class="nota">Nada se envía al cliente en este paso: primero ves el correo y lo envías tú.</p>
   </form>
   {% if preguntas_sugeridas and not armar_preguntas %}<details class="more"><summary>Ver preguntas sugeridas</summary>
     <p class="nota">El análisis sugiere {{ preguntas_sugeridas | length }} preguntas para el cliente.</p>

@@ -208,6 +208,37 @@ class YaRevisePrimero(Base):
         self.assertNotIn('formaction="/send"', pagina)
 
 
+# Cubre: U-105
+class EditarDesdeLaTabla(Base):
+    def caso(self) -> str:
+        filas = [actividad(f"Actividad {n}", "pendiente" if n in (2, 4) else "confirmado")
+                 | ({"notes": "Falta el método de validación altimétrica."} if n in (2, 4) else {})
+                 for n in range(1, 5)]
+        self.crear(actividades=filas)
+        return pantalla_caso.render_case("t-1")
+
+    def test_cada_fila_por_completar_trae_su_boton_editar_con_el_lugar_que_ocupa_en_el_editor(self) -> None:
+        pagina = self.caso()
+        botones = re.findall(r'class="button secondary editar-fila" data-fila="(\d+)" aria-controls="editar-tabla" '
+                             r'aria-label="Editar ([^"]+)"', pagina)
+        self.assertEqual(botones, [("1", "Actividad 2"), ("3", "Actividad 4")])
+        for indice, nombre in botones:       # el índice apunta a la fila del editor que lleva ese nombre
+            self.assertRegex(pagina, rf"name='a{indice}_activity'[^>]*>{nombre}</textarea>")
+
+    def test_las_completas_no_traen_boton(self) -> None:
+        self.assertNotIn('data-fila="0"', self.caso())
+
+    def test_el_editor_sigue_con_motivo_y_guardado_y_el_script_muestra_una_sola_fila(self) -> None:
+        pagina = self.caso()
+        for parte in ('name="reason"', 'id="guardar-tabla"', 'id="editando-una"', 'action="/activities"'):
+            self.assertIn(parte, pagina)
+        for parte in ("editar-fila", "solo-una", "elegida", "Editando: "):
+            self.assertIn(parte, JS)
+
+    def test_sin_javascript_no_se_muestran_los_botones_editar(self) -> None:
+        self.assertIn(".editar-fila { display: none; }", self.caso())
+
+
 class TablaDelPrototipo(Base):
     # Cubre: U-103
     def filas(self, cuantas: int, incompletas: tuple[int, ...] = ()) -> list[dict]:
@@ -226,7 +257,7 @@ class TablaDelPrototipo(Base):
         self.crear(actividades=filas)
         vista = self.vista(pantalla_caso.render_case("t-1"))
         self.assertEqual(vista.count("<th "), 4)          # con la decisión pendiente se suma «¿Preguntar?» (U-103.6)
-        for titulo in ("Actividad", "Qué hace falta", "Estado", "¿Preguntar?"):
+        for titulo in ("Actividad", "Qué hace falta", "Estado", "Preguntar al cliente"):
             self.assertIn(f'<th scope="col">{titulo}</th>', vista)
         self.assertEqual(vista.count('class="fila-resumen'), 2)
         self.assertIn('<span class="chip contradictorio">Contradictoria</span>', vista)
@@ -311,7 +342,7 @@ class TablaDelPrototipo(Base):
         self.crear(actividades=[pendiente, con_nota, contradictoria])
         pagina = pantalla_caso.render_case("t-1")
         vista = self.vista(pagina)
-        self.assertIn('<th scope="col">¿Preguntar?</th>', vista)
+        self.assertIn('<th scope="col">Preguntar al cliente</th>', vista)
         self.assertEqual(vista.count('name="preguntar_fila"'), 3)
         self.assertEqual(vista.count('form="decision-form"'), 3)
         self.assertIn('id="decision-form"', pagina)
@@ -380,35 +411,34 @@ def tarjeta(pagina: str) -> str:
 
 
 class TarjetaAhora(Base):
-    def test_la_decision_es_una_tarjeta_con_dos_opciones_y_un_solo_boton(self) -> None:
-        # Cubre: U-31
+    def test_la_decision_es_una_tarjeta_con_la_caja_de_preguntas_y_dos_botones(self) -> None:
+        # Cubre: U-31, U-106
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn('class="section decision-arriba ahora" id="decision"', pagina)
         decision = tarjeta(pagina)
         self.assertIn(">Ahora<", decision)
         for valor in ("sufficient", "ask_client"):
-            self.assertIn(f'<input type="radio" name="decision" value="{valor}"', decision)
+            self.assertIn(f'name="decision" value="{valor}"', decision)
+        self.assertNotIn('type="radio"', decision)                            # sin elegir antes: la caja siempre está
+        self.assertIn('name="questions"', decision)
         self.assertNotIn('value="internal_only"', decision)
-        self.assertIn("Con esto alcanza", decision)
-        self.assertIn("Hay que preguntarle al cliente", decision)
-        self.assertEqual(decision.count('type="submit"'), 2)                  # uno por opción, que aparece al elegirla
+        self.assertIn(">Con esto alcanza<", decision)
+        self.assertEqual(decision.count('type="submit"'), 2)                  # redactar el correo o con esto alcanza
         self.assertIn('id="btn-suficiente"', decision)
         self.assertIn('id="btn-preguntar"', decision)
-        self.assertIn(">Confirmar que alcanza<", decision)
-        self.assertIn(">Preparar el correo<", decision)
-        self.assertIn("Elige una opción para continuar. Nada se envía al cliente en este paso.", decision)
+        self.assertIn(">Redactar el correo<", decision)
+        self.assertIn("Nada se envía al cliente en este paso", decision)
         self.assertIn("<h2>Revisa y decide cómo seguir</h2>", decision)
 
-    def test_ninguna_opcion_viene_marcada_y_el_cuadro_trae_las_preguntas_sugeridas(self) -> None:
+    def test_el_cuadro_trae_las_preguntas_sugeridas(self) -> None:
         # Cubre: U-31
         self.crear(preguntas=["¿Cuál es el datum del levantamiento?"])
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        self.assertNotRegex(decision, r"<input[^>]*\bchecked\b")                    # como el prototipo: decide primero
         cuadro = decision.split('name="questions"')[1].split("</textarea>")[0]
         self.assertIn("¿Cuál es el datum del levantamiento?", cuadro)
 
-    def test_sin_preguntas_sugeridas_no_viene_marcada_ninguna(self) -> None:
+    def test_sin_preguntas_sugeridas_el_cuadro_viene_vacio(self) -> None:
         # Cubre: U-31
         analisis = complete_analysis(location="Bogotá")          # información completa: el análisis no sugiere preguntar
         db = store.open_db(Path(self.temp.name))
@@ -416,7 +446,7 @@ class TarjetaAhora(Base):
         db.commit()
         db.close()
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        self.assertNotRegex(decision, r"<input[^>]*\bchecked\b")
+        self.assertEqual(decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1].strip(), "")
 
     def test_solo_con_esto_alcanza_pide_confirmacion(self) -> None:
         # Cubre: U-31
@@ -498,8 +528,7 @@ class IgualAlPrototipo(Base):
         # Cubre: U-31
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
         self.assertIn(".opcion input[type=radio] { position: absolute; opacity: 0;", css)
-        self.assertIn("@supports selector(:has(*))", css)
-        self.assertIn('.decision-form:has(input[name="decision"]:checked) .elige-opcion { display: none; }', css)
+        self.assertNotIn(".elige-opcion", css)                 # ya no se elige antes: la caja y los botones siempre están
 
     def test_el_contenido_del_caso_tiene_ancho_de_lectura_y_los_pasos_van_bajo_su_titulo(self) -> None:
         # Cubre: U-31
@@ -524,7 +553,7 @@ class IgualAlPrototipo(Base):
         decision = tarjeta(pantalla_caso.render_case("t-1"))
         frase = "Faltan: 1 archivo por revisar (planos.dwg). Míralo en la pestaña «Archivos»."
         self.assertIn(frase, decision)
-        self.assertLess(decision.index(frase), decision.index('class="opciones"'))
+        self.assertLess(decision.index(frase), decision.index('id="preguntas-bloque"'))
 
 
 class PasosComoBarra(Base):

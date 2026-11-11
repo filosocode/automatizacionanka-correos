@@ -73,12 +73,12 @@ class CorreoPorRevisar(Base):
 class EsperandoAlCliente(Base):
     def test_esperar_no_es_una_tarea_y_muestra_lo_que_se_pregunto(self) -> None:
         # Cubre: U-40
-        ayer = (datetime.now() - timedelta(days=1)).isoformat()
+        ayer = datetime.now().isoformat()          # recién enviado: 0 días de espera, todavía no hay aviso
         enviadas = {"en": ayer, "preguntas": ["¿Datum?", "¿Plazo?"], "esperada": True}
         self.crear_caso(QuoteStatus.WAITING, {"preguntas_enviadas": enviadas}, (("sent", ayer),), sent_at=ayer)
         aviso = str(pantalla_caso._next_step_banner(quotes.get_quote("t-1"), False))
         self.assertIn("Nada que hacer", aviso)
-        self.assertIn("3 días de trabajo", aviso)
+        self.assertIn("desde 1 día de trabajo", aviso)
         self.assertIn("7 para llamarlo", aviso)
         self.assertNotIn('class="button"', aviso)                  # sin botón principal
         self.assertIn('class="enlace-accion" href="#seguimiento"', aviso)

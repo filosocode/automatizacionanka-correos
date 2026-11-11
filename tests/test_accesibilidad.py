@@ -43,7 +43,7 @@ class AvanceYElecciones(Base):
         self.assertIn("@media (forced-colors: active)", CSS)
         self.assertIn("Highlight", CSS)
         caso = plantilla("case.html")
-        self.assertIn('<fieldset class="opciones"><legend class="solo-lectores">Cómo seguir con este caso</legend>', caso)
+        self.assertIn('role="group" aria-label="Cómo seguir con este caso"', caso)
         self.assertNotIn('role="radiogroup"', caso)
 
 

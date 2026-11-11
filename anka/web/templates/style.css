@@ -493,12 +493,6 @@ textarea.caja-correo { min-height: 260px; }
 .opcion.discreta strong { font-size: .875rem; }
 .preguntas-bloque { display: grid; gap: 12px; }
 .preguntas-bloque textarea { min-height: 150px; font-family: inherit; font-size: .875rem; }
-@supports selector(:has(*)) {
-  .decision-form:not(:has(input[value="ask_client"]:checked)) .preguntas-bloque { display: none; }
-  .decision-form .solo-suficiente, .decision-form .solo-preguntar { display: none; }
-  .decision-form:has(input[value="sufficient"]:checked) .solo-suficiente, .decision-form:has(input[value="ask_client"]:checked) .solo-preguntar { display: inline-flex; align-items: center; }
-  .decision-form:has(input[name="decision"]:checked) .elige-opcion { display: none; }
-}
 @media (max-width: 640px) { .opciones { grid-template-columns: 1fr; } .section.ahora { padding: 16px; } }
 .glosario { margin: 0; }
 .glosario[open] { flex: 1 1 100%; order: 3; }
@@ -776,6 +770,10 @@ html { scroll-padding-bottom: 9rem; }
 
 /* Tabla de actividades: botones de abrir y de ver todas (sin casillas ocultas) */
 .editor-tabla.abierto { display: block; }
+/* Editar una sola actividad (o agregar una): se ve solo esa fila; «Corregir la tabla» vuelve a mostrarlas todas. */
+.editor-tabla.solo-una .act-row:not(.elegida), .editor-tabla.solo-una .leer-estados { display: none; }
+.editando-una { font-weight: 600; margin: 0 0 8px; }
+.act-resumen .editar-fila { margin-top: 6px; padding: 3px 12px; font-size: .875rem; }
 table.people { display: block; max-width: 100%; overflow-x: auto; }
 #cargando.notice { margin: 8px 24px; }
 a.bridge-chip { display: inline-flex; align-items: center; min-height: 44px; }

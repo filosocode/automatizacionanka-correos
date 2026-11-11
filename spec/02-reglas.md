@@ -18,7 +18,7 @@ El texto vigente de cada regla, con su versión y su bloque legible por máquina
 | R10 | Contenido de la carpeta | Se llena con los documentos del cliente y la hoja de actividades. |
 | R11 | Código y cambios | Con T, la tabla solo cambia por el contacto registrado citando el código. |
 | R12 | Estado de las actividades | `confirmado`, `pendiente` o `contradictorio`; confirmado solo con todos los datos esenciales. Las notas explican faltantes o parámetros discrepantes con fuentes/localizadores y siguiente paso/responsable por rol. |
-| R13 | Recordatorios | Tiempo de espera, llamada a los 7 días hábiles y hasta 2 recordatorios automáticos opcionales. |
+| R13 | Recordatorios | Tiempo de espera, aviso desde 1 día hábil sin respuesta, llamada a los 7 días hábiles y hasta 2 recordatorios automáticos opcionales. |
 
 ## Procedimiento de cambio
 Ver [`../docs/ESTANDAR_CAMBIOS.md`](../docs/ESTANDAR_CAMBIOS.md): **requisito/regla ⇒ casos ⇒ código ⇒ skill de Work ⇒

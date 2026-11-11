@@ -54,7 +54,7 @@ class PalabrasRetiradas(unittest.TestCase):
     def test_lo_unico_de_d97_y_el_envio_siguen_en_el_caso(self) -> None:
         # Cubre: U-35
         caso = (PLANTILLAS / "case.html").read_text(encoding="utf-8")
-        for texto in ("Con esto alcanza", "Hay que preguntarle al cliente", "Enviar al cliente", "Preparar el correo",
+        for texto in ("Con esto alcanza", "Redactar el correo", "Enviar al cliente", "Preparar el correo de nuevo",
                       'data-confirm-boton="Sí, enviar al cliente"'):
             with self.subTest(texto=texto):
                 self.assertIn(texto, caso)

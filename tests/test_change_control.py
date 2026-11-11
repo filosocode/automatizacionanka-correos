@@ -996,10 +996,11 @@ class ClientDelayFollowupTests(Base):
             return paginas.case_stage(quote)
 
     def test_waiting_time_alerts_and_the_call(self):
+        # Cubre: U-106
         self.wait_for_client(auto=False)
         self.assertEqual(self.stage("2026-10-01T16:00:00-05:00"), ("Esperando al cliente", False))
-        self.assertEqual(self.stage("2026-10-05T10:00:00-05:00"), ("Esperando al cliente · hace 2 d", False))
-        self.assertEqual(self.stage("2026-10-06T10:00:00-05:00"), ("Sin respuesta · recordar", True))   # 3 días hábiles
+        self.assertEqual(self.stage("2026-10-02T10:00:00-05:00"), ("Sin respuesta · recordar", True))   # desde 1 día hábil
+        self.assertEqual(self.stage("2026-10-06T10:00:00-05:00"), ("Sin respuesta · recordar", True))
         self.assertEqual(self.stage("2026-10-12T10:00:00-05:00"), ("Llamar al cliente", True))         # 7 días hábiles
 
     def test_with_automatic_follow_up_the_alert_waits_until_the_call(self):

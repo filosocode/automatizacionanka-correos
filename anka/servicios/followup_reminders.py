@@ -1,7 +1,7 @@
 """Seguimiento cuando el cliente tarda en responder (R13).
 
 - Muestra cuánto lleva esperando el caso, en días hábiles.
-- A los 3 días hábiles sin respuesta lo marca para recordar; a los 7, para llamar.
+- Desde 1 día hábil sin respuesta lo marca para recordar; a los 7, para llamar.
 - Si una persona lo activa en ese caso, envía hasta 2 recordatorios automáticos (a 1 y 3 días hábiles),
   solo en horario hábil, con texto fijo y neutro y solo al contacto registrado. Se detienen en cuanto el
   cliente responde por cualquier vía, o si una persona pausa o dice que ya habló con el cliente.
@@ -24,7 +24,7 @@ log = get_logger(__name__)
 # R13 (reglas_operativas.md): lo que Python aplica y test_paridad_modos compara con las reglas.
 MAX_REMINDERS = 2
 REMINDER_BUSINESS_DAYS = (1, 3)       # días hábiles desde el correo con las preguntas
-ALERT_BUSINESS_DAYS = 3               # sin recordatorios automáticos: avisar para recordar
+ALERT_BUSINESS_DAYS = 1               # desde 1 día hábil sin respuesta: avisar (sin recordatorios automáticos)
 CALL_BUSINESS_DAYS = 7                # pasada esta espera, llamar al cliente
 BUSINESS_HOURS = (8, 17)              # lunes a viernes, hora local (Colombia)
 AUTO_REQUIRES_ACTIVATION = True       # apagado por defecto; lo activa una persona caso por caso

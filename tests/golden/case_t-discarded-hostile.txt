@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/static/style.HUELLA.css">
 <noscript>
 <style>
-.editor-tabla { display: block; } #agregar-fila, #editar-boton { display: none; }
+.editor-tabla { display: block; } #agregar-fila, #editar-boton, .editar-fila { display: none; }
 </style>
 </noscript>
 </head>
@@ -285,6 +285,8 @@ Corregir la tabla
 <input type="hidden" name="thread_id" value="t-discarded-hostile">
 <input type="hidden" name="row_count" value="0">
 <input type="hidden" name="base_version" value="4f53cda18c2baa0c">
+<p class="meta editando-una" id="editando-una" role="status" hidden="">
+</p>
 <details class="more leer-estados">
 <summary>
 Cómo leer los estados

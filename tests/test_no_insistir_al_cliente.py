@@ -166,7 +166,7 @@ class EnLaPantallaDelCaso(unittest.TestCase):
         from anka.web import pantalla_caso
         pagina = str(pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto=self.PREGUNTA))
         self.assertEqual(self.cuadro(pagina), self.PREGUNTA)
-        self.assertIn('value="ask_client" required checked', pagina)
+        self.assertIn('name="decision" value="ask_client"', pagina)
 
 
 if __name__ == "__main__":

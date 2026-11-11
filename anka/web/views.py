@@ -503,7 +503,7 @@ def _vista_de_actividades(activities: Sequence[Mapping[str, Any]],
         if estado == "confirmado":
             continue
         pregunta, marcada = (preguntar or {}).get(indice, ("", False))
-        filas.append({"actividad": str(item.get("activity") or "Sin nombre"), "estado": estado,
+        filas.append({"indice": indice, "actividad": str(item.get("activity") or "Sin nombre"), "estado": estado,
                       "estado_etiqueta": _ETIQUETA_DEL_ESTADO.get(estado, "Por completar"),
                       "que_falta": _que_hace_falta(item, estado), "pregunta": pregunta, "marcada": marcada})
     return filas

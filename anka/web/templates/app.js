@@ -177,17 +177,43 @@ document.addEventListener('submit', event => {
   // el cursor a la fila nueva (U-37). Sin JavaScript el editor se ve siempre (ver <noscript> arriba).
   const editor = document.getElementById('editar-tabla');
   const boton = document.getElementById('editar-boton'), agregar = document.getElementById('agregar-fila');
+  const aviso = document.getElementById('editando-una');
   function abrirEditor(abrir) {
     editor.classList.toggle('abierto', abrir);
     boton.setAttribute('aria-expanded', String(abrir));
   }
-  if (editor && boton) boton.addEventListener('click', () => abrirEditor(boton.getAttribute('aria-expanded') !== 'true'));
+  // Muestra solo una fila del editor (la que se edita o la nueva); sin fila, las muestra todas (U-105).
+  function elegir(fila, texto) {
+    editor.classList.toggle('solo-una', !!fila);
+    editor.querySelectorAll('.act-row').forEach(f => f.classList.toggle('elegida', f === fila));
+    if (aviso) { aviso.hidden = !fila; aviso.textContent = fila ? texto : ''; }
+  }
+  if (editor && boton) boton.addEventListener('click', () => {
+    const abrir = boton.getAttribute('aria-expanded') !== 'true';
+    elegir(null, '');
+    abrirEditor(abrir);
+  });
   if (editor && boton && agregar) agregar.addEventListener('click', () => {
+    const nueva = editor.querySelector('.act-main.nueva');
+    elegir(nueva ? nueva.closest('.act-row') : null, 'Agregando una actividad. Al guardar queda anotado con su motivo.');
     abrirEditor(true);
     const nuevas = editor.querySelectorAll('.act-main.nueva textarea');
     editor.scrollIntoView({block: 'start'});
     if (nuevas.length) nuevas[0].focus({preventScroll: true});
   });
+  document.querySelectorAll('.editar-fila').forEach(b => b.addEventListener('click', () => {
+    if (!editor || !boton) return;
+    const fila = editor.querySelectorAll('.act-row')[Number(b.dataset.fila)];
+    if (!fila) return;
+    const nombre = (fila.querySelector('textarea') || {}).value || 'la actividad';
+    elegir(fila, 'Editando: ' + nombre + '. Al guardar queda anotado con su motivo.');
+    abrirEditor(true);
+    const mas = fila.querySelector('.act-more details');
+    if (mas) mas.open = true;          // lo que suele faltar (ubicación, entregable, plazo) queda a la vista
+    editor.scrollIntoView({block: 'start'});
+    const campo = fila.querySelector('textarea.vacio') || fila.querySelector('textarea');
+    if (campo) campo.focus({preventScroll: true});
+  }));
   // «Completar la tabla yo» (caso sin análisis de Work) y el enlace #editar-tabla del Resumen abren el editor existente.
   const completar = document.getElementById('completar-tabla');
   if (editor && agregar && completar) completar.addEventListener('click', evento => { evento.preventDefault(); agregar.click(); });
@@ -202,8 +228,6 @@ document.addEventListener('submit', event => {
       if (!lineas.some(linea => clave(linea) === clave(casilla.value))) {
         cuadroPreguntas.value = (cuadroPreguntas.value.trim() ? cuadroPreguntas.value.replace(/\s+$/, '') + '\n' : '') + casilla.value;
       }
-      const preguntar = document.querySelector('input[name="decision"][value="ask_client"]');
-      if (preguntar && !preguntar.disabled) preguntar.checked = true;
     } else {
       cuadroPreguntas.value = lineas.filter(linea => clave(linea) !== clave(casilla.value)).join('\n');
     }

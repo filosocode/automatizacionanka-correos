@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/static/style.HUELLA.css">
 <noscript>
 <style>
-.editor-tabla { display: block; } #agregar-fila, #editar-boton { display: none; }
+.editor-tabla { display: block; } #agregar-fila, #editar-boton, .editar-fila { display: none; }
 </style>
 </noscript>
 </head>
@@ -348,6 +348,10 @@ Estado
 <strong>
 "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </strong>
+<br>
+<button type="button" class="button secondary editar-fila" data-fila="0" aria-controls="editar-tabla" aria-label="Editar "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
+Editar
+</button>
 </td>
 <td role="cell" data-etiqueta="Qué hace falta">
 La fila queda pendiente.
@@ -366,6 +370,8 @@ Por completar
 <input type="hidden" name="thread_id" value="t-hostile">
 <input type="hidden" name="row_count" value="1">
 <input type="hidden" name="base_version" value="127b9d46b2d0016b">
+<p class="meta editando-una" id="editando-una" role="status" hidden="">
+</p>
 <details class="more leer-estados">
 <summary>
 Cómo leer los estados
