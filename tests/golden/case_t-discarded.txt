@@ -148,7 +148,7 @@ Actualizar la página
 Solicitud sin nombre
 </h1>
 <div class="sub">
-noreply@tienda.com · noreply@tienda.com · recibido el 2026-09-01
+noreply@tienda.com · recibido el 2026-09-01
 </div>
 </div>
 <span class="badge">
@@ -156,9 +156,6 @@ Descartada
 </span>
 </div>
 <div class="paso-cabecera">
-<p class="paso-n">
-Paso 1 de 4
-</p>
 <details class="more glosario">
 <summary class="ayuda" title="Explica T, T&E, lectura realizada y aplicabilidad">
 ¿Qué significan T y T&E?

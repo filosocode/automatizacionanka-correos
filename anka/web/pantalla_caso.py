@@ -16,7 +16,7 @@ import urllib.request
 from anka.dominio.reloj import ahora
 from markupsafe import Markup
 from anka.dominio.configuracion import Configuracion
-from anka.dominio.caso import Caso, timestamp
+from anka.dominio.caso import Caso
 from anka.dominio.analisis import Analisis, RevisionManual
 from anka.dominio.activities import huella_de_tabla, parse_activities_form
 from anka.web import formularios_pendientes as pendientes
@@ -25,21 +25,22 @@ from anka.dominio.work_contract import (
 )
 from anka.web.views import (
     adjunto_requiere_atencion, areas_calculadas_panel, attachments_panel, cifras_de_pdf_panel,
-    filas_de_hoja_panel, reception_assessment_panel, pendientes_del_alcance, casillas_de_preguntas,
+    filas_de_hoja_panel, reception_assessment_panel, pendientes_del_alcance, casillas_de_preguntas, preguntas_generales,
+    ronda_del_caso, correo_de_las_preguntas,
     activities_editor, question_audit_panel, question_quality_panel, review_tasks_panel,
 )
 from anka.dominio.status import (
     QuoteStatus,
 )
 from anka.dominio.correo import (
-    normalized_address, reply_body_without_quoted_history, split_quoted_reply, valid_email_address,
+    reply_body_without_quoted_history, split_quoted_reply, valid_email_address,
 )
 from anka.dominio.preguntas import (
     INTERNA, candidatas, como_peticion, con_decisiones, elegida, en_el_correo, historial_de_rondas,
     pregunta_ya_resuelta, separar,
 )
 from anka.dominio.reception import (
-    correo_con_preguntas, reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
+    reception_assessment, reception_questions, suggested_reply, unresolved_scope_issues,
 )
 from anka.servicios.internal_context import internal_commercial_context
 from anka.infra.logging_setup import get_logger
@@ -590,25 +591,6 @@ def _cuadro_de_preguntas(analysis: Analisis, preguntas: list[dict[str, Any]]) ->
     return "\n".join(como_peticion(p["texto"]) for p in preguntas if p["elegida"] == "ask_client")
 
 
-def _ronda(review: Caso, analysis: Analisis, mensajes: Sequence[Mapping[str, Any]]) -> tuple[int, bool]:
-    """(número de ronda, ¿el cliente ya contestó un correo con preguntas?) (U-40).
-
-    La ronda 1 es la primera vez que se pregunta; cada correo enviado al cliente abre la siguiente. Sin estados nuevos:
-    sale de lo que ya se guarda (los correos de la conversación, las preguntas enviadas y cuándo llegó la respuesta).
-    """
-    enviados = sum(1 for m in mensajes if m["direction"] == "sent")
-    enviadas = analysis.get("preguntas_enviadas") or {}
-    if review["status"] == QuoteStatus.WAITING:
-        return max(1, enviados), False
-    if not enviadas.get("preguntas") or review["status"] not in (
-            QuoteStatus.REVIEW, QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED, QuoteStatus.READY_REVIEW):
-        return 1, False
-    salio = timestamp(str(enviadas.get("en") or ""))
-    contesto = salio > 0 and any(
-        m["direction"] == "received" and timestamp(str(m["occurred_at"] or "")) > salio for m in mensajes)
-    return (max(2, enviados + 1), True) if contesto else (max(1, enviados), False)
-
-
 def _rondas_panel(analysis: Analisis) -> Markup:
     """Las preguntas enviadas al cliente por ronda y su respuesta (T-61). Vacío si no se preguntó."""
     rondas = historial_de_rondas(analysis)
@@ -647,21 +629,9 @@ def _asunto_de_respuesta(thread_id: str) -> str:
     return asunto if asunto.lower().startswith("re:") else f"Re: {asunto}"
 
 
-def _codigo_para_el_contacto(review: Caso) -> str:
-    """El código de la oferta para citarlo en el correo, o '' si no hay T o el destinatario no es el contacto registrado
-    (R11: a quien no es el contacto nunca se le incluye el código)."""
-    numero = review.get("quote_code", "")
-    if not numero:
-        return ""
-    contacto = review.get("contact_email") or review["recipient"]
-    if normalized_address(contacto) != normalized_address(review["recipient"]):
-        return ""
-    return code_label(numero, review.get("code_stage", "T"))
-
-
 def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, template: str, change_id: int, *,
                    email_allowed: bool, reopened: bool, technical: bool, recipient_error: str,
-                   preguntas_escritas: Sequence[str] = ()) -> tuple[str, str, bool]:
+                   preguntas_escritas: Sequence[str] = (), segunda_ronda: bool = False) -> tuple[str, str, bool]:
     """Qué muestra el cuadro de respuesta: (modo, texto inicial, ¿en blanco?)."""
     if review["status"] == QuoteStatus.REVIEW and not template:
         return "technical", "", False
@@ -676,11 +646,7 @@ def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, temp
     if template == "preguntas":      # U-24: el correo con las preguntas que la persona escribió, en cualquier etapa
         if not preguntas_escritas:
             return "form", "", True
-        reenviado = bool(analysis.get("routing", {}).get("is_forwarded"))
-        codigo = _codigo_para_el_contacto(review)
-        proyecto = analysis.get("project_name") or ""
-        correo = correo_con_preguntas(list(preguntas_escritas), reenviado, proyecto=proyecto, codigo=codigo)
-        return "form", correo, False
+        return "form", correo_de_las_preguntas(review, analysis, preguntas_escritas, segunda_ronda), False
     if template == "libre" or (template not in _FREE_FORM_TEMPLATES and reopened):
         return "form", "", True       # respuesta libre en blanco (o caso ya avanzado)
     if template in _FREE_FORM_TEMPLATES:
@@ -814,7 +780,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
                  events: list[Evento], integrity_ok: bool, event_count: int,
                  questions_in_decision: bool = False, slot: str = "aviso",
                  pendiente: tuple[str, Mapping[str, list[str]]] | None = None,
-                 actividades_escritas: list[Any] | None = None, ronda: int = 1,
+                 actividades_escritas: list[Any] | None = None, ronda: int = 1, generales: Sequence[Any] = (),
                  preguntar: Mapping[int, tuple[str, bool]] | None = None) -> dict[str, Any]:
     """Los paneles de la pantalla del caso, cada uno ya renderizado."""
     proposal = review.get("proposal", [])
@@ -837,7 +803,7 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             abierto=bool(actividades_escritas), base_version=huella_de_tabla(analysis.get("activities", [])),
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
-            ultima=last_manual_version(thread_id), preguntar=preguntar)),
+            ultima=last_manual_version(thread_id), preguntar=preguntar, generales=generales)),
         "attachments_panel": attachments_panel(analysis.get("attachments", [])),
         "areas_panel": areas_calculadas_panel(
             analysis.get("areas_calculadas") or [], analysis.get("diferencias_de_area") or [], thread_id,
@@ -904,10 +870,11 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     reopened = review.reabierto(case_has_links(thread_id))
     email_allowed = review.admite_correo(reabierto=reopened, revision_tecnica=technical)
     compose_template = ("libre" if not template and pendiente and pendiente[0] in ("/send", "/draft") else template)
+    ronda, segunda_ronda = ronda_del_caso(review, analysis, case_conversation(thread_id, 50))
     email, email_body, blank_reply = _compose_state(
         review, analysis, config, compose_template, change_id,
         email_allowed=email_allowed, reopened=reopened, technical=technical, recipient_error=recipient_error,
-        preguntas_escritas=separar(preguntas_texto) if template == "preguntas" else ())
+        preguntas_escritas=separar(preguntas_texto) if template == "preguntas" else (), segunda_ronda=segunda_ronda)
     change = next((c for c in review.get("changes", []) if c["id"] == change_id), None)
     events = thread_events(thread_id)
     integrity_ok, event_count = chain_status(thread_id)
@@ -919,7 +886,6 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     preguntas = _preguntas_del_caso(analysis, assessment) if espera_decision else []
     sugeridas = _preguntas_sugeridas(analysis, assessment) if not reading_blocked else []
     puede_volver = _puede_volver_atras(review, analysis)
-    ronda, segunda_ronda = _ronda(review, analysis, case_conversation(thread_id, 50))
     cuadro_preguntas = _cuadro_de_preguntas(analysis, preguntas)
     precargadas = ""
     if template == "preguntas" and espera_decision and preguntas_texto.strip():
@@ -963,6 +929,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         preguntar, cuadro_preguntas = casillas_de_preguntas(
             analysis.get("activities", []), cuadro_preguntas, [p["texto"] for p in preguntas if p.get("ya_pedida")],
             nuevo=not (analysis.get("ultimas_preguntas") or restaurado or precargadas))
+    generales = preguntas_generales(preguntas, preguntar, cuadro_preguntas) if preguntar is not None else []   # U-107.7
     archivos = analysis.get("attachments", [])
     por_revisar = sum(1 for a in archivos if isinstance(a, Mapping) and adjunto_requiere_atencion(a))
     etiqueta_archivos = f"Archivos ({len(archivos)})" + (f" · {por_revisar} por revisar" if por_revisar else "")
@@ -1018,7 +985,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         **_case_panels(thread_id, review, analysis, assessment, config, events, integrity_ok, event_count,
                        questions_in_decision=bool(preguntas) and review["status"] == QuoteStatus.REVIEW, slot=slot,
                        pendiente=pendiente if restaurado else None, actividades_escritas=actividades_escritas,
-                       ronda=ronda, preguntar=preguntar),
+                       ronda=ronda, preguntar=preguntar, generales=generales),
     )
     return page("Revisar caso", body, message)
 

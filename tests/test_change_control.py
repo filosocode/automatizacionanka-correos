@@ -363,7 +363,7 @@ class TechnicalReviewFlowTests(Base):
         self.upsert_with_dependency()
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("T9")
-        self.assertIn("Revisa y decide cómo seguir", page)
+        self.assertIn("Mensaje para el cliente", page)
         self.assertNotIn('formaction="/send"', page)                 # primero decide una persona
         quotes.resolve_technical_review("T9", "ask_client", "¿Qué precisión requieren?")
         self.assertEqual(quotes.get_quote("T9")["status"], QuoteStatus.REVIEW_PENDING)

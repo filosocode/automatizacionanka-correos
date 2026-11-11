@@ -156,9 +156,6 @@ Por decidir
 </span>
 </div>
 <div class="paso-cabecera">
-<p class="paso-n">
-Paso 1 de 4
-</p>
 <details class="more glosario">
 <summary class="ayuda" title="Explica T, T&E, lectura realizada y aplicabilidad">
 ¿Qué significan T y T&E?
@@ -258,6 +255,7 @@ Decidir
 </div>
 </div>
 <div class="layout">
+<div class="dos-columnas">
 <section class="section actividades" id="alcance">
 <div class="acts-head">
 <div>
@@ -473,46 +471,34 @@ Si escribes directo en la hoja, el cambio se pierde en la próxima actualizació
 </div>
 </section>
 <section class="section decision-arriba ahora" id="decision">
-<div class="eyebrow">
-Ahora
-</div>
+<div class="cab-tarjeta">
 <h2>
-Revisa y decide cómo seguir
+Mensaje para el cliente
 </h2>
 <p class="nota">
-Antes de decidir:
-<a href="#alcance">
-comprueba la tabla
-</a>
-y
-<a href="#attachments-review">
-revisa sus fuentes y dudas
-</a>
-. Si un dato se contradice o no se pudo leer, resuélvelo antes de confirmar.
+Lo que marques a la izquierda aparece aquí. Puedes cambiarlo.
 </p>
+</div>
+<div class="cuerpo-tarjeta">
 <p class="nota">
 Faltan: 1 archivo por revisar (plano.dwg). Míralo en la pestaña «Archivos». No pudimos leer plano.dwg: ábrelo tú o pídele al cliente un PDF.
 </p>
 <form method="post" action="/review-decision" class="decision-form" id="decision-form">
 <input type="hidden" name="thread_id" value="t-review-tech">
 <div class="preguntas-bloque" id="preguntas-bloque">
-<label>
-Preguntas para el cliente (una por línea)
-<textarea name="questions" class="caja-media" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">
+<div class="chat-caja">
+<textarea name="questions" id="preguntas-cliente" aria-label="Preguntas para el cliente (una por línea)" placeholder="Escribe aquí lo que quieres preguntarle al cliente, una pregunta por línea.">
 ¿Cuál es el objetivo del trabajo y qué elementos o activos deben revisarse o levantarse? ¿Puede indicar la ubicación del proyecto y el sector o tramo que debe cubrirse? ¿Cuál es el área, longitud o cantidad aproximada de elementos que deben levantarse?
 </textarea>
-</label>
-<p class="nota">
-Las preguntas que marques en la tabla (columna «Preguntar al cliente») se agregan aquí. Quita las que sobren, cambia las que quieras y escribe las tuyas. Con lo que quede redactamos el correo y lo revisas antes de enviarlo.
-</p>
-</div>
-<div class="acciones" role="group" aria-label="Cómo seguir con este caso">
+<div class="acciones chat-barra" role="group" aria-label="Cómo seguir con este caso">
+<button type="submit" id="btn-suficiente" class="secondary enlace-suave" name="decision" value="sufficient" disabled="" aria-describedby="sin-actividades" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
+Con esto alcanza
+</button>
 <button type="submit" id="btn-preguntar" name="decision" value="ask_client">
 Redactar el correo
 </button>
-<button type="submit" id="btn-suficiente" class="secondary" name="decision" value="sufficient" disabled="" aria-describedby="sin-actividades" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
-Con esto alcanza
-</button>
+</div>
+</div>
 </div>
 <p class="nota" id="sin-actividades">
 «Confirmar que alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».
@@ -532,7 +518,9 @@ El análisis sugiere 3 preguntas para el cliente.
 Usar las preguntas sugeridas
 </a>
 </details>
+</div>
 </section>
+</div>
 <details class="more analisis-original" id="analisis-original">
 <summary>
 Ver análisis original y guía de revisión

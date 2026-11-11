@@ -156,9 +156,6 @@ Información validada
 </span>
 </div>
 <div class="paso-cabecera">
-<p class="paso-n">
-Paso 2 de 4
-</p>
 <details class="more glosario">
 <summary class="ayuda" title="Explica T, T&E, lectura realizada y aplicabilidad">
 ¿Qué significan T y T&E?

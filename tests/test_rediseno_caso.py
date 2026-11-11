@@ -205,7 +205,7 @@ class TablaYLenguaje(unittest.TestCase):
         self.assertNotIn('id="ajustar-cajas"', editor)                           # sin botón: las cajas se ajustan solas (U-40)
         self.assertIn('role="row"', editor)                                      # la cuadrícula conserva la semántica de tabla
         css = (RAIZ / "anka" / "web" / "templates" / "style.css").read_text(encoding="utf-8")
-        css = css[css.index("/* Tabla de actividades"):]                         # el bloque de la tabla
+        css = css[css.index("/* Tabla de actividades"):css.index("/* U-107: tabla del caso compacta")]   # el bloque de la tabla
         self.assertIn("grid-template-columns: repeat(5, minmax(0, 1fr)) 84px", css)   # cinco columnas iguales
         self.assertIn("field-sizing: content", css)                              # la caja se ajusta a su texto
         self.assertIn("resize: vertical", css)                                   # se puede cambiar desde la esquina

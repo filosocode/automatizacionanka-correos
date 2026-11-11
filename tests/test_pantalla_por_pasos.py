@@ -65,24 +65,24 @@ class PasosArriba(Base):
         # Cubre: U-31
         self.crear()
         pagina = pantalla_caso.render_case("t-1")
-        self.assertIn("Paso 1 de 4", pagina)
+        self.assertNotIn("Paso 1 de 4", pagina)                                   # U-107.2: el recorrido ya dice dónde está
+        self.assertIn('aria-current="step"><strong>Revisar y aclarar', pagina)
         for paso in ("Revisar y aclarar", "Información validada", "T emitida", "T&amp;E aprobada"):
             self.assertIn(paso, pagina)
-        self.assertLess(pagina.index("Paso 1 de 4"), pagina.index('class="next-step'))
         self.assertLess(pagina.index('class="process-step'), pagina.index('class="next-step'))
 
     def test_el_numero_de_paso_sigue_al_caso(self) -> None:
         # Cubre: U-31
         self.crear()
         quotes.resolve_technical_review("t-1", "sufficient")
-        self.assertIn("Paso 2 de 4", pantalla_caso.render_case("t-1"))
+        self.assertIn('aria-current="step"><strong>Información validada', pantalla_caso.render_case("t-1"))
         change_control.assign_code("t-1", "26145")
-        self.assertIn("Paso 3 de 4", pantalla_caso.render_case("t-1"))
+        self.assertIn('aria-current="step"><strong>T emitida', pantalla_caso.render_case("t-1"))
         db = store.open_db(Path(self.temp.name))
         db.execute("UPDATE quotes SET code_stage='TE' WHERE thread_id='t-1'")
         db.commit()
         db.close()
-        self.assertIn("Paso 4 de 4", pantalla_caso.render_case("t-1"))
+        self.assertIn('aria-current="step"><strong>T&amp;E aprobada', pantalla_caso.render_case("t-1"))
 
 
 class GlosarioConInterrogacion(Base):
@@ -96,7 +96,7 @@ class GlosarioConInterrogacion(Base):
         self.assertIn('>¿Qué significan T y T&amp;E?</summary>', glosario)
         for termino in ("<dt>T</dt>", "<dt>T&amp;E</dt>", "<dt>Lectura realizada</dt>", "<dt>Aplicabilidad</dt>"):
             self.assertIn(termino, glosario)
-        self.assertGreater(pagina.index('class="more glosario"'), pagina.index("Paso 1 de 4"))
+        self.assertLess(pagina.index('class="more glosario"'), pagina.index('class="process-step'))
         self.assertLess(pagina.index('class="more glosario"'), pagina.index('class="next-step'))
 
 
@@ -257,8 +257,10 @@ class TablaDelPrototipo(Base):
         self.crear(actividades=filas)
         vista = self.vista(pantalla_caso.render_case("t-1"))
         self.assertEqual(vista.count("<th "), 4)          # con la decisión pendiente se suma «¿Preguntar?» (U-103.6)
-        for titulo in ("Actividad", "Qué hace falta", "Estado", "Preguntar al cliente"):
+        for titulo in ("Actividad", "Qué hace falta"):
             self.assertIn(f'<th scope="col">{titulo}</th>', vista)
+        self.assertIn('<th scope="col" class="col-estado">Estado</th>', vista)      # U-107: se oculta si todas son iguales
+        self.assertNotIn('data-estados="uno"', vista)                               # aquí hay dos estados distintos
         self.assertEqual(vista.count('class="fila-resumen'), 2)
         self.assertIn('<span class="chip contradictorio">Contradictoria</span>', vista)
         self.assertIn('<span class="chip pendiente">Por completar</span>', vista)
@@ -342,7 +344,7 @@ class TablaDelPrototipo(Base):
         self.crear(actividades=[pendiente, con_nota, contradictoria])
         pagina = pantalla_caso.render_case("t-1")
         vista = self.vista(pagina)
-        self.assertIn('<th scope="col">Preguntar al cliente</th>', vista)
+        self.assertIn('<th scope="col" class="col-preguntar">Preguntar al cliente</th>', vista)
         self.assertEqual(vista.count('name="preguntar_fila"'), 3)
         self.assertEqual(vista.count('form="decision-form"'), 3)
         self.assertIn('id="decision-form"', pagina)
@@ -378,7 +380,7 @@ class TablaDelPrototipo(Base):
         self.assertNotIn("Resumen de la solicitud", pagina)
         self.assertNotIn("actividad por completar", pagina)
         self.assertIn("Faltan: 1 archivo por revisar (planos.dwg).", pagina)
-        self.assertLess(pagina.index('id="alcance"'), pagina.index('id="decision"'))
+        self.assertLess(pagina.index('id="alcance"'), pagina.index('id="decision"'))    # U-107: actividades a la izquierda
         self.assertLess(pagina.index('id="decision"'), pagina.index('id="analisis-original"'))
 
     def test_sin_javascript_las_casillas_marcadas_se_suman_al_cuadro_sin_repetir(self) -> None:
@@ -417,7 +419,7 @@ class TarjetaAhora(Base):
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn('class="section decision-arriba ahora" id="decision"', pagina)
         decision = tarjeta(pagina)
-        self.assertIn(">Ahora<", decision)
+        self.assertNotIn(">Ahora<", decision)                                 # U-107.3b: sin título «AHORA»
         for valor in ("sufficient", "ask_client"):
             self.assertIn(f'name="decision" value="{valor}"', decision)
         self.assertNotIn('type="radio"', decision)                            # sin elegir antes: la caja siempre está
@@ -429,7 +431,7 @@ class TarjetaAhora(Base):
         self.assertIn('id="btn-preguntar"', decision)
         self.assertIn(">Redactar el correo<", decision)
         self.assertIn("Nada se envía al cliente en este paso", decision)
-        self.assertIn("<h2>Revisa y decide cómo seguir</h2>", decision)
+        self.assertIn("<h2>Mensaje para el cliente</h2>", decision)
 
     def test_el_cuadro_trae_las_preguntas_sugeridas(self) -> None:
         # Cubre: U-31
@@ -627,7 +629,7 @@ class CorreoComoPrototipo(Base):
         self.crear(estado=QuoteStatus.REVIEW_PENDING)
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn('<section class="section ahora" id="respuesta">', pagina)
-        self.assertGreater(pagina.index('id="respuesta"'), pagina.index("Actividades detectadas"))
+        self.assertLess(pagina.index('id="respuesta"'), pagina.index("Actividades detectadas"))   # U-107: el correo va primero
         correo = pagina[pagina.index('class="correo-form"'):]
         correo = correo[:correo.index("</form>")]
         self.assertIn('<span class="para">cliente@empresa.co</span>', correo)
@@ -1159,6 +1161,136 @@ class Pestanas(Base):
         layout = ((PLANTILLAS / "layout.html").read_text(encoding="utf-8") + (PLANTILLAS / "app.js").read_text(encoding="utf-8") + (PLANTILLAS / "tema.js").read_text(encoding="utf-8"))
         for pieza in ("data-tabs", "ArrowRight", "closest('[role=\"tabpanel\"]')", "hashchange"):
             self.assertIn(pieza, layout)
+
+
+class PreguntaIgualAQueHaceFalta(Base):
+    """U-107.6: lo que la tabla dice que falta es lo que se le pregunta al cliente."""
+
+    def pregunta(self, nota: str, estado: str = "pendiente") -> str:
+        from anka.web import views
+        return views._pregunta_de_fila(actividad("Levantamiento de detalles", estado) | {"notes": nota, "quantity": "no indicado"}, estado)
+
+    def test_la_pregunta_usa_las_palabras_de_la_columna_que_hace_falta(self) -> None:
+        # Cubre: U-107
+        self.assertEqual(self.pregunta("Falta la delimitación y superficie (área en m² o ha) de las manzanas y estaciones."),
+                         "Para «Levantamiento de detalles», ¿podría indicar la delimitación y superficie "
+                         "(área en m² o ha) de las manzanas y estaciones?")
+
+    def test_la_razon_interna_de_la_nota_no_llega_al_cliente(self) -> None:
+        # Cubre: U-107
+        self.assertEqual(self.pregunta("Falta la localización exacta del trazado al no contarse con el archivo KML/KMZ."),
+                         "Para «Levantamiento de detalles», ¿podría indicar la localización exacta del trazado?")
+
+    def test_una_frase_cortada_o_sin_forma_de_pregunta_vuelve_a_los_datos_esenciales(self) -> None:
+        # Cubre: U-107
+        larga = "Falta " + "la superficie total del área de interés del proyecto " * 5
+        self.assertEqual(self.pregunta(larga), "¿Podría indicar la cantidad de «Levantamiento de detalles»?")
+        self.assertTrue(self.pregunta("El documento deja la opción abierta.").startswith("¿Podría indicar"))
+
+    def test_una_contradiccion_sigue_con_su_redaccion(self) -> None:
+        # Cubre: U-107
+        self.assertEqual(self.pregunta("Falta la fecha: dice miércoles y viernes.", "contradictorio"),
+                         "Levantamiento de detalles: Falta la fecha: dice miércoles y viernes. ¿Cuál es el dato correcto?")
+
+
+class PreguntasGenerales(Base):
+    """U-107.7: lo que el análisis sugiere y no es de una actividad también tiene casilla."""
+
+    def test_las_sugeridas_sin_actividad_salen_como_generales_marcadas(self) -> None:
+        # Cubre: U-107
+        self.crear(actividades=[actividad("Planimetría", "pendiente") | {"notes": "Falta la ubicación."}],
+                   preguntas=["¿Podrían suministrar el Anexo Capítulo 1?"])
+        pagina = pantalla_caso.render_case("t-1")
+        grupo = pagina[pagina.index('id="preguntas-generales"'):]
+        grupo = grupo[:grupo.index("</ul>")]
+        self.assertIn("Generales", grupo)
+        self.assertIn('name="preguntar_fila" value="¿Podrían suministrar el Anexo Capítulo 1?" form="decision-form" checked', grupo)
+        cuadro = pagina.split('name="questions"')[1].split("</textarea>")[0]
+        self.assertIn("¿Podrían suministrar el Anexo Capítulo 1?", cuadro)                  # y la caja ya la trae
+
+    def test_una_general_repetida_de_una_fila_o_ya_pedida_no_se_lista_dos_veces(self) -> None:
+        # Cubre: U-107
+        from anka.web import views
+        fila = "Para «A», ¿podría indicar la ubicación?"
+        candidatas = [{"texto": "¿Podría indicar la ubicación?", "elegida": "ask_client"},
+                      {"texto": "Para «A», ¿podría indicar la ubicación?", "elegida": "ask_client"},
+                      {"texto": "¿Cuál es el plazo?", "elegida": "ask_client", "ya_pedida": "2026-10-01"},
+                      {"texto": "Resolver el datum internamente", "elegida": "internal"},
+                      {"texto": "¿Cuál es el datum?", "elegida": "ask_client"}, {"texto": "¿Cuál es el datum?", "elegida": "ask_client"}]
+        generales = views.preguntas_generales(candidatas, {0: (fila, True)}, "¿Cuál es el datum?")
+        self.assertEqual([g["pregunta"] for g in generales], ["¿Podría indicar la ubicación?", "¿Cuál es el datum?"])
+        self.assertEqual([g["marcada"] for g in generales], [False, True])      # solo está marcada la que está en el cuadro
+
+    def test_sin_preguntas_sugeridas_no_hay_grupo_generales(self) -> None:
+        # Cubre: U-107
+        self.crear(actividades=[actividad("Planimetría", "pendiente") | {"notes": "Falta la ubicación."}], preguntas=[])
+        self.assertNotIn('id="preguntas-generales"', pantalla_caso.render_case("t-1"))
+
+
+class PantallaOrdenada(Base):
+    """U-107: lo que hay que hacer primero, el detalle debajo, sin repetir."""
+
+    def test_el_correo_del_cliente_sale_una_vez_en_la_cabecera(self) -> None:
+        # Cubre: U-107
+        self.crear()
+        db = store.open_db(Path(self.temp.name))
+        db.execute("INSERT OR REPLACE INTO quote_metadata (thread_id, client_name, client_type, sector, notes, updated_at)"
+                   " VALUES ('t-1', 'cliente@empresa.co', 'No clasificado', 'No clasificado', '', '2026-10-01T09:00:00-05:00')")
+        db.commit()
+        db.close()
+        cabecera = pantalla_caso.render_case("t-1")
+        cabecera = cabecera[cabecera.index('class="caso-cabecera"'):cabecera.index("</h1>") + 400]
+        self.assertEqual(cabecera.count("cliente@empresa.co"), 1)
+
+    def test_la_decision_va_antes_de_la_tabla_y_el_paso_n_de_4_ya_no_se_dice(self) -> None:
+        # Cubre: U-107
+        self.crear(actividades=[actividad("Planimetría", "pendiente") | {"notes": "Falta la ubicación."}])
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertLess(pagina.index('class="process-step'), pagina.index('class="dos-columnas"'))
+        self.assertLess(pagina.index('class="dos-columnas"'), pagina.index('role="tablist"'))
+        columnas = pagina[pagina.index('class="dos-columnas"'):pagina.index('role="tablist"')]
+        self.assertLess(columnas.index('id="alcance"'), columnas.index('id="decision"'))   # tabla a la izquierda, mensaje a la derecha
+        self.assertIn("<h2>Mensaje para el cliente</h2>", columnas)
+        self.assertNotIn("Revisa y decide cómo seguir", pagina)
+        self.assertNotRegex(pagina, r"Paso \d de 4")
+
+    def test_las_dos_tarjetas_miden_lo_mismo_y_lo_que_no_cabe_se_desplaza_por_dentro(self) -> None:
+        # Cubre: U-107
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        css = css[css.index("/* U-107: con la decisión pendiente"):]
+        self.assertIn("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)", css)          # mismo ancho
+        self.assertIn("height: clamp(440px, calc(100vh - 330px), 560px)", css)             # mismo alto, no depende del contenido
+        self.assertIn("align-items: stretch", css)
+        self.assertRegex(css, r"#alcance \.alcance-lectura \{[^}]*overflow-y: auto")        # la lista se desplaza por dentro
+        self.assertRegex(css, r"\.chat-caja textarea \{[^}]*overflow-y: auto")              # y la caja de mensaje también
+        self.assertIn('.dos-columnas:has(#editar-boton[aria-expanded="true"])', css)       # el editor abierto necesita ancho
+        self.assertRegex(css, r"@media \(max-width: 860px\) \{ \.dos-columnas \{ grid-template-columns: minmax\(0, 1fr\); height: auto")
+
+    def test_la_caja_de_mensaje_es_un_solo_campo_con_sus_dos_acciones_dentro(self) -> None:
+        # Cubre: U-107
+        self.crear(actividades=[actividad("Planimetría", "pendiente") | {"notes": "Falta la ubicación."}])
+        pagina = pantalla_caso.render_case("t-1")
+        caja = pagina[pagina.index('class="chat-caja"'):]
+        caja = caja[:caja.index("</form>")]
+        self.assertEqual(caja.count("<textarea"), 1)
+        self.assertLess(caja.index("<textarea"), caja.index('id="btn-preguntar"'))         # los botones van dentro de la caja
+        self.assertLess(caja.index('id="btn-suficiente"'), caja.index('id="btn-preguntar"'))   # «Con esto alcanza» a la izquierda
+        self.assertIn('class="secondary enlace-suave"', caja)
+        self.assertIn("Nada se envía al cliente en este paso", pagina)                      # R8 sigue visible
+
+    def test_la_columna_estado_se_oculta_solo_si_todas_las_filas_son_iguales(self) -> None:
+        # Cubre: U-107
+        self.crear(actividades=[actividad("A", "pendiente"), actividad("B", "pendiente")])
+        iguales = pantalla_caso.render_case("t-1")
+        self.assertIn('data-estados="uno"', iguales)
+        self.assertIn('.act-resumen[data-estados="uno"] .col-estado { display: none; }',
+                      (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
+        db = store.open_db(Path(self.temp.name))
+        db.execute("DELETE FROM quotes WHERE thread_id='t-1'")
+        db.commit()
+        db.close()
+        self.crear(actividades=[actividad("A", "pendiente"), actividad("B", "contradictorio")])
+        self.assertNotIn('data-estados="uno"', pantalla_caso.render_case("t-1"))
 
 
 if __name__ == "__main__":

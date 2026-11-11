@@ -388,21 +388,15 @@ Todos
 </form>
 <ol class="queue" id="casos">
 <li class="queue-row" data-etapa="atender" data-search="proyecto norte energía norte topografía convencional batimetría">
-<span class="rank" aria-hidden="true">
-1
-</span>
 <div>
 <strong>
-<span class="verbo" aria-hidden="true">
-Revisar correo ·
-</span>
-Energía Norte · Proyecto Norte
+Proyecto Norte
 </strong>
 <span class="badge">
 Nuevo
 </span>
 <div class="meta">
-Correo por revisar
+Energía Norte · Correo por revisar
 </div>
 </div>
 <a class="button" href="/case?thread_id=t-review#respuesta">
@@ -410,21 +404,15 @@ Revisar correo
 </a>
 </li>
 <li class="queue-row" data-etapa="atender" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>">
-<span class="rank" aria-hidden="true">
-2
-</span>
 <div>
 <strong>
-<span class="verbo" aria-hidden="true">
-Revisar correo ·
-</span>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </strong>
 <span class="badge">
 Nuevo
 </span>
 <div class="meta">
-Correo por revisar · +1 correo(s) más del mismo proyecto
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Correo por revisar · +1 correo(s) más del mismo proyecto
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-hostile#respuesta">
@@ -432,21 +420,15 @@ Revisar correo
 </a>
 </li>
 <li class="queue-row" data-etapa="atender" data-search="proyecto sur cliente sur topografía convencional batimetría">
-<span class="rank" aria-hidden="true">
-3
-</span>
 <div>
 <strong>
-<span class="verbo" aria-hidden="true">
-Revisar correo ·
-</span>
-Cliente Sur · Proyecto Sur
+Proyecto Sur
 </strong>
 <span class="badge">
 Nuevo
 </span>
 <div class="meta">
-Correo por revisar
+Cliente Sur · Correo por revisar
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-draft#respuesta">
@@ -454,21 +436,15 @@ Revisar correo
 </a>
 </li>
 <li class="queue-row" data-etapa="atender" data-search="proyecto técnico cliente@example.com">
-<span class="rank" aria-hidden="true">
-4
-</span>
 <div>
 <strong>
-<span class="verbo" aria-hidden="true">
-Decidir cómo seguir ·
-</span>
-cliente@example.com · Proyecto Técnico
+Proyecto Técnico
 </strong>
 <span class="badge">
 Nuevo
 </span>
 <div class="meta">
-Por decidir
+cliente@example.com · Por decidir
 </div>
 </div>
 <a class="button secondary" href="/case?thread_id=t-review-tech#decision">

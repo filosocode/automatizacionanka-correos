@@ -156,9 +156,6 @@ Por decidir
 </span>
 </div>
 <div class="paso-cabecera">
-<p class="paso-n">
-Paso 1 de 4
-</p>
 <details class="more glosario">
 <summary class="ayuda" title="Explica T, T&E, lectura realizada y aplicabilidad">
 ¿Qué significan T y T&E?
@@ -305,6 +302,7 @@ No es el mismo proyecto
 </div>
 </details>
 <div class="layout">
+<div class="dos-columnas">
 <section class="section actividades" id="alcance">
 <div class="acts-head">
 <div>
@@ -324,8 +322,11 @@ Corregir la tabla
 </button>
 </div>
 </div>
+<p class="nota hint-marcar">
+Marca lo que quieres preguntarle al cliente.
+</p>
 <div class="scroll-x alcance-lectura" id="tabla-resumen">
-<table class="act-resumen con-preguntar" role="table" aria-label="Actividades por completar o contradictorias">
+<table class="act-resumen con-preguntar" data-estados="uno" role="table" aria-label="Actividades por completar o contradictorias">
 <caption class="solo-lectores">
 Actividades que todavía no están completas y lo que hace falta en cada una.
 </caption>
@@ -337,10 +338,10 @@ Actividad
 <th scope="col">
 Qué hace falta
 </th>
-<th scope="col">
+<th scope="col" class="col-estado">
 Estado
 </th>
-<th scope="col">
+<th scope="col" class="col-preguntar">
 Preguntar al cliente
 </th>
 </tr>
@@ -359,7 +360,7 @@ Editar
 <td role="cell" data-etiqueta="Qué hace falta">
 La fila queda pendiente.
 </td>
-<td role="cell" data-etiqueta="Estado">
+<td role="cell" class="col-estado" data-etiqueta="Estado">
 <span class="chip pendiente">
 Por completar
 </span>
@@ -370,6 +371,24 @@ Por completar
 </tr>
 </tbody>
 </table>
+<div class="generales" id="preguntas-generales">
+<h3>
+Generales
+<span class="nota">
+(no son de una actividad)
+</span>
+</h3>
+<ul>
+<li>
+<label>
+<input type="checkbox" name="preguntar_fila" value="¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo?" form="decision-form" checked="">
+<span>
+¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo?
+</span>
+</label>
+</li>
+</ul>
+</div>
 </div>
 <div class="editor-tabla" id="editar-tabla">
 <form method="post" action="/activities">
@@ -658,43 +677,31 @@ Si escribes directo en la hoja, el cambio se pierde en la próxima actualizació
 </div>
 </section>
 <section class="section decision-arriba ahora" id="decision">
-<div class="eyebrow">
-Ahora
-</div>
+<div class="cab-tarjeta">
 <h2>
-Revisa y decide cómo seguir
+Mensaje para el cliente
 </h2>
 <p class="nota">
-Antes de decidir:
-<a href="#alcance">
-comprueba la tabla
-</a>
-y
-<a href="#attachments-review">
-revisa sus fuentes y dudas
-</a>
-. Si un dato se contradice o no se pudo leer, resuélvelo antes de confirmar.
+Lo que marques a la izquierda aparece aquí. Puedes cambiarlo.
 </p>
+</div>
+<div class="cuerpo-tarjeta">
 <form method="post" action="/review-decision" class="decision-form" id="decision-form">
 <input type="hidden" name="thread_id" value="t-hostile-scope">
 <div class="preguntas-bloque" id="preguntas-bloque">
-<label>
-Preguntas para el cliente (una por línea)
-<textarea name="questions" class="caja-media" placeholder="Ej.: ¿Qué método de validación altimétrica se espera para el LiDAR?">
+<div class="chat-caja">
+<textarea name="questions" id="preguntas-cliente" aria-label="Preguntas para el cliente (una por línea)" placeholder="Escribe aquí lo que quieres preguntarle al cliente, una pregunta por línea.">
 ¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo? ¿Podría indicar la cantidad y la unidad de «"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>»?
 </textarea>
-</label>
-<p class="nota">
-Las preguntas que marques en la tabla (columna «Preguntar al cliente») se agregan aquí. Quita las que sobren, cambia las que quieras y escribe las tuyas. Con lo que quede redactamos el correo y lo revisas antes de enviarlo.
-</p>
-</div>
-<div class="acciones" role="group" aria-label="Cómo seguir con este caso">
+<div class="acciones chat-barra" role="group" aria-label="Cómo seguir con este caso">
+<button type="submit" id="btn-suficiente" class="secondary enlace-suave" name="decision" value="sufficient" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
+Con esto alcanza
+</button>
 <button type="submit" id="btn-preguntar" name="decision" value="ask_client">
 Redactar el correo
 </button>
-<button type="submit" id="btn-suficiente" class="secondary" name="decision" value="sufficient" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
-Con esto alcanza
-</button>
+</div>
+</div>
 </div>
 <p class="nota">
 Nada se envía al cliente en este paso: primero ves el correo y lo envías tú.
@@ -711,7 +718,9 @@ El análisis sugiere 1 preguntas para el cliente.
 Usar las preguntas sugeridas
 </a>
 </details>
+</div>
 </section>
+</div>
 <details class="more analisis-original" id="analisis-original">
 <summary>
 Ver análisis original y guía de revisión

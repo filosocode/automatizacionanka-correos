@@ -491,8 +491,14 @@ def _sin_repetir_lo_preguntado(documentos: list[str], preguntas: list[str]) -> l
     return [d for d in documentos if not d.startswith("Archivo de ubicación")]
 
 
+def _nombre_del_proyecto(proyecto: str) -> str:
+    """El nombre para el correo (U-108): sin espacios de más y a 90 caracteres como mucho; vacío si no hay."""
+    limpio = " ".join(str(proyecto or "").split())
+    return limpio if len(limpio) <= 90 else limpio[:89].rstrip() + "…"
+
+
 def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, documentos: list[str] | None = None,
-                         proyecto: str = "", codigo: str = "") -> str:
+                         proyecto: str = "", codigo: str = "", segunda_ronda: bool = False) -> str:
     """El correo al cliente con sus preguntas numeradas: la plantilla fija de todos los modos (no usa ningún modelo).
 
     Con `codigo` (la T del caso, para el contacto registrado) el correo nombra el proyecto y el código y pide citarlo al
@@ -501,19 +507,22 @@ def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, document
     """
     # Lo que llega al cliente son preguntas, no notas (U-99); lo que la persona escribió no se reescribe (U-33).
     preguntas = [como_peticion(p, quitar_verbo=False) for p in preguntas]
+    nombre = _nombre_del_proyecto(proyecto)
+    # Siempre numeradas, también una sola: el sistema reconoce lo preguntado por la lista numerada (U-26).
+    question_lines = "\n".join(f"{number}. {question}" for number, question in enumerate(preguntas, 1))
     if codigo:
-        question_lines = "\n".join(f"{number}. {question}" for number, question in enumerate(preguntas, 1))
+        intro = "Gracias por su respuesta. Sobre" if segunda_ronda else "Sobre"
         return (
-            f"Hola,\n\nSobre su proyecto «{proyecto or 'su solicitud'}» ({codigo}), necesitamos confirmar lo siguiente:"
+            f"Hola,\n\n{intro} su proyecto «{nombre or 'su solicitud'}» ({codigo}), necesitamos confirmar lo siguiente:"
             f"\n\n{question_lines}\n\nAl responder, por favor cite el código {codigo} para que podamos asociar su "
             "respuesta al proyecto.\n\nPuede responder a este mismo correo.\n\nSaludos,\nGrupo Anka"
         )
-    opening = (
-        "Gracias por compartir la solicitud. Para completar la información inicial, "
-        if reenviado else
-        "Gracias por su solicitud. Para completar la información inicial, "
-    )
-    question_lines = "\n".join(f"{number}. {question}" for number, question in enumerate(preguntas, 1))
+    de = f" para el proyecto «{nombre}»" if nombre else ""
+    if segunda_ronda:
+        opening = f"Gracias por su respuesta{de}. Nos queda por confirmar lo siguiente:"
+    else:
+        base = "Gracias por compartir la solicitud" if reenviado else "Gracias por su solicitud"
+        opening = f"{base}{de}. Para completar la información inicial, ¿podría confirmar lo siguiente?"
     documentos = _sin_repetir_lo_preguntado(documentos or [], preguntas)
     document_block = ""
     if documentos:
@@ -523,7 +532,7 @@ def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, document
             "documentos para complementar la revisión:\n\n" + document_lines
         )
     return (
-        "Hola,\n\n" + opening + "¿podría confirmar lo siguiente?\n\n"
+        "Hola,\n\n" + opening + "\n\n"
         + question_lines + document_block
         + "\n\nPuede responder a este mismo correo.\n\nSaludos,\nGrupo Anka"
     )

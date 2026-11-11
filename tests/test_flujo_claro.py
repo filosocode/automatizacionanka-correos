@@ -39,7 +39,7 @@ class FlujoClaro(Base):
         self.guardar("claro", a)
         html = pantalla_caso.render_case("claro")
         self.assertNotIn('id="guia-caso-titulo"', html)       # U-103.10: la tarjeta «Resumen de la solicitud» se retiró
-        self.assertLess(html.index('id="alcance"'), html.index('id="decision"'))
+        self.assertLess(html.index('id="alcance"'), html.index('id="decision"'))   # U-107: actividades y mensaje, en ese orden
         self.assertNotIn('id="cuerpo-correo"', html)
         self.assertNotIn('<strong>Información validada.</strong>', html)
         self.assertIn("Pendiente del cliente: ¿Cuál es la fecha límite?", html)

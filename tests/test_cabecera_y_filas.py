@@ -49,18 +49,30 @@ class VerboPrimero(Base):
         quote = quotes.get_quote("T1")
         for fila in (paginas.quote_row(quote), paginas.queue_row(quote, 1)):
             texto = re.sub(r"<[^>]+>", "", fila)
-            verbo = re.search(r'<span class="verbo" aria-hidden="true">([^<]*?) · </span>', fila).group(1)
-            self.assertTrue(verbo)
-            visible = re.sub(r"\s+", " ", texto).strip()
             if "case-row" in fila:
+                verbo = re.search(r'<span class="verbo" aria-hidden="true">([^<]*?) · </span>', fila).group(1)
+                visible = re.sub(r"\s+", " ", texto).strip()
                 self.assertTrue(visible.startswith(verbo + " · "), visible)
+            else:                                                 # U-107: la cola dice la acción solo en el botón
+                self.assertNotIn('class="verbo"', fila)
+                verbo = re.search(r'<a class="button[^"]*" href="[^"]+">([^<]+)</a>', fila).group(1)
+            self.assertTrue(verbo)
             self.assertIn(f">{verbo}</a>", fila)                  # el botón conserva su texto
             self.assertIn(quote["client_name"], fila)
+
+    # Cubre: U-107
+    def test_la_fila_de_la_cola_es_proyecto_cliente_estado_y_un_boton(self):
+        fila = paginas.queue_row(quotes.get_quote("T1"), 1)
+        self.assertNotIn('class="rank"', fila)
+        self.assertRegex(fila, r"<strong>[^<]+</strong>")
+        self.assertEqual(fila.count("<a "), 1)
+        self.assertIn("main:has(> .queue) > * { max-width: 1120px;", CSS)
 
     # Cubre: U-58
     def test_el_verbo_repetido_no_se_lee_dos_veces(self):
         fila = paginas.quote_row(quotes.get_quote("T1"))
         self.assertEqual(fila.count('aria-hidden="true">'), 1)
+        self.assertNotIn('aria-hidden="true">', paginas.queue_row(quotes.get_quote("T1"), 1))     # U-107
 
 
 class MarcaAhoraEsTexto(unittest.TestCase):

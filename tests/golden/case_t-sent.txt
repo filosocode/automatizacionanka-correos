@@ -156,9 +156,6 @@ Respuesta enviada
 </span>
 </div>
 <div class="paso-cabecera">
-<p class="paso-n">
-Paso 1 de 4
-</p>
 <details class="more glosario">
 <summary class="ayuda" title="Explica T, T&E, lectura realizada y aplicabilidad">
 ¿Qué significan T y T&E?
@@ -285,7 +282,7 @@ Corregir la tabla
 </div>
 </div>
 <div class="scroll-x alcance-lectura" id="tabla-resumen">
-<table class="act-resumen" role="table" aria-label="Actividades por completar o contradictorias">
+<table class="act-resumen" data-estados="uno" role="table" aria-label="Actividades por completar o contradictorias">
 <caption class="solo-lectores">
 Actividades que todavía no están completas y lo que hace falta en cada una.
 </caption>
@@ -297,7 +294,7 @@ Actividad
 <th scope="col">
 Qué hace falta
 </th>
-<th scope="col">
+<th scope="col" class="col-estado">
 Estado
 </th>
 </tr>
@@ -316,7 +313,7 @@ Editar
 <td role="cell" data-etiqueta="Qué hace falta">
 Falta ubicación.
 </td>
-<td role="cell" data-etiqueta="Estado">
+<td role="cell" class="col-estado" data-etiqueta="Estado">
 <span class="chip pendiente">
 Por completar
 </span>

@@ -156,9 +156,6 @@ Correo por revisar
 </span>
 </div>
 <div class="paso-cabecera">
-<p class="paso-n">
-Paso 1 de 4
-</p>
 <details class="more glosario">
 <summary class="ayuda" title="Explica T, T&E, lectura realizada y aplicabilidad">
 ¿Qué significan T y T&E?
@@ -305,6 +302,88 @@ No es el mismo proyecto
 </div>
 </details>
 <div class="layout">
+<section class="section ahora" id="respuesta">
+<div class="eyebrow">
+Ahora
+</div>
+<h2>
+Revisa el correo y envíalo
+</h2>
+<form method="post" class="correo-form">
+<input type="hidden" name="thread_id" value="t-hostile">
+<input type="hidden" name="state_token" value="2026-09-02T10:00:00-05:00|">
+<div class="para-linea">
+<span class="etiqueta-mail">
+Para
+</span>
+<span class="para">
+x'+ZZINJ+'@a.co
+</span>
+</div>
+<label class="etiqueta-mail" for="cuerpo-correo">
+Mensaje (puedes editarlo)
+</label>
+<textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</textarea>
+<div id="caja-esperar">
+<label class="nota check-line">
+<input type="checkbox" name="esperar" value="1" id="esperar-respuesta" aria-describedby="efecto-esperar">
+Marcar «esperando al cliente» aunque el correo no tenga preguntas
+</label>
+<p class="nota" id="efecto-esperar">
+Úsalo si el correo no pregunta nada pero esperas que conteste: el caso pasará a «Esperando al cliente» y te avisaremos cuándo hacer seguimiento.
+</p>
+</div>
+<div class="barra-accion">
+<p class="nota" id="aviso-espera" role="status">
+</p>
+<div class="acciones">
+<button type="submit" formaction="/send" class="send-action" data-confirm="Vas a enviar este correo a x'+ZZINJ+'@a.co, como respuesta a su conversación. ¿Lo enviamos?" data-resumen="envio" data-para="x'+ZZINJ+'@a.co" data-asunto="" data-confirm-boton="Sí, enviar al cliente">
+Enviar al cliente
+</button>
+<button type="submit" class="secondary" formaction="/draft">
+Guardar borrador en Gmail
+</button>
+</div>
+</div>
+</form>
+<details class="more cambiar-de-idea" id="cambiar-idea">
+<summary>
+Cambiar de idea
+</summary>
+<details class="more armar-correo" id="armar">
+<summary>
+Cambiar las preguntas
+</summary>
+<p class="nota">
+El análisis sugiere 1 pregunta para el cliente.
+</p>
+<p>
+<a class="button secondary" id="usar-sugeridas" href="/case?thread_id=t-hostile&template=preguntas&preguntas=%C2%BFCu%C3%A1l%20es%20el%20%C3%A1rea%2C%20longitud%2C%20cantidad%20de%20elementos%20o%20magnitud%20aproximada%20del%20trabajo%3F#respuesta">
+Usar las preguntas sugeridas
+</a>
+</p>
+<form method="get" action="/case#respuesta" class="redactar-form">
+<input type="hidden" name="thread_id" value="t-hostile">
+<input type="hidden" name="template" value="preguntas">
+<label>
+Preguntas para el cliente (una por línea)
+<textarea name="preguntas" class="caja-media" placeholder="¿Cuál es el datum del levantamiento? Plazo de entrega esperado">
+</textarea>
+</label>
+<p class="nota">
+Cambia las preguntas y escribiremos el correo de nuevo con ellas. Lo que está arriba se reemplaza. Todavía no se envía nada.
+</p>
+<button type="submit" class="secondary" id="armar-correo">
+Preparar el correo de nuevo
+</button>
+</form>
+</details>
+</details>
+<div class="spaced-top">
+</div>
+</section>
 <section class="section actividades" id="alcance">
 <div class="acts-head">
 <div>
@@ -325,7 +404,7 @@ Corregir la tabla
 </div>
 </div>
 <div class="scroll-x alcance-lectura" id="tabla-resumen">
-<table class="act-resumen" role="table" aria-label="Actividades por completar o contradictorias">
+<table class="act-resumen" data-estados="uno" role="table" aria-label="Actividades por completar o contradictorias">
 <caption class="solo-lectores">
 Actividades que todavía no están completas y lo que hace falta en cada una.
 </caption>
@@ -337,7 +416,7 @@ Actividad
 <th scope="col">
 Qué hace falta
 </th>
-<th scope="col">
+<th scope="col" class="col-estado">
 Estado
 </th>
 </tr>
@@ -356,7 +435,7 @@ Editar
 <td role="cell" data-etiqueta="Qué hace falta">
 La fila queda pendiente.
 </td>
-<td role="cell" data-etiqueta="Estado">
+<td role="cell" class="col-estado" data-etiqueta="Estado">
 <span class="chip pendiente">
 Por completar
 </span>
@@ -665,88 +744,6 @@ Revisa el correo
 , comprueba cantidades y fuentes, y decide cómo seguir. Nada se envía al cliente sin tu aprobación.
 </p>
 </details>
-<section class="section ahora" id="respuesta">
-<div class="eyebrow">
-Ahora
-</div>
-<h2>
-Revisa el correo y envíalo
-</h2>
-<form method="post" class="correo-form">
-<input type="hidden" name="thread_id" value="t-hostile">
-<input type="hidden" name="state_token" value="2026-09-02T10:00:00-05:00|">
-<div class="para-linea">
-<span class="etiqueta-mail">
-Para
-</span>
-<span class="para">
-x'+ZZINJ+'@a.co
-</span>
-</div>
-<label class="etiqueta-mail" for="cuerpo-correo">
-Mensaje (puedes editarlo)
-</label>
-<textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</textarea>
-<div id="caja-esperar">
-<label class="nota check-line">
-<input type="checkbox" name="esperar" value="1" id="esperar-respuesta" aria-describedby="efecto-esperar">
-Marcar «esperando al cliente» aunque el correo no tenga preguntas
-</label>
-<p class="nota" id="efecto-esperar">
-Úsalo si el correo no pregunta nada pero esperas que conteste: el caso pasará a «Esperando al cliente» y te avisaremos cuándo hacer seguimiento.
-</p>
-</div>
-<div class="barra-accion">
-<p class="nota" id="aviso-espera" role="status">
-</p>
-<div class="acciones">
-<button type="submit" formaction="/send" class="send-action" data-confirm="Vas a enviar este correo a x'+ZZINJ+'@a.co, como respuesta a su conversación. ¿Lo enviamos?" data-resumen="envio" data-para="x'+ZZINJ+'@a.co" data-asunto="" data-confirm-boton="Sí, enviar al cliente">
-Enviar al cliente
-</button>
-<button type="submit" class="secondary" formaction="/draft">
-Guardar borrador en Gmail
-</button>
-</div>
-</div>
-</form>
-<details class="more cambiar-de-idea" id="cambiar-idea">
-<summary>
-Cambiar de idea
-</summary>
-<details class="more armar-correo" id="armar">
-<summary>
-Cambiar las preguntas
-</summary>
-<p class="nota">
-El análisis sugiere 1 pregunta para el cliente.
-</p>
-<p>
-<a class="button secondary" id="usar-sugeridas" href="/case?thread_id=t-hostile&template=preguntas&preguntas=%C2%BFCu%C3%A1l%20es%20el%20%C3%A1rea%2C%20longitud%2C%20cantidad%20de%20elementos%20o%20magnitud%20aproximada%20del%20trabajo%3F#respuesta">
-Usar las preguntas sugeridas
-</a>
-</p>
-<form method="get" action="/case#respuesta" class="redactar-form">
-<input type="hidden" name="thread_id" value="t-hostile">
-<input type="hidden" name="template" value="preguntas">
-<label>
-Preguntas para el cliente (una por línea)
-<textarea name="preguntas" class="caja-media" placeholder="¿Cuál es el datum del levantamiento? Plazo de entrega esperado">
-</textarea>
-</label>
-<p class="nota">
-Cambia las preguntas y escribiremos el correo de nuevo con ellas. Lo que está arriba se reemplaza. Todavía no se envía nada.
-</p>
-<button type="submit" class="secondary" id="armar-correo">
-Preparar el correo de nuevo
-</button>
-</form>
-</details>
-</details>
-<div class="spaced-top">
-</div>
-</section>
 <section class="tabs" data-tabs="">
 <div class="tablist" role="tablist" aria-label="Más información del caso">
 <button type="button" role="tab" id="t-conv" aria-controls="p-conv" aria-selected="true">

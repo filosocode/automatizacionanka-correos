@@ -870,3 +870,69 @@ main:has(.decision-arriba, .actividades) { width: min(1168px, 100%); }
 .layout, .decision-arriba { max-width: 1120px; margin-left: auto; margin-right: auto; }
 .historial-preguntas { margin: 0 0 1.25rem; }
 .act-resumen td { line-height: 1.6; }
+
+/* U-107: tabla del caso compacta (dos líneas por fila) y sin la columna «Estado» cuando todas son iguales */
+.act-resumen[data-estados="uno"] .col-estado { display: none; }
+@media (min-width: 721px) {
+  .alcance-lectura .act-resumen, .alcance-lectura .act-resumen tbody { display: block; }
+  .alcance-lectura .act-resumen thead { position: absolute; width: 1px; height: 1px; overflow: clip; clip-path: inset(50%); }
+  .alcance-lectura .act-resumen tr.fila-resumen { display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "tit edit est" "des des est"; column-gap: 14px; row-gap: 2px; align-items: start;
+    padding: 12px 4px 12px 14px; border-top: 1px solid var(--line); }
+  .alcance-lectura .act-resumen.con-preguntar tr.fila-resumen { grid-template-columns: 26px minmax(0, 1fr) auto auto;
+    grid-template-areas: "chk tit edit est" "chk des des est"; }
+  .alcance-lectura .act-resumen td { display: block; border: 0; padding: 0; }
+  .alcance-lectura .act-resumen td:first-child { display: contents; box-shadow: none; }
+  .alcance-lectura .act-resumen tr.falta { box-shadow: inset 3px 0 0 var(--warn-ink); }
+  .alcance-lectura .act-resumen tr.contradictorio { box-shadow: inset 3px 0 0 var(--danger); }
+  .alcance-lectura .act-resumen td:first-child strong { grid-area: tit; }
+  .alcance-lectura .act-resumen td:first-child br { display: none; }
+  .alcance-lectura .act-resumen .editar-fila { grid-area: edit; justify-self: end; min-height: 0; padding: 0; border: 0; border-radius: 0;
+    background: none; color: var(--muted); font-size: .875rem; font-weight: 500; border-bottom: 1px dotted var(--muted); }
+  .alcance-lectura .act-resumen .editar-fila:hover { color: var(--accent-dark); background: none; }
+  .alcance-lectura .act-resumen td:nth-child(2) { grid-area: des; color: var(--muted); }
+  .alcance-lectura .act-resumen td.col-estado { grid-area: est; }
+  .alcance-lectura .act-resumen td.preguntar { grid-area: chk; width: auto; text-align: left; padding-top: 2px; }
+}
+
+/* U-107: la lista comparte la columna del caso; una fila por caso: proyecto, cliente y estado, y un botón con la acción */
+main:has(> .queue) > * { max-width: 1120px; margin-inline: auto; }
+.queue-row { grid-template-columns: minmax(0, 1fr) auto; }
+@media (max-width: 720px) { .queue-row { grid-template-columns: minmax(0, 1fr); } }
+.pantalla-caso { max-width: 1120px; }
+.pantalla-caso > .layout, .pantalla-caso .decision-arriba { max-width: none; margin-left: 0; margin-right: 0; }
+.pantalla-caso .analisis-original { max-width: none; margin: 0; }
+
+/* U-107: con la decisión pendiente, dos tarjetas iguales (actividades y mensaje); lo que no cabe se desplaza por dentro */
+.dos-columnas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: stretch;
+  height: clamp(440px, calc(100vh - 330px), 560px); }
+.dos-columnas > .section { display: flex; flex-direction: column; min-height: 0; margin: 0; }
+.dos-columnas > #alcance .alcance-lectura { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+.dos-columnas > #alcance .hint-marcar { margin: 0 0 6px; }
+.dos-columnas .acts-head .button { background: none; border: 0; padding: 0; min-height: 0; color: var(--accent); font-weight: 500; }
+.dos-columnas .acts-head .button:hover { background: none; text-decoration: underline; }
+.dos-columnas .acts-head .acciones { gap: 12px; }
+.dos-columnas > .section, .dos-columnas > .section.ahora { border: 1px solid var(--line); box-shadow: none; background: var(--panel); }
+.cab-tarjeta h2 { margin: 0; font-size: 1.125rem; }
+.cab-tarjeta .nota { margin: 2px 0 10px; }
+.dos-columnas .cuerpo-tarjeta { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+.dos-columnas .decision-form, .dos-columnas .preguntas-bloque { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.chat-caja { flex: 1; min-height: 150px; display: flex; flex-direction: column; border: 1px solid var(--control-line);
+  background: var(--input-bg); border-radius: 18px; padding: 10px 10px 8px 14px; }
+.chat-caja:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.chat-caja textarea { flex: 1; min-height: 90px; width: 100%; border: 0; outline: 0; box-shadow: none; background: transparent;
+  resize: none; padding: 0; font: inherit; line-height: 1.55; overflow-y: auto; scrollbar-width: thin; }
+.chat-barra { justify-content: space-between; padding-top: 6px; }
+.chat-barra button { min-height: 44px; }
+.chat-barra #btn-preguntar { border-radius: 999px; padding-inline: 18px; }
+.chat-barra .enlace-suave { background: none; border: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding-inline: 4px; }
+.chat-barra .enlace-suave:hover:not(:disabled) { color: var(--ink); background: none; }
+.dos-columnas:has(#editar-boton[aria-expanded="true"]), .dos-columnas:has(.editor-tabla:target) { grid-template-columns: minmax(0, 1fr); height: auto; }
+@media (max-width: 860px) { .dos-columnas { grid-template-columns: minmax(0, 1fr); height: auto; } .dos-columnas .cuerpo-tarjeta { overflow: visible; } }
+.generales { margin-top: 6px; padding: 12px 4px 4px 14px; border-top: 1px solid var(--line); }
+.generales h3 { margin: 0 0 6px; font-size: .9375rem; }
+.generales h3 .nota { font-weight: 400; }
+.generales ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.generales label { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 0; align-items: start; padding: 6px 0; font-weight: 400; color: var(--muted); cursor: pointer; }
+.generales input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; margin: 0; accent-color: var(--accent); }

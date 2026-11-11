@@ -107,7 +107,7 @@ class SegundaRonda(Base):
         self.assertIn("El cliente respondió (ronda 2): revisa lo que faltaba.", pagina)
         self.assertIn("<li>¿Datum?</li>", pagina)
         self.assertIn("· ronda 2", pagina)                                        # sub-línea del paso 1
-        self.assertGreater(pagina.index('id="ronda-aviso"'), pagina.index("Actividades detectadas"))
+        self.assertGreater(pagina.index('id="ronda-aviso"'), pagina.index('id="alcance"'))   # U-107: el aviso va en la tarjeta del mensaje
 
     def test_la_primera_ronda_no_lleva_aviso_de_respuesta(self) -> None:
         # Cubre: U-40
