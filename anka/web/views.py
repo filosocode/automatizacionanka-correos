@@ -535,7 +535,8 @@ def preguntas_generales(candidatas: Sequence[Mapping[str, Any]], preguntar: Mapp
         if not texto or huella in de_filas or huella in vistas:
             continue
         vistas.add(huella)
-        generales.append({"pregunta": texto, "marcada": huella in en_el_cuadro})
+        del_modelo = candidata.get("origen") in ("auditoría", "análisis")
+        generales.append({"pregunta": texto, "marcada": huella in en_el_cuadro, "del_modelo": del_modelo})
     return generales
 
 

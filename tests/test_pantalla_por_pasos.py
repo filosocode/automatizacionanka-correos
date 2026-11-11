@@ -1221,6 +1221,24 @@ class PreguntasGenerales(Base):
         self.assertEqual([g["pregunta"] for g in generales], ["¿Podría indicar la ubicación?", "¿Cuál es el datum?"])
         self.assertEqual([g["marcada"] for g in generales], [False, True])      # solo está marcada la que está en el cuadro
 
+    def test_las_del_modelo_llevan_etiqueta_y_las_de_reglas_no(self) -> None:
+        # Cubre: U-107
+        from anka.web import views
+        candidatas = [{"texto": "¿Datum?", "elegida": "ask_client", "origen": "análisis"},
+                      {"texto": "¿Cuál es el plazo?", "elegida": "ask_client", "origen": "recepción"},
+                      {"texto": "¿Qué escala?", "elegida": "ask_client", "origen": "auditoría"}]
+        generales = views.preguntas_generales(candidatas, {}, "")
+        self.assertEqual([g["del_modelo"] for g in generales], [True, False, True])
+
+    def test_la_etiqueta_se_ve_solo_en_las_del_modelo(self) -> None:
+        # Cubre: U-107
+        self.crear(actividades=[actividad("Planimetría", "pendiente") | {"notes": "Falta la ubicación."}],
+                   preguntas=["¿Podrían suministrar el Anexo Capítulo 1?"])
+        pagina = pantalla_caso.render_case("t-1")
+        grupo = pagina[pagina.index('id="preguntas-generales"'):]
+        grupo = grupo[:grupo.index("</ul>")]
+        self.assertEqual(grupo.count("sugerida por el análisis"), grupo.count('type="checkbox"'))
+
     def test_sin_preguntas_sugeridas_no_hay_grupo_generales(self) -> None:
         # Cubre: U-107
         self.crear(actividades=[actividad("Planimetría", "pendiente") | {"notes": "Falta la ubicación."}], preguntas=[])

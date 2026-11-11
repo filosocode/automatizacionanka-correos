@@ -1,5 +1,5 @@
 {% macro lista_de_generales() %}{% if generales and con_preguntar %}<div class="generales" id="preguntas-generales"><h3>Generales <span class="nota">(no son de una actividad)</span></h3>
-<ul>{% for general in generales %}<li><label><input type="checkbox" name="preguntar_fila" value="{{ general.pregunta }}" form="decision-form"{% if general.marcada %} checked{% endif %}> <span>{{ general.pregunta }}</span></label></li>
+<ul>{% for general in generales %}<li><label><input type="checkbox" name="preguntar_fila" value="{{ general.pregunta }}" form="decision-form"{% if general.marcada %} checked{% endif %}> <span>{{ general.pregunta }}{% if general.del_modelo %} <em class="origen-pregunta">sugerida por el análisis</em>{% endif %}</span></label></li>
 {% endfor %}</ul></div>{% endif %}{% endmacro %}
 <div class="acts-head">
   <div><h2>Actividades detectadas</h2>{% if resumen %}<p class="resumen-tabla">{{ resumen }}</p>{% endif %}</div>
