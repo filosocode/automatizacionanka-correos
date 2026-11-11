@@ -480,7 +480,7 @@ def _discover_changes(gmail: ClienteGmail, owner: str, cursor: str, page_token: 
     except Exception as exc:
         if _error_kind(exc) != "no_disponible":
             raise
-        return _recover_expired_history(gmail, CUENTA, owner, observed, time.time(),
+        return _recover_expired_history(gmail, CUENTA, owner, observed, _parse_iso_epoch(observed) or time.time(),
                                         profile_history_id, last_success, initial_checkpoint,
                                         history_sync_confirmed, visto)
 
