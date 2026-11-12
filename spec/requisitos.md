@@ -1,17 +1,5 @@
 # Requisitos
 
-### U-104 · El estado de una actividad cuenta lo mismo que sus datos y su nota
-**Estado: implementado** (pruebas en `tests/test_estado_coherente.py`). Decisión: D-196. Aplica R12.
-
-**Motivo.** La tabla del caso solo muestra lo que falta (U-103). Si una actividad quedaba «Completa» con un dato esencial vacío o con una nota que decía «Falta…», desaparecía de la tabla y el comercial no se enteraba (caso La Calera, 2026-11-09: «Levantamiento de detalles» con cantidad «no indicado» y la nota «Falta definir el área exacta»). Y una «Por completar» con todo en regla seguía pidiendo trabajo.
-
-1. **Nunca «Completa» con un faltante.** Una actividad pasa a «Por completar» si le falta alguno de los datos esenciales (ubicación, cantidad, unidad, entregable, plazo o restricción: vacío o «no indicado») o si su nota dice que algo falta o está pendiente («Falta…», «Queda pendiente…», «por definir»). Una negación («No falta nada», «Sin pendientes») no cuenta como faltante. Si la nota no decía qué falta, se le agrega «Falta ubicación, plazo.».
-2. **Nunca «Por completar» con todo completo.** Una actividad pasa a «Completa» solo si tiene los cinco datos esenciales **y** su nota no deja nada pendiente ni por confirmar, aproximado, estimado, supuesto o por revisar. Una cantidad que puso el programa a partir de un KML/KMZ (U-101) o que no coincide con los documentos (U-93) sigue «Por completar». Las fuentes revisadas y el siguiente paso de la nota no cuentan como dudas.
-3. **Las contradictorias no se tocan.** Las resuelve una persona (R12).
-4. **Dónde.** A lo que produce el análisis, en los tres modos (local y API en el pipeline, Work al importar el borrador), antes de la verificación de cifras (U-93). Nunca a lo que una persona corrigió en la tabla: su decisión manda.
-5. **Huella.** Cada cambio deja una línea en las notas de la fila («Falta cantidad.» o «Completa: tiene todos los datos esenciales y nada pendiente.»).
-6. **Consecuencia conocida.** Una actividad sin plazo ya no queda «Completa»: el caso pregunta el plazo al cliente, como R12 siempre dijo. Si se quisiera que el plazo no bloquee, se cambia `DATOS_ESENCIALES` en `dominio/estado_coherente.py` (y R12).
-
 ### U-108 · El correo con preguntas nombra el proyecto y se adapta a la ronda
 **Estado: implementado** (pruebas en `tests/test_armar_correo.py`, clase `PlantillaQueSeAdapta`). Decisión: D-200. Reforma la plantilla de U-24 y U-33; sigue sin modelo (D-55, D-198) y sigue sin salir nada sin revisión (R8).
 
@@ -25,7 +13,7 @@
 6. **Queda para después** agrupar las preguntas por actividad (hace falta saber a cuál pertenece cada línea de la caja).
 
 ### U-107 · Una pantalla del caso ordenada: lo que hay que hacer primero, el detalle debajo
-**Estado: en curso** (rama `feat/front-orden-y-flujo`). Decisión: D-199. No cambia reglas ni estados: ordena y limpia lo que ya existe (U-103 a U-106).
+**Estado: implementado** (pruebas en `tests/test_pantalla_por_pasos.py`, clases `PantallaOrdenada`, `PreguntaIgualAQueHaceFalta` y `PreguntasGenerales`, y en `tests/test_cabecera_y_filas.py`). Decisiones: D-199, D-201 y D-202. No cambia reglas ni estados: ordena y limpia lo que ya existe (U-103 a U-106).
 
 **Motivo.** Con un caso real la pantalla pedía bajar tres pantallas para llegar al botón principal, repetía el estado y el correo del cliente, y la lista y el caso no compartían ancho ni margen. El comercial no es técnico: quiere ver qué falta, decidir y avanzar.
 
@@ -35,9 +23,10 @@
 3b. **La caja de mensaje es como la de un chat.** Un solo campo redondeado con las preguntas (las que sugiere el análisis y las que se marcan en la tabla; U-103.7, U-106), y dentro de él, abajo, «Redactar el correo» (principal) y «Con esto alcanza» (enlace discreto, con la misma confirmación de siempre). Sin título «AHORA» ni la frase «Revisa y decide cómo seguir»; el título es «Mensaje para el cliente» y debajo, una línea: «Lo que marques a la izquierda aparece aquí. Puedes cambiarlo.» La nota «Nada se envía al cliente en este paso: primero ves el correo y lo envías tú» (R8) sigue visible. Las preguntas sugeridas por el análisis quedan plegadas debajo de la caja.
 4. **Tabla compacta.** Cada fila ocupa dos líneas: actividad y lo que falta, con la casilla a la izquierda y «Editar» como enlace discreto (misma función, mismo editor: U-105). La columna «Estado» solo aparece si las filas no tienen todas el mismo estado (el título ya dice «N por completar»).
 5. **Lista.** Cada caso es una fila: el proyecto como título, debajo el cliente, el código (si lo hay) y lo que se espera, y un solo botón con la acción («Decidir cómo seguir», «Revisar»…). Sin número de posición ni la acción repetida delante del título (reemplaza el «verbo primero» de U-58 en la cola; el botón sigue diciendo la acción). Los filtros por etapa («Por atender», «Esperando al cliente»…) siguen igual; separar la lista en grupos con título queda para después. Lo que no es una solicitud no se toca aquí (se decide aparte).
-6. **La pregunta de una fila dice lo mismo que su «Qué hace falta»** (reforma U-103.7, D-199). Antes la tabla decía «falta la superficie (ha)» y la pregunta pedía «la cantidad y la unidad». Ahora la pregunta se arma con la frase de la nota que dice qué falta; si no hay una frase completa y utilizable, se usa la redacción por datos esenciales. No se inventa ningún dato y la persona la revisa en la caja antes de enviar (R8).
+6. **La pregunta de una fila dice lo mismo que su «Qué hace falta»** (reforma U-103.7, D-199). Antes la tabla decía «falta la superficie (ha)» y la pregunta pedía «la cantidad y la unidad». Ahora la pregunta se arma con la frase de la nota que dice qué falta; si no hay una frase completa y utilizable, se usa la redacción por datos esenciales. La pregunta de una fila se escribe como un dato pedido («Control vertical: la longitud total del trazado (km).»), no como otro «¿Podría indicar…?» (D-202, U-108). No se inventa ningún dato y la persona la revisa en la caja antes de enviar (R8).
 7. **Las preguntas generales también tienen casilla.** Las preguntas que el análisis sugiere para el cliente y no son de una actividad (por ejemplo «¿Podrían suministrar el Anexo…?») salen como un grupo «Generales (no son de una actividad)» al final de la lista de la izquierda, cada una con su casilla **marcada de entrada**. Desmarcar una la quita de la caja y marcarla la vuelve a poner, igual que en las filas; así todo lo que hay en la caja de mensaje tiene su casilla, y lo que el comercial escribe a mano sigue sin tocarse. Una general que repite exactamente la pregunta de una fila no se lista dos veces. Las preguntas que ya se le pidieron al cliente (U-98) no se marcan. Las que propuso el modelo (auditoría de preguntas y pendientes del análisis) llevan la etiqueta «sugerida por el análisis»; las de las reglas fijas de recepción no la llevan. Todas salen marcadas igual: la etiqueta solo dice de dónde viene cada una (D-201). No se inventa nada: salen de lo que el análisis ya proponía (D-199).
-8. **Sin pérdida.** Todo lo que se podía hacer antes se sigue pudiendo; solo cambia el orden y la densidad. Las instantáneas se regeneran y se revisan.
+8. **Tipografía y casillas finas.** En la pantalla del caso y en la lista la letra es de 15 px como base, los títulos de tarjeta de 17 px y los nombres en peso 600 (nunca menos de 14 px en el texto: U-37); las casillas de «preguntar al cliente» son propias (redondeadas, naranja de Anka al marcarse, 24 px de área táctil, anillo de foco con teclado) y el resto de las páginas no cambia.
+9. **Sin pérdida.** Todo lo que se podía hacer antes se sigue pudiendo; solo cambia el orden y la densidad. Las instantáneas se regeneran y se revisan.
 
 ### U-106 · Las preguntas al cliente, en una sola caja que se alimenta desde la tabla
 **Estado: implementado** (pruebas en `tests/test_pantalla_por_pasos.py`, clases `TarjetaAhora` y `TablaDelPrototipo`; el aviso, en `tests/test_change_control.py`). Decisión: D-198. Reemplaza las opciones «Con esto alcanza» y «Hay que preguntarle al cliente» de U-31 por una caja y dos botones.
@@ -60,6 +49,18 @@
 3. **«Corregir la tabla» muestra todas** las actividades, como antes.
 4. **El mismo guardado y el mismo motivo.** Es el mismo formulario de U-14: elegir el motivo del cambio, guardar con la versión de la tabla (si alguien más la cambió, se avisa), historial con quién, cuándo y qué, y nada se envía al cliente. Las filas que no se ven no cambian.
 5. **Sin JavaScript** el editor completo se ve siempre y los botones «Editar» no se muestran.
+
+### U-104 · El estado de una actividad cuenta lo mismo que sus datos y su nota
+**Estado: implementado** (pruebas en `tests/test_estado_coherente.py`). Decisión: D-196. Aplica R12.
+
+**Motivo.** La tabla del caso solo muestra lo que falta (U-103). Si una actividad quedaba «Completa» con un dato esencial vacío o con una nota que decía «Falta…», desaparecía de la tabla y el comercial no se enteraba (caso La Calera, 2026-11-09: «Levantamiento de detalles» con cantidad «no indicado» y la nota «Falta definir el área exacta»). Y una «Por completar» con todo en regla seguía pidiendo trabajo.
+
+1. **Nunca «Completa» con un faltante.** Una actividad pasa a «Por completar» si le falta alguno de los datos esenciales (ubicación, cantidad, unidad, entregable, plazo o restricción: vacío o «no indicado») o si su nota dice que algo falta o está pendiente («Falta…», «Queda pendiente…», «por definir»). Una negación («No falta nada», «Sin pendientes») no cuenta como faltante. Si la nota no decía qué falta, se le agrega «Falta ubicación, plazo.».
+2. **Nunca «Por completar» con todo completo.** Una actividad pasa a «Completa» solo si tiene los cinco datos esenciales **y** su nota no deja nada pendiente ni por confirmar, aproximado, estimado, supuesto o por revisar. Una cantidad que puso el programa a partir de un KML/KMZ (U-101) o que no coincide con los documentos (U-93) sigue «Por completar». Las fuentes revisadas y el siguiente paso de la nota no cuentan como dudas.
+3. **Las contradictorias no se tocan.** Las resuelve una persona (R12).
+4. **Dónde.** A lo que produce el análisis, en los tres modos (local y API en el pipeline, Work al importar el borrador), antes de la verificación de cifras (U-93). Nunca a lo que una persona corrigió en la tabla: su decisión manda.
+5. **Huella.** Cada cambio deja una línea en las notas de la fila («Falta cantidad.» o «Completa: tiene todos los datos esenciales y nada pendiente.»).
+6. **Consecuencia conocida.** Una actividad sin plazo ya no queda «Completa»: el caso pregunta el plazo al cliente, como R12 siempre dijo. Si se quisiera que el plazo no bloquee, se cambia `DATOS_ESENCIALES` en `dominio/estado_coherente.py` (y R12).
 
 ### U-103 · La tabla del caso solo muestra lo que falta
 **Estado: implementado** (pruebas en `tests/test_pantalla_por_pasos.py`, clase `TablaDelPrototipo`). Decisiones: D-194 y D-195. Reemplaza la vista de lectura de U-31.3 y de U-83 (cuatro columnas, ficha, «Ver todas»); el editor completo de U-14 no cambia.
@@ -584,7 +585,7 @@ cada 10 minutos, admite pocas pestañas a la vez (las demás siguen con la consu
 cuando la pestaña se cierra.
 
 ### U-26 · Los puntos que se piden al cliente son los de su lista, y lo que es de Anka no va
-En el correo, la frase «¿podría confirmar lo siguiente?» es la pregunta y los puntos numerados que la siguen son lo que se pide
+En el correo, la frase que presenta la lista («necesitamos confirmar lo siguiente:»; en los correos anteriores a U-108, «¿podría confirmar lo siguiente?») y los puntos numerados que la siguen son lo que se pide
 confirmar: no necesitan llevar cada uno su propio signo de interrogación. Para saber si un correo espera respuesta se cuentan esos
 puntos (y cualquier pregunta con «?» fuera de la lista), de modo que el aviso previo («lleva N preguntas») cuente lo mismo que el cliente
 va a leer. Lo que es de Anka no se sugiere para el cliente: las tareas internas y los límites de lectura («KML no inspeccionable»,

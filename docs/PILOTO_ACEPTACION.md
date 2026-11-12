@@ -1,5 +1,7 @@
 # Piloto de aceptación (Fase 1, modo ChatGPT Work)
 
+> **En pausa (D-203).** Por ahora se prueba el modo API: usa `PILOTO_ACEPTACION_API.md`. Este documento queda para cuando se retome Work.
+
 Prueba guiada de punta a punta con un caso real (p. ej. Llanos 8). Es también la **prueba manual en Work**
 que exige `ESTANDAR_CAMBIOS.md`. Anota fecha y resultado de cada paso.
 

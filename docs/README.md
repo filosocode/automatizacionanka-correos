@@ -17,7 +17,8 @@
 | [`TAREA_WORK_COLA.md`](TAREA_WORK_COLA.md) | Quien vaya a crear la tarea de Work que recoge un trabajo por ejecución | Texto propuesto (no es una tarea creada): qué hace Work y qué hace Python con PENDIENTES y CERRADOS (T-53) |
 | [`paquete_work/`](paquete_work/) | Quien mantenga el paquete que Work lee desde Drive | Fuentes del paquete de referencia del contrato (T-54): LEEME, T-52, formato de retorno e instrucciones de una ejecución |
 | [`DESPLIEGUE_VPS.md`](DESPLIEGUE_VPS.md) | Quien publique el dashboard en un servidor | Borrador sin probar: HTTPS con Caddy, contraseña, servicio y copias (U-85) |
-| [`PILOTO_ACEPTACION.md`](PILOTO_ACEPTACION.md) | Quien prueba | Checklist de la prueba de aceptación en Work |
+| [`PILOTO_ACEPTACION_API.md`](PILOTO_ACEPTACION_API.md) | Quien prueba | Checklist de la prueba de aceptación en modo API (la vigente, D-203) |
+| [`PILOTO_ACEPTACION.md`](PILOTO_ACEPTACION.md) | Quien prueba | Checklist de la prueba de aceptación en Work (en pausa) |
 | [`PRUEBA_MANUAL_T41.md`](PRUEBA_MANUAL_T41.md) | Quien prueba | Lista de pasos de la prueba en Work que falta de T-41: KMZ, ZIP y adjunto grande |
 | [`PLAN_PILOTO_LECTURA.md`](PLAN_PILOTO_LECTURA.md) | Dueño del proyecto y quien revisa | Plan del piloto supervisado de lectura: qué se mide, criterios de decisión y herramienta de cobertura |
 | [`PROMPT_WORK_ANKA_V6.txt`](PROMPT_WORK_ANKA_V6.txt) | Quien configura la tarea de Work | Vigente **V6.1.1** (T-57): la V6.1 más la regla «revisión interna sin bloqueo» (una solicitud legible, aunque sea ficticia, conserva su tabla preliminar). Es el prompt que lleva el paquete de referencia |
