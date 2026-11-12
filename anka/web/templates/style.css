@@ -777,8 +777,10 @@ html { scroll-padding-bottom: 9rem; }
 /* U-109: el aviso de las actividades que el correo no nombra, discreto y sin bloquear el envío. */
 .aviso-cobertura { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--warn-ink); }
 .aviso-cobertura ul { margin: 4px 0; padding-left: 18px; }
-.aviso-cobertura li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
-.aviso-cobertura form { display: inline; }
+.aviso-cobertura li { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; padding: 2px 0; }
+.aviso-cobertura li > span { min-width: 0; }
+.aviso-cobertura form { flex: none; }
+.aviso-cobertura .enlace { white-space: nowrap; padding: 0; min-height: 0; }
 /* U-107.10: el botón «Editar» se ve igual de discreto, pero su área de toque llega a 44 px de alto. */
 .act-resumen .editar-fila::after { content: ""; position: absolute; inset: -11px -6px; }
 table.people { display: block; max-width: 100%; overflow-x: auto; }
@@ -935,8 +937,16 @@ main:has(> .queue) > * { max-width: 1120px; margin-inline: auto; }
 .chat-barra #btn-preguntar { border-radius: 999px; padding-inline: 18px; }
 .chat-barra .enlace-suave { background: none; border: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding-inline: 4px; }
 .chat-barra .enlace-suave:hover:not(:disabled) { color: var(--ink); background: none; }
+/* U-107.11: al revisar el correo, las mismas dos tarjetas pero sin alto fijo: el correo se ve entero y ambas miden lo mismo */
+.dos-columnas-correo { height: auto; }
+.dos-columnas-correo > #alcance .alcance-lectura { overflow-y: visible; }
 .dos-columnas:has(#editar-boton[aria-expanded="true"]), .dos-columnas:has(.editor-tabla:target) { grid-template-columns: minmax(0, 1fr); height: auto; }
 @media (max-width: 860px) { .dos-columnas { grid-template-columns: minmax(0, 1fr); height: auto; } .dos-columnas .cuerpo-tarjeta { overflow: visible; } }
+/* U-107.11: la tarjeta de actividades se queda fija arriba mientras se baja por el correo; en una columna no se fija */
+.dos-columnas-correo > #alcance { align-self: start; position: sticky; top: 88px; max-height: calc(100vh - 104px); overflow-y: auto; }
+.dos-columnas-correo:has(#editar-boton[aria-expanded="true"]) > #alcance,
+.dos-columnas-correo:has(.editor-tabla:target) > #alcance { position: static; max-height: none; overflow: visible; }
+@media (max-width: 860px) { .dos-columnas-correo > #alcance { position: static; max-height: none; overflow: visible; } }
 .generales { margin-top: 6px; padding: 12px 4px 4px 14px; border-top: 1px solid var(--line); }
 .generales h3 { margin: 0 0 6px; font-size: .9375rem; }
 .generales h3 .nota { font-weight: 400; }

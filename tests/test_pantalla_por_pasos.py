@@ -629,7 +629,7 @@ class CorreoComoPrototipo(Base):
         self.crear(estado=QuoteStatus.REVIEW_PENDING)
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn('<section class="section ahora" id="respuesta">', pagina)
-        self.assertLess(pagina.index('id="respuesta"'), pagina.index("Actividades detectadas"))   # U-107: el correo va primero
+        self.assertIn('<div class="dos-columnas dos-columnas-correo">', pagina)   # U-107.11: actividades | correo
         correo = pagina[pagina.index('class="correo-form"'):]
         correo = correo[:correo.index("</form>")]
         self.assertIn('<span class="para">cliente@empresa.co</span>', correo)
@@ -641,6 +641,23 @@ class CorreoComoPrototipo(Base):
         self.assertIn(">Enviar al cliente<", correo)
         self.assertRegex(correo, r'<button type="submit" class="secondary" formaction="/draft">Guardar borrador en Gmail')
         self.assertLess(correo.index('formaction="/send"'), correo.index('formaction="/draft"'))
+
+    def test_al_revisar_el_correo_hay_dos_tarjetas_actividades_a_la_izquierda_y_correo_a_la_derecha(self) -> None:
+        # Cubre: U-107
+        self.crear(estado=QuoteStatus.REVIEW_PENDING, actividades=[actividad("Control vertical", "pendiente")])
+        pagina = pantalla_caso.render_case("t-1")
+        pares = pagina[pagina.index('class="dos-columnas dos-columnas-correo"'):]
+        pares = pares[:pares.index('class="analisis-original"') if 'class="analisis-original"' in pares else None]
+        self.assertLess(pares.index('id="alcance"'), pares.index('id="respuesta"'))     # izquierda, luego derecha
+        self.assertIn("Revisa el correo y envíalo", pares)
+        self.assertIn('formaction="/send"', pares)
+        css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".dos-columnas-correo { height: auto; }", css)                    # sin alto fijo: el correo se ve entero
+        self.assertIn(".dos-columnas-correo > #alcance { align-self: start; position: sticky;", css)   # la tabla queda fija
+        self.assertIn("@media (max-width: 860px) { .dos-columnas-correo > #alcance { position: static;", css)  # y no en 1 columna
+        # con la decisión pendiente se sigue usando el diseño de siempre, sin la variante del correo
+        self.crear("t-2", estado=QuoteStatus.REVIEW, actividades=[actividad("Control vertical", "pendiente")])
+        self.assertNotIn("dos-columnas-correo", pantalla_caso.render_case("t-2"))
 
     def test_enviar_y_guardar_siguen_siendo_las_mismas_rutas(self) -> None:
         # Cubre: U-31

@@ -255,86 +255,7 @@ Ir al correo
 </div>
 </div>
 <div class="layout">
-<section class="section ahora" id="respuesta">
-<div class="eyebrow">
-Ahora
-</div>
-<h2>
-Revisa el correo y envíalo
-</h2>
-<p class="nota">
-Está en blanco para que escribas lo que quieras; si prefieres,
-<a href="/case?thread_id=t-review&template=acuse#respuesta">
-usa un acuse de recibo sugerido
-</a>
-.
-</p>
-<form method="post" class="correo-form">
-<input type="hidden" name="thread_id" value="t-review">
-<input type="hidden" name="state_token" value="2026-09-02T10:00:00-05:00|">
-<div class="para-linea">
-<span class="etiqueta-mail">
-Para
-</span>
-<span class="para">
-cliente@example.com
-</span>
-</div>
-<label class="etiqueta-mail" for="cuerpo-correo">
-Mensaje (puedes editarlo)
-</label>
-<textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">
-</textarea>
-<div id="caja-esperar">
-<label class="nota check-line">
-<input type="checkbox" name="esperar" value="1" id="esperar-respuesta" aria-describedby="efecto-esperar">
-Marcar «esperando al cliente» aunque el correo no tenga preguntas
-</label>
-<p class="nota" id="efecto-esperar">
-Úsalo si el correo no pregunta nada pero esperas que conteste: el caso pasará a «Esperando al cliente» y te avisaremos cuándo hacer seguimiento.
-</p>
-</div>
-<div class="barra-accion">
-<p class="nota" id="aviso-espera" role="status">
-</p>
-<div class="acciones">
-<button type="submit" formaction="/send" class="send-action" data-confirm="Vas a enviar este correo a cliente@example.com, como respuesta a su conversación. ¿Lo enviamos?" data-resumen="envio" data-para="cliente@example.com" data-asunto="" data-confirm-boton="Sí, enviar al cliente">
-Enviar al cliente
-</button>
-<button type="submit" class="secondary" formaction="/draft">
-Guardar borrador en Gmail
-</button>
-</div>
-</div>
-</form>
-<details class="more cambiar-de-idea" id="cambiar-idea" open="">
-<summary>
-Cambiar de idea
-</summary>
-<details class="more armar-correo" id="armar" open="">
-<summary>
-Cambiar las preguntas
-</summary>
-<form method="get" action="/case#respuesta" class="redactar-form">
-<input type="hidden" name="thread_id" value="t-review">
-<input type="hidden" name="template" value="preguntas">
-<label>
-Preguntas para el cliente (una por línea)
-<textarea name="preguntas" class="caja-media" placeholder="¿Cuál es el datum del levantamiento? Plazo de entrega esperado">
-</textarea>
-</label>
-<p class="nota">
-Cambia las preguntas y escribiremos el correo de nuevo con ellas. Lo que está arriba se reemplaza. Todavía no se envía nada.
-</p>
-<button type="submit" class="secondary" id="armar-correo">
-Preparar el correo de nuevo
-</button>
-</form>
-</details>
-</details>
-<div class="spaced-top">
-</div>
-</section>
+<div class="dos-columnas dos-columnas-correo">
 <section class="section actividades" id="alcance">
 <div class="acts-head">
 <div>
@@ -767,6 +688,87 @@ Si escribes directo en la hoja, el cambio se pierde en la próxima actualizació
 </div>
 </div>
 </section>
+<section class="section ahora" id="respuesta">
+<div class="eyebrow">
+Ahora
+</div>
+<h2>
+Revisa el correo y envíalo
+</h2>
+<p class="nota">
+Está en blanco para que escribas lo que quieras; si prefieres,
+<a href="/case?thread_id=t-review&template=acuse#respuesta">
+usa un acuse de recibo sugerido
+</a>
+.
+</p>
+<form method="post" class="correo-form">
+<input type="hidden" name="thread_id" value="t-review">
+<input type="hidden" name="state_token" value="2026-09-02T10:00:00-05:00|">
+<div class="para-linea">
+<span class="etiqueta-mail">
+Para
+</span>
+<span class="para">
+cliente@example.com
+</span>
+</div>
+<label class="etiqueta-mail" for="cuerpo-correo">
+Mensaje (puedes editarlo)
+</label>
+<textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">
+</textarea>
+<div id="caja-esperar">
+<label class="nota check-line">
+<input type="checkbox" name="esperar" value="1" id="esperar-respuesta" aria-describedby="efecto-esperar">
+Marcar «esperando al cliente» aunque el correo no tenga preguntas
+</label>
+<p class="nota" id="efecto-esperar">
+Úsalo si el correo no pregunta nada pero esperas que conteste: el caso pasará a «Esperando al cliente» y te avisaremos cuándo hacer seguimiento.
+</p>
+</div>
+<div class="barra-accion">
+<p class="nota" id="aviso-espera" role="status">
+</p>
+<div class="acciones">
+<button type="submit" formaction="/send" class="send-action" data-confirm="Vas a enviar este correo a cliente@example.com, como respuesta a su conversación. ¿Lo enviamos?" data-resumen="envio" data-para="cliente@example.com" data-asunto="" data-confirm-boton="Sí, enviar al cliente">
+Enviar al cliente
+</button>
+<button type="submit" class="secondary" formaction="/draft">
+Guardar borrador en Gmail
+</button>
+</div>
+</div>
+</form>
+<details class="more cambiar-de-idea" id="cambiar-idea" open="">
+<summary>
+Cambiar de idea
+</summary>
+<details class="more armar-correo" id="armar" open="">
+<summary>
+Cambiar las preguntas
+</summary>
+<form method="get" action="/case#respuesta" class="redactar-form">
+<input type="hidden" name="thread_id" value="t-review">
+<input type="hidden" name="template" value="preguntas">
+<label>
+Preguntas para el cliente (una por línea)
+<textarea name="preguntas" class="caja-media" placeholder="¿Cuál es el datum del levantamiento? Plazo de entrega esperado">
+</textarea>
+</label>
+<p class="nota">
+Cambia las preguntas y escribiremos el correo de nuevo con ellas. Lo que está arriba se reemplaza. Todavía no se envía nada.
+</p>
+<button type="submit" class="secondary" id="armar-correo">
+Preparar el correo de nuevo
+</button>
+</form>
+</details>
+</details>
+<div class="spaced-top">
+</div>
+</section>
+</div>
 <details class="more analisis-original" id="analisis-original">
 <summary>
 Ver análisis original y guía de revisión

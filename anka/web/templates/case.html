@@ -65,7 +65,7 @@
 <div class="aviso-cobertura" id="correo-cobertura" role="status">
   <p class="nota"><strong>Este correo no nombra:</strong></p>
   <ul>{% for item in sin_nombrar %}
-    <li><span>{{ item.actividad }}{% if item.contradictoria %} <em class="meta">· contradictoria: la decides tú</em>{% endif %}</span>
+    <li><span>{{ item.actividad }}{% if item.contradictoria %} <em class="meta">· contradictoria: la decides tú</em>{% endif %}{% if item.cubierta_por %} <em class="meta">· puede cubrirla la pregunta {{ item.cubierta_por }}</em>{% endif %}</span>
       <form method="get" action="/case#respuesta">
         <input type="hidden" name="thread_id" value="{{ thread_id }}">
         <input type="hidden" name="template" value="preguntas">
@@ -219,6 +219,7 @@
   {{ proposal_panel }}
   {% if edit_note %}<details class="more"><summary>Último cambio del alcance</summary>{{ edit_note }}</details>{% endif %}
   {% if can_resolve %}<div class="dos-columnas">{{ bloque_alcance() }}{{ decision_actual() }}</div>
+  {% elif slot == 'correo' %}<div class="dos-columnas dos-columnas-correo">{{ bloque_alcance() }}{{ bloque_respuesta(true) }}</div>
   {% else %}
   {% if slot == 'correo' %}{{ bloque_respuesta(true) }}{% endif %}
   {{ bloque_alcance() }}

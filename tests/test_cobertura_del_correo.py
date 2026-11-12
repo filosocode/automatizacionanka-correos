@@ -50,11 +50,20 @@ class QuéActividadesNoNombra(unittest.TestCase):
         self.assertEqual(actividades_sin_nombrar(FILAS, cuerpo), [])
 
     # Cubre: U-109
-    def test_una_pregunta_general_del_mismo_dato_no_cuenta(self) -> None:
-        # E-109c: «el archivo de ubicación» no nombra la actividad (D-205): se avisa con humildad
+    def test_una_pregunta_general_del_mismo_dato_no_cuenta_pero_se_señala(self) -> None:
+        # E-109c: «el archivo de ubicación» no nombra la actividad (D-205): se avisa, pero diciendo qué pregunta
+        # probablemente la cubre; las que nada cubre van primero
         cuerpo = correo("¿Podrían remitir el archivo de ubicación del proyecto? (KML/KMZ)")
-        self.assertEqual([s["actividad"] for s in actividades_sin_nombrar(FILAS, cuerpo)],
-                         ["Control vertical", "Levantamiento LiDAR", "Redes húmedas"])
+        sin = actividades_sin_nombrar(FILAS, cuerpo)
+        self.assertEqual([(s["actividad"], s["cubierta_por"]) for s in sin],
+                         [("Redes húmedas", None), ("Control vertical", 1), ("Levantamiento LiDAR", 1)])
+
+    # Cubre: U-109
+    def test_una_general_de_otro_tema_o_que_nombra_otra_actividad_no_cubre(self) -> None:
+        # E-109i: «plazo» no cubre una falta de ubicación; un punto que nombra «Control vertical» no es general
+        cuerpo = correo("¿Cuál es el plazo de entrega?", "Control vertical: la ubicación.")
+        sin = {s["actividad"]: s["cubierta_por"] for s in actividades_sin_nombrar(FILAS, cuerpo)}
+        self.assertEqual(sin, {"Levantamiento LiDAR": None, "Redes húmedas": None})
 
     # Cubre: U-109
     def test_sin_correo_con_preguntas_no_hay_nada_que_cubrir(self) -> None:
@@ -84,6 +93,15 @@ class AvisoEnLaPantalla(Base):
         self.assertIn("Control vertical", enviadas)                              # conserva las que ya tenía
         self.assertIn("Levantamiento LiDAR", enviadas)                           # y suma la de la fila
         self.assertEqual(pagina.count('formaction="/send"'), 1)                  # no bloquea el envío
+
+    # Cubre: U-109
+    def test_el_aviso_dice_que_pregunta_puede_cubrir_la_fila(self) -> None:
+        # E-109i: con una pregunta general de ubicación, la fila lo dice en vez de parecer un faltante sin más
+        pagina = self.pantalla("¿Podrían remitir el archivo de ubicación del proyecto? (KML/KMZ)")
+        aviso = pagina[pagina.index('id="correo-cobertura"'):]
+        aviso = aviso[:aviso.index("</div>")]
+        self.assertEqual(aviso.count("puede cubrirla la pregunta 1"), 2)
+        self.assertEqual(aviso.count(">Agregar la pregunta<"), 2)                # sigue pudiendo agregarla
 
     # Cubre: U-109
     def test_con_todas_nombradas_no_se_muestra_el_aviso(self) -> None:

@@ -15,6 +15,7 @@ from anka.dominio.correo import normalized_address
 from anka.dominio.reception import correo_con_preguntas
 from anka.dominio.status import QuoteStatus
 from anka.dominio.estado_coherente import datos_que_faltan
+from anka.dominio.evaluacion import temas_preguntados
 from anka.dominio.lo_que_falta import lo_pendiente, lo_que_dice_la_nota
 from anka.dominio.preguntas import (
     INTERNA, como_peticion, en_el_correo, historial_de_rondas, huella_de_pregunta, identificador, limpiar,
@@ -522,23 +523,34 @@ def actividades_sin_nombrar(activities: Sequence[Mapping[str, Any]], cuerpo: str
     """Las actividades «Por completar» o «Contradictorias» que ningún punto del correo nombra (U-109).
 
     Está nombrada si un punto numerado del correo contiene el nombre de la actividad o repite la pregunta de su fila.
-    Una pregunta general sobre el mismo dato no cuenta (D-205): por eso el aviso dice «no nombra», no «falta». Las
-    contradictorias también se muestran: la persona debe saber que existen para decidir si se las pregunta al cliente
-    o las resuelve ella con su criterio (R12); el aviso no las agrega solo. Sin correo con preguntas no hay nada que
-    cubrir. Devuelve, por actividad: nombre, si es contradictoria, su pregunta y los puntos que ya tiene el correo."""
+    Una pregunta general sobre el mismo dato no la nombra (D-205), pero sí se señala como posible cobertura
+    («puede cubrirla la pregunta 1»): el aviso no esconde la fila, solo dice qué pregunta probablemente la resuelve.
+    Las contradictorias también se muestran: la persona debe saber que existen para decidir si se las pregunta al
+    cliente o las resuelve ella con su criterio (R12); el aviso no las agrega solo. Sin correo con preguntas no hay
+    nada que cubrir. Devuelve, por actividad: nombre, si es contradictoria, su pregunta, los puntos que ya tiene el
+    correo y `cubierta_por` (el número de la pregunta general que trata lo mismo, o `None`). Primero van las que
+    ninguna pregunta parece cubrir."""
     puntos = en_el_correo(cuerpo)
     if not puntos:
         return []
     huellas = [huella_de_pregunta(punto) for punto in puntos]
+    nombres = [huella_de_pregunta(str(a.get("activity") or "")) for a in activities]
+    generales = [(numero, temas_preguntados([punto]))
+                 for numero, (punto, huella) in enumerate(zip(puntos, huellas, strict=True), 1)
+                 if not any(n and n in huella for n in nombres)]       # un punto que nombra una actividad no es general
     resultado = []
     for indice, (pregunta, _) in preguntas_de_la_tabla(activities).items():
         contradictoria = normalize_estado(activities[indice].get("estado")) == "contradictorio"
         nombre = str(activities[indice].get("activity") or "").strip()
         buscadas = [h for h in (huella_de_pregunta(nombre), huella_de_pregunta(pregunta)) if h]
-        if not any(buscada in huella for buscada in buscadas for huella in huellas):
-            resultado.append({"actividad": nombre or "Sin nombre", "contradictoria": contradictoria,
-                              "pregunta": pregunta, "preguntas": [*puntos, pregunta]})
-    return resultado
+        if any(buscada in huella for buscada in buscadas for huella in huellas):
+            continue
+        falta = temas_preguntados([_que_hace_falta(activities[indice], "contradictorio" if contradictoria
+                                                   else "pendiente")])
+        cubierta = next((numero for numero, temas in generales if falta & temas), None)
+        resultado.append({"actividad": nombre or "Sin nombre", "contradictoria": contradictoria, "pregunta": pregunta,
+                          "preguntas": [*puntos, pregunta], "cubierta_por": cubierta})
+    return sorted(resultado, key=lambda r: r["cubierta_por"] is not None)
 
 
 def preguntas_generales(candidatas: Sequence[Mapping[str, Any]], preguntar: Mapping[int, tuple[str, bool]] | None,
