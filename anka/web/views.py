@@ -17,7 +17,8 @@ from anka.dominio.status import QuoteStatus
 from anka.dominio.estado_coherente import datos_que_faltan
 from anka.dominio.lo_que_falta import lo_pendiente, lo_que_dice_la_nota
 from anka.dominio.preguntas import (
-    INTERNA, como_peticion, historial_de_rondas, huella_de_pregunta, identificador, limpiar, sumar_preguntas,
+    INTERNA, como_peticion, en_el_correo, historial_de_rondas, huella_de_pregunta, identificador, limpiar,
+    sumar_preguntas,
 )
 from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS, MAX_CELL, huella_de_tabla, normalize_estado
 from anka.dominio.attachments import compactar_paginas
@@ -515,6 +516,29 @@ def casillas_de_preguntas(activities: Sequence[Mapping[str, Any]], cuadro: str, 
                                           if de_entrada and huella_de_pregunta(texto) not in pedidas])
     en_el_cuadro = {huella_de_pregunta(linea) for linea in cuadro.splitlines()}
     return {i: (texto, huella_de_pregunta(texto) in en_el_cuadro) for i, (texto, _) in filas.items()}, cuadro
+
+
+def actividades_sin_nombrar(activities: Sequence[Mapping[str, Any]], cuerpo: str) -> list[dict[str, Any]]:
+    """Las actividades «Por completar» o «Contradictorias» que ningún punto del correo nombra (U-109).
+
+    Está nombrada si un punto numerado del correo contiene el nombre de la actividad o repite la pregunta de su fila.
+    Una pregunta general sobre el mismo dato no cuenta (D-205): por eso el aviso dice «no nombra», no «falta». Las
+    contradictorias también se muestran: la persona debe saber que existen para decidir si se las pregunta al cliente
+    o las resuelve ella con su criterio (R12); el aviso no las agrega solo. Sin correo con preguntas no hay nada que
+    cubrir. Devuelve, por actividad: nombre, si es contradictoria, su pregunta y los puntos que ya tiene el correo."""
+    puntos = en_el_correo(cuerpo)
+    if not puntos:
+        return []
+    huellas = [huella_de_pregunta(punto) for punto in puntos]
+    resultado = []
+    for indice, (pregunta, _) in preguntas_de_la_tabla(activities).items():
+        contradictoria = normalize_estado(activities[indice].get("estado")) == "contradictorio"
+        nombre = str(activities[indice].get("activity") or "").strip()
+        buscadas = [h for h in (huella_de_pregunta(nombre), huella_de_pregunta(pregunta)) if h]
+        if not any(buscada in huella for buscada in buscadas for huella in huellas):
+            resultado.append({"actividad": nombre or "Sin nombre", "contradictoria": contradictoria,
+                              "pregunta": pregunta, "preguntas": [*puntos, pregunta]})
+    return resultado
 
 
 def preguntas_generales(candidatas: Sequence[Mapping[str, Any]], preguntar: Mapping[int, tuple[str, bool]] | None,

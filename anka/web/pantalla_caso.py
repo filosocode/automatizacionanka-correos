@@ -26,7 +26,7 @@ from anka.dominio.work_contract import (
 from anka.web.views import (
     adjunto_requiere_atencion, areas_calculadas_panel, attachments_panel, cifras_de_pdf_panel,
     filas_de_hoja_panel, reception_assessment_panel, pendientes_del_alcance, casillas_de_preguntas, preguntas_generales,
-    ronda_del_caso, correo_de_las_preguntas,
+    ronda_del_caso, correo_de_las_preguntas, actividades_sin_nombrar,
     activities_editor, question_audit_panel, question_quality_panel, review_tasks_panel,
 )
 from anka.dominio.status import (
@@ -930,6 +930,9 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
             analysis.get("activities", []), cuadro_preguntas, [p["texto"] for p in preguntas if p.get("ya_pedida")],
             nuevo=not (analysis.get("ultimas_preguntas") or restaurado or precargadas))
     generales = preguntas_generales(preguntas, preguntar, cuadro_preguntas) if preguntar is not None else []   # U-107.7
+    # U-109: ya con el correo delante, qué actividades por completar no nombra
+    sin_nombrar = (actividades_sin_nombrar(analysis.get("activities", []), email_body)
+                   if slot == "correo" and email == "form" and not reading_blocked else [])
     archivos = analysis.get("attachments", [])
     por_revisar = sum(1 for a in archivos if isinstance(a, Mapping) and adjunto_requiere_atencion(a))
     etiqueta_archivos = f"Archivos ({len(archivos)})" + (f" · {por_revisar} por revisar" if por_revisar else "")
@@ -951,7 +954,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         plegar_respuesta=plegar_respuesta, slot=slot, recibido=recibido, etiqueta_archivos=etiqueta_archivos,
         restaurado=restaurado, esperar_marcada=esperar_marcada, ronda=ronda, segunda_ronda=segunda_ronda,
         cambiar_abierto=not email_body or template == "preguntas",
-        correo_con_preguntas=bool(en_el_correo(email_body)),
+        correo_con_preguntas=bool(en_el_correo(email_body)), sin_nombrar=sin_nombrar,
         datos_en_panel=slot == "codigo",
         carpeta_en_mas_datos=(review["status"] == QuoteStatus.READY_REVIEW and not review.get("quote_code")
                               and not (analysis.get("drive") or {}).get("pending")),

@@ -774,6 +774,11 @@ html { scroll-padding-bottom: 9rem; }
 .editor-tabla.solo-una .act-row:not(.elegida), .editor-tabla.solo-una .leer-estados { display: none; }
 .editando-una { font-weight: 600; margin: 0 0 8px; }
 .act-resumen .editar-fila { margin-top: 6px; padding: 3px 12px; font-size: .875rem; position: relative; }
+/* U-109: el aviso de las actividades que el correo no nombra, discreto y sin bloquear el envío. */
+.aviso-cobertura { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--warn-ink); }
+.aviso-cobertura ul { margin: 4px 0; padding-left: 18px; }
+.aviso-cobertura li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.aviso-cobertura form { display: inline; }
 /* U-107.10: el botón «Editar» se ve igual de discreto, pero su área de toque llega a 44 px de alto. */
 .act-resumen .editar-fila::after { content: ""; position: absolute; inset: -11px -6px; }
 table.people { display: block; max-width: 100%; overflow-x: auto; }

@@ -61,6 +61,21 @@
   </div>
   </div>
 </form>
+{% if ahora and sin_nombrar %}
+<div class="aviso-cobertura" id="correo-cobertura" role="status">
+  <p class="nota"><strong>Este correo no nombra:</strong></p>
+  <ul>{% for item in sin_nombrar %}
+    <li><span>{{ item.actividad }}{% if item.contradictoria %} <em class="meta">· contradictoria: la decides tú</em>{% endif %}</span>
+      <form method="get" action="/case#respuesta">
+        <input type="hidden" name="thread_id" value="{{ thread_id }}">
+        <input type="hidden" name="template" value="preguntas">
+        <input type="hidden" name="preguntas" value="{{ item.preguntas | join('\n') }}">
+        <button type="submit" class="enlace" data-confirm="El correo se escribirá de nuevo con esta pregunta: {{ item.pregunta }} Lo que hayas cambiado a mano en el texto se reemplaza. Todavía no se envía nada. ¿Seguimos?">Agregar la pregunta</button>
+      </form></li>{% endfor %}
+  </ul>
+  <p class="nota">Puede que otra pregunta del correo ya lo cubra (por ejemplo, el archivo de ubicación). Si es así, envíalo como está.{% if sin_nombrar | selectattr('contradictoria') | list %} Las contradictorias son tuyas: pregúntaselas al cliente o resuélvelas con tu criterio; no se agregan solas.{% endif %}</p>
+</div>
+{% endif %}
 <details class="more cambiar-de-idea" id="cambiar-idea"{% if cambiar_abierto %} open{% endif %}>
 <summary>Cambiar de idea</summary>
 <details class="more armar-correo" id="armar"{% if not email_body %} open{% endif %}>
