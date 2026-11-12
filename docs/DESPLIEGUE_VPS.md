@@ -1,7 +1,7 @@
 # Despliegue en una VPS (borrador, sin probar en Linux)
 
 Objetivo: que el equipo entre por web (desde México) al dashboard de Anka en modo `api`. Requisito aparte: U-85.
-**Estado:** los archivos de `deploy/` son una base. Aún no se han probado en una VPS real; ajusta rutas y verifica cada paso.
+**Estado (D-204: es el destino vigente):** los archivos de `deploy/` son una base. Aún no se han probado en una VPS real; ajusta rutas y verifica cada paso.
 
 ## Qué queda expuesto y qué no
 - El dashboard solo escucha en `127.0.0.1:8765`. Lo único público es **Caddy** (puertos 80 y 443), con HTTPS y contraseña.

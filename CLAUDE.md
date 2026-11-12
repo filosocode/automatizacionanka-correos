@@ -23,7 +23,7 @@ Código en el paquete `anka/` (detalle en `spec/06-arquitectura.md`), en cinco c
 - `anka/servicios/`: casos de uso (`repositorio` (clase `RepositorioDeCasos`), `quotes` (fachada), `ediciones`, `work_import`, `pipeline` (clase `RevisorDeHilos`), `estado_de_revision` (última revisión y vigilancia), `case_actions`, `change_control`, `followup_reminders`,
   `gmail_followup`, `drive_layout`, `drive_contents`).
 - `anka/web/`: servidor (`server.py`), acciones de los formularios (`acciones.py`), páginas (`paginas.py` y `pantalla_caso.py`), API JSON y Swagger (`api.py`, `openapi.py`), seguridad CSRF (`seguridad.py`), vistas (`views.py`) y `templates/`. `anka/cli/`: `app`, `supervisor`, `work_sync`.
-- **Por ahora solo se trabaja y se prueba el modo `api`** (D-203); Work está en pausa y el destino es la nube (lo que cambia en los principios de `spec/00-alcance.md` se está aclarando): no propongas modelos locales ni cambios que dependan de Work. Los tres modos siguen existiendo en el código.
+- **Por ahora solo se trabaja y se prueba el modo `api`** (D-203); Work está en pausa y el destino es **en línea, en un servidor propio** (D-204; faltantes en «Puesta en línea» de `spec/00-alcance.md`): no propongas modelos locales ni cambios que dependan de Work. Los tres modos siguen existiendo en el código.
 - **Tres modos** (`active_mode` en `config.json`, fuera del repo): `local` (Ollama) y `api` comparten el código de
   `pipeline`; `chatgpt_work` mantiene a Work como único analizador. Python puede leer Gmail en ese modo **solo para identificar,
   registrar y controlar pendientes**, sin escribir en Gmail ni analizar y sin ser otro orquestador (D-131, que reformula

@@ -23,7 +23,7 @@ El código reside en `anka/` y respeta las capas y dependencias unidireccionales
 
 - El alcance vigente es preparar solicitudes para cotización: leer correos, identificar solicitudes, ordenar actividades, detectar faltantes, apoyar aclaraciones y organizar el caso en Drive. El sistema no calcula precios ni emite una cotización en la Fase 1.
 - La interfaz y los documentos de uso están en español.
-- Los datos, tokens, credenciales y la base operativa permanecen en la carpeta local de datos fuera del repositorio. Los registros no deben exponer contenido de clientes ni secretos.
+- Los datos, tokens, credenciales y la base operativa permanecen en la carpeta de datos de la instalación (en el servidor, en línea; D-204) fuera del repositorio. Los registros no deben exponer contenido de clientes ni secretos.
 - Solo un orquestador puede revisar la cuenta de Gmail a la vez.
 - Las integraciones externas deben fallar de forma visible y recuperable, sin duplicar envíos ni convertir un fallo de lectura en una conclusión comercial.
 
@@ -44,4 +44,4 @@ Una propuesta de cambio debe enlazar los requisitos existentes y reflejar con ho
 
 Las modificaciones de esta constitución deben actualizar su versión y fecha, y cualquier cambio de comportamiento debe seguir `docs/ESTANDAR_CAMBIOS.md`.
 
-**Versión**: 1.1.0 | **Ratificada**: 2026-10-13 | **Última enmienda**: 2026-10-14 (movida a `spec/`; se retira Spec Kit)
+**Versión**: 1.2.0 | **Ratificada**: 2026-10-13 | **Última enmienda**: 2026-11-12 (puesta en línea con el modo `api`: D-203, D-204)

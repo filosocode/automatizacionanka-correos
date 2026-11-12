@@ -9,7 +9,7 @@ describe cómo se documenta y se prueba cada petición con **Swagger UI**.
 | Swagger UI | `GET /docs` | Probar cada petición desde el navegador («Try it out»). |
 | Especificación OpenAPI 3 | `GET /openapi.json` | La misma documentación en JSON, para importarla en Postman, Insomnia, etc. |
 
-Solo se atienden en local (`127.0.0.1`, `localhost`, `[::1]`), igual que el resto del dashboard.
+Solo se atienden en local (`127.0.0.1`, `localhost`, `[::1]`), igual que el resto del dashboard. En línea (D-204) el dashboard sigue escuchando solo en `127.0.0.1` y lo público es el proxy con HTTPS y contraseña, con su dominio en `ANKA_HOSTS_PERMITIDOS` (U-85).
 
 ## Qué documenta
 Todas las rutas que atiende el servidor, agrupadas en etiquetas:
