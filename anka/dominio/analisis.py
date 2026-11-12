@@ -189,6 +189,7 @@ class Analisis(TypedDict, total=False):
     manual_review: RevisionManual
     ultimas_preguntas: list[str]   # lo último que la persona dejó en el cuadro de preguntas para el cliente (U-31)
     manual_edit: EdicionManual
+    respaldos: dict[str, dict[str, str]]   # U-112.C: de dónde sale el último cambio de estado de cada actividad
     pending_model_activities: list[Actividad]
     propuesta_descartada: list[Actividad]   # U-57: la propuesta de Work que se dejó de lado
     drive: dict[str, str]

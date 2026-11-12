@@ -79,6 +79,7 @@ La descripción es la primera frase de su docstring.
 | `reception` | Reglas de recepción: qué falta, qué preguntar y cómo redactar la respuesta. |
 | `hoja` | El libro de cálculo de un caso (Excel / Google Sheets): la tabla vigente y, aparte, lo que no debe perderse. |
 | `registros` | Los hechos que se guardan de un caso, como objetos con campos nombrados: `Evento`, `Cambio` y `Vinculo`. |
+| `respaldo` | El respaldo de un cambio de estado de una actividad (cliente, documento o criterio técnico): qué cambios lo exigen, su validación y la línea que lo describe (U-112). |
 | `status` | Estados del ciclo de vida de una solicitud, definidos en un solo lugar. |
 | `tolerancia_work` | Tolerar y avisar: lo que Work escribe distinto de lo esperado se corrige solo, con aviso (T-28, D-106). |
 | `work_contract` | Contrato entre ChatGPT Work y el puente: valida el JSON del borrador contra `spec/contrato_work.schema.json`. |

@@ -799,7 +799,8 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             "<div class='notice'><strong>Pendiente de lectura.</strong> No se muestran actividades hasta que Work "
             "confirme la lectura de los segmentos del mensaje y sus adjuntos.</div>"
         ) if reading_blocked else activities_editor(
-            thread_id, actividades_escritas or analysis.get("activities", []), list(EDIT_REASONS.items()),
+            thread_id, actividades_escritas or analysis.get("activities", []),
+            [(k, v) for k, v in EDIT_REASONS.items() if k != "tecnico"],   # «tecnico» solo con respaldo (U-112)
             abierto=bool(actividades_escritas), base_version=huella_de_tabla(analysis.get("activities", [])),
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")},

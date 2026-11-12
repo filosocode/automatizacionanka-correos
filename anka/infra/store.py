@@ -769,7 +769,7 @@ def save(db: sqlite3.Connection, thread_id: str, last_id: str, status: str, reci
             if analysis.get("activities") != old.get("activities"):
                 analysis["pending_model_activities"] = analysis.get("activities") or []
             analysis["activities"] = old.get("activities", [])
-            analysis["manual_edit"] = old["manual_edit"]
+            analysis["manual_edit"], analysis["respaldos"] = old["manual_edit"], old.get("respaldos", {})   # U-112.C
     if not analysis.get("manual_edit") and (nota := areas_solas_del_caso(analysis)):   # U-101
         record_event(db, thread_id, "table_merge", "analisis", f"area-{last_id}", nota, received_at)
     routing = analysis.get("routing") or {}

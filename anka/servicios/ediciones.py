@@ -10,14 +10,17 @@ from anka.servicios.repositorio import actualizar_caso
 
 import json
 import re
-from datetime import datetime
-from collections.abc import Sequence
+from datetime import date, datetime
+from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import uuid4
 
 from anka.dominio.activities import ACTIVITY_COLUMNS, huella_de_tabla
 from anka.dominio.analisis import Actividad
 from anka.dominio.areas_calculadas import actividad_con_area, area_elegida, sin_cantidad
+from anka.dominio.respaldo import (
+    CambiosDeEstado, Respaldo, cambios_de_estado, describir_respaldo, exige_respaldo, normalizar_respaldo,
+)
 from anka.dominio.filas_de_hoja import actividad_de_fila, clave_de_fila, filas_aun_sin_cubrir
 from anka.infra.logging_setup import get_logger
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
@@ -37,6 +40,7 @@ EDIT_REASONS = {
     "correccion": "Corrección mía",
     "cliente": "El cliente lo pidió",
     "archivo": "Viene de un archivo adjunto",
+    "tecnico": "Criterio técnico de Anka",
     "otro": "Otro",
 }
 
@@ -124,13 +128,33 @@ def _celdas(activities: list[Any]) -> list[dict[str, str]]:
              for key, _ in ACTIVITY_COLUMNS} for item in activities]
 
 
+def _guardar_respaldos(analysis: Any, cambios: CambiosDeEstado, respaldo: Respaldo, ahora: str) -> None:
+    """Deja el respaldo bajo cada actividad que cambió (para mostrarlo junto a ella) y lo retira de las quitadas."""
+    guardados = dict(analysis.get("respaldos") or {})
+    for tipo in ("confirmadas", "reabiertas", "agregadas"):
+        for nombre in cambios[tipo]:
+            guardados[nombre.casefold()] = {**respaldo, "actividad": nombre, "tipo": tipo, "registrado": ahora}
+    for nombre in cambios["quitadas"]:
+        guardados.pop(nombre.casefold(), None)
+    analysis["respaldos"] = guardados
+
+
+_ORIGEN_A_MOTIVO = {"cliente": "cliente", "documento": "archivo", "tecnico": "tecnico"}
+
+
 def save_activities(thread_id: str, activities: list[Actividad], reason: str = "", base_version: str = "",
-                    filas_enviadas: int | None = None) -> str:
+                    filas_enviadas: int | None = None, respaldo: Mapping[str, str] | None = None,
+                    exigir_respaldo: bool = False, quien: str = "") -> str:
     """Guarda la tabla editada a mano y la marca para que un reproceso no la pise.
 
     `base_version` es la huella de la tabla que la persona tenía a la vista: si cambió desde entonces se rechaza
     sin perder lo escrito (U-34.5). `filas_enviadas` es el `row_count` del formulario: 0 con una tabla que tiene
     filas es un formulario truncado. Una edición que no cambia nada no crea versión.
+
+    Respaldo (U-112.C): pasar una actividad a «confirmado», reabrirla, agregarla o quitarla se respalda con el cliente,
+    un documento o el criterio técnico. Con `exigir_respaldo` un cambio así sin respaldo válido se rechaza sin guardar
+    nada; sin él (el editor clásico de U-105) el respaldo es opcional, pero si llega se valida y se guarda igual.
+    Corregir un dato sin cambiar el estado nunca lo pide.
     """
     with transaccion() as db:       # leer y escribir bajo el mismo candado (U-42)
         row = db.execute(
@@ -156,12 +180,22 @@ def save_activities(thread_id: str, activities: list[Actividad], reason: str = "
         diff = diff_activities(before, activities)
         summary = describe_edit(diff, activity_totals(before), activity_totals(activities))
         reason = reason if reason in EDIT_REASONS else ""
+        cambios = cambios_de_estado(before, activities)
+        valido = None
+        if exige_respaldo(cambios) and (respaldo or exigir_respaldo):
+            valido = normalizar_respaldo(respaldo, date.today(), quien)     # lanza ErrorDeValidacion si falta algo
+            reason = _ORIGEN_A_MOTIVO[valido["origen"]]
         version = add_table_version(db, thread_id, activities, "dashboard", summary, reason)
         analysis["activities"] = activities
         analysis["manual_edit"] = {"edited_at": now, "rows": len(activities)}
+        texto_respaldo = ""
+        if valido:
+            _guardar_respaldos(analysis, cambios, valido, now)
+            texto_respaldo = f" Respaldo: {describir_respaldo(valido)} — «{valido['nota']}»."
         record_event(db, thread_id, "table_edit", "dashboard", f"v{version}-{uuid4().hex[:6]}",
                      f"Editaste la tabla (versión {version}): {summary}."
-                     + (f" Motivo: {EDIT_REASONS[reason]}." if reason else ""), now)
+                     + (f" Motivo: {EDIT_REASONS[reason]}." if reason else "") + texto_respaldo, now,
+                     actor_name=quien.strip())
         actualizar_caso(db, thread_id,
             analysis_json=json.dumps(analysis, ensure_ascii=False),
             updated_at=now)

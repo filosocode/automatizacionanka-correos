@@ -1,5 +1,42 @@
 # Requisitos
 
+### U-112 · Un espacio de trabajo en una sola pestaña: barra de casos, panel que cambia de función y respaldo obligatorio
+**Estado: especificado, sin implementar** (se construye por etapas; ver «Orden de construcción»). Decisión: D-207. Prototipos de referencia, sin código de producto: `docs/prototipos/espacio_guiado.html` (el aprobado) y `docs/prototipos/espacio_de_trabajo.html` (primer intento, solo como referencia de lógica). Reordena y acota U-105 (editor), U-106 (caja de preguntas), U-107 (pantalla del caso) y U-109 (aviso del correo) y amplía el motivo de las ediciones (`EDIT_REASONS`). No cambia R8, los estados ni `transiciones.json`, los tres modos, el contrato con Work ni lo que se guarda de cada actividad. Solo modo API (D-203, D-206).
+
+**Motivo.** La revisión de UX de 2026-11-12 (74/100) halló una pantalla correcta pero hecha para quien ya la domina: muchas piezas a la vez, vocabulario interno («contradictoria», «respaldo») y la tabla de actividades al final. La meta es que un comercial con poca experiencia en software, hasta una persona mayor, resuelva un caso sin ayuda, con una experiencia cuidada, **sin gastar tokens** (D-55: ninguna parte de esto usa un modelo) y **sin perder la trazabilidad**: nadie debe poder decir después «yo no pedí eso».
+
+**A. Estructura**
+1. **Una sola pestaña.** Barra lateral izquierda con «Inicio», la lista de casos (nombre, cliente y un punto: ámbar si espera algo de la persona, gris si espera al cliente, verde si está lista para la T), «Buscar correos nuevos» y el estado de Google al pie (U-111). Por debajo de 900 px la barra se abre con «☰ Casos».
+2. **Inicio.** «Hola, {nombre}», una frase de cuántos casos esperan a la persona y **un solo** botón relleno, «Atender a {cliente}», que lleva al más urgente (el orden de U-107.7). Debajo, tarjetas «Te esperan» y «Esperando al cliente», con una frase por caso («Le faltan 2 datos»).
+3. **El caso.** Cabecera (nombre, cliente, fecha de recibido, «Más»), tres pasos con barra de avance y dos columnas: «Esto pidió el cliente» (la lista de actividades, arriba) y un **contenedor único** a la derecha. Avance: el paso 1 se llena con las actividades resueltas sobre las totales y dice «N de M resueltas»; el paso 2 al enviar el correo; el paso 3 al emitir la T. Cuando todo está claro los pasos se rotulan «Qué pidió el cliente · Todo está claro · Emitir la T». La barra anuncia su valor a los lectores de pantalla (`role="progressbar"`).
+4. **El contenedor de la derecha cambia de función**, nunca se abre otro encima: el correo para el cliente (por defecto), el panel de una actividad, «Más» (historial y archivos), «Esperando al cliente» y «Listo para la T». Volver devuelve al correo. Enviar y emitir la T piden antes una confirmación en palabras sencillas con el destinatario (R8, U-80).
+5. **La lista de actividades.** Un renglón por actividad, sin columnas: marca de estado, nombre, una frase de estado con su detalle y, si falta algo, la casilla «Preguntar» (misma función que U-106: pone o quita la pregunta del correo conservando lo que la persona editó). Filtros por estado con su cantidad («Todas 5 · Falta un dato 2 · No cuadra 1 · Listo 2»): solo se ofrecen los estados que existen y, si el filtro activo queda vacío, la lista vuelve a «Todas». El filtro vuelve a «Todas» al cambiar de caso.
+
+**B. Panel de una actividad (el contenedor de la derecha)**
+6. **Pendiente o contradictoria.** Primero «¿Ya tenemos la respuesta?». *No*: la pregunta (editable, sin barra de desplazamiento: crece con su texto) entra al correo. *Sí*: se escribe la respuesta, se elige de dónde viene y se da el respaldo (C). Un solo botón de guardar.
+7. **Completa.** Tres salidas: «Corregir un error de escritura» (no cambia el estado; no pide respaldo; queda en el historial con el valor anterior), «Todavía falta algo» (vuelve a pendiente; pide el respaldo) y «Quitar esta actividad» (pide el motivo y el respaldo).
+8. **Nueva actividad.** Nombre, qué incluye, de dónde viene y el respaldo.
+9. **No hay opción de supuesto.** Una actividad no pasa a completa por una suposición de quien la revisa: si algo es incierto, se pregunta al cliente (D-207).
+
+**C. Trazabilidad: el respaldo es obligatorio**
+10. **Cuándo.** Pasar una actividad a completa, reabrirla, agregarla o quitarla **exige respaldo**. Sin él no se guarda nada y el aviso dice qué falta, en una frase («Elige por qué medio te lo dijo»). Quedan fuera: corregir un error de escritura y poner o quitar una pregunta en el correo.
+11. **Qué se pide.** El origen, uno de tres: **el cliente** (medio —llamada, WhatsApp, correo o reunión— y día, que no puede ser futuro), **un documento** (cuál de los archivos o el correo del cliente) o **criterio técnico de Anka**; y en los tres casos una frase de al menos 10 letras con lo que dijo, lo que dice el documento o el fundamento técnico. Al quitar, los orígenes son «el cliente lo pidió», «no está en el correo ni en los archivos» y «no aplica, por criterio técnico».
+12. **Dónde queda.** En la versión de la tabla y en el historial del caso (quién, cuándo, qué y el respaldo con sus palabras), sin cambiar el encadenado existente. Bajo la actividad se ve una línea («Lo confirmó el cliente por llamada, el 2 de sep», «Según alcance.pdf», «Por la experiencia de {nombre} · se lo presentamos como recomendación»). Los orígenes se guardan como los motivos que ya existen (`cliente`, `archivo`) más uno nuevo, `tecnico`.
+13. **El criterio técnico es asesoría, no duda.** Se muestra con el nombre de quien lo registró y, cuando la actividad llega al correo de la T o a cualquier correo al cliente, se redacta como **recomendación de Anka con su fundamento**, nunca como pregunta ni como algo sin resolver. La actividad queda completa.
+14. **Deshacer.** Cada cambio ofrece «Deshacer» durante unos segundos. Deshacer no borra el rastro: deja su propia línea en el historial.
+
+**D. Lenguaje, estilo y movimiento**
+15. **Palabras de todos los días.** En esta pantalla: «Listo», «Falta un dato» y «No cuadra» (para completa, pendiente y contradictoria; los valores guardados no cambian). Los términos T y T&E se conservan (U-107.10). «Preguntar» siempre viene con su explicación al enfocarla.
+16. **Identidad.** Los tokens de D-101: acción en naranja `#bd5209` (un solo botón relleno por vista), selección y fondos suaves en azul `#2f4d73`, Inter, y el logo de Anka arriba de la barra. Texto base de 15 px y **nunca menos de 14 px** (U-37). Controles de 40 px con puntero fino y de al menos 44 px con puntero táctil (`pointer: coarse`), con anillo de foco visible.
+17. **Movimiento con intención.** Entrada de pantallas y paneles de 0,3 a 0,6 s; destello del renglón que se resolvió; barra de avance que se llena; palomita que se dibuja al emitir la T y al enviar. Nada se mueve mientras la persona escribe, y con «reducir movimiento» (U-36) todo queda quieto y el resultado se ve igual.
+
+**E. Lo que no hace**
+No usa modelo ni gasta tokens; no cambia estados, transiciones ni contrato; no envía nada solo (R8); no toca los modos local y Work; no elimina la tabla clásica de U-105 hasta que esta pantalla la sustituya completa.
+
+**Orden de construcción** (cada etapa deja el sistema funcionando y con pruebas): 1) respaldo y trazabilidad (C) en el guardado de la tabla; 2) panel de actividad, lista y filtros (A.5, B); 3) barra lateral, inicio y flujo «siguiente caso» (A.1 a A.4); 4) estilo y movimiento (D); 5) las recomendaciones de criterio técnico y lo «por confirmar» en el correo de la T (C.13).
+
+**Preguntas abiertas** (por decidir con quien usa el sistema; no bloquean la etapa 1): quién puede registrar un criterio técnico (propuesta: cualquier comercial, con su nombre visible); si se conserva el aviso de confirmación al reemplazar un correo editado a mano al cambiar una pregunta.
+
 ### U-111 · «Google desconectado» avisa sin gritar
 **Estado: implementado** (pruebas en `tests/test_aviso_de_google.py`; estilo en `style.css`). Acota T-15 y U-80.4 solo en la forma: el texto, el enlace a Ajustes y el botón único no cambian.
 
