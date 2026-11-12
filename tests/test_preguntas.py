@@ -144,7 +144,7 @@ class SugerenciaDeRespuestaTests(unittest.TestCase):
 
     def test_without_decisions_the_suggestion_is_the_one_from_before(self):
         analisis = complete_analysis(location="")
-        self.assertIn("¿podría confirmar lo siguiente?", reception.suggested_reply(analisis, ["ubicación del proyecto"]))
+        self.assertIn("necesitamos confirmar lo siguiente:", reception.suggested_reply(analisis, ["ubicación del proyecto"]))
 
 
 class CasoCompletoTests(unittest.TestCase):

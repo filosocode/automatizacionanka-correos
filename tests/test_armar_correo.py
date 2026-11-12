@@ -201,6 +201,13 @@ class PlantillaQueSeAdapta(unittest.TestCase):
         sin = correo_con_preguntas(["¿Datum?", "¿Plazo?"], proyecto="  ")
         self.assertIn("Gracias por su solicitud. Para completar", sin)
 
+    def test_la_apertura_avisa_y_no_vuelve_a_pedir(self):
+        # Cubre: U-108
+        correo = correo_con_preguntas(["¿Podría indicar el datum?", "¿Podría indicar el plazo?"], proyecto="La Calera")
+        self.assertIn("necesitamos confirmar lo siguiente:", correo)
+        self.assertNotIn("¿podría confirmar", correo)
+        self.assertEqual(dominio.en_el_correo(correo), ["¿Podría indicar el datum?", "¿Podría indicar el plazo?"])
+
     def test_un_nombre_muy_largo_se_acorta(self):
         # Cubre: U-108
         correo = correo_con_preguntas(["¿Datum?"], proyecto="Proyecto " + "muy largo " * 30)

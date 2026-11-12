@@ -471,7 +471,7 @@ def _pregunta_de_lo_que_hace_falta(item: Mapping[str, Any], nombre: str) -> str:
         return ""
     frase = _RAZON_INTERNA.sub("", frase.rstrip(" .")) + "."      # «al no contarse con…» es de Anka, no del cliente
     encaja = _PIDE_INDICAR.match(como_peticion(frase))
-    return f"Para «{nombre}», ¿podría indicar {encaja.group('dato')}?" if encaja else ""
+    return f"{nombre}: {encaja.group('dato')}." if encaja else ""     # un dato pedido, no otro «¿Podría…?» (U-108)
 
 
 def _pregunta_de_fila(item: Mapping[str, Any], estado: str) -> str:
@@ -483,7 +483,7 @@ def _pregunta_de_fila(item: Mapping[str, Any], estado: str) -> str:
     if estado != "contradictorio" and (lo_dicho := _pregunta_de_lo_que_hace_falta(item, nombre)):
         return lo_dicho
     if faltan:
-        return f"¿Podría indicar {_lista_con_y([_ARTICULO_DEL_DATO[d] for d in faltan])} de «{nombre}»?"
+        return f"{nombre}: {_lista_con_y([_ARTICULO_DEL_DATO[d] for d in faltan])}."
     cierre = "¿Cuál es el dato correcto?" if estado == "contradictorio" else "¿Nos lo pueden aclarar?"
     return f"{nombre}: {nota}. {cierre}" if nota else f"¿Podría confirmar los datos de «{nombre}»?"
 

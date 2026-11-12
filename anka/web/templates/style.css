@@ -937,3 +937,27 @@ main:has(> .queue) > * { max-width: 1120px; margin-inline: auto; }
 .generales label { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 0; align-items: start; padding: 6px 0; font-weight: 400; color: var(--muted); cursor: pointer; }
 .generales input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; margin: 0; accent-color: var(--accent); }
 .origen-pregunta { display: block; font-size: .8125rem; font-style: normal; color: var(--muted); opacity: .85; }
+/* U-107: tipografía más fina en la pantalla del caso y la lista (como la maqueta aprobada): menos tamaño y peso, sin bajar de 14 px */
+.pantalla-caso, main:has(> .queue) { font-size: .9375rem; }
+.pantalla-caso h1, main:has(> .queue) h1 { font-weight: 600; }
+.cab-tarjeta h2, .pantalla-caso .tabs h2 { font-size: 1.0625rem; font-weight: 600; }
+.pantalla-caso .process-step strong { font-weight: 600; font-size: .875rem; }
+.pantalla-caso .fila-resumen strong, .queue-row strong { font-weight: 600; }
+.alcance-lectura .act-resumen { font-size: .875rem; }
+.alcance-lectura .act-resumen .motivo { font-size: .875rem; }
+.chat-caja textarea { font-size: .9375rem; line-height: 1.55; }
+.chat-barra button { font-weight: 600; font-size: .9375rem; }
+.pantalla-caso .tabs [role="tab"] { font-weight: 500; }
+/* U-107: casillas propias de «preguntar al cliente»: redondeadas, con la paleta de Anka y el mismo tamaño táctil (24 px) */
+input[name="preguntar_fila"] {
+  appearance: none; -webkit-appearance: none; width: 24px; height: 24px; min-height: 0; flex: none; margin: 0;
+  border: 1.5px solid color-mix(in srgb, var(--muted) 65%, transparent); border-radius: 7px; background-color: transparent;
+  background-repeat: no-repeat; background-position: center; background-size: 16px 16px; cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+input[name="preguntar_fila"]:hover { border-color: var(--accent); }
+input[name="preguntar_fila"]:checked {
+  background-color: var(--accent-fill); border-color: var(--accent-fill);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http%3A//www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+}
+input[name="preguntar_fila"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

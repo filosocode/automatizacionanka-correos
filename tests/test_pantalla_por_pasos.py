@@ -350,7 +350,7 @@ class TablaDelPrototipo(Base):
         self.assertIn('id="decision-form"', pagina)
         self.assertEqual(vista.count(" checked"), 1)               # solo la pendiente con datos esenciales vacíos
         self.assertIn('aria-label="Preguntar al cliente por Batimetría del lago"', vista)
-        pregunta = "¿Podría indicar la ubicación y el plazo de «Batimetría del lago»?"
+        pregunta = "Batimetría del lago: la ubicación y el plazo."
         self.assertIn(pregunta, pagina[pagina.index('name="questions"'):pagina.index("</textarea>", pagina.index('name="questions"'))])
         self.assertIn('value="Replanteo: No dice cuántos lotes. ¿Nos lo pueden aclarar?"', vista)
         self.assertIn('value="Curvas: 10 ha en el correo y 12,4 ha en el KMZ. ¿Cuál es el dato correcto?"', vista)
@@ -1173,19 +1173,19 @@ class PreguntaIgualAQueHaceFalta(Base):
     def test_la_pregunta_usa_las_palabras_de_la_columna_que_hace_falta(self) -> None:
         # Cubre: U-107
         self.assertEqual(self.pregunta("Falta la delimitación y superficie (área en m² o ha) de las manzanas y estaciones."),
-                         "Para «Levantamiento de detalles», ¿podría indicar la delimitación y superficie "
-                         "(área en m² o ha) de las manzanas y estaciones?")
+                         "Levantamiento de detalles: la delimitación y superficie "
+                         "(área en m² o ha) de las manzanas y estaciones.")
 
     def test_la_razon_interna_de_la_nota_no_llega_al_cliente(self) -> None:
         # Cubre: U-107
         self.assertEqual(self.pregunta("Falta la localización exacta del trazado al no contarse con el archivo KML/KMZ."),
-                         "Para «Levantamiento de detalles», ¿podría indicar la localización exacta del trazado?")
+                         "Levantamiento de detalles: la localización exacta del trazado.")
 
     def test_una_frase_cortada_o_sin_forma_de_pregunta_vuelve_a_los_datos_esenciales(self) -> None:
         # Cubre: U-107
         larga = "Falta " + "la superficie total del área de interés del proyecto " * 5
-        self.assertEqual(self.pregunta(larga), "¿Podría indicar la cantidad de «Levantamiento de detalles»?")
-        self.assertTrue(self.pregunta("El documento deja la opción abierta.").startswith("¿Podría indicar"))
+        self.assertEqual(self.pregunta(larga), "Levantamiento de detalles: la cantidad.")
+        self.assertTrue(self.pregunta("El documento deja la opción abierta.").startswith("Levantamiento de detalles:"))
 
     def test_una_contradiccion_sigue_con_su_redaccion(self) -> None:
         # Cubre: U-107

@@ -370,7 +370,7 @@ def question_email(questions: list[str], forwarded: bool = False) -> str:
         "Gracias por su solicitud. Para completar la información inicial, "
     )
     return (
-        "Hola,\n\n" + opening + "¿podría confirmar lo siguiente?\n\n" + items +
+        "Hola,\n\n" + opening + "necesitamos confirmar lo siguiente:\n\n" + items +
         "\n\nPuede responder a este mismo correo.\n\nSaludos"
     )
 
@@ -522,7 +522,7 @@ def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, document
         opening = f"Gracias por su respuesta{de}. Nos queda por confirmar lo siguiente:"
     else:
         base = "Gracias por compartir la solicitud" if reenviado else "Gracias por su solicitud"
-        opening = f"{base}{de}. Para completar la información inicial, ¿podría confirmar lo siguiente?"
+        opening = f"{base}{de}. Para completar la información inicial, necesitamos confirmar lo siguiente:"
     documentos = _sin_repetir_lo_preguntado(documentos or [], preguntas)
     document_block = ""
     if documentos:

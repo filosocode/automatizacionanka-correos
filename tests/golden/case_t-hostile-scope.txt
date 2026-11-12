@@ -366,7 +366,7 @@ Por completar
 </span>
 </td>
 <td role="cell" class="preguntar" data-etiqueta="Preguntar al cliente">
-<input type="checkbox" name="preguntar_fila" value="¿Podría indicar la cantidad y la unidad de «"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>»?" form="decision-form" checked="" aria-label="Preguntar al cliente por "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
+<input type="checkbox" name="preguntar_fila" value=""><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>: la cantidad y la unidad." form="decision-form" checked="" aria-label="Preguntar al cliente por "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>">
 </td>
 </tr>
 </tbody>
@@ -691,7 +691,7 @@ Lo que marques a la izquierda aparece aquí. Puedes cambiarlo.
 <div class="preguntas-bloque" id="preguntas-bloque">
 <div class="chat-caja">
 <textarea name="questions" id="preguntas-cliente" aria-label="Preguntas para el cliente (una por línea)" placeholder="Escribe aquí lo que quieres preguntarle al cliente, una pregunta por línea.">
-¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo? ¿Podría indicar la cantidad y la unidad de «"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>»?
+¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo? "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>: la cantidad y la unidad.
 </textarea>
 <div class="acciones chat-barra" role="group" aria-label="Cómo seguir con este caso">
 <button type="submit" id="btn-suficiente" class="secondary enlace-suave" name="decision" value="sufficient" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
