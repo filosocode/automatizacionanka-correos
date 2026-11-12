@@ -74,6 +74,12 @@ class VerboPrimero(Base):
         self.assertEqual(fila.count('aria-hidden="true">'), 1)
         self.assertNotIn('aria-hidden="true">', paginas.queue_row(quotes.get_quote("T1"), 1))     # U-107
 
+    # Cubre: U-107
+    def test_la_lista_concuerda_en_singular_y_el_boton_editar_tiene_area_de_toque(self):
+        pagina = re.sub(r"<[^>]+>", " ", paginas.render_index())
+        self.assertNotRegex(pagina, r"\b1 (esperan|solicitudes)\b")
+        self.assertIn(".act-resumen .editar-fila::after", CSS)      # el área de toque llega a 44 px sin cambiar el aspecto
+
 
 class MarcaAhoraEsTexto(unittest.TestCase):
     # Cubre: U-58

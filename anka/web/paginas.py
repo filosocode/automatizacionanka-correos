@@ -61,16 +61,23 @@ def _dashboard_insights(quotes: Sequence[Mapping[str, Any]], services: Counter, 
     items = []
     if services:
         service, count = services.most_common(1)[0]
-        items.append(("Servicio más solicitado", f"{service} aparece en {count} solicitudes."))
+        items.append(("Servicio más solicitado", f"{service} aparece en {count} {_solicitudes(count)}."))
     if clients:
         client, count = clients.most_common(1)[0]
         detail = "Es el cliente con más solicitudes registradas." if count > 1 else "Aún no hay clientes recurrentes."
-        items.append((client, f"{count} solicitudes. {detail}"))
+        items.append((client, f"{count} {_solicitudes(count)}. {detail}"))
     unclassified = sum(q["client_type"] == "No clasificado" for q in quotes)
     if unclassified:
+        verbo = "tiene" if unclassified == 1 else "tienen"
         items.append(("Datos por completar",
-                      f"{unclassified} solicitudes aún no tienen tipo de cliente. Complétalo en cada caso."))
+                      f"{unclassified} {_solicitudes(unclassified)} aún no {verbo} tipo de cliente. "
+                      "Complétalo en cada caso."))
     return render("insights.html", items=items)
+
+
+def _solicitudes(cantidad: int) -> str:
+    """«solicitud» o «solicitudes» según la cantidad (el resumen no debe decir «1 solicitudes»)."""
+    return "solicitud" if cantidad == 1 else "solicitudes"
 
 
 def _notifications_panel(notifications: list[dict], plegar: bool = False) -> Markup:

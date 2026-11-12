@@ -1,5 +1,5 @@
 <div class="page-head">
-  <div><h1 class="titulo-principal">Solicitudes de cotización</h1><p>{% if recibidas_nuevas %}{{ total + recibidas_nuevas }} solicitud{{ '' if total + recibidas_nuevas == 1 else 'es' }} · {{ recibidas_nuevas }} recibida{{ '' if recibidas_nuevas == 1 else 's' }} pendiente{{ '' if recibidas_nuevas == 1 else 's' }} de análisis.{% elif total %}{{ total }} solicitud{{ '' if total == 1 else 'es' }}{% if action_count %} · {{ action_count }} esperan algo de ti. La primera es la más urgente{% else %} · nada pendiente de tu parte{% endif %}.{% else %}Todavía no hay solicitudes de cotización.{% endif %}</p></div>
+  <div><h1 class="titulo-principal">Solicitudes de cotización</h1><p>{% if recibidas_nuevas %}{{ total + recibidas_nuevas }} solicitud{{ '' if total + recibidas_nuevas == 1 else 'es' }} · {{ recibidas_nuevas }} recibida{{ '' if recibidas_nuevas == 1 else 's' }} pendiente{{ '' if recibidas_nuevas == 1 else 's' }} de análisis.{% elif total %}{{ total }} solicitud{{ '' if total == 1 else 'es' }}{% if action_count %} · {{ action_count }} {{ 'espera' if action_count == 1 else 'esperan' }} algo de ti. {{ 'Es la más urgente' if action_count == 1 else 'La primera es la más urgente' }}{% else %} · nada pendiente de tu parte{% endif %}.{% else %}Todavía no hay solicitudes de cotización.{% endif %}</p></div>
 </div>
 {{ notifications }}
 {{ recepcion }}
@@ -19,7 +19,7 @@
 {% elif not recibidas_nuevas %}<div class='empty'>Todavía no hay solicitudes de cotización. Cuando llegue una solicitud por correo aparecerá aquí.</div>{% endif %}
 {{ work_rejected }}
 <details class="more">
-  <summary>Ver números y resumen ({{ total }} {% if recibidas_nuevas %}con análisis disponible{% else %}solicitudes{% endif %})</summary>
+  <summary>Ver números y resumen ({{ total }} {% if recibidas_nuevas %}con análisis disponible{% else %}{{ 'solicitud' if total == 1 else 'solicitudes' }}{% endif %})</summary>
   <div class="grid kpis">
     <div class="kpi"><div class="kpi-label">Esperan algo de ti</div><div class="kpi-value">{{ action_count }}</div></div>
     <div class="kpi"><div class="kpi-label">Esperando al cliente</div><div class="kpi-value">{{ waiting }}</div></div>

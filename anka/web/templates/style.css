@@ -773,7 +773,9 @@ html { scroll-padding-bottom: 9rem; }
 /* Editar una sola actividad (o agregar una): se ve solo esa fila; «Corregir la tabla» vuelve a mostrarlas todas. */
 .editor-tabla.solo-una .act-row:not(.elegida), .editor-tabla.solo-una .leer-estados { display: none; }
 .editando-una { font-weight: 600; margin: 0 0 8px; }
-.act-resumen .editar-fila { margin-top: 6px; padding: 3px 12px; font-size: .875rem; }
+.act-resumen .editar-fila { margin-top: 6px; padding: 3px 12px; font-size: .875rem; position: relative; }
+/* U-107.10: el botón «Editar» se ve igual de discreto, pero su área de toque llega a 44 px de alto. */
+.act-resumen .editar-fila::after { content: ""; position: absolute; inset: -11px -6px; }
 table.people { display: block; max-width: 100%; overflow-x: auto; }
 #cargando.notice { margin: 8px 24px; }
 a.bridge-chip { display: inline-flex; align-items: center; min-height: 44px; }

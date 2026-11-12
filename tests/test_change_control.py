@@ -781,7 +781,7 @@ class UxFixesTests(Base):
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = paginas.render_index()
         self.assertIn("Solicitudes de cotización", page)
-        self.assertIn("esperan algo de ti. La primera es la más urgente", page)
+        self.assertIn("1 espera algo de ti. Es la más urgente", page)       # U-107.10: concuerda en singular
         self.assertIn("Correo por revisar", page)
         self.assertIn("Ver números y resumen", page)                           # las gráficas quedan plegadas
         self.assertLess(page.index("Correo por revisar"), page.index("Ver números y resumen"))
