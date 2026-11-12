@@ -238,13 +238,21 @@ def _grupos(quotes: Sequence[Mapping[str, Any]]) -> list[Grupo]:
     return agrupar_solicitudes(quotes, separated_project_pairs(), change_marker())
 
 
+def _en_modo_work() -> bool:
+    """¿Está activo el modo ChatGPT Work? Solo entonces la portada habla de Work."""
+    try:
+        return load_config().get("active_mode") == "chatgpt_work"
+    except (ErrorDeAnka, OSError, ValueError):
+        return False
+
+
 def render_index(message: str = "", mostrar: int = POR_PAGINA, q: str = "", etapa: str | None = None) -> str:
     """«Solicitudes de cotización» (U-32): lista por urgencia, con novedades y estadísticas.
 
     `q` y `etapa` buscan y filtran entre todos los casos en el servidor (U-49); sin `etapa`, entra en «Por atender»
     si hay algo que atender."""
     quotes = all_quotes()
-    recibidas = solicitudes_en_recepcion()
+    recibidas = solicitudes_en_recepcion() if _en_modo_work() else []   # la recepción de Work solo existe en ese modo
     notifications = unread_notifications(8)
     unread_threads = {item["thread_id"] for item in notifications}
     services = Counter(service for quote in quotes for service in quote["services"])
@@ -272,7 +280,7 @@ def render_index(message: str = "", mostrar: int = POR_PAGINA, q: str = "", etap
         recepcion=render("recepcion_visible.html", recibidas=recibidas),
         recibidas_nuevas=sum(not r['existente'] for r in recibidas),
         sync_text=sync_status_text(),
-        work_rejected=_work_rejected_panel(),
+        work_rejected=_work_rejected_panel() if _en_modo_work() else Markup(""),
         notifications=_notifications_panel(notifications, plegar=bool(notifications) and all(
             item["thread_id"] in en_lista for item in notifications)),
         total=len(quotes),

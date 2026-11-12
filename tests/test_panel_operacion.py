@@ -216,10 +216,13 @@ class Seguridad(PanelBase):
 
 class Portada(PanelBase):
     def test_la_portada_sigue_igual_y_enlaza_al_panel(self):
-        with patch("anka.web.paginas.load_config", return_value=test_config()):
+        with patch("anka.web.paginas.load_config", return_value={**test_config(), "active_mode": "chatgpt_work"}):
             html = self.pagina("/")
         self.assertIn('href="/operacion">Recepción y trabajos de Work</a>', html)
         self.assertNotIn("Registrado no es lo mismo", html)
+        # Cubre: U-110 (en modo API el menú no ofrece nada de Work)
+        with patch("anka.web.paginas.load_config", return_value={**test_config(), "active_mode": "api"}):
+            self.assertNotIn("Recepción y trabajos de Work", self.pagina("/"))
 
     def test_la_ruta_esta_documentada_y_solo_acepta_get(self):
         from anka.web import openapi, server

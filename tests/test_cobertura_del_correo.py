@@ -121,5 +121,29 @@ class AvisoEnLaPantalla(Base):
         self.assertNotIn('id="correo-cobertura"', rehecho)                       # ya no falta nada
 
 
+class DocumentosAlRehacerElCorreo(Base):
+    UBICACION = "Archivo de ubicación y delimitación del área"
+    PLANOS = "Planos, diseños preliminares, cartografía base o levantamientos previos"
+
+    def cuerpo(self, *preguntas: str) -> str:
+        self.crear(estado=QuoteStatus.REVIEW_PENDING, actividades=[pendiente("Control vertical")])
+        pagina = pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto="\n".join(preguntas))
+        return pagina.split('id="cuerpo-correo"')[1].split("</textarea>")[0]
+
+    # Cubre: U-100
+    def test_rehacer_el_correo_conserva_la_lista_de_documentos_opcionales(self) -> None:
+        # defecto del caso La Calera: «Agregar la pregunta» y «Preparar el correo de nuevo» perdían el bloque
+        cuerpo = self.cuerpo("Control vertical: la longitud total.")
+        self.assertIn("también puede adjuntar", cuerpo)
+        self.assertIn(self.UBICACION, cuerpo)
+        self.assertIn(self.PLANOS, cuerpo)
+
+    # Cubre: U-100
+    def test_sigue_sin_repetir_el_archivo_de_ubicacion_si_una_pregunta_ya_lo_pide(self) -> None:
+        cuerpo = self.cuerpo("¿Podrían remitir el archivo de ubicación del proyecto? (KML/KMZ)")
+        self.assertNotIn(self.UBICACION, cuerpo)
+        self.assertIn(self.PLANOS, cuerpo)
+
+
 if __name__ == "__main__":
     unittest.main()

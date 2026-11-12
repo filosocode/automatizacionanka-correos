@@ -12,7 +12,7 @@ from markupsafe import Markup
 from anka.dominio.analisis import Analisis
 from anka.dominio.caso import Caso, timestamp
 from anka.dominio.correo import normalized_address
-from anka.dominio.reception import correo_con_preguntas
+from anka.dominio.reception import correo_con_preguntas, suggested_supporting_documents
 from anka.dominio.status import QuoteStatus
 from anka.dominio.estado_coherente import datos_que_faltan
 from anka.dominio.evaluacion import temas_preguntados
@@ -685,8 +685,12 @@ def codigo_para_el_contacto(review: Caso) -> str:
 
 
 def correo_de_las_preguntas(review: Caso, analysis: Analisis, preguntas: Sequence[str], segunda_ronda: bool) -> str:
-    """El correo con las preguntas de la caja (U-24, U-108): plantilla fija con proyecto, código y ronda."""
+    """El correo con las preguntas de la caja (U-24, U-108): plantilla fija con proyecto, código y ronda.
+
+    Lleva también la lista «también puede adjuntar» (U-100), igual que el correo que sugiere el análisis: rehacer el
+    correo con otras preguntas no debe hacerle perder los documentos opcionales."""
     reenviado = bool(analysis.get("routing", {}).get("is_forwarded"))
     return correo_con_preguntas(
-        list(preguntas), reenviado, proyecto=analysis.get("project_name") or "",
-        codigo=codigo_para_el_contacto(review), segunda_ronda=segunda_ronda)
+        list(preguntas), reenviado, suggested_supporting_documents(analysis),
+        proyecto=analysis.get("project_name") or "", codigo=codigo_para_el_contacto(review),
+        segunda_ronda=segunda_ronda)

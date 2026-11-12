@@ -68,9 +68,6 @@ Casos borrados
 <a class="enlace-ajustes" href="/desempeno">
 Desempeño del análisis
 </a>
-<a class="enlace-ajustes" href="/operacion">
-Recepción y trabajos de Work
-</a>
 <div class="google-settings">
 <strong>
 Cuenta de Google
@@ -272,6 +269,9 @@ Corregir la tabla
 </button>
 </div>
 </div>
+<p class="nota todo-completo" id="sin-filas">
+Todavía no hay actividades. Pulsa «+ Agregar» para escribir la primera.
+</p>
 <div class="editor-tabla" id="editar-tabla">
 <form method="post" action="/activities">
 <input type="hidden" name="thread_id" value="t-review-tech">
@@ -501,7 +501,7 @@ Redactar el correo
 </div>
 </div>
 <p class="nota" id="sin-actividades">
-«Confirmar que alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».
+«Con esto alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».
 </p>
 <p class="nota">
 Nada se envía al cliente en este paso: primero ves el correo y lo envías tú.

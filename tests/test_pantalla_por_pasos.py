@@ -767,7 +767,7 @@ class ResumenSinJerga(Base):
         from anka.web import paginas
         self.crear()
         rechazado = [{"draft": "r-9", "thread": "t-1", "reason": "Hay bloques de datos repetidos o incompletos en el borrador."}]
-        with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
+        with patch("anka.web.paginas.rejected_drafts", return_value=rechazado),              patch("anka.web.paginas._en_modo_work", return_value=True):
             pagina = paginas.render_index()
         self.assertIn("Falta el análisis de un caso", pagina)
         self.assertLess(pagina.index('class="queue"'), pagina.index('id="borradores-rechazados"'))
@@ -892,10 +892,13 @@ class PaginaPrincipalEsLaLista(Base):
         # Cubre: U-32
         self.crear("t-a", estado=QuoteStatus.REVIEW)
         rechazado = [{"draft": "r-1", "thread": "t-a", "reason": "x"}]
-        with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
+        with patch("anka.web.paginas.rejected_drafts", return_value=rechazado),              patch("anka.web.paginas._en_modo_work", return_value=True):
             pagina = self.lista()
         self.assertNotIn("Buscar o exportar", pagina)
         self.assertIn("Falta el análisis de un caso", pagina)
+        # Cubre: U-110 (en modo API el aviso de Work no aparece)
+        with patch("anka.web.paginas.rejected_drafts", return_value=rechazado):
+            self.assertNotIn("Falta el análisis de un caso", self.lista())
 
 
 class UnaSolaListaEnElCamino(Base):

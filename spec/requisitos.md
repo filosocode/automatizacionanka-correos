@@ -1,5 +1,26 @@
 # Requisitos
 
+### U-111 · «Google desconectado» avisa sin gritar
+**Estado: implementado** (pruebas en `tests/test_aviso_de_google.py`; estilo en `style.css`). Acota T-15 y U-80.4 solo en la forma: el texto, el enlace a Ajustes y el botón único no cambian.
+
+**Motivo.** La revisión de UX de 2026-11-12 mostró el aviso como una píldora roja de error en el encabezado de todas las pantallas, junto al botón naranja «Buscar correos nuevos»: dos llamadas de atención compitiendo, y en móvil el texto se partía en dos líneas.
+
+1. **Tono de atención**, no el rojo de error (`--caution-bg`/`--caution-ink`, con borde), en claro y en oscuro.
+2. **Una sola línea** (`white-space: nowrap`) y sin subrayado en reposo; se subraya al pasar o enfocar.
+3. **Sigue siendo un enlace** a «Volver a conectar Google» de Ajustes y se ve en todas las páginas hasta que se reconecte; el texto no cambia.
+
+### U-110 · La interfaz solo habla del modo en uso: en modo API no aparece nada de Work
+**Estado: implementado** (pruebas en `tests/test_recepcion_visible.py`, `tests/test_pantalla_por_pasos.py` y `tests/test_panel_operacion.py`; la regla, en `_en_modo_work` de `anka/web/paginas.py`). Decisión: D-206. Acota U-73 y U-75 (la lista de recibidas y el aviso de borradores de Work son del modo Work) y D-203.
+
+**Motivo.** La revisión de UX de 2026-11-12 encontró en la portada 27 correos «Esperando análisis de Work… Más tiempo del esperado» sin ninguna acción posible, en un sistema que ya no usa Work. Una persona que no es técnica no debe ver un estado de otro motor ni entender qué es Work.
+
+1. **Portada.** La lista «Recibidas · pendientes de análisis» y el aviso «Falta el análisis de un caso» solo se dibujan con `active_mode = chatgpt_work`. En `api` y `local` no aparecen, aunque haya filas viejas en la base.
+2. **Ajustes.** El enlace «Recepción y trabajos de Work» solo se ofrece en modo Work. La ruta `/operacion` sigue existiendo.
+3. **Si la configuración no se puede leer**, se trata como «no es Work»: nunca se muestra un estado de Work por duda.
+4. **Tarjeta de actividades vacía.** Si el caso aún no tiene actividades y se está decidiendo, la tarjeta dice «Todavía no hay actividades. Pulsa «+ Agregar» para escribir la primera.» en vez de quedar en blanco.
+5. **Texto único.** La nota que explica por qué «Con esto alcanza» está desactivado nombra el botón como se ve en pantalla («Con esto alcanza»), no «Confirmar que alcanza».
+6. **Sin desbordes.** En las dos tarjetas de la decisión, el texto de ayuda y el cuadro de preguntas no se montan: si no cabe, la tarjeta se desplaza por dentro.
+
 ### U-109 · El correo avisa de las actividades pendientes que no nombra
 **Estado: implementado** (pruebas en `tests/test_cobertura_del_correo.py`; el cálculo, en `actividades_sin_nombrar` de `anka/web/views.py`). Decisión: D-205. Cierra el vacío que U-108.6 dejó abierto («agrupar las preguntas por actividad») solo en lo que importa a quien revisa: saber si el correo cubre lo que falta. Sin modelo (D-55); nada sale sin revisión (R8).
 
@@ -3009,7 +3030,7 @@ Una frase de la tabla que llega al cuadro de preguntas sin ser una pregunta («F
 
 ### U-100 · El correo no repite lo que ya pregunta
 
-En el correo al cliente, la lista «también puede adjuntar» no trae el archivo de ubicación si una de las preguntas ya lo pide. Si no queda nada en la lista, no se escribe el bloque. Cuando un envío se detiene por ser un duplicado, el aviso dice a quién y cuándo se envió el correo.
+En el correo al cliente, la lista «también puede adjuntar» no trae el archivo de ubicación si una de las preguntas ya lo pide. Si no queda nada en la lista, no se escribe el bloque. La lista sale igual cuando el correo se rehace desde la caja de preguntas (U-24, U-106) o con «Agregar la pregunta» (U-109): cambiar las preguntas no hace perder los documentos opcionales (defecto visto con el caso La Calera, 2026-11-12). Cuando un envío se detiene por ser un duplicado, el aviso dice a quién y cuándo se envió el correo.
 
 ### U-101 · El área del único KMZ se pone sola cuando es la única fuente
 

@@ -11,6 +11,22 @@ from tests.test_suficiencia_documental import Base, analisis_valido
 
 
 class RecepcionVisible(Base):
+    def setUp(self):
+        super().setUp()
+        # La lista «Recibidas» solo existe en el modo Work; el modo API (el que se usa) no la muestra (U-110)
+        parche = patch('anka.web.paginas._en_modo_work', return_value=True)
+        parche.start()
+        self.addCleanup(parche.stop)
+
+    def test_en_modo_api_la_portada_no_habla_de_work(self):
+        # Cubre: U-110
+        self.recibir()
+        self.trabajo()
+        with patch('anka.web.paginas._en_modo_work', return_value=False):
+            pagina = paginas.render_index()
+        self.assertNotIn('Esperando análisis de Work', pagina)
+        self.assertNotIn('Recibidas · pendientes de análisis', pagina)
+
     def recibir(self, mensaje='m1', hilo='t1', state='pendiente_de_procesar', asunto='Solicitud La Calera'):
         with store.transaccion() as db:
             db.execute("""INSERT INTO recepcion_mensajes
