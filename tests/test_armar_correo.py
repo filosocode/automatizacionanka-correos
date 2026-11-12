@@ -208,6 +208,13 @@ class PlantillaQueSeAdapta(unittest.TestCase):
         self.assertNotIn("¿podría confirmar", correo)
         self.assertEqual(dominio.en_el_correo(correo), ["¿Podría indicar el datum?", "¿Podría indicar el plazo?"])
 
+    def test_el_prompt_del_modo_api_pide_el_dato_y_no_otro_podria(self):
+        # Cubre: U-108
+        from anka.infra import llm
+        prompt = llm.analysis_prompt([{"from": "a@b.co", "subject": "x", "body": "hola"}], ["ubicación"])
+        self.assertIn("sin «¿Podría…?»", prompt)
+        self.assertIn("«Archivo de ubicación del proyecto (KML/KMZ o plano del trazado)»", prompt)
+
     def test_un_nombre_muy_largo_se_acorta(self):
         # Cubre: U-108
         correo = correo_con_preguntas(["¿Datum?"], proyecto="Proyecto " + "muy largo " * 30)

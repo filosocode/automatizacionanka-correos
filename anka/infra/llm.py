@@ -457,6 +457,10 @@ def analysis_prompt(
         "Cada elemento de other_questions pide UNA sola cosa, en una frase corta y directa, con el formato esperado "
         "entre paréntesis cuando aplique (por ejemplo «(KML/KMZ o plano del trazado)»); si falta más de una cosa, "
         "devuelve un elemento por cada una, no las unas con «y». Nombra el documento tal como lo cita el cliente. "
+        "Redáctala como el dato que se necesita, sin «¿Podría…?», «¿Podrían…?» ni fórmulas de cortesía, porque el "
+        "correo ya abre pidiendo la lista: «Archivo de ubicación del proyecto (KML/KMZ o plano del trazado)», "
+        "«Área o longitud total del proyecto (ha o km)», «Anexo Capítulo_1_Topografía citado en las especificaciones»; "
+        "si la pregunta no se deja decir así (pide elegir entre opciones, por ejemplo), hazla como pregunta directa. "
         "Si no hay solicitud, devuelve listas vacías.\n"
         f"Datos obligatorios: {json.dumps(required_fields, ensure_ascii=False)}\n\n"
         + tabla_vigente_prompt(tabla_vigente)
