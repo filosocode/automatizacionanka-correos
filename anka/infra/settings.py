@@ -34,7 +34,7 @@ ACTIVE_MODES = {"local", "api", "chatgpt_work"}
 KNOWN_CONFIG_KEYS = {
     "active_mode", "gmail_query", "own_addresses", "test_sender_addresses", "forwarded_reply_policy", "llm",
     "required_fields", "commercial_filter_terms", "drive_parent_id", "folder_prefix",
-    "work_sync_account", "work_ready_notice_enabled",
+    "work_sync_account", "work_ready_notice_enabled", "comercial",
     "work_drive_enabled", "work_drive_parent_id", "work_drive_query",
     "ocr_segundos_por_archivo", "ocr_segundos_por_caso", "ocr_omitir_escaneados",
     "gmail_reception_enabled", "gmail_reception_interval_seconds",
@@ -69,7 +69,7 @@ def validate_config(config: Mapping[str, Any]) -> list[str]:
     if isinstance(interval, bool) or not isinstance(interval, int) or not 30 <= interval <= 3600:
         problems.append("gmail_reception_interval_seconds debe ser un entero entre 30 y 3600.")
 
-    for key in ("gmail_query", "drive_parent_id", "folder_prefix", "work_sync_account"):
+    for key in ("gmail_query", "drive_parent_id", "folder_prefix", "work_sync_account", "comercial"):
         if key in config and not isinstance(config[key], str):
             problems.append(f"{key} debe ser texto.")
     for key in ("own_addresses", "test_sender_addresses", "commercial_filter_terms"):

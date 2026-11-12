@@ -24,6 +24,12 @@ def actividad(nombre: str, estado: str) -> dict:
     return complete_analysis()["activities"][0] | {"activity": nombre, "estado": estado}
 
 
+
+def cuadro_de(texto: str) -> str:
+    """El correo de la tarjeta de decisión (U-113): lo que hay dentro de su caja, sin la etiqueta."""
+    inicio = texto.index('id="correo-unico"')
+    return texto[texto.index(">", inicio) + 1:texto.index("</textarea>", inicio)]
+
 class Base(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -310,7 +316,7 @@ class TablaDelPrototipo(Base):
         for retirado in ("Ver todas", "Ver detalle y fuentes", "Cómo leer esta tabla", "ficha-alcance", "<textarea", "<form"):
             self.assertNotIn(retirado, lista)
         self.assertEqual(lista.count('class="renglon '), 11)
-        self.assertEqual(pagina.count('action="/activity"'), 2 * 1 + 9 * 3 + 1)     # 2 por resolver, 9 listas con 3 acciones, 1 nueva
+        self.assertEqual(pagina.count('action="/activity"'), 2 * 1 + 9 * 3 + 1 + 11)     # 2 por resolver, 9 listas con 3 acciones, 1 nueva, 11 en «Corregir la tabla»
 
     def test_cada_panel_pide_el_respaldo_y_no_ofrece_suponer(self) -> None:
         # Cubre: U-112
@@ -321,7 +327,7 @@ class TablaDelPrototipo(Base):
                       "¿Ya tenemos la respuesta?", 'name="accion" value="resolver"', 'name="indice" value="0"'):
             self.assertIn(parte, panel)
         self.assertNotIn("supuesto", pagina.lower().replace("supuestos", ""))
-        for parte in ("Cerrar", "Corregir un dato", "Volver a abrirla", "Quitarla de la tabla"):
+        for parte in ("Volver al correo", "Corregir un dato", "Volver a abrirla", "Quitarla de la tabla"):
             self.assertIn(parte, pagina)
 
     def test_un_panel_rechazado_se_reabre_con_lo_escrito(self) -> None:
@@ -373,8 +379,7 @@ class TablaDelPrototipo(Base):
         self.assertIn('id="decision-form"', pagina)
         self.assertEqual(vista.count(" checked"), 1)               # solo la pendiente con datos esenciales vacíos
         self.assertIn('aria-label="Preguntar al cliente por Batimetría del lago"', vista)
-        pregunta = "Batimetría del lago: la ubicación y el plazo."
-        self.assertIn(pregunta, pagina[pagina.index('name="questions"'):pagina.index("</textarea>", pagina.index('name="questions"'))])
+        self.assertIn("1. Batimetría del lago: la ubicación y el plazo", cuadro_de(pagina))   # ya escrita en el correo
         self.assertIn('value="Replanteo: No dice cuántos lotes. ¿Nos lo pueden aclarar?"', vista)
         self.assertIn('value="Curvas: 10 ha en el correo y 12,4 ha en el KMZ. ¿Cuál es el dato correcto?"', vista)
 
@@ -389,9 +394,9 @@ class TablaDelPrototipo(Base):
         pendiente = actividad("Batimetría", "pendiente") | {"ubicacion": "no indicado"}
         self.crear(actividades=[pendiente], ultimas=["Mi propia pregunta"])
         pagina = pantalla_caso.render_case("t-1")
-        cuadro = pagina[pagina.index('name="questions"'):pagina.index("</textarea>", pagina.index('name="questions"'))]
+        cuadro = cuadro_de(pagina)
         self.assertIn("Mi propia pregunta", cuadro)
-        self.assertNotIn("ubicación", cuadro)
+        self.assertNotIn("Batimetría", cuadro)
         self.assertNotIn(" checked", self.vista(pagina))
 
     def test_el_resumen_duplicado_se_retiro_y_los_archivos_siguen_diciendose(self) -> None:
@@ -442,24 +447,25 @@ class TarjetaAhora(Base):
         self.assertIn('class="section decision-arriba ahora" id="decision"', pagina)
         decision = tarjeta(pagina)
         self.assertNotIn(">Ahora<", decision)                                 # U-107.3b: sin título «AHORA»
-        for valor in ("sufficient", "ask_client"):
-            self.assertIn(f'name="decision" value="{valor}"', decision)
-        self.assertNotIn('type="radio"', decision)                            # sin elegir antes: la caja siempre está
-        self.assertIn('name="questions"', decision)
+        self.assertIn('name="decision" value="sufficient"', decision)
+        self.assertNotIn('value="ask_client"', decision)                      # U-113: ya no hay un paso aparte para redactar
+        self.assertNotIn('type="radio"', decision)                            # sin elegir antes: el correo siempre está
+        self.assertIn('id="correo-unico"', decision)
         self.assertNotIn('value="internal_only"', decision)
         self.assertIn(">Con esto alcanza<", decision)
-        self.assertEqual(decision.count('type="submit"'), 2)                  # redactar el correo o con esto alcanza
-        self.assertIn('id="btn-suficiente"', decision)
-        self.assertIn('id="btn-preguntar"', decision)
-        self.assertIn(">Redactar el correo<", decision)
-        self.assertIn("Nada se envía al cliente en este paso", decision)
+        self.assertEqual(decision.count('type="submit"'), 3)                  # enviar, guardar borrador o con esto alcanza
+        for identificador in ("btn-suficiente", "btn-enviar-preguntas", "btn-borrador-preguntas"):
+            self.assertIn(f'id="{identificador}"', decision)
+        self.assertIn(">Enviar al cliente<", decision)
+        self.assertNotIn(">Redactar el correo<", decision)
+        self.assertIn("Nada sale al cliente sin que lo revises y confirmes", decision)
         self.assertIn("<h2>Mensaje para el cliente</h2>", decision)
 
     def test_el_cuadro_trae_las_preguntas_sugeridas(self) -> None:
         # Cubre: U-31
         self.crear(preguntas=["¿Cuál es el datum del levantamiento?"])
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        cuadro = decision.split('name="questions"')[1].split("</textarea>")[0]
+        cuadro = cuadro_de(decision)
         self.assertIn("¿Cuál es el datum del levantamiento?", cuadro)
 
     def test_sin_preguntas_sugeridas_el_cuadro_viene_vacio(self) -> None:
@@ -470,16 +476,20 @@ class TarjetaAhora(Base):
         db.commit()
         db.close()
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        self.assertEqual(decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1].strip(), "")
+        self.assertEqual(cuadro_de(decision).strip(), "")
+        self.assertIn(' disabled', decision[decision.index('id="btn-enviar-preguntas"'):decision.index(">Enviar al cliente<")])
 
     def test_solo_con_esto_alcanza_pide_confirmacion(self) -> None:
         # Cubre: U-31
         self.crear()
         decision = tarjeta(pantalla_caso.render_case("t-1"))
         suficiente = decision[decision.index('id="btn-suficiente"'):decision.index("</button>", decision.index('id="btn-suficiente"'))]
-        preguntar = decision[decision.index('id="btn-preguntar"'):decision.index("</button>", decision.index('id="btn-preguntar"'))]
+        enviar = decision[decision.index('id="btn-enviar-preguntas"'):decision.index("</button>", decision.index('id="btn-enviar-preguntas"'))]
+        borrador = decision[decision.index('id="btn-borrador-preguntas"'):decision.index("</button>", decision.index('id="btn-borrador-preguntas"'))]
         self.assertIn("data-confirm=", suficiente)
-        self.assertNotIn("data-confirm", preguntar)
+        self.assertIn('data-resumen="envio"', enviar)                          # R8: enviar pide la confirmación de siempre
+        self.assertIn("data-confirm=", enviar)
+        self.assertNotIn("data-confirm", borrador)                             # guardar un borrador no envía nada
 
     def test_cada_opcion_hace_lo_mismo_que_antes(self) -> None:
         # Cubre: U-31
@@ -504,7 +514,7 @@ class CuadroUnico(Base):
         self.crear(preguntas=[DATUM, "¿Qué plazo esperan?", INTERNA])
         decision = tarjeta(pantalla_caso.render_case("t-1"))
         self.assertEqual(decision.count("<textarea"), 1)
-        self.assertIn('name="questions"', decision)
+        self.assertIn('id="correo-unico"', decision)
         for sobrante in ('name="q_id"', "q_decision_", 'class="pregunta"', "<select"):
             self.assertNotIn(sobrante, decision)
 
@@ -512,7 +522,7 @@ class CuadroUnico(Base):
         # Cubre: U-31
         self.crear(preguntas=[DATUM, "¿Qué plazo esperan?", INTERNA])
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        cuadro = decision.split('name="questions"')[1].split("</textarea>")[0]
+        cuadro = cuadro_de(decision)
         self.assertIn(DATUM, cuadro)
         self.assertIn("¿Qué plazo esperan?", cuadro)
         self.assertNotIn("Inspeccionar geometrías", cuadro)
@@ -532,7 +542,7 @@ class CuadroUnico(Base):
         acciones._post_review_decision({"thread_id": ["t-1"], "decision": ["ask_client"],
                                         "questions": ["¿Qué plazo esperan?\n¿Hay restricciones de acceso al predio?"]})
         quotes.volver_a_decidir("t-1", "reconsiderar")
-        cuadro = tarjeta(pantalla_caso.render_case("t-1")).split('name="questions"')[1].split("</textarea>")[0]
+        cuadro = cuadro_de(tarjeta(pantalla_caso.render_case("t-1")))
         self.assertIn("¿Hay restricciones de acceso al predio?", cuadro)
         self.assertNotIn(DATUM, cuadro)
 
@@ -963,7 +973,7 @@ class MisCasos(Base):
     def test_no_hay_barra_de_pestanas_y_la_marca_es_la_entrada_con_el_contador(self) -> None:
         # Cubre: U-32
         html = self.pagina()
-        self.assertNotIn("<nav", html)
+        self.assertNotIn("<nav", html[:html.index('class="espacio')])          # el encabezado no trae pestañas
         for viejo in (">Resumen<", ">Solicitudes<", ">Archivo<", "Resumen comercial"):
             self.assertNotIn(viejo, html[:html.index("<main")])
         marca = html[html.index('<a class="brand"'):html.index("</a>", html.index('<a class="brand"'))]
@@ -1247,7 +1257,7 @@ class PreguntasGenerales(Base):
         grupo = grupo[:grupo.index("</ul>")]
         self.assertIn("Generales", grupo)
         self.assertIn('name="preguntar_fila" value="¿Podrían suministrar el Anexo Capítulo 1?" form="decision-form" checked', grupo)
-        cuadro = pagina.split('name="questions"')[1].split("</textarea>")[0]
+        cuadro = cuadro_de(pagina)
         self.assertIn("¿Podrían suministrar el Anexo Capítulo 1?", cuadro)                  # y la caja ya la trae
 
     def test_una_general_repetida_de_una_fila_o_ya_pedida_no_se_lista_dos_veces(self) -> None:
@@ -1326,17 +1336,17 @@ class PantallaOrdenada(Base):
         self.assertIn('.dos-columnas:has(#editar-boton[aria-expanded="true"])', css)       # el editor abierto necesita ancho
         self.assertRegex(css, r"@media \(max-width: 860px\) \{ \.dos-columnas \{ grid-template-columns: minmax\(0, 1fr\); height: auto")
 
-    def test_la_caja_de_mensaje_es_un_solo_campo_con_sus_dos_acciones_dentro(self) -> None:
-        # Cubre: U-107
+    def test_la_caja_del_correo_es_un_solo_campo_con_sus_acciones_dentro(self) -> None:
+        # Cubre: U-107, U-113
         self.crear(actividades=[actividad("Planimetría", "pendiente") | {"notes": "Falta la ubicación."}])
         pagina = pantalla_caso.render_case("t-1")
-        caja = pagina[pagina.index('class="chat-caja"'):]
+        caja = pagina[pagina.index('<textarea name="body" id="correo-unico"'):]
         caja = caja[:caja.index("</form>")]
         self.assertEqual(caja.count("<textarea"), 1)
-        self.assertLess(caja.index("<textarea"), caja.index('id="btn-preguntar"'))         # los botones van dentro de la caja
-        self.assertLess(caja.index('id="btn-suficiente"'), caja.index('id="btn-preguntar"'))   # «Con esto alcanza» a la izquierda
-        self.assertIn('class="secondary enlace-suave"', caja)
-        self.assertIn("Nada se envía al cliente en este paso", pagina)                      # R8 sigue visible
+        self.assertLess(caja.index("<textarea"), caja.index('id="btn-enviar-preguntas"'))     # los botones van debajo del correo
+        self.assertLess(caja.index('id="btn-enviar-preguntas"'), caja.index('id="btn-suficiente"'))   # «Con esto alcanza» al final
+        self.assertIn('class="enlace-suave"', caja)
+        self.assertIn("Nada sale al cliente sin que lo revises y confirmes", pagina)           # R8 sigue visible
 
     def test_cada_renglon_dice_su_estado_aunque_todos_sean_iguales(self) -> None:
         # Cubre: U-107, U-112

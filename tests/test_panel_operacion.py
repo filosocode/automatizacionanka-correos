@@ -208,6 +208,8 @@ class Seguridad(PanelBase):
     def test_consultar_el_panel_no_escribe_nada(self):
         self.mensaje("m1", "por_leer")
         self.trabajo("ANKAJOB-1", tw.AMBIGUO, last_error="x")
+        from anka.servicios.quotes import all_quotes
+        all_quotes()           # la barra de casos lee los resúmenes: se arman una vez, no al consultar el panel
         antes = self.foto()
         self.pagina()
         self.pagina()

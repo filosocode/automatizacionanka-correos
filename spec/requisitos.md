@@ -1,7 +1,21 @@
 # Requisitos
 
+### U-113 · El correo al cliente se escribe y se envía en el mismo sitio donde se marcan las preguntas
+**Estado: en construcción.**
+
+**Motivo.** La pantalla del caso pedía dos pasos seguidos —«Redactar el correo» y, en otra tarjeta, enviarlo— y quien la abría por primera vez no sabía cuál era el siguiente. El prototipo guiado (D-207) lo resuelve con un solo lugar: se marca «Preguntar» en lo que falta y el correo aparece escrito a la derecha, listo para revisar y enviar.
+
+1. **Un solo paso.** Mientras el caso espera la decisión, la tarjeta de la derecha muestra el correo completo (saludo, preguntas numeradas y despedida, con la misma plantilla de U-108) y los botones «Enviar al cliente» y «Guardar borrador». Ya no hay un paso aparte para redactar.
+2. **Se escribe solo, y se puede cambiar.** Marcar o desmarcar «Preguntar» en una actividad añade o quita su pregunta del correo al instante. Si la persona ya cambió el texto a mano, solo se toca la línea de esa pregunta y se renumera la lista: nunca se pierde lo que escribió.
+3. **Sin preguntas no hay envío.** Sin ninguna pregunta marcada el correo está vacío, «Enviar al cliente» y «Guardar borrador» están desactivados y una frase dice qué hacer («Marca «Preguntar» en lo que falta»).
+4. **Misma garantía de R8.** Enviar pide la misma confirmación de siempre (a quién, asunto y cuántas preguntas) y nada sale sin ella. Si el caso cambió desde que se abrió la pantalla, no se envía (U-34.4).
+5. **Una sola acción en el servidor.** La acción registra la decisión «preguntar al cliente» con las preguntas marcadas y envía (o guarda como borrador) el texto de la caja. Si el envío falla, la decisión queda guardada, el aviso lo dice y el texto escrito vuelve a la caja del correo (U-31).
+6. **«Con esto alcanza» sigue ahí**, como enlace discreto al pie de la tarjeta, para quien decide que la información basta sin preguntar.
+
+**No hace:** no cambia estados ni transiciones, no usa modelo ni gasta tokens y no envía nada sin confirmación (R8).
+
 ### U-112 · Un espacio de trabajo en una sola pestaña: barra de casos, panel que cambia de función y respaldo obligatorio
-**Estado: especificado, sin implementar** (se construye por etapas; ver «Orden de construcción»). Decisión: D-207. Prototipos de referencia, sin código de producto: `docs/prototipos/espacio_guiado.html` (el aprobado) y `docs/prototipos/espacio_de_trabajo.html` (primer intento, solo como referencia de lógica). Reordena y acota U-105 (editor), U-106 (caja de preguntas), U-107 (pantalla del caso) y U-109 (aviso del correo) y amplía el motivo de las ediciones (`EDIT_REASONS`). No cambia R8, los estados ni `transiciones.json`, los tres modos, el contrato con Work ni lo que se guarda de cada actividad. Solo modo API (D-203, D-206).
+**Estado: en construcción** (etapas 1 y 2 hechas: respaldo y panel de actividad; etapa 3 hecha: barra de casos, inicio y «siguiente caso»; etapa 4 hecha en lo esencial: el panel ocupa el contenedor de la derecha y la lista tiene la apariencia del prototipo; falta pulir el movimiento (destello al resolver, barra de avance, palomita) y la etapa 5; ver «Orden de construcción»). Decisión: D-207. Prototipos de referencia, sin código de producto: `docs/prototipos/espacio_guiado.html` (el aprobado) y `docs/prototipos/espacio_de_trabajo.html` (primer intento, solo como referencia de lógica). Reordena y acota U-105 (editor), U-106 (caja de preguntas), U-107 (pantalla del caso) y U-109 (aviso del correo) y amplía el motivo de las ediciones (`EDIT_REASONS`). No cambia R8, los estados ni `transiciones.json`, los tres modos, el contrato con Work ni lo que se guarda de cada actividad. Solo modo API (D-203, D-206).
 
 **Motivo.** La revisión de UX de 2026-11-12 (74/100) halló una pantalla correcta pero hecha para quien ya la domina: muchas piezas a la vez, vocabulario interno («contradictoria», «respaldo») y la tabla de actividades al final. La meta es que un comercial con poca experiencia en software, hasta una persona mayor, resuelva un caso sin ayuda, con una experiencia cuidada, **sin gastar tokens** (D-55: ninguna parte de esto usa un modelo) y **sin perder la trazabilidad**: nadie debe poder decir después «yo no pedí eso».
 
@@ -30,12 +44,18 @@
 16. **Identidad.** Los tokens de D-101: acción en naranja `#bd5209` (un solo botón relleno por vista), selección y fondos suaves en azul `#2f4d73`, Inter, y el logo de Anka arriba de la barra. Texto base de 15 px y **nunca menos de 14 px** (U-37). Controles de 40 px con puntero fino y de al menos 44 px con puntero táctil (`pointer: coarse`), con anillo de foco visible.
 17. **Movimiento con intención.** Entrada de pantallas y paneles de 0,3 a 0,6 s; destello del renglón que se resolvió; barra de avance que se llena; palomita que se dibuja al emitir la T y al enviar. Nada se mueve mientras la persona escribe, y con «reducir movimiento» (U-36) todo queda quieto y el resultado se ve igual.
 
+**Etapa 4 (afinado visual contra el prototipo guiado), lo construido:** el inicio sin marco con tarjetas en una columna y flecha; la barra lateral serena («Siguiente caso» como enlace, no como botón relleno; buscar correos, Google y Ajustes como texto al pie); las actividades como renglones planos con la casilla «Preguntar» del prototipo; «Más» en la cabecera del caso abre el historial y baja hasta él; el primer paso del recorrido dice «N de M resueltas». Se conservan los cuatro pasos del recorrido (T emitida y T&E aprobada) porque salen de las transiciones. Las dos tarjetas del caso crecen con su contenido (sin desplazamiento por dentro) y el panel de la actividad acompaña al bajar; tocar un renglón abre su panel; las opciones del panel son tarjetas con una línea de ayuda. Todo control mide al menos 44 px (U-14).
+
 **E. Lo que no hace**
 No usa modelo ni gasta tokens; no cambia estados, transiciones ni contrato; no envía nada solo (R8); no toca los modos local y Work; no elimina la tabla clásica de U-105 hasta que esta pantalla la sustituya completa.
 
 **Orden de construcción** (cada etapa deja el sistema funcionando y con pruebas): 1) respaldo y trazabilidad (C) en el guardado de la tabla; 2) panel de actividad, lista y filtros (A.5, B); 3) barra lateral, inicio y flujo «siguiente caso» (A.1 a A.4); 4) estilo y movimiento (D); 5) las recomendaciones de criterio técnico y lo «por confirmar» en el correo de la T (C.13).
 
-**Preguntas abiertas** (por decidir con quien usa el sistema; no bloquean la etapa 1): quién puede registrar un criterio técnico (propuesta: cualquier comercial, con su nombre visible); si se conserva el aviso de confirmación al reemplazar un correo editado a mano al cambiar una pregunta.
+**Decidido el 2026-11-12:** el criterio técnico lo registra cualquier comercial **con su nombre**. El nombre se escribe una vez (Inicio o Ajustes) y se guarda en `config.json` (`comercial`); mientras no exista usuario ni acceso por persona (puesta en línea, D-204) es el de esta instalación. Sin nombre no se puede registrar un criterio técnico y el aviso dice dónde escribirlo; el nombre sale en el respaldo, en el historial y junto a la recomendación.
+
+**Etapa 3 (A.1 a A.4), lo construido:** la barra lateral está en todas las páginas con «Inicio», los casos (punto ámbar, gris o verde y el cliente), el caso abierto marcado y, dentro de un caso, «Siguiente caso» (el más urgente distinto del actual). Inicio saluda por el nombre, ofrece un solo botón «Atender a {cliente}» y las tarjetas «Te esperan» y «Esperando al cliente» con una frase por caso. La barra lleva el logo arriba y, al pie, «Buscar correos nuevos», el estado de Google (U-111; aquí puede ocupar dos líneas) y Ajustes; ya no hay encabezado aparte. Por debajo de 900 px el encabezado vuelve a ser una franja con «☰ Casos».
+
+**Preguntas abiertas** (por decidir con quien usa el sistema): si se conserva el aviso de confirmación al reemplazar un correo editado a mano al cambiar una pregunta.
 
 ### U-111 · «Google desconectado» avisa sin gritar
 **Estado: implementado** (pruebas en `tests/test_aviso_de_google.py`; estilo en `style.css`). Acota T-15 y U-80.4 solo en la forma: el texto, el enlace a Ajustes y el botón único no cambian.

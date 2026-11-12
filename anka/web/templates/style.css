@@ -8,6 +8,7 @@
   --ink: #171717;
   --muted: #525252;
   --line: #e6e9ef;
+  --line2: #cdd5df;
   --bg: #f5f8fb;
   --panel: #ffffff;
   --accent: #bd5209;
@@ -42,6 +43,7 @@
     --ink: #f5f5f5;
     --muted: #a3a3a3;
     --line: #2b2b2b;
+    --line2: #3d3d3d;
     --bg: #0d1117;
     --panel: #171717;
     --accent: #f9a668;
@@ -76,6 +78,7 @@
   --ink: #f5f5f5;
   --muted: #a3a3a3;
   --line: #2b2b2b;
+  --line2: #3d3d3d;
   --bg: #0d1117;
   --panel: #171717;
   --accent: #f9a668;
@@ -1026,3 +1029,283 @@ input[name="preguntar_fila"]:focus-visible { outline: 2px solid var(--accent); o
 .peligro { border-color: var(--danger); color: var(--danger); }
 @keyframes entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .renglon, .panel-actividad { animation: none; } .chip-filtro { transition: none; } }
+
+/* U-112.A: barra lateral de casos, inicio guiado y «siguiente caso». */
+.espacio.con-barra { display: grid; grid-template-columns: 280px minmax(0, 1fr); align-items: start; max-width: 1640px; margin: 0 auto; }
+.espacio.con-barra > main { width: 100%; min-width: 0; }
+.barra-casos { position: sticky; top: 0; max-height: 100vh; overflow-y: auto; padding: 20px 14px 28px 20px; border-right: 1px solid var(--line); display: grid; gap: 10px; align-content: start; }
+.barra-casos a { color: inherit; text-decoration: none; }
+.barra-inicio { display: flex; align-items: center; min-height: 44px; padding: 6px 12px; border-radius: 10px; font-weight: 700; }
+.barra-inicio[aria-current="page"] { background: var(--info-bg); color: var(--info-ink); }
+.barra-siguiente { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 28px; min-height: 44px; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; background: var(--accent-fill); color: var(--on-accent) !important; font-weight: 600; transition: background .18s; }
+.barra-siguiente:hover { background: var(--accent-hover); }
+.barra-titulo { margin: 8px 0 0; font-size: .9375rem; color: var(--muted); }
+.barra-titulo .cuenta { font-weight: 700; }
+.barra-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.barra-lista a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 12px; border-radius: 10px; transition: background .18s; }
+.barra-lista a:hover { background: var(--surface-2); }
+.barra-lista a[aria-current="page"] { background: var(--info-bg); box-shadow: inset 3px 0 0 var(--blue); }
+.barra-texto { display: grid; min-width: 0; }
+.barra-texto strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barra-cliente { color: var(--muted); font-size: .875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.punto { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.punto.ambar { background: var(--warn); }
+.punto.gris { background: var(--muted); }
+.punto.verde { background: var(--ok-ink); }
+#abrir-barra { display: none; }
+@media (max-width: 899px) {
+  .espacio.con-barra { display: block; }
+  #abrir-barra:not([hidden]) { display: inline-flex; }
+  .barra-casos { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
+  .barra-casos.plegable:not(.abierta) { display: none; }
+}
+.inicio { margin: 0 0 24px; padding: 20px 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; animation: entra .4s ease both; }
+.inicio h2 { margin: 0; font-size: 1.5rem; }
+.inicio h3 { margin: 18px 0 8px; font-size: 1rem; color: var(--muted); }
+.inicio-frase { margin: 4px 0 12px; color: var(--muted); }
+.inicio-nombre { margin: 8px 0 12px; }
+.tarjetas { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.tarjeta { display: grid; gap: 2px; min-height: 44px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; color: inherit; text-decoration: none; background: var(--panel); transition: border-color .18s, transform .18s; }
+.tarjeta:hover { border-color: var(--blue); transform: translateY(-1px); }
+.tarjeta-cliente { color: var(--muted); font-size: .875rem; }
+.tarjeta-frase { font-size: .9375rem; }
+.ajustes-nombre { display: grid; gap: 6px; margin-bottom: 8px; }
+@media (prefers-reduced-motion: reduce) { .inicio { animation: none; } .tarjeta, .barra-lista a, .barra-siguiente { transition: none; } .tarjeta:hover { transform: none; } }
+
+/* U-112.D: la lista y el panel de actividades con la apariencia del prototipo guiado (calma, redondeces y aire). */
+.frase-guia { margin: 2px 0 12px; color: var(--muted); font-size: 1rem; }
+.acts-head h2 { font-size: 1.375rem; letter-spacing: -.01em; }
+.renglones { gap: 10px; }
+.renglon { border: 1px solid var(--line); border-left-width: 1px; border-radius: 16px; padding: 14px 16px; gap: 12px 16px; flex-wrap: nowrap; background: var(--panel); transition: border-color .2s, box-shadow .2s, transform .2s; }
+.renglon:hover { border-color: var(--blue); box-shadow: 0 6px 18px rgba(47, 77, 115, .08); }
+.marca { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 1.125rem; background: var(--ok-bg); color: var(--ok-ink); }
+.marca.pendiente { background: var(--warn-bg); color: var(--warn-ink); }
+.marca.contradictorio { background: var(--bad-bg); color: var(--bad-ink); }
+.renglon-info { flex: 1 1 auto; min-width: 0; }
+.renglon-info > strong { display: block; font-size: 1.0625rem; font-weight: 600; }
+.linea-estado { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-top: 2px; }
+.linea-estado .chip { padding: 0; background: none; font-weight: 600; font-size: .9375rem; }
+.linea-estado .detalle { margin: 0; font-size: .9375rem; }
+.renglon .traza { font-size: .9375rem; }
+.renglon-acc { flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.renglon .preguntar { color: var(--muted); font-size: .9375rem; }
+.renglon .abrir-panel { border-radius: 999px; padding: 8px 18px; }
+.chip-filtro { border-radius: 999px; min-height: 44px; font-size: .9375rem; }
+.chip-filtro.activo { box-shadow: 0 4px 12px rgba(47, 77, 115, .25); }
+.dos-columnas > .section.con-panel { background: var(--panel); }
+.panel-sitio { display: flex; flex-direction: column; min-height: 0; flex: 1; animation: entra .3s ease both; }
+.con-panel > :not(.panel-sitio) { display: none !important; }
+.panel-sitio .panel-actividad { border: 0; padding: 4px 4px 12px; animation: none; overflow-y: auto; }
+.panel-actividad h3 { font-size: 1.25rem; }
+.botones-si-no .button, .form-panel button[type="submit"] { border-radius: 999px; padding: 10px 22px; }
+.form-panel label, .respaldo legend, .accion-panel > summary { font-size: 1rem; }
+.respaldo { border-radius: 14px; background: var(--surface-2); border-color: transparent; }
+.origen { border-radius: 14px; background: var(--panel); }
+.nota, .meta { font-size: .9375rem; }
+@media (prefers-reduced-motion: reduce) { .panel-sitio { animation: none; } .renglon { transition: none; } }
+
+
+/* ===== U-112.D · capa premium: la misma pantalla con la calma, el aire y el movimiento del prototipo guiado ===== */
+:root {
+  --curva: cubic-bezier(.2, .7, .2, 1); --rebote: cubic-bezier(.34, 1.56, .64, 1);
+  --sombra: 0 1px 2px rgba(47, 77, 115, .05), 0 6px 18px -8px rgba(47, 77, 115, .14);
+  --radius-control: .625rem; --radius-card: 1rem;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sombra: 0 1px 2px rgba(0, 0, 0, .45), 0 8px 22px -10px rgba(0, 0, 0, .6); } }
+:root[data-theme="dark"] { --sombra: 0 1px 2px rgba(0, 0, 0, .45), 0 8px 22px -10px rgba(0, 0, 0, .6); }
+html { scroll-behavior: smooth; }
+body { font-size: 15px; line-height: 1.6; letter-spacing: -.003em; -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss03"; }
+h1 { font-weight: 600; letter-spacing: -.022em; }
+h2 { font-weight: 600; letter-spacing: -.012em; }
+main { padding-top: 36px; animation: sube .45s var(--curva) both; }
+.lateral > header { padding: 10px 28px; background: color-mix(in srgb, var(--panel) 84%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px); }
+.brand-logo { height: 32px; }
+.barra-casos { background: var(--panel); }
+.barra-lista a, .barra-inicio, .barra-siguiente { border-radius: .75rem; }
+
+/* botones: uno principal en naranja con luz suave; los demás, sobrios */
+.button, button { border-radius: var(--radius-control); letter-spacing: -.005em; transition: background-color .15s, border-color .15s, box-shadow .2s var(--curva), transform .1s;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .08), 0 4px 12px -4px color-mix(in srgb, var(--accent-fill) 60%, transparent), inset 0 1px 0 rgba(255, 255, 255, .18); }
+.button:hover, button:hover { box-shadow: 0 1px 1px rgba(0, 0, 0, .08), 0 6px 16px -4px color-mix(in srgb, var(--accent-fill) 68%, transparent), inset 0 1px 0 rgba(255, 255, 255, .18); }
+.button:active, button:active { transform: translateY(1px); box-shadow: none; }
+.secondary, button.secondary, .button.secondary { background: var(--panel); color: var(--ink); border: 1px solid var(--line2); box-shadow: 0 1px 0 rgba(0, 0, 0, .03); }
+.secondary:hover { background: var(--panel); border-color: var(--muted); box-shadow: 0 3px 8px -3px rgba(0, 0, 0, .14); }
+button.enlace, [role="tab"], .chip-filter, .chip-filtro, button[class*="dang"], summary, .theme-toggle { box-shadow: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* tarjetas y campos */
+.section, .kpi, .case, .empty, .notification, .tabs, .queue-row { border-radius: var(--radius-card); box-shadow: var(--sombra); border-color: var(--line); }
+.section.ahora { border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); box-shadow: var(--sombra), 0 0 0 4px color-mix(in srgb, var(--accent) 9%, transparent); }
+.dos-columnas > .section, .dos-columnas > .section.ahora { box-shadow: var(--sombra); border-radius: var(--radius-card); padding: 24px; }
+input, select, textarea { border-radius: var(--radius-control); border-color: var(--line2); transition: border-color .15s, box-shadow .2s; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+textarea { line-height: 1.55; }
+.queue-row { transition: border-color .15s, transform .2s var(--curva), box-shadow .2s; }
+.queue-row:hover { border-color: var(--blue); transform: translateY(-1px); }
+.notice { border-radius: var(--radius-card); }
+
+/* pasos con barra que se llena */
+.process { gap: 16px; }
+.process-step { padding-top: 14px; }
+.process-step::before { height: 4px; border-radius: 2px; background: var(--line); box-shadow: none; }
+.process-step.done::before { background: var(--ok-ink); }
+.process-step.current::before { background: var(--line); box-shadow: none; }
+.process-step.current .barra-llena { position: absolute; top: 0; left: 0; height: 4px; border-radius: 2px; background: var(--accent); width: 0; animation: llena .7s var(--curva) .15s forwards; }
+.process-step.llena-0 .barra-llena { width: 3%; }
+.process-step.llena-10 .barra-llena { --a: 10%; } .process-step.llena-20 .barra-llena { --a: 20%; } .process-step.llena-30 .barra-llena { --a: 30%; }
+.process-step.llena-40 .barra-llena { --a: 40%; } .process-step.llena-50 .barra-llena { --a: 50%; } .process-step.llena-60 .barra-llena { --a: 60%; }
+.process-step.llena-70 .barra-llena { --a: 70%; } .process-step.llena-80 .barra-llena { --a: 80%; } .process-step.llena-90 .barra-llena { --a: 90%; }
+.process-step.llena-100 .barra-llena { --a: 100%; }
+.process-step.done strong::before { color: var(--ok-ink); }
+
+/* movimiento con intención */
+@keyframes sube { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes llena { from { width: 0; } to { width: var(--a, 50%); } }
+@keyframes destello { 0% { background: color-mix(in srgb, var(--ok-ink) 22%, transparent); } 100% { background: transparent; } }
+@keyframes pop { 0% { transform: scale(.5); opacity: .4; } 60% { transform: scale(1.22); } 100% { transform: scale(1); opacity: 1; } }
+.dos-columnas > .section, .stepper, .page-head { animation: sube .5s var(--curva) both; }
+.dos-columnas > .section + .section { animation-delay: .08s; }
+.renglon { animation: sube .45s var(--curva) both; }
+.renglon:nth-child(2) { animation-delay: .05s; } .renglon:nth-child(3) { animation-delay: .1s; } .renglon:nth-child(4) { animation-delay: .15s; } .renglon:nth-child(n+5) { animation-delay: .2s; }
+.renglon.recien { animation: destello 1.6s ease-out; }
+.renglon.recien .marca { animation: pop .55s var(--rebote); }
+.panel-sitio { animation: sube .35s var(--curva) both; }
+.tarjeta:hover > .tarjeta-frase { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .process-step.current .barra-llena { width: var(--a, 50%); }
+}
+.renglon .linea-estado .chip, .renglon .linea-estado .chip.pendiente, .renglon .linea-estado .chip.contradictorio { background: none; padding: 0; }
+main { animation: none; }
+.barra-casos { min-height: calc(100vh - 54px); box-sizing: border-box; }
+@media (max-width: 899px) { .barra-casos { min-height: 0; } }
+
+/* ===== U-112.A · el espacio de trabajo: la barra lateral lleva la marca, los casos y, al pie, buscar correos, Google y Ajustes ===== */
+.columna { min-width: 0; }
+.columna > main { padding-top: 40px; }
+@media (min-width: 900px) {
+  .espacio.con-barra { display: grid; grid-template-columns: 264px minmax(0, 1fr); align-items: start; max-width: none; margin: 0; }
+  .lateral { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); z-index: 6; }
+  .lateral > header { display: contents; }
+  .lateral .brand { order: 0; flex-direction: column; align-items: flex-start; gap: 4px; padding: 22px 22px 8px; min-width: 0; position: relative; }
+  .lateral .brand-logo { height: 32px; }
+  .lateral .brand > div span { display: block; margin-top: 2px; font-size: .875rem; }
+  .lateral .brand .nav-count { position: absolute; top: 22px; right: 18px; margin: 0; }
+  .lateral #abrir-barra { display: none; }
+  .lateral .barra-casos { order: 1; flex: 1; min-height: 0; max-height: none; overflow-y: auto; position: static; border: 0; padding: 6px 12px 12px; background: none; }
+  .lateral .toolbar { order: 2; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--line); }
+  .lateral .toolbar > form, .lateral .toolbar > form button { width: 100%; justify-content: center; }
+  .lateral .toolbar > form button { background: var(--panel); color: var(--ink); border: 1px solid var(--line2); box-shadow: none; }
+  .lateral .toolbar > form button:hover { background: var(--surface-2); }
+  .lateral .bridge-chip { text-align: center; white-space: normal; }
+  .lateral .settings { position: relative; }
+  .lateral .settings > summary { justify-content: flex-start; }
+  .lateral .settings-box { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; width: 320px; max-height: 70vh; overflow-y: auto; }
+}
+@media (max-width: 899px) {
+  .lateral > header { padding: 10px 16px; }
+}
+@media print { .lateral { display: none !important; } }
+.pantalla-caso h1, .caso-cabecera h1 { font-size: 1.75rem; font-weight: 600; letter-spacing: -.022em; line-height: 1.2; }
+.caso-cabecera .sub { margin-top: 4px; color: var(--muted); font-size: 1rem; }
+.glosario > summary.ayuda { background: none; border: 0; box-shadow: none; color: var(--muted); font-weight: 500; text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 4px; }
+.glosario > summary.ayuda:hover { color: var(--ink); text-decoration-color: currentColor; }
+.lateral #google-chip { white-space: normal; text-align: center; line-height: 1.3; padding: 8px 12px; border-radius: .75rem; }
+@media (min-width: 900px) { .caso-cabecera .atras { display: none; } }
+
+/* ===== U-112.E · afinado contra el prototipo guiado: inicio sin marco, tarjetas en una columna, lista de actividades en renglones planos y barra lateral serena ===== */
+.inicio { padding: 0; background: none; border: 0; border-radius: 0; }
+.inicio h2 { font-size: 1.625rem; letter-spacing: -.022em; margin: 0 0 6px; }
+.inicio-frase { margin: 0 0 22px; }
+.inicio h3 { margin: 34px 0 12px; font-size: .875rem; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+#atender-primero { display: inline-flex; align-items: center; min-height: 48px; padding: 0 26px; font-size: 1rem; border-radius: 12px; }
+.inicio-nombre { margin: 0 0 8px; max-width: 520px; }
+.tarjetas { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.tarjeta { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 20px; border-radius: 14px; box-shadow: var(--sombra); }
+.tarjeta-texto { display: grid; gap: 1px; min-width: 0; }
+.tarjeta-texto > strong { font-weight: 600; letter-spacing: -.01em; }
+.tarjeta-flecha { color: var(--muted); font-size: 1.25rem; transition: transform .2s var(--curva), color .15s; }
+.tarjeta:hover .tarjeta-flecha { transform: translateX(3px); color: var(--blue); }
+
+.lateral .barra-siguiente { background: none; color: var(--accent-dark) !important; box-shadow: none; font-weight: 500; }
+.lateral .barra-siguiente:hover { background: var(--surface-2); }
+.lateral .barra-titulo { margin: 14px 0 0; padding: 0 12px; font-size: .875rem; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; }
+.lateral .barra-titulo .cuenta { font-weight: 500; }
+.barra-lista a { padding: 8px 12px; gap: 12px; }
+.barra-texto strong { font-weight: 500; font-size: .9063rem; }
+.punto { width: 8px; height: 8px; }
+.barra-lista a[aria-current="page"], .barra-inicio[aria-current="page"] { background: var(--info-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 16%, transparent); color: var(--ink); }
+.barra-inicio { font-weight: 500; }
+.lateral .toolbar { gap: 2px; }
+.lateral .toolbar > form button { justify-content: flex-start; width: auto; background: none; border: 0; color: var(--muted); text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 4px; font-weight: 500; padding: 8px 12px; }
+.lateral .toolbar > form button:hover { background: none; color: var(--ink); text-decoration-color: currentColor; }
+.lateral .toolbar > form { width: auto; }
+.lateral #google-chip { background: none; text-align: left; font-weight: 500; padding: 8px 12px; color: var(--warn-ink); border-radius: 10px; box-shadow: inset 3px 0 0 var(--warn); }
+
+.renglones { gap: 0; margin: 12px -10px 0; }
+.renglon { border: 0; border-top: 1px solid var(--line); border-radius: 10px; box-shadow: none; padding: 13px 10px; gap: 12px; background: none; }
+.renglon:first-child { border-top: 0; }
+.renglon:hover { background: var(--bg); box-shadow: none; transform: none; border-color: var(--line); }
+.renglon:hover + .renglon { border-top-color: transparent; }
+.marca { width: 24px; height: 24px; font-size: .8125rem; font-weight: 600; }
+.renglon-info > strong { font-size: .9375rem; font-weight: 500; letter-spacing: -.008em; }
+.renglon .abrir-panel { padding: 6px 16px; }
+.chip-filtro { padding: 4px 14px; border-radius: 999px; }
+.chip-filtro.activo { box-shadow: 0 1px 2px rgba(47, 77, 115, .25); }
+.caja-correo { border-color: transparent; background: var(--bg); min-height: 170px; }
+.caja-correo:focus { background: var(--panel); }
+.cabecera-estado { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.enlace-mas { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--muted); text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 4px; }
+.enlace-mas:hover { color: var(--ink); text-decoration-color: currentColor; }
+.renglon .preguntar { display: flex; align-items: center; gap: 7px; min-height: 44px; cursor: pointer; }
+.renglon .preguntar input { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; margin: 0; border: 1.5px solid var(--control-line); border-radius: 5px; background: var(--panel); display: grid; place-items: center; cursor: pointer; transition: background-color .15s, border-color .15s; }
+.renglon .preguntar input:checked { background: var(--blue); border-color: var(--blue); }
+.renglon .preguntar input:checked::after { content: ""; width: 5px; height: 9px; border: solid var(--on-accent); border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
+.renglon .preguntar:hover { color: var(--ink); }
+/* U-112.E: como en el prototipo, las dos tarjetas crecen con su contenido (sin desplazamiento por dentro) y la lista tiene más sitio */
+.dos-columnas { height: auto; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
+.dos-columnas > #alcance .alcance-lectura, .dos-columnas .cuerpo-tarjeta { overflow-y: visible; }
+@media (max-width: 860px) { .dos-columnas { grid-template-columns: minmax(0, 1fr); } }
+.renglon { cursor: pointer; }
+.filtros { gap: 6px; }
+.dos-columnas .chip-filtro { padding: 4px 12px; }
+/* con la lista larga, el mensaje o el panel de la actividad acompaña a quien baja */
+@media (min-width: 861px) { .dos-columnas:not(.dos-columnas-correo) > #alcance + .section { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; } }
+/* U-112.E: las opciones del panel como en el prototipo: tarjetas con una línea de ayuda, la elegida en azul suave */
+.botones-si-no { display: grid; gap: 8px; margin: 12px 0; }
+.botones-si-no .button, .botones-si-no .button.panel-si { display: block; width: 100%; text-align: left; border-radius: 12px; padding: 12px 15px; min-height: 56px; background: var(--panel); color: var(--ink); border: 1px solid var(--line2); box-shadow: none; }
+.botones-si-no .button:hover { border-color: var(--muted); background: var(--panel); box-shadow: none; }
+.botones-si-no .button[aria-expanded="true"] { border-color: var(--blue); background: var(--info-bg); box-shadow: 0 0 0 1px var(--blue); }
+.botones-si-no b, .origen b { display: block; font-weight: 600; letter-spacing: -.008em; }
+.botones-si-no small, .origen small { display: block; font-size: .875rem; font-weight: 400; color: var(--muted); }
+.origenes { display: grid; gap: 8px; }
+.origen { display: flex !important; align-items: center; gap: 12px; width: 100%; border-radius: 12px; padding: 10px 15px; }
+.origen:has(input:checked) { box-shadow: 0 0 0 1px var(--blue); }
+.respaldo { background: none; border: 0; padding: 0; }
+.panel-actividad header h3 { font-size: 1.0625rem; }
+@media (min-width: 861px) { .dos-columnas:not(.dos-columnas-correo) > #alcance + .section { max-height: none; overflow-y: visible; } }
+/* U-113: el correo en la tarjeta de decisión */
+.caja-correo { width: 100%; field-sizing: content; min-height: 220px; padding: 12px 14px; line-height: 1.6; border: 1px solid transparent; border-radius: 12px; background: var(--bg); resize: none; overflow: hidden; }
+.caja-correo:focus { background: var(--panel); }
+.fila-correo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 6px; }
+.fila-correo button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.fila-correo .enlace-suave { background: none; border: 0; color: var(--muted); text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 4px; box-shadow: none; min-height: 44px; padding: 0 6px; font-weight: 500; }
+.fila-correo .enlace-suave:hover:not(:disabled) { color: var(--ink); background: none; text-decoration-color: currentColor; }
+
+/* ===== U-112.F · como el prototipo: en cada renglón, «Resolver» y «Cambiar» son un enlace discreto, no un botón con caja ===== */
+.renglon .abrir-panel, .renglon .abrir-panel:hover { background: none; border: 0; box-shadow: none; padding: 0 4px; min-height: 44px; width: auto; color: var(--muted); font-weight: 500; font-size: .9375rem; }
+.renglon .abrir-panel::after { content: "›"; margin-left: 6px; font-size: 1.1em; color: var(--muted); transition: transform .15s; display: inline-block; }
+.renglon .abrir-panel:hover { color: var(--accent); }
+.renglon .abrir-panel:hover::after { transform: translateX(2px); color: var(--accent); }
+.renglon .abrir-panel.abierto { background: none; color: var(--accent); border: 0; }
+
+/* ===== U-112.G · «Corregir la tabla» vive en el contenedor del correo, como «Resolver»: una actividad a la vez ===== */
+.corregir-una > summary { gap: 10px; }
+.corregir-una > summary .marca { flex: none; }
+.botones-fila { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.acts-head #editar-boton.abierto { background: var(--accent-soft); color: var(--accent-dark); }
+
+/* ===== U-112.H · lo que las pruebas con personas sin contexto mostraron: decir qué pasa y por qué ===== */
+.pista-preguntar { margin: 4px 0 0; font-size: .875rem; color: var(--muted); }
+#google-chip[data-state="stopped"] { flex-wrap: wrap; }
+#google-chip[data-state="stopped"]::after { content: "Sin esto no se leen ni se envían correos."; display: block; flex-basis: 100%; text-align: left; font-size: .8125rem; font-weight: 400; opacity: .85; margin-top: 2px; }

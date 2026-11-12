@@ -46,6 +46,7 @@ from anka.servicios.internal_context import internal_commercial_context
 from anka.infra.logging_setup import get_logger
 from anka.infra.settings import load_config
 from anka.web.deshacer import panel_deshacer
+from anka.web.correo_marcado import asunto_de_respuesta, correo_de_la_decision
 from anka.web.templating import render
 
 from anka.servicios.case_actions import con_codigo_final, resolve_case_recipient
@@ -298,22 +299,35 @@ def _change_todo(review: Mapping[str, Any]) -> Markup:
     return Markup("")
 
 
+def _llena(review: Caso) -> int:
+    """Cuánto de la barra del paso actual está llena, de 10 en 10: actividades resueltas sobre totales (U-112.A3)."""
+    actividades = [a for a in review["analysis"].get("activities") or [] if isinstance(a, Mapping)]
+    if review.get("quote_code") or review.informacion_validada or not actividades:
+        return 50
+    hechas = sum(1 for a in actividades if a.get("estado") == "confirmado")
+    return round(hechas / len(actividades) * 10) * 10
+
+
 def _stepper(review: Caso, ronda: int = 1) -> Markup:
     """Recorrido del caso: dónde está y qué sigue, de un vistazo."""
     code = review.get("quote_code", "")
     stage = review.get("code_stage", "")
     validated = review.informacion_validada
     current = 4 if stage == "TE" else 3 if code else 2 if validated else 1
+    actividades = [a for a in review["analysis"].get("activities") or [] if isinstance(a, Mapping)]
+    resueltas = (f"{sum(1 for a in actividades if a.get('estado') == 'confirmado')} de {len(actividades)} resueltas · "
+                 if actividades and not validated and not code else "")
     current_notes = {
-        1: review["status_label"] + ("" if review["status"] in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
-                                     else f" · ronda {ronda}"), 2: "Listo para emitir la T",
+        1: resueltas + review["status_label"] + ("" if review["status"] in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
+                                                 else f" · ronda {ronda}"), 2: "Listo para emitir la T",
         3: code_label(code, "T") + " · cotizando" if code else "",
         4: code_label(code, "TE") + " · aprobada" if code else "",
     }
     titles = {1: "Revisar y aclarar", 2: "Información validada", 3: "T emitida", 4: "T&E aprobada"}
     steps = [{"title": titles[n],
               "note": "Completado" if n < current else current_notes[n] if n == current else "Pendiente",
-              "state": "done" if n < current else "current" if n == current else ""}
+              "state": "done" if n < current else "current" if n == current else "",
+              "llena": _llena(review) if n == current else 100 if n < current else 0}
              for n in range(1, 5)]
     return render("stepper.html", steps=steps, current=current)
 
@@ -620,15 +634,6 @@ def _preguntas_para_armar(analysis: Analisis, template: str, escritas: str, pued
     return "\n".join(str(p) for p in elegidas)
 
 
-def _asunto_de_respuesta(thread_id: str) -> str:
-    """El asunto con que saldría la respuesta («Re: …» del último correo del cliente), para confirmar el envío."""
-    recibido = next((m for m in case_conversation(thread_id) if m.get("direction") == "received"), None)
-    asunto = str((recibido or {}).get("subject") or "").strip()
-    if not asunto:
-        return ""
-    return asunto if asunto.lower().startswith("re:") else f"Re: {asunto}"
-
-
 def _compose_state(review: Caso, analysis: Analisis, config: Configuracion, template: str, change_id: int, *,
                    email_allowed: bool, reopened: bool, technical: bool, recipient_error: str,
                    preguntas_escritas: Sequence[str] = (), segunda_ronda: bool = False) -> tuple[str, str, bool]:
@@ -906,9 +911,13 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
             else "codigo" if puede_emitir else "aviso")
     # Lo que la persona escribió y no se pudo procesar vuelve a su sitio (U-31); si ya no aplica, se descarta.
     restaurado, esperar_marcada, actividades_escritas = False, False, None
+    correo_escrito = ""
     if pendiente:
         ruta_pendiente, escrito = pendiente
-        if ruta_pendiente in ("/send", "/draft") and email == "form" and not reading_blocked:
+        if ruta_pendiente == "/enviar-preguntas" and espera_decision and _campo(escrito, "body"):
+            correo_escrito, restaurado = _campo(escrito, "body"), True       # no se decidió nada: vuelve todo
+            cuadro_preguntas = "\n".join(escrito.get("preguntar_fila", [])) or cuadro_preguntas
+        elif ruta_pendiente in ("/send", "/draft", "/enviar-preguntas") and email == "form" and not reading_blocked:
             email_body, blank_reply, restaurado = _campo(escrito, "body"), False, True
             esperar_marcada = _campo(escrito, "esperar") == "1"
         elif ruta_pendiente == "/review-decision" and espera_decision and _campo(escrito, "questions"):
@@ -939,6 +948,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
     # U-109: ya con el correo delante, qué actividades por completar no nombra
     sin_nombrar = (actividades_sin_nombrar(analysis.get("activities", []), email_body)
                    if slot == "correo" and email == "form" and not reading_blocked else [])
+    correo_inicial, n_marcadas = correo_de_la_decision(
+        review, analysis, cuadro_preguntas, segunda_ronda, correo_escrito)
     archivos = analysis.get("attachments", [])
     por_revisar = sum(1 for a in archivos if isinstance(a, Mapping) and adjunto_requiere_atencion(a))
     etiqueta_archivos = f"Archivos ({len(archivos)})" + (f" · {por_revisar} por revisar" if por_revisar else "")
@@ -974,7 +985,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         issues_summary=("Lectura pendiente: todavía no se evalúan faltantes ni contradicciones." if reading_blocked
                         else issues_summary),
         armar_preguntas=_preguntas_para_armar(analysis, template, preguntas_texto, puede_volver),
-        asunto_respuesta=_asunto_de_respuesta(thread_id),
+        correo_inicial=correo_inicial, n_marcadas=n_marcadas,
+        asunto_respuesta=asunto_de_respuesta(thread_id),
         email=email, email_body=email_body, recipient_error=recipient_error, blank_reply=blank_reply,
         sufficient=not reading_blocked and review.informacion_validada,
         drive_pending=(analysis.get("drive") or {}).get("pending", ""),
@@ -996,7 +1008,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
                        pendiente=pendiente if restaurado else None, actividades_escritas=actividades_escritas,
                        ronda=ronda, preguntar=preguntar, generales=generales),
     )
-    return page("Revisar caso", body, message)
+    return page("Revisar caso", body, message, caso_actual=thread_id)
 
 
 def _panel_escrito(pendiente: Any) -> dict[str, str]:

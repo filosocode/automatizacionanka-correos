@@ -41,6 +41,8 @@ from anka.servicios.quotes import (
     resolve_technical_review, save_quote_metadata, separate_project_thread, seguir_sin_respuesta,
 )
 from anka.servicios.actividad_manual import cambiar_actividad
+from anka.servicios.comercial import nombre_del_comercial, poner_nombre
+from anka.servicios.preguntar_y_enviar import preguntar_y_enviar
 from anka.servicios.ediciones import agregar_filas_de_hoja, poner_area_en_actividad, save_activities
 from anka.servicios.work_import import dejar_para_despues_el_rechazo
 
@@ -165,7 +167,8 @@ def _post_activity(form: Form) -> str:
     thread_id = field(form, "thread_id")
     datos = {nombre: valores[0] for nombre, valores in form.items() if valores}
     message = _guidance(lambda: cambiar_actividad(
-        thread_id, field(form, "accion"), int_field(form, "indice"), datos, field(form, "base_version")))
+        thread_id, field(form, "accion"), int_field(form, "indice"), datos, field(form, "base_version"),
+        quien=nombre_del_comercial()))
     return _to_case(thread_id, message)
 
 
@@ -184,6 +187,11 @@ def _post_area(form: Form) -> str:
     message = _guidance(lambda: poner_area_en_actividad(
         thread_id, field(form, "area"), field(form, "actividad"), field(form, "base_version")))
     return _to_case(thread_id, message)
+
+
+def _post_nombre(form: Form) -> str:
+    """Guarda el nombre de quien trabaja con el sistema (U-112): sale en el respaldo y en el historial."""
+    return _to("/", _guidance(lambda: poner_nombre(field(form, "nombre"))))
 
 
 def _post_mode(form: Form) -> str:
@@ -208,6 +216,16 @@ def _post_review_decision(form: Form) -> str:
     # Tras decidir, directo al paso que sigue: el correo, o la emisión de la T; guardar decisiones no cambia de paso.
     anchor = {"ask_client": "#respuesta", "sufficient": "#emitir-t"}.get(decision, "")
     return _to_case(thread_id, message, anchor)
+
+
+def _post_enviar_preguntas(form: Form) -> str:
+    """«Enviar al cliente» desde la tarjeta de decisión: decide «preguntar» y envía o guarda borrador (U-113)."""
+    thread_id = field(form, "thread_id")
+    preguntas = sumar_preguntas("", form.get("preguntar_fila", []))
+    message = _guidance(lambda: preguntar_y_enviar(
+        thread_id, field(form, "body"), field(form, "to"), preguntas, estado_visto=field(form, "state_token"),
+        borrador=field(form, "accion_correo") == "borrador"))
+    return _to_case(thread_id, message)
 
 
 def _post_reading_accept(form: Form) -> str:
@@ -375,8 +393,10 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/activities-add-sheet-rows": _post_sheet_rows,
     "/activities-set-area": _post_area,
     "/mode": _post_mode,
+    "/nombre": _post_nombre,
     "/rescue": _post_rescue,
     "/review-decision": _post_review_decision,
+    "/enviar-preguntas": _post_enviar_preguntas,
     "/review-reopen": _post_review_reopen,
     "/reading-accept": _post_reading_accept,
     "/seguir-sin-respuesta": _post_seguir_sin_respuesta,

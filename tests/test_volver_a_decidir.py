@@ -1,6 +1,7 @@
 """Cambiar de idea antes de enviar las preguntas. Cubre: U-27"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.cuadro_unico import cuadro_de
 
 import io
 import json
@@ -84,7 +85,7 @@ class VolverAtras(Base):
         self.elegir({PUNTO: dominio.PREGUNTAR, NOTA: dominio.DESCARTAR})
         quotes.volver_a_decidir("t-1", "reconsiderar")
         pagina = pantalla_caso.render_case("t-1")
-        cuadro = pagina.split('id="decision"')[1].split('name="questions"')[1].split("</textarea>")[0]
+        cuadro = cuadro_de(pagina.split('id="decision"')[1])
         self.assertIn(PUNTO[:20], cuadro)                              # lo elegido para el cliente vuelve al cuadro
         self.assertNotIn(NOTA[:20], cuadro)                            # lo descartado ya no
 

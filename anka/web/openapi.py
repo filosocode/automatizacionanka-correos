@@ -97,6 +97,13 @@ OPERACIONES: tuple[Operacion, ...] = (
                   "client_name": "ACME S.A.S.", "recipient": "ana@acme.com", "status": "waiting",
                   "status_label": "Esperando cliente", "quote_code": "26002",
                   "waiting_since": "2026-10-01T10:15:00-05:00", "updated_at": "2026-10-01T10:15:00-05:00"}]),
+    Operacion("get", "/api/correo-preguntas", "Lectura (JSON)", "El correo con unas preguntas marcadas",
+              "Devuelve el texto del correo al cliente con las preguntas `p` (se repite una vez por pregunta) y cada "
+              "pregunta tal como saldrá en él. La pantalla del caso lo usa al marcar «Preguntar». No envía ni guarda "
+              "nada. Responde 404 si el caso no existe.",
+              campos=(Campo("thread_id", "Id del hilo de Gmail del caso.", requerido=True, ejemplo="18f3a9c2d4e5b601"),
+                      Campo("p", "Una pregunta marcada; se repite el campo para cada una.")),
+              contenido="json"),
     Operacion("get", "/api/casos/{thread_id}", "Lectura (JSON)", "Detalle de un caso",
               "Devuelve el caso completo: análisis, actividades, cambios y vínculos pendientes, seguimiento y "
               "estado. Responde 404 si el caso no existe.",
@@ -227,6 +234,18 @@ OPERACIONES: tuple[Operacion, ...] = (
                      opciones=("ack", "ask_code", "notify_contact", "scope_update")),
                Campo("state_token", "Marca del estado del caso que la pantalla tenía al abrirse; si el caso cambió "
                      "desde entonces, el envío se rechaza (opcional).")), "redirect"),
+    Operacion("post", "/enviar-preguntas", "Acciones del caso", "⚠ Preguntar al cliente y enviar el correo en un paso",
+              "**Envía un correo real** desde Gmail (o lo guarda como borrador con `accion_correo=borrador`). Registra "
+              "la decisión «preguntar al cliente» con las preguntas marcadas (`preguntar_fila`, una por casilla) y "
+              "envía el texto de `body`. Si el envío falla, la decisión queda guardada y el texto vuelve a la pantalla "
+              "(U-113).", "correo",
+              (_ID, Campo("body", "Texto del correo.", requerido=True, ejemplo="Hola, ¿podría confirmar…?"),
+               Campo("preguntar_fila", "Cada pregunta marcada; se repite el campo una vez por pregunta.",
+                     requerido=True),
+               Campo("to", "Destinatario; si se omite, el del caso."),
+               Campo("accion_correo", "`borrador` para guardar sin enviar.", opciones=("enviar", "borrador")),
+               Campo("state_token", "Marca del estado del caso que la pantalla tenía al abrirse; si el caso cambió "
+                     "desde entonces, no se envía (opcional).")), "redirect"),
     Operacion("post", "/mark-sent", "Acciones del caso", "Marcar como enviado un correo sin confirmar",
               "Cuando un envío quedó incierto (Gmail no confirmó si salió), la persona declara que sí salió. Cierra "
               "la reserva, actualiza el caso con el texto que se había revisado y deja constancia en el historial con "
@@ -393,6 +412,9 @@ OPERACIONES: tuple[Operacion, ...] = (
               "Drive) y espera hasta 5 minutos a que se complete. Responde enseguida; el avance se ve en "
               "`GET /api/autorizacion`. Solo hace falta cuando la autorización venció o fue revocada.",
               "google", (), "redirect"),
+    Operacion("post", "/nombre", "Acciones generales", "Guardar el nombre de quien trabaja",
+              "Guarda el nombre que sale en el respaldo, en el historial y junto al criterio técnico de Anka (U-112).",
+              "guarda", (Campo("nombre", "Tu nombre (2 a 60 letras).", requerido=True),), "redirect"),
     Operacion("post", "/mode", "Acciones generales", "Cambiar el modo de operación",
               "Elige quién lee el correo: Ollama (local), API de OpenAI o ChatGPT Work.", "guarda",
               (Campo("mode", "Modo de operación.", requerido=True, opciones=tuple(sorted(ACTIVE_MODES))),),

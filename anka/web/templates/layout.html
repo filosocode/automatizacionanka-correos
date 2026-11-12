@@ -11,9 +11,12 @@
 <body data-fondo="simple">
   <canvas id="particulas" aria-hidden="true" hidden></canvas>
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
+  <div class="espacio con-barra">
+  <aside class="lateral" id="lateral">
   <header>
     {% macro actual(ruta) %}{% if nav_actual == ruta %} aria-current="page"{% endif %}{% endmacro %}
     <a class="brand" href="/"{{ actual('/') }} aria-label="Anka, solicitudes de cotización{% if unread_count %}: {{ unread_count }} con novedades{% endif %}"><img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38"><div><strong>Anka</strong><span>Solicitudes de cotización</span></div>{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a>
+    <button type="button" id="abrir-barra" class="secondary" aria-controls="barra-casos" aria-expanded="false" hidden>☰ Casos</button>
     <div class="toolbar">
       <span id="bridge-chip" class="bridge-chip" hidden></span>
       <span id="anuncio-estado" class="solo-lectores" role="status"></span>
@@ -24,6 +27,9 @@
           <button type="button" id="theme-toggle" class="secondary theme-toggle" aria-label="Tema: sistema. Pulsa para usar el claro" title="Tema: sistema. Pulsa para usar el claro">Tema: sistema</button>
           <button type="button" id="avisos-navegador" class="secondary" hidden title="Te avisaremos cuando llegue algo nuevo aunque esta pestaña esté escondida">Avisarme de novedades</button>
         </div>
+        <form method="post" action="/nombre" class="ajustes-nombre"><label for="nombre-comercial"><strong>Tu nombre</strong></label>
+          <span class="meta">Queda en lo que registres, por ejemplo un criterio técnico.</span>
+          <div class="buscar-fila"><input id="nombre-comercial" name="nombre" value="{{ nombre }}" maxlength="60" autocomplete="name" required><button type="submit" class="secondary">Guardar</button></div></form>
         <a class="enlace-ajustes" href="/requests">Administrar casos (eliminar, exportar)</a>
         <a class="enlace-ajustes" href="/archive">Casos borrados</a>
         <a class="enlace-ajustes" href="/desempeno">Desempeño del análisis</a>
@@ -49,10 +55,21 @@
       </form>{% endif %}
     </div>
   </header>
+  {% if barra %}<nav class="barra-casos" id="barra-casos" aria-label="Casos">
+    <a class="barra-inicio" href="/"{{ actual('/') }}>Inicio</a>
+    {% if barra.siguiente %}<a class="barra-siguiente" href="{{ barra.siguiente.href }}">Siguiente caso: {{ barra.siguiente.cliente }} →</a>{% endif %}
+    <h2 class="barra-titulo">Casos <span class="cuenta">{{ barra.total }}</span></h2>
+    {% if barra.items %}<ul class="barra-lista">{% for caso in barra['items'] %}<li><a href="{{ caso.href }}"{% if caso.actual %} aria-current="page"{% endif %}><span class="punto {{ caso.punto }}" aria-hidden="true"></span><span class="barra-texto"><strong>{{ caso.nombre }}</strong>{% if caso.cliente %}<span class="barra-cliente">{{ caso.cliente }}</span>{% endif %}</span>{% if caso.punto_dice %}<span class="solo-lectores"> ({{ caso.punto_dice }})</span>{% endif %}</a></li>
+    {% endfor %}</ul>{% if barra.mas %}<p class="nota"><a href="/requests">Y {{ barra.mas }} más</a></p>{% endif %}{% else %}<p class="nota">Todavía no hay casos.</p>{% endif %}
+  </nav>{% endif %}
+  </aside>
+  <div class="columna">
   <div id="cargando" class="solo-lectores" role="status"></div>
   <div id="fresh-banner" class="notice" role="status" hidden>Hay novedades en esta página. <a href="#" id="fresh-reload">Actualizar la página</a></div>
   <main id="contenido" tabindex="-1">{% if message %}<div class='notice flash{% if message_is_error %} error{% endif %}' role="{{ 'alert' if message_is_error else 'status' }}">{% if message_is_error %}<span class="solo-lectores">Error: </span>{% endif %}{{ message }}</div>{% endif %}{{ body }}</main>
   <footer class="pie"><a href="/discarded">Correos que no eran solicitudes</a></footer>
+  </div>
+  </div>
   <dialog id="confirmar" class="confirm-dialog" aria-labelledby="confirmar-titulo" aria-describedby="confirmar-texto">
     <form method="dialog">
       <h2 id="confirmar-titulo">¿Seguro que quieres seguir?</h2>

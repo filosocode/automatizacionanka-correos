@@ -152,8 +152,8 @@ class EnLaPantallaDelCaso(unittest.TestCase):
         db.close()
 
     def cuadro(self, pagina):
-        m = self.re.search(r'<textarea name="questions"[^>]*>(.*?)</textarea>', pagina, self.re.S)
-        return m.group(1).strip() if m else None
+        from tests.cuadro_unico import cuadro_de
+        return cuadro_de(pagina).strip() if 'id="correo-unico"' in pagina else None
 
     def test_lo_ya_pedido_se_avisa_y_no_se_pone_en_el_cuadro(self):
         from anka.web import pantalla_caso
@@ -165,8 +165,8 @@ class EnLaPantallaDelCaso(unittest.TestCase):
     def test_volver_a_pedirlo_llena_el_cuadro_y_marca_preguntar_al_cliente(self):
         from anka.web import pantalla_caso
         pagina = str(pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto=self.PREGUNTA))
-        self.assertEqual(self.cuadro(pagina), self.PREGUNTA)
-        self.assertIn('name="decision" value="ask_client"', pagina)
+        self.assertIn(self.PREGUNTA.rstrip("?."), self.cuadro(pagina))          # la pregunta ya va en el correo
+        self.assertIn('id="btn-enviar-preguntas"', pagina)
 
 
 if __name__ == "__main__":

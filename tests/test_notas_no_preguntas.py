@@ -1,6 +1,7 @@
 """Los puntos que se piden al cliente son los de su lista y lo que es de Anka no va. Cubre: U-26"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.cuadro_unico import cuadro_de
 
 import tempfile
 import unittest
@@ -107,7 +108,7 @@ class EnLaPantalla(unittest.TestCase):
         db.close()
         pagina = pantalla_caso.render_case("t-1")
         decision = pagina.split('id="decision"')[1].split("</section>")[0]
-        cuadro = decision.split('name="questions"')[1].split("</textarea>")[0]
+        cuadro = cuadro_de(decision)
         for nota, va_al_cliente in ((LIMITE_1, False), (LIMITE_2, False), (TAREA, False), (PUNTO, True)):
             with self.subTest(nota=nota[:40]):
                 clave = nota.split(";")[0].split(".")[0]

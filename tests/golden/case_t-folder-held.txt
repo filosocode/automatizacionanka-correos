@@ -21,6 +21,8 @@
 <a class="skip-link" href="#contenido">
 Saltar al contenido
 </a>
+<div class="espacio con-barra">
+<aside class="lateral" id="lateral">
 <header>
 <a class="brand" href="/" aria-label="Anka, solicitudes de cotización: 10 con novedades">
 <img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38">
@@ -36,6 +38,9 @@ Solicitudes de cotización
 10
 </span>
 </a>
+<button type="button" id="abrir-barra" class="secondary" aria-controls="barra-casos" aria-expanded="false" hidden="">
+☰ Casos
+</button>
 <div class="toolbar">
 <span id="bridge-chip" class="bridge-chip" hidden="">
 </span>
@@ -59,6 +64,22 @@ Tema: sistema
 Avisarme de novedades
 </button>
 </div>
+<form method="post" action="/nombre" class="ajustes-nombre">
+<label for="nombre-comercial">
+<strong>
+Tu nombre
+</strong>
+</label>
+<span class="meta">
+Queda en lo que registres, por ejemplo un criterio técnico.
+</span>
+<div class="buscar-fila">
+<input id="nombre-comercial" name="nombre" value="" maxlength="60" autocomplete="name" required="">
+<button type="submit" class="secondary">
+Guardar
+</button>
+</div>
+</form>
 <a class="enlace-ajustes" href="/requests">
 Administrar casos (eliminar, exportar)
 </a>
@@ -123,6 +144,194 @@ Buscar correos nuevos
 </form>
 </div>
 </header>
+<nav class="barra-casos" id="barra-casos" aria-label="Casos">
+<a class="barra-inicio" href="/">
+Inicio
+</a>
+<a class="barra-siguiente" href="/case?thread_id=t-review#respuesta">
+Siguiente caso: Energía Norte →
+</a>
+<h2 class="barra-titulo">
+Casos
+<span class="cuenta">
+10
+</span>
+</h2>
+<ul class="barra-lista">
+<li>
+<a href="/case?thread_id=t-review">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Norte
+</strong>
+<span class="barra-cliente">
+Energía Norte
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-hostile">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</strong>
+<span class="barra-cliente">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-draft">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Sur
+</strong>
+<span class="barra-cliente">
+Cliente Sur
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-ready">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Listo
+</strong>
+<span class="barra-cliente">
+cliente@example.com
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-folder-hostile">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Hostil
+</strong>
+<span class="barra-cliente">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-folder-held" aria-current="page">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Retenido
+</strong>
+<span class="barra-cliente">
+Minera Sur
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-folder-done">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto con Carpeta
+</strong>
+<span class="barra-cliente">
+Minera Sur
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-review-tech">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Técnico
+</strong>
+<span class="barra-cliente">
+cliente@example.com
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-hostile-scope">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</strong>
+<span class="barra-cliente">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-sent">
+<span class="punto gris" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Enviado
+</strong>
+<span class="barra-cliente">
+Cliente Enviado
+</span>
+</span>
+<span class="solo-lectores">
+(espera al cliente)
+</span>
+</a>
+</li>
+</ul>
+</nav>
+</aside>
+<div class="columna">
 <div id="cargando" class="solo-lectores" role="status">
 </div>
 <div id="fresh-banner" class="notice" role="status" hidden="">
@@ -148,9 +357,14 @@ Proyecto Retenido
 Minera Sur · listo@example.com · recibido el 2026-09-01
 </div>
 </div>
+<div class="cabecera-estado">
 <span class="badge">
 Información validada
 </span>
+<a class="enlace-mas" id="enlace-mas" href="#p-hist">
+Más
+</a>
+</div>
 </div>
 <div class="paso-cabecera">
 <details class="more glosario">
@@ -187,7 +401,7 @@ Si lo leído sirve para esta solicitud. Por ejemplo, el plano de otro proyecto n
 </div>
 <section class="section stepper" aria-label="Avance del caso">
 <ol class="process">
-<li class="process-step done">
+<li class="process-step done llena-100">
 <strong>
 Revisar y aclarar
 </strong>
@@ -198,7 +412,7 @@ Hecho.
 Completado
 </span>
 </li>
-<li class="process-step current" aria-current="step">
+<li class="process-step current llena-50" aria-current="step">
 <strong>
 Información validada
 </strong>
@@ -208,8 +422,10 @@ Paso actual.
 </span>
 Listo para emitir la T
 </span>
+<span class="barra-llena" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-label="Avance de «Información validada»">
+</span>
 </li>
-<li class="process-step">
+<li class="process-step llena-0">
 <strong>
 T emitida
 </strong>
@@ -220,7 +436,7 @@ Pendiente.
 Pendiente
 </span>
 </li>
-<li class="process-step">
+<li class="process-step llena-0">
 <strong>
 T&E aprobada
 </strong>
@@ -414,6 +630,9 @@ Corregir la tabla
 </button>
 </div>
 </div>
+<p class="frase-guia">
+Falta resolver 1 cosa. Toca «Resolver» para atenderla.
+</p>
 <div class="alcance-lectura" id="tabla-resumen">
 <div class="filtros" id="filtros-actividades" role="group" aria-label="Qué actividades ver" hidden="">
 <button type="button" class="chip-filtro activo" data-filtro="todas" aria-pressed="true">
@@ -437,16 +656,21 @@ Falta un dato
 </div>
 <ul class="renglones" id="lista-actividades">
 <li class="renglon confirmado" data-estado="confirmado" id="renglon-0">
+<span class="marca confirmado" aria-hidden="true">
+✓
+</span>
 <div class="renglon-info">
 <strong>
 Levantamiento topográfico
 </strong>
+<div class="linea-estado">
 <span class="chip confirmado">
 Listo
 </span>
 <p class="detalle">
 Bogotá · 10 ha · Planos
 </p>
+</div>
 </div>
 <div class="renglon-acc">
 <button type="button" class="button secondary abrir-panel" data-panel="panel-0" aria-controls="panel-0" aria-label="Cambiar Levantamiento topográfico">
@@ -455,16 +679,21 @@ Cambiar
 </div>
 </li>
 <li class="renglon pendiente" data-estado="pendiente" id="renglon-1">
+<span class="marca pendiente" aria-hidden="true">
+!
+</span>
 <div class="renglon-info">
 <strong>
 Batimetría
 </strong>
+<div class="linea-estado">
 <span class="chip pendiente">
 Falta un dato
 </span>
 <p class="detalle">
 Falta ubicación.
 </p>
+</div>
 </div>
 <div class="renglon-acc">
 <button type="button" class="button secondary abrir-panel" data-panel="panel-1" aria-controls="panel-1" aria-label="Resolver Batimetría">
@@ -483,7 +712,7 @@ No hay actividades con ese filtro.
 Levantamiento topográfico
 </h3>
 <button type="button" class="button secondary cerrar-panel">
-Cerrar
+Volver al correo
 </button>
 </header>
 <details class="accion-panel">
@@ -561,19 +790,34 @@ Volver a abrirla: algo cambió
 <label class="origen">
 <input type="radio" name="origen" value="cliente" required="">
 <span>
+<b>
 El cliente me lo dijo
+</b>
+<small>
+Por llamada, mensaje o reunión.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="documento">
 <span>
+<b>
 Está en un documento
+</b>
+<small>
+En un archivo o en su correo.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="tecnico">
 <span>
+<b>
 Criterio técnico de Anka
+</b>
+<small>
+Lo recomendamos nosotros, con su porqué.
+</small>
 </span>
 </label>
 </div>
@@ -658,19 +902,34 @@ Quitarla de la tabla
 <label class="origen">
 <input type="radio" name="origen" value="cliente" required="">
 <span>
+<b>
 El cliente me lo dijo
+</b>
+<small>
+Por llamada, mensaje o reunión.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="documento">
 <span>
+<b>
 Está en un documento
+</b>
+<small>
+En un archivo o en su correo.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="tecnico">
 <span>
+<b>
 Criterio técnico de Anka
+</b>
+<small>
+Lo recomendamos nosotros, con su porqué.
+</small>
 </span>
 </label>
 </div>
@@ -742,7 +1001,7 @@ Quitar «Levantamiento topográfico»
 Batimetría
 </h3>
 <button type="button" class="button secondary cerrar-panel">
-Cerrar
+Volver al correo
 </button>
 </header>
 <div class="pregunta-previa">
@@ -756,10 +1015,20 @@ Falta ubicación.
 </p>
 <div class="botones-si-no">
 <button type="button" class="button secondary panel-no" data-casilla="1">
+<b>
 No, hay que preguntarle al cliente
+</b>
+<small>
+La pregunta entra al correo.
+</small>
 </button>
 <button type="button" class="button panel-si" aria-expanded="false">
+<b>
 Sí, ya la tengo
+</b>
+<small>
+Cuéntanos de dónde viene.
+</small>
 </button>
 </div>
 </div>
@@ -784,19 +1053,34 @@ Escribe la ubicación
 <label class="origen">
 <input type="radio" name="origen" value="cliente" required="">
 <span>
+<b>
 El cliente me lo dijo
+</b>
+<small>
+Por llamada, mensaje o reunión.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="documento">
 <span>
+<b>
 Está en un documento
+</b>
+<small>
+En un archivo o en su correo.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="tecnico">
 <span>
+<b>
 Criterio técnico de Anka
+</b>
+<small>
+Lo recomendamos nosotros, con su porqué.
+</small>
 </span>
 </label>
 </div>
@@ -856,6 +1140,9 @@ Cuéntalo en una frase
 <p class="error-respaldo" role="alert" hidden="">
 </p>
 </fieldset>
+<p class="nota">
+Al guardar, la actividad queda lista y ya no hace falta preguntársela al cliente.
+</p>
 <button type="submit">
 Dejar lista esta actividad
 </button>
@@ -867,7 +1154,7 @@ Dejar lista esta actividad
 Agregar una actividad
 </h3>
 <button type="button" class="button secondary cerrar-panel">
-Cerrar
+Volver al correo
 </button>
 </header>
 <form method="post" action="/activity" class="form-panel">
@@ -929,19 +1216,34 @@ Plazo o restricción
 <label class="origen">
 <input type="radio" name="origen" value="cliente" required="">
 <span>
+<b>
 El cliente me lo dijo
+</b>
+<small>
+Por llamada, mensaje o reunión.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="documento">
 <span>
+<b>
 Está en un documento
+</b>
+<small>
+En un archivo o en su correo.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="tecnico">
 <span>
+<b>
 Criterio técnico de Anka
+</b>
+<small>
+Lo recomendamos nosotros, con su porqué.
+</small>
 </span>
 </label>
 </div>
@@ -1005,6 +1307,148 @@ Cuéntalo en una frase
 Agregar la actividad
 </button>
 </form>
+</section>
+<section class="panel-actividad" id="panel-corregir" data-fila="corregir" hidden="" aria-label="Corregir la tabla">
+<header>
+<h3>
+Corregir la tabla
+</h3>
+<button type="button" class="button secondary cerrar-panel">
+Volver al correo
+</button>
+</header>
+<p class="nota">
+Toca una actividad para corregir un error de escritura. No cambia su estado y no se envía nada al cliente.
+</p>
+<details class="accion-panel corregir-una">
+<summary>
+<span class="marca confirmado" aria-hidden="true">
+✓
+</span>
+Levantamiento topográfico
+</summary>
+<form method="post" action="/activity" class="form-panel">
+<input type="hidden" name="thread_id" value="t-folder-held">
+<input type="hidden" name="base_version" value="cb84dc9fd73b842a">
+<input type="hidden" name="accion" value="corregir">
+<input type="hidden" name="indice" value="0">
+<label>
+Servicio o técnica
+<textarea name="campo_servicio_tecnica" rows="1" maxlength="2000">
+Topografía convencional
+</textarea>
+</label>
+<label>
+Ubicación
+<textarea name="campo_ubicacion" rows="1" maxlength="2000">
+Bogotá
+</textarea>
+</label>
+<label>
+Cantidad
+<textarea name="campo_quantity" rows="1" maxlength="2000">
+10
+</textarea>
+</label>
+<label>
+Unidad
+<textarea name="campo_unit" rows="1" maxlength="2000">
+ha
+</textarea>
+</label>
+<label>
+Entregable
+<textarea name="campo_entregable" rows="1" maxlength="2000">
+Planos
+</textarea>
+</label>
+<label>
+Plazo o restricción
+<textarea name="campo_plazo_restriccion" rows="1" maxlength="2000">
+30 días
+</textarea>
+</label>
+<label>
+Notas
+<textarea name="campo_notes" rows="1" maxlength="2000">
+</textarea>
+</label>
+<button type="submit">
+Guardar la corrección
+</button>
+</form>
+</details>
+<details class="accion-panel corregir-una">
+<summary>
+<span class="marca pendiente" aria-hidden="true">
+!
+</span>
+Batimetría
+</summary>
+<form method="post" action="/activity" class="form-panel">
+<input type="hidden" name="thread_id" value="t-folder-held">
+<input type="hidden" name="base_version" value="cb84dc9fd73b842a">
+<input type="hidden" name="accion" value="corregir">
+<input type="hidden" name="indice" value="1">
+<label>
+Servicio o técnica
+<textarea name="campo_servicio_tecnica" rows="1" maxlength="2000">
+Batimetría
+</textarea>
+</label>
+<label>
+Ubicación
+<textarea name="campo_ubicacion" rows="1" maxlength="2000">
+no indicado
+</textarea>
+</label>
+<label>
+Cantidad
+<textarea name="campo_quantity" rows="1" maxlength="2000">
+10
+</textarea>
+</label>
+<label>
+Unidad
+<textarea name="campo_unit" rows="1" maxlength="2000">
+ha
+</textarea>
+</label>
+<label>
+Entregable
+<textarea name="campo_entregable" rows="1" maxlength="2000">
+Planos
+</textarea>
+</label>
+<label>
+Plazo o restricción
+<textarea name="campo_plazo_restriccion" rows="1" maxlength="2000">
+30 días
+</textarea>
+</label>
+<label>
+Notas
+<textarea name="campo_notes" rows="1" maxlength="2000">
+</textarea>
+</label>
+<button type="submit">
+Guardar la corrección
+</button>
+</form>
+</details>
+<details class="accion-panel">
+<summary>
+Sacar la tabla
+</summary>
+<div class="botones-fila">
+<a class="button secondary" href="/export.xlsx?thread_id=t-folder-held">
+Bajar en Excel
+</a>
+<a class="button secondary" href="/acta?thread_id=t-folder-held">
+Ver historial de cambios
+</a>
+</div>
+</details>
 </section>
 </div>
 </div>
@@ -1805,6 +2249,8 @@ Crear carpeta del proyecto
 Correos que no eran solicitudes
 </a>
 </footer>
+</div>
+</div>
 <dialog id="confirmar" class="confirm-dialog" aria-labelledby="confirmar-titulo" aria-describedby="confirmar-texto">
 <form method="dialog">
 <h2 id="confirmar-titulo">

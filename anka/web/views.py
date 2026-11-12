@@ -71,7 +71,8 @@ def marcar_como_error(message: str) -> str:
 
 
 def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
-                mode: str | None = None, api_key_set: bool = True) -> str:
+                mode: str | None = None, api_key_set: bool = True, barra: Mapping[str, Any] | None = None,
+                nombre: str = "") -> str:
     """Página completa: encabezado, avisos, selector de modo y el contenido recibido."""
     es_error = message.startswith(MARCA_DE_ERROR)
     message = message.lstrip(MARCA_DE_ERROR)
@@ -80,7 +81,7 @@ def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
         mode_selector=mode_selector(mode, api_key_set),
         modo_llano=_MODO_EN_LLANO.get(mode or "", "Todavía no se eligió quién analiza los correos."),
         is_work=(mode == "chatgpt_work"),
-        nav_actual=NAV_ACTUAL.get(title, ""),
+        nav_actual=NAV_ACTUAL.get(title, ""), barra=barra, nombre=nombre,
     ))
 
 

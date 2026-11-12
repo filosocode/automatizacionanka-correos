@@ -1,6 +1,7 @@
 """Lo que se le pide al cliente se lee como una petición, sin etiquetas internas. Cubre: U-33"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.cuadro_unico import cuadro_de
 
 import tempfile
 import unittest
@@ -66,7 +67,7 @@ class EnLaPantalla(unittest.TestCase):
     def cuadro(self) -> str:
         pagina = pantalla_caso.render_case("t-1")
         decision = pagina[pagina.index('id="decision"'):pagina.index("</section>", pagina.index('id="decision"'))]
-        return decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1]
+        return cuadro_de(decision)
 
     def test_el_cuadro_trae_los_puntos_de_cll_170_sin_verbos_internos_ni_etiquetas(self) -> None:
         # Cubre: U-33

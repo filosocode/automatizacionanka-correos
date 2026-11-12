@@ -1,9 +1,9 @@
 {% macro ocultos(accion, indice) %}<input type="hidden" name="thread_id" value="{{ thread_id }}"><input type="hidden" name="base_version" value="{{ base_version }}"><input type="hidden" name="accion" value="{{ accion }}"><input type="hidden" name="indice" value="{{ indice }}">{% endmacro %}
 {% macro respaldo(id) %}<fieldset class="respaldo"><legend>¿De dónde sale esto? <span class="nota">(queda en el historial)</span></legend>
 <div class="origenes" role="radiogroup">
-<label class="origen"><input type="radio" name="origen" value="cliente" required> <span>El cliente me lo dijo</span></label>
-<label class="origen"><input type="radio" name="origen" value="documento"> <span>Está en un documento</span></label>
-<label class="origen"><input type="radio" name="origen" value="tecnico"> <span>Criterio técnico de Anka</span></label></div>
+<label class="origen"><input type="radio" name="origen" value="cliente" required> <span><b>El cliente me lo dijo</b><small>Por llamada, mensaje o reunión.</small></span></label>
+<label class="origen"><input type="radio" name="origen" value="documento"> <span><b>Está en un documento</b><small>En un archivo o en su correo.</small></span></label>
+<label class="origen"><input type="radio" name="origen" value="tecnico"> <span><b>Criterio técnico de Anka</b><small>Lo recomendamos nosotros, con su porqué.</small></span></label></div>
 <div class="si-cliente" data-origen="cliente" hidden><label>¿Por qué medio?
 <select name="medio"><option value="">Elige uno</option>{% for medio in medios %}<option value="{{ medio }}">{{ medio }}</option>{% endfor %}</select></label>
 <label>¿Qué día? <input type="date" name="fecha" max="{{ hoy }}"></label></div>
@@ -20,6 +20,7 @@
   <div><h2>Actividades detectadas</h2>{% if resumen %}<p class="resumen-tabla">{{ resumen }}</p>{% endif %}</div>
   <div class="acciones"><button type="button" class="button secondary" id="agregar-fila" aria-controls="{{ 'panel-nueva' if renglones else 'editar-tabla' }}">+ Agregar</button><button type="button" class="button secondary" id="editar-boton" aria-expanded="{{ 'true' if abierto else 'false' }}" aria-controls="editar-tabla">Corregir la tabla</button></div>
 </div>
+{% set faltan_n = renglones | rejectattr('estado', 'equalto', 'confirmado') | list | length %}{% if renglones %}<p class="frase-guia">{% if faltan_n == 0 %}Todo está listo. Toca una actividad si algo cambió.{% elif faltan_n == 1 %}Falta resolver 1 cosa. Toca «Resolver» para atenderla.{% else %}Faltan resolver {{ faltan_n }} cosas. Toca «Resolver» en cada una.{% endif %}</p>{% endif %}
 {% if renglones and con_preguntar %}<p class="nota hint-marcar">Marca lo que quieres preguntarle al cliente.</p>{% endif %}
 {% if con_preguntar and not resumen and not (rows | rejectattr('is_new') | list) %}<p class="nota todo-completo" id="sin-filas">Todavía no hay actividades. Pulsa «+ Agregar» para escribir la primera.</p>{% endif %}
 {% if renglones %}<div class="alcance-lectura" id="tabla-resumen">
@@ -27,21 +28,23 @@
 <button type="button" class="chip-filtro activo" data-filtro="todas" aria-pressed="true">Todas <span class="cuenta">{{ renglones | length }}</span></button>
 {% for estado, etiqueta in (('confirmado', 'Listo'), ('pendiente', 'Falta un dato'), ('contradictorio', 'No cuadra')) %}{% set cuantas = renglones | selectattr('estado', 'equalto', estado) | list | length %}{% if cuantas %}<button type="button" class="chip-filtro {{ estado }}" data-filtro="{{ estado }}" aria-pressed="false">{{ etiqueta }} <span class="cuenta">{{ cuantas }}</span></button>{% endif %}{% endfor %}</div>
 <ul class="renglones" id="lista-actividades">{% for r in renglones %}<li class="renglon {{ r.estado }}" data-estado="{{ r.estado }}" id="renglon-{{ r.indice }}">
-<div class="renglon-info"><strong>{{ r.actividad }}</strong> <span class="chip {{ r.estado }}">{{ r.etiqueta }}</span>{% if r.detalle %}<p class="detalle">{{ r.detalle }}</p>{% endif %}{% if r.traza %}<p class="traza">{{ r.traza }}</p>{% endif %}</div>
+<span class="marca {{ r.estado }}" aria-hidden="true">{{ {'confirmado': '✓', 'pendiente': '!', 'contradictorio': '≠'}[r.estado] }}</span>
+<div class="renglon-info"><strong>{{ r.actividad }}</strong><div class="linea-estado"><span class="chip {{ r.estado }}">{{ r.etiqueta }}</span>{% if r.detalle %}<p class="detalle">{{ r.detalle }}</p>{% endif %}</div>{% if r.estado == 'contradictorio' and r.tiene_casilla %}<p class="nota pista-preguntar">Si el cliente debe decir cuál es la correcta, marca «Preguntar»; no se pregunta sola.</p>{% endif %}{% if r.traza %}<p class="traza">{{ r.traza }}</p>{% endif %}</div>
 <div class="renglon-acc">{% if r.tiene_casilla %}<label class="preguntar"><input type="checkbox" name="preguntar_fila" value="{{ r.pregunta }}" form="decision-form"{% if r.marcada %} checked{% endif %} aria-label="Preguntar al cliente por {{ r.actividad }}"> <span>Preguntar</span></label>{% endif %}<button type="button" class="button secondary abrir-panel" data-panel="panel-{{ r.indice }}" aria-controls="panel-{{ r.indice }}" aria-label="{{ 'Resolver' if r.estado != 'confirmado' else 'Cambiar' }} {{ r.actividad }}">{{ 'Resolver' if r.estado != 'confirmado' else 'Cambiar' }}</button></div></li>
 {% endfor %}</ul>
 <p class="nota sin-coincidencias" id="sin-coincidencias" hidden>No hay actividades con ese filtro.</p>
 {{ lista_de_generales() }}
 <div class="paneles" id="paneles-actividad"{% if panel_escrito %} data-reabrir="{{ panel_escrito.panel }}" data-accion="{{ panel_escrito.accion }}" data-escrito='{{ panel_escrito.valores | tojson }}'{% endif %}>
 {% for r in renglones %}<section class="panel-actividad" id="panel-{{ r.indice }}" data-fila="{{ r.indice }}" hidden aria-label="Actividad: {{ r.actividad }}">
-<header><h3>{{ r.actividad }}</h3><button type="button" class="button secondary cerrar-panel">Cerrar</button></header>
+<header><h3>{{ r.actividad }}</h3><button type="button" class="button secondary cerrar-panel">Volver al correo</button></header>
 {% if r.estado != 'confirmado' %}<div class="pregunta-previa"><p><strong>¿Ya tenemos la respuesta?</strong></p>
 <p class="nota">{{ r.detalle }}</p>
-<div class="botones-si-no"><button type="button" class="button secondary panel-no" data-casilla="{{ r.indice }}">No, hay que preguntarle al cliente</button><button type="button" class="button panel-si" aria-expanded="false">Sí, ya la tengo</button></div></div>
+<div class="botones-si-no"><button type="button" class="button secondary panel-no" data-casilla="{{ r.indice }}"><b>No, hay que preguntarle al cliente</b><small>La pregunta entra al correo.</small></button><button type="button" class="button panel-si" aria-expanded="false"><b>Sí, ya la tengo</b><small>Cuéntanos de dónde viene.</small></button></div></div>
 <form method="post" action="/activity" class="form-panel" hidden>{{ ocultos('resolver', r.indice) }}
 {% for f in r.faltan %}<label>Escribe {{ f.articulo }}<textarea name="dato_{{ f.clave }}" rows="1" maxlength="{{ max_celda }}"></textarea></label>{% endfor %}
 {% if r.necesita_decision %}<label>¿Qué quedó decidido?<textarea name="decision" rows="2" maxlength="{{ max_celda }}"></textarea></label>{% endif %}
 {{ respaldo('r' ~ r.indice) }}
+<p class="nota">Al guardar, la actividad queda lista y ya no hace falta preguntársela al cliente.</p>
 <button type="submit">Dejar lista esta actividad</button></form>
 {% else %}<details class="accion-panel"><summary>Corregir un dato (error de escritura)</summary>
 <form method="post" action="/activity" class="form-panel">{{ ocultos('corregir', r.indice) }}
@@ -54,7 +57,7 @@
 {% endif %}</section>
 {% endfor %}
 <section class="panel-actividad" id="panel-nueva" data-fila="nueva" hidden aria-label="Agregar una actividad">
-<header><h3>Agregar una actividad</h3><button type="button" class="button secondary cerrar-panel">Cerrar</button></header>
+<header><h3>Agregar una actividad</h3><button type="button" class="button secondary cerrar-panel">Volver al correo</button></header>
 <form method="post" action="/activity" class="form-panel">{{ ocultos('agregar', -1) }}
 <label>¿Cómo se llama?<textarea name="nombre" rows="1" maxlength="{{ max_celda }}"></textarea></label>
 <label>Servicio o técnica <span class="nota">(opcional)</span><textarea name="campo_servicio_tecnica" rows="1" maxlength="{{ max_celda }}"></textarea></label>
@@ -65,6 +68,17 @@
 <label>Entregable<textarea name="dato_entregable" rows="1" maxlength="{{ max_celda }}"></textarea></label>
 <label>Plazo o restricción<textarea name="dato_plazo_restriccion" rows="1" maxlength="{{ max_celda }}"></textarea></label></details>
 {{ respaldo('n') }}<button type="submit">Agregar la actividad</button></form></section>
+<section class="panel-actividad" id="panel-corregir" data-fila="corregir" hidden aria-label="Corregir la tabla">
+<header><h3>Corregir la tabla</h3><button type="button" class="button secondary cerrar-panel">Volver al correo</button></header>
+<p class="nota">Toca una actividad para corregir un error de escritura. No cambia su estado y no se envía nada al cliente.</p>
+{% for r in renglones %}<details class="accion-panel corregir-una"><summary><span class="marca {{ r.estado }}" aria-hidden="true">{{ {'confirmado': '✓', 'pendiente': '!', 'contradictorio': '≠'}[r.estado] }}</span> {{ r.actividad }}</summary>
+<form method="post" action="/activity" class="form-panel">{{ ocultos('corregir', r.indice) }}
+{% for c in r.campos %}<label>{{ c.etiqueta }}<textarea name="campo_{{ c.clave }}" rows="1" maxlength="{{ max_celda }}">{{ c.valor }}</textarea></label>{% endfor %}
+<button type="submit">Guardar la corrección</button></form></details>
+{% endfor %}
+<details class="accion-panel"><summary>Sacar la tabla</summary>
+<div class="botones-fila"><a class="button secondary" href="/export.xlsx?thread_id={{ thread_id | urlquote }}">Bajar en Excel</a>{% if hoja.url %}<a class="button secondary" href="{{ hoja.url }}" target="_blank" rel="noopener noreferrer">Abrir en Google Sheets<span class="solo-lectores"> (se abre en una pestaña nueva)</span></a>{% endif %}<a class="button secondary" href="/acta?thread_id={{ thread_id | urlquote }}">Ver historial de cambios</a></div></details>
+</section>
 </div></div>{% elif generales %}<div class="scroll-x alcance-lectura" id="tabla-resumen">{{ lista_de_generales() }}</div>{% endif %}
 <div class="editor-tabla{% if abierto %} abierto{% endif %}" id="editar-tabla">
 <form method="post" action="/activities">

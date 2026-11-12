@@ -145,6 +145,7 @@ La descripción es la primera frase de su docstring.
 | `evaluacion` | Evaluar el análisis con solicitudes reales del histórico: muestrear, guardar fichas, validarlas y medir (T-34). |
 | `drive_layout` | Estructura de carpetas de Drive: año / mes / cliente / solicitud / anexos. |
 | `ediciones` | Edición de la tabla de actividades por una persona: motivos, diferencias entre versiones y guardado. |
+| `comercial` | El nombre de quien trabaja con el sistema, guardado en `config.json`: sale en el respaldo, en el historial y junto al criterio técnico (U-112). |
 | `actividad_manual` | Cambios a una sola actividad desde el panel del caso (resolver, reabrir, quitar, corregir, agregar), cada uno con su respaldo (U-112). |
 | `estado_operativo` | Lo registrado sobre la recepción de mensajes y los trabajos Work para el panel de solo lectura `/operacion` (T-61). |
 | `estado_de_revision` | Estado de la revisión de Gmail: cuándo fue la última, cuánto tardó, qué cambió y cómo se cuenta a la persona. |
@@ -157,6 +158,7 @@ La descripción es la primera frase de su docstring.
 | `proyectos_repetidos` | Agrupar las solicitudes que parecen el mismo proyecto, solo para mostrarlas juntas (U-19). |
 | `quotes` | Los casos (solicitudes) guardados en SQLite, vistos y modificados desde el dashboard: la fachada de los servicios. |
 | `vinculos` | Vínculos entre conversaciones: correos que parecen de otro caso y proyectos repetidos que se unen o se separan. |
+| `preguntar_y_enviar` | Una sola acción para «preguntar al cliente»: registra la decisión con las preguntas marcadas y envía el correo (o lo guarda como borrador), sin pasos intermedios (U-113). |
 | `revision_tecnica` | Las decisiones de una persona sobre la revisión técnica de un caso y sobre lo que propone el modelo. |
 | `cola_del_piloto` | La cola de revisión del piloto local: el paquete de texto de cada caso y los casos que esperan a una persona. |
 | `estados` | Cambios de estado de un caso comprobados contra `spec/transiciones.json`: una no prevista se permite y se registra (U-46). |
@@ -189,6 +191,8 @@ El JavaScript de las páginas vive en `templates/app.js` (el de cada página, co
 | `openapi` | La documentación OpenAPI 3 del dashboard y la página de Swagger UI (spec/07-api.md, requisito T-13). |
 | `paginas` | Las páginas comunes del dashboard: la página completa, el resumen, las solicitudes y las descartadas. |
 | `deshacer` | El panel «Decisiones que puedes deshacer» del historial del caso: reabrir «No es un cambio» y recuperar la propuesta de Work que se dejó de lado (U-57). |
+| `correo_marcado` | El correo con las preguntas marcadas, para escribirlo en la pantalla mientras se marcan casillas (U-113). |
+| `barra_de_casos` | La barra lateral, el inicio guiado y el «siguiente caso»: qué casos esperan a la persona y con qué frase (U-112.A). |
 | `pantalla_caso` | La pantalla de un caso y su acta: etapa, siguiente paso, tabla, conversación, respuesta y seguimiento. |
 | `seguridad` | Seguridad del dashboard local: token CSRF persistente y comprobación de Host y Origen. |
 | `server` | Servidor HTTP local del dashboard: enruta las páginas (GET) y las acciones de los formularios (POST). |

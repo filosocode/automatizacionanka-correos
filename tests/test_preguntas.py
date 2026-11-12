@@ -1,6 +1,7 @@
 """Decidir cada pregunta y saber de qué correos se espera respuesta (U-22). Cubre: U-22"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.cuadro_unico import cuadro_de
 
 import io
 import tempfile
@@ -193,8 +194,8 @@ class CasoCompletoTests(unittest.TestCase):
         pagina = pantalla_caso.render_case("t-1")
         decision = pagina.split('id="decision"')[1].split("</section>")[0]
         self.assertEqual(decision.count('class="pregunta"'), 0)             # ya no hay una tarjeta por pregunta (U-31)
-        self.assertEqual(decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1].strip(), "")
-        self.assertIn("Preguntas para el cliente (una por línea)", decision)
+        self.assertEqual(cuadro_de(decision).strip(), "")
+        self.assertIn('id="correo-unico"', decision)
 
     def test_choosing_questions_builds_the_email_with_them_instead_of_the_work_acknowledgement(self):
         lidar = "¿Qué densidad y precisión LiDAR requieren?"

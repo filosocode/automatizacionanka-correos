@@ -1,6 +1,7 @@
 """Mientras el caso espera tu decisión, siempre se ven las preguntas del análisis. Cubre: U-30"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.cuadro_unico import cuadro_de, preguntas_de
 
 import re
 import tempfile
@@ -60,8 +61,7 @@ class LosSelectoresSiempreSalen(Base):
         self.assertNotEqual(evaluacion.get("status"), "technical_review")     # el caso que antes las ocultaba
         decision = self.decision(pantalla_caso.render_case("t-1"))
         self.assertEqual(decision.count('name="q_id"'), 0)            # un solo cuadro, no una tarjeta por pregunta (U-31)
-        cuadro = decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1]
-        lineas = [linea for linea in cuadro.splitlines() if linea.strip()]
+        lineas = preguntas_de(decision)
         # las 3 sugeridas para el cliente, ya escritas, y la de la actividad con datos faltantes (U-103.8)
         self.assertEqual(len(lineas), 4)
 
@@ -75,7 +75,7 @@ class LosSelectoresSiempreSalen(Base):
         db.close()
         decision = self.decision(pantalla_caso.render_case("t-1"))
         self.assertEqual(decision.count('name="q_id"'), 0)
-        self.assertEqual(decision.split('name="questions"')[1].split("</textarea>")[0].split(">", 1)[1].strip(), "")
+        self.assertEqual(cuadro_de(decision).strip(), "")
 
     def test_con_la_lectura_bloqueada_no_se_ofrece_ni_se_sugiere_nada(self) -> None:
         # Cubre: U-30

@@ -11,7 +11,7 @@
 </div>
 <section class="section stepper" aria-label="Avance del caso">
   <ol class="process">
-    {% for step in steps %}<li class="process-step {{ step.state }}"{% if step.state == 'current' %} aria-current="step"{% endif %}><strong>{{ step.title }}</strong><span><span class="solo-lectores">{{ 'Hecho. ' if step.state == 'done' else 'Paso actual. ' if step.state == 'current' else 'Pendiente. ' }}</span>{{ step.note }}</span></li>
+    {% for step in steps %}<li class="process-step {{ step.state }} llena-{{ step.llena }}"{% if step.state == 'current' %} aria-current="step"{% endif %}><strong>{{ step.title }}</strong><span><span class="solo-lectores">{{ 'Hecho. ' if step.state == 'done' else 'Paso actual. ' if step.state == 'current' else 'Pendiente. ' }}</span>{{ step.note }}</span>{% if step.state == 'current' %}<span class="barra-llena" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ step.llena }}" aria-label="Avance de «{{ step.title }}»"></span>{% endif %}</li>
     {% endfor %}
   </ol>
 </section>

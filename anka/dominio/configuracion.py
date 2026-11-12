@@ -53,6 +53,7 @@ class Configuracion(TypedDict, total=False):
     """Todo lo que se puede configurar; las claves no listadas aquí se avisan como posible error de tipeo."""
 
     active_mode: str                  # local | api | chatgpt_work
+    comercial: str                    # nombre de quien trabaja con el sistema (U-112)
     gmail_query: str                  # qué correos revisa el piloto de Python
     own_addresses: list[str]          # cuenta principal y aliases desde los que responde Anka
     test_sender_addresses: list[str]  # remitentes controlados de correos de prueba

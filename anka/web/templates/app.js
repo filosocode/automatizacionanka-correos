@@ -204,9 +204,16 @@ document.addEventListener('submit', event => {
   // Panel de una actividad (U-112.B): se abre bajo la lista y cambia lo que hay que hacer; los filtros solo existen con JS.
   const paneles = document.getElementById('paneles-actividad');
   const filtros = document.getElementById('filtros-actividades');
+  // El panel ocupa el contenedor de la derecha (el del correo) y lo devuelve al cerrarse; sin dos columnas queda bajo la lista (U-112.A.4).
+  const derecha = document.querySelector('.dos-columnas > .section:not(.actividades)');
   function cerrarPanel() {
-    document.querySelectorAll('.panel-actividad').forEach(p => { p.hidden = true; });
-    document.querySelectorAll('.abrir-panel.abierto').forEach(b => b.classList.remove('abierto'));
+    document.querySelectorAll('.panel-actividad').forEach(p => { p.hidden = true; if (paneles) paneles.appendChild(p); });
+    document.querySelectorAll('.abrir-panel.abierto, #editar-boton.abierto, #agregar-fila.abierto').forEach(b => b.classList.remove('abierto'));
+    if (derecha) {
+      const sitio = derecha.querySelector('.panel-sitio');
+      if (sitio) sitio.remove();
+      derecha.classList.remove('con-panel');
+    }
   }
   function abrirPanel(id, boton) {
     const panel = document.getElementById(id);
@@ -214,12 +221,25 @@ document.addEventListener('submit', event => {
     cerrarPanel();
     panel.hidden = false;
     if (boton) boton.classList.add('abierto');
+    if (derecha) {
+      const sitio = document.createElement('div');
+      sitio.className = 'panel-sitio';
+      sitio.appendChild(panel);
+      derecha.insertBefore(sitio, derecha.firstChild);
+      derecha.classList.add('con-panel');
+    }
     panel.scrollIntoView({block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
     const campo = panel.querySelector('button.panel-no, textarea, input:not([type=hidden])');
     if (campo) campo.focus({preventScroll: true});
   }
   if (paneles) {
     document.querySelectorAll('.abrir-panel').forEach(b => b.addEventListener('click', () => abrirPanel(b.dataset.panel, b)));
+    // Como en el prototipo guiado: tocar el renglón (no su casilla ni su botón) también abre el panel de la actividad.
+    document.querySelectorAll('.renglon').forEach(r => r.addEventListener('click', e => {
+      if (e.target.closest('label, input, button, a')) return;
+      const b = r.querySelector('.abrir-panel');
+      if (b) b.click();
+    }));
     document.querySelectorAll('.cerrar-panel').forEach(b => b.addEventListener('click', cerrarPanel));
     document.querySelectorAll('.panel-si').forEach(b => b.addEventListener('click', () => {
       const panel = b.closest('.panel-actividad');
@@ -233,7 +253,12 @@ document.addEventListener('submit', event => {
       if (casilla && !casilla.checked) { casilla.checked = true; casilla.dispatchEvent(new Event('change')); }
       cerrarPanel();
     }));
-    // «Agregar» abre el panel con respaldo; el editor clásico queda en «Corregir la tabla».
+    // «Corregir la tabla» abre su panel en el contenedor del correo, igual que «Resolver»; la tabla densa queda solo sin JavaScript.
+    if (boton) boton.addEventListener('click', evento => {
+      evento.stopImmediatePropagation();
+      if (boton.classList.contains('abierto')) cerrarPanel(); else abrirPanel('panel-corregir', boton);
+    }, true);
+    // «Agregar» abre el panel con respaldo.
     if (agregar) agregar.addEventListener('click', evento => {
       evento.stopImmediatePropagation();
       abrirPanel('panel-nueva', agregar);
@@ -429,6 +454,7 @@ window.addEventListener('pageshow', event => {
     const aviso = document.getElementById('aviso-espera');
     if (aviso && aviso.textContent) filas.push(['Preguntas', aviso.textContent]);
     filas.push(['Adjuntos', 'Ninguno: la respuesta va sin archivos']);
+    filas.push(['Después', 'El caso queda en «Esperando al cliente». No tienes que hacer nada más: si no responde, te avisamos para el recordatorio.']);
     return avisoDeCita(boton, filas);
   }
   document.addEventListener('click', event => {
@@ -642,7 +668,7 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
       const destino = location.hash && document.getElementById(location.hash.slice(1));
       const contenedor = destino && destino.closest('[role="tabpanel"]');
       const pestana = contenedor && pestanas.find(p => p.getAttribute('aria-controls') === contenedor.id);
-      if (pestana) mostrar(pestana);
+      if (pestana) { mostrar(pestana); destino.scrollIntoView(); }   // el panel estaba oculto: el navegador no pudo llevarte hasta él
     }
     pestanas.forEach(p => {
       p.addEventListener('click', () => mostrar(p));
@@ -909,4 +935,78 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
   }
   actualizar();
   setInterval(actualizar, 60000);
+})();
+(function () {
+  // «☰ Casos»: en pantallas angostas la barra de casos se abre y se cierra; sin JavaScript queda a la vista (U-112.A.1).
+  const barra = document.getElementById('barra-casos'), boton = document.getElementById('abrir-barra');
+  if (!barra || !boton) return;
+  barra.classList.add('plegable');
+  boton.hidden = false;
+  boton.addEventListener('click', () => {
+    const abrir = !barra.classList.contains('abierta');
+    barra.classList.toggle('abierta', abrir);
+    boton.setAttribute('aria-expanded', String(abrir));
+    if (abrir) barra.querySelector('a').focus();
+  });
+})();
+(function () {
+  // U-113: el correo con las preguntas se escribe solo mientras se marcan «Preguntar» y se puede cambiar a mano.
+  const caja = document.getElementById('correo-unico');
+  if (!caja) return;
+  const nota = document.getElementById('aviso-espera');
+  const botones = ['btn-enviar-preguntas', 'btn-borrador-preguntas'].map(id => document.getElementById(id)).filter(Boolean);
+  const casillas = () => Array.from(document.querySelectorAll('input[name="preguntar_fila"]'));
+  const marcadas = () => casillas().filter(c => c.checked).map(c => c.value.trim()).filter(Boolean);
+  const plano = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const NUMERADA = /^\s*\d+\s*[.)]\s+(.*)$/;
+  const textoDe = linea => linea.match(NUMERADA)[1];
+  let generado = caja.value;      // lo último que escribió el programa: si el texto sigue igual, nadie lo cambió a mano
+  let cola = Promise.resolve();   // una casilla a la vez, en el orden en que se marcaron
+
+  async function pedir(lista) {   // el servidor arma el texto con la misma plantilla que el envío (sin modelo ni costo)
+    const consulta = new URLSearchParams({thread_id: caja.dataset.caso});
+    lista.forEach(p => consulta.append('p', p));
+    const respuesta = await fetch('/api/correo-preguntas?' + consulta.toString(), {headers: {Accept: 'application/json'}});
+    if (!respuesta.ok) throw new Error('correo');
+    return respuesta.json();
+  }
+  const renumerar = lineas => { let n = 0; return lineas.map(l => NUMERADA.test(l) ? (++n) + '. ' + textoDe(l) : l); };
+
+  async function poner(casilla) {
+    const texto = casilla.value.trim();
+    if (!texto) return;
+    if (caja.value === generado) {                      // sin cambios a mano: se rehace entero
+      const dato = await pedir(marcadas());
+      generado = caja.value = dato.cuerpo;
+      return;
+    }
+    const linea = (await pedir([texto])).lineas[0];     // con cambios a mano: solo se toca la línea de esta pregunta
+    let lineas = caja.value.split('\n');
+    const mia = l => NUMERADA.test(l) && plano(textoDe(l)) === plano(linea);
+    if (casilla.checked && !lineas.some(mia)) {
+      let donde = -1;
+      lineas.forEach((l, i) => { if (NUMERADA.test(l)) donde = i; });
+      if (donde < 0) lineas = (await pedir(marcadas())).cuerpo.split('\n');
+      else lineas.splice(donde + 1, 0, '0. ' + linea);
+    } else if (!casilla.checked) {
+      lineas = lineas.filter(l => !mia(l));
+    }
+    caja.value = renumerar(lineas).join('\n');
+  }
+
+  function estado() {
+    const n = marcadas().length;
+    botones.forEach(b => { b.disabled = n === 0; });
+    if (nota) nota.textContent = n === 0 ? 'Marca «Preguntar» en lo que falta y el correo se escribe solo.'
+      : n + (n === 1 ? ' pregunta' : ' preguntas') + ' en el correo. Puedes cambiar el texto.';
+  }
+  casillas().forEach(c => c.addEventListener('change', () => {
+    estado();
+    cola = cola.then(() => poner(c)).catch(() => {
+      if (nota) nota.textContent = 'No pudimos escribir el correo solo. Escríbelo tú y envíalo cuando esté listo.';
+    });
+  }));
+  let enviando = false;
+  document.addEventListener('submit', e => { if (e.target.method && e.target.method.toLowerCase() !== 'dialog') enviando = true; });
+  window.addEventListener('beforeunload', e => { if (!enviando && caja.value !== caja.defaultValue) { e.preventDefault(); e.returnValue = ''; } });
 })();

@@ -36,6 +36,7 @@ from anka.web import formularios_pendientes as pendientes
 from anka.web.acciones import POST_ROUTES, field, int_field
 from anka.web.api import a_json, error_de_api, es_ruta_de_api, resumen_de_caso
 from anka.web import pantalla_caso
+from anka.web.correo_marcado import correo_de_preguntas_marcadas
 from anka.web.views import marcar_como_error
 from anka.web.seguridad import (
     CSRF_TOKEN, CuerpoNoValido, add_csrf_tokens, cabeceras_de_seguridad, csp_docs, es_mensaje_para_la_persona,
@@ -61,6 +62,7 @@ GET_ROUTES: dict[str, str] = {
     "/operacion": "_get_operacion",
     "/api/casos": "_get_api_cases",
     "/api/salud": "_get_api_health",
+    "/api/correo-preguntas": "_get_api_correo",
     "/api/autorizacion": "_get_api_authorization",
     "/docs": "_get_docs",
     "/openapi.json": "_get_openapi",
@@ -396,6 +398,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def _get_api_health(self, query: dict[str, list[str]]) -> None:
         report = salud.informe(field(query, "profundo").lower() in ("1", "true", "si", "sí"))
         self._send_json(report, 200 if report["estado"] == "ok" else 503)
+
+    def _get_api_correo(self, query: dict[str, list[str]]) -> None:
+        """El correo que saldría con las preguntas marcadas (U-113); no envía ni guarda nada."""
+        resultado = correo_de_preguntas_marcadas(field(query, "thread_id"), query.get("p", []))
+        if resultado is None:
+            return self._error_json(404, "La solicitud no existe.")
+        self._send_json(resultado)
 
     def _get_api_case(self, query: dict[str, list[str]], thread_id: str) -> None:
         caso = get_quote(thread_id)

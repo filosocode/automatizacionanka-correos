@@ -69,6 +69,9 @@ def cambiar_actividad(thread_id: str, accion: str, indice: int, datos: Mapping[s
     """
     if accion not in ACCIONES:
         raise ErrorDeValidacion("No entendimos qué querías hacer con la actividad. Recarga el caso.")
+    if datos.get("origen") == "tecnico" and not quien.strip():
+        raise ErrorDeValidacion("Para registrar un criterio técnico escribe tu nombre en Ajustes: queda junto a la "
+                                "recomendación.")
     tabla = _tabla_actual(thread_id)
     base = base_version or huella_de_tabla(tabla)
     nueva: list[Actividad] = [Actividad(**f) for f in tabla]       # copia: la original no se toca

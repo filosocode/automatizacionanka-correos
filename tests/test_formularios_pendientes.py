@@ -1,6 +1,7 @@
 """Lo que la persona escribió en un formulario que falló se le devuelve, en todas las rutas que guardan texto. Cubre: U-31"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.cuadro_unico import cuadro_de
 
 import io
 import tempfile
@@ -75,7 +76,8 @@ class ElMecanismo(Base):
     def test_solo_las_rutas_que_guardan_texto(self) -> None:
         # Cubre: U-31
         self.assertEqual(pendientes.RUTAS_CON_TEXTO,
-                         frozenset({"/send", "/draft", "/code-issue", "/review-decision", "/activities", "/activity"}))
+                         frozenset({"/send", "/draft", "/enviar-preguntas", "/code-issue", "/review-decision", "/activities",
+                                    "/activity"}))
 
 
 class AlFallarElEnvio(Base):
@@ -127,7 +129,7 @@ class OtrasRutas(Base):
             self.post("/review-decision", "thread_id=t-1&decision=ask_client&questions=%C2%BFQu%C3%A9+plazo+esperan%3F")
         pagina = pantalla_caso.render_case("t-1")
         decision = pagina[pagina.index('id="decision"'):pagina.index("</section>", pagina.index('id="decision"'))]
-        self.assertIn("¿Qué plazo esperan?", decision.split('name="questions"')[1].split("</textarea>")[0])
+        self.assertIn("¿Qué plazo esperan?", cuadro_de(decision))
 
     def test_el_numero_y_el_correo_de_la_t_vuelven_al_panel(self) -> None:
         # Cubre: U-31

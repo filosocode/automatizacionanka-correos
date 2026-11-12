@@ -16,7 +16,7 @@ Todas las rutas que atiende el servidor, agrupadas en etiquetas:
 
 | Etiqueta | Contenido |
 |---|---|
-| **Lectura (JSON)** | `GET /api/salud`, `GET /api/casos`, `GET /api/casos/{thread_id}`, `GET /api/autorizacion`, `GET /state`: devuelven JSON, no cambian nada. `GET /eventos` es el canal de avisos en vivo (`text/event-stream`, no JSON; sus errores sí son JSON). |
+| **Lectura (JSON)** | `GET /api/salud`, `GET /api/casos`, `GET /api/casos/{thread_id}`, `GET /api/correo-preguntas` (el correo con unas preguntas marcadas, sin guardar nada: lo usa la pantalla del caso, U-113), `GET /api/autorizacion`, `GET /state`: devuelven JSON, no cambian nada. `GET /eventos` es el canal de avisos en vivo (`text/event-stream`, no JSON; sus errores sí son JSON). |
 | **Páginas** | Las pantallas HTML (`/`, `/requests`, `/case`, `/acta`, `/desempeno`, `/operacion`, `/discarded`, `/archive`) y la descarga `/export.xlsx`. |
 | **Acciones del caso** | Los formularios `POST` que actúan sobre un caso (tabla, respuesta, código T, cambios, vínculos…). |
 | **Acciones generales** | `POST` que no son de un caso: modo de operación, revisar Gmail, rescatar, eliminar, novedades. |

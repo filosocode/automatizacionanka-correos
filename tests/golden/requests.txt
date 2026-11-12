@@ -21,6 +21,8 @@
 <a class="skip-link" href="#contenido">
 Saltar al contenido
 </a>
+<div class="espacio con-barra">
+<aside class="lateral" id="lateral">
 <header>
 <a class="brand" href="/" aria-label="Anka, solicitudes de cotización: 10 con novedades">
 <img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38">
@@ -36,6 +38,9 @@ Solicitudes de cotización
 10
 </span>
 </a>
+<button type="button" id="abrir-barra" class="secondary" aria-controls="barra-casos" aria-expanded="false" hidden="">
+☰ Casos
+</button>
 <div class="toolbar">
 <span id="bridge-chip" class="bridge-chip" hidden="">
 </span>
@@ -59,6 +64,22 @@ Tema: sistema
 Avisarme de novedades
 </button>
 </div>
+<form method="post" action="/nombre" class="ajustes-nombre">
+<label for="nombre-comercial">
+<strong>
+Tu nombre
+</strong>
+</label>
+<span class="meta">
+Queda en lo que registres, por ejemplo un criterio técnico.
+</span>
+<div class="buscar-fila">
+<input id="nombre-comercial" name="nombre" value="" maxlength="60" autocomplete="name" required="">
+<button type="submit" class="secondary">
+Guardar
+</button>
+</div>
+</form>
 <a class="enlace-ajustes" href="/requests">
 Administrar casos (eliminar, exportar)
 </a>
@@ -123,6 +144,191 @@ Buscar correos nuevos
 </form>
 </div>
 </header>
+<nav class="barra-casos" id="barra-casos" aria-label="Casos">
+<a class="barra-inicio" href="/">
+Inicio
+</a>
+<h2 class="barra-titulo">
+Casos
+<span class="cuenta">
+10
+</span>
+</h2>
+<ul class="barra-lista">
+<li>
+<a href="/case?thread_id=t-review">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Norte
+</strong>
+<span class="barra-cliente">
+Energía Norte
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-hostile">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</strong>
+<span class="barra-cliente">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-draft">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Sur
+</strong>
+<span class="barra-cliente">
+Cliente Sur
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-ready">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Listo
+</strong>
+<span class="barra-cliente">
+cliente@example.com
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-folder-hostile">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Hostil
+</strong>
+<span class="barra-cliente">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-folder-held">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Retenido
+</strong>
+<span class="barra-cliente">
+Minera Sur
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-folder-done">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto con Carpeta
+</strong>
+<span class="barra-cliente">
+Minera Sur
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-review-tech">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Técnico
+</strong>
+<span class="barra-cliente">
+cliente@example.com
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-hostile-scope">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</strong>
+<span class="barra-cliente">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-sent">
+<span class="punto gris" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Enviado
+</strong>
+<span class="barra-cliente">
+Cliente Enviado
+</span>
+</span>
+<span class="solo-lectores">
+(espera al cliente)
+</span>
+</a>
+</li>
+</ul>
+</nav>
+</aside>
+<div class="columna">
 <div id="cargando" class="solo-lectores" role="status">
 </div>
 <div id="fresh-banner" class="notice" role="status" hidden="">
@@ -617,6 +823,8 @@ Ningún caso coincide con esa búsqueda.
 Correos que no eran solicitudes
 </a>
 </footer>
+</div>
+</div>
 <dialog id="confirmar" class="confirm-dialog" aria-labelledby="confirmar-titulo" aria-describedby="confirmar-texto">
 <form method="dialog">
 <h2 id="confirmar-titulo">

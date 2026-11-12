@@ -1,6 +1,7 @@
 """Código de la oferta (T / T&E), control de cambios y evidencia del historial."""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.cuadro_unico import cuadro_de
 from tests.js_de_las_paginas import JS
 
 import base64
@@ -376,10 +377,10 @@ class TechnicalReviewFlowTests(Base):
                                                     "required_fields": ["ubicación"]}), patch("anka.web.pantalla_caso.load_config", return_value={"active_mode": "chatgpt_work",
                                                     "required_fields": ["ubicación"]}):
             page = pantalla_caso.render_case("T9")
-        box = page.split('name="questions"')[1].split("</textarea>")[0]
+        box = cuadro_de(page)
         self.assertIn("ubicaci", box.casefold())                      # la pregunta viene escrita en el cuadro único (U-31)
         self.assertNotIn('name="q_decision_', page)
-        self.assertIn("Preguntas para el cliente (una por línea)", page)
+        self.assertIn('id="correo-unico"', page)
 
     def test_accepted_case_has_a_blank_reply_box_with_an_optional_acknowledgement(self):
         self.upsert_with_dependency()
@@ -421,9 +422,9 @@ class WorkDraftTests(Base):
         self.work_case(scope_dependencies=[{"description": "KML", "source": "a.kml", "status": "pendiente"}])
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = pantalla_caso.render_case("W1")
-        cuadro = page.split('name="questions"')[1].split("</textarea>")[0]
-        self.assertIn("Confirmar el datum.", cuadro)
-        self.assertIn("Confirmar fecha de inicio.", cuadro)
+        cuadro = cuadro_de(page)
+        self.assertIn("datum", cuadro.casefold())                   # las preguntas ya van escritas en el correo
+        self.assertIn("fecha de inicio", cuadro.casefold())
         self.assertNotIn("KML", cuadro)                             # lo interno no se le pregunta al cliente
         quotes.resolve_technical_review("W1", "ask_client", "¿Datum?")
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):

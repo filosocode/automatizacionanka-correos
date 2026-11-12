@@ -183,7 +183,7 @@ class AdministrarCasos(Base):
         self.assertIn("3 conversaciones del mismo proyecto", completa)
         parcial = paginas.render_requests(etapa="atender")
         self.assertIn("2 conversaciones del mismo proyecto", parcial)
-        self.assertNotIn("thread_id=g-1", parcial)
+        self.assertNotIn("thread_id=g-1", parcial[parcial.index('<main'):])      # la barra lateral sí lista todos
         una = paginas.render_requests(q="no existe")
         self.assertNotIn('class="grupo"', una)
 

@@ -141,7 +141,7 @@
     <h1>{{ project_name }}</h1>
     <div class="sub">{% if review.client_name and review.client_name != review.recipient %}{{ review.client_name }} · {% endif %}{{ review.recipient }}{% if recibido %} · recibido el {{ recibido }}{% endif %}</div>
   </div>
-  <span class="badge">{{ review.status_label }}</span>{% if code_text %} <span class="badge info">{{ code_text }}</span>{% endif %}
+  <div class="cabecera-estado"><span class="badge">{{ review.status_label }}</span>{% if code_text %} <span class="badge info">{{ code_text }}</span>{% endif %}<a class="enlace-mas" id="enlace-mas" href="#p-hist">Más</a></div>
 </div>
 {% if restaurado %}<div class="notice error" role="alert"><span class="solo-lectores">Error: </span>No pudimos terminar lo que pediste. <strong>Lo que escribiste sigue aquí</strong>: míralo y pulsa el botón otra vez.</div>{% endif %}
 {{ stepper }}
@@ -175,7 +175,7 @@
 {% macro decision_actual() %}
 {% if can_resolve %}
 <section class="section decision-arriba ahora" id="decision">
-  <div class="cab-tarjeta"><h2>Mensaje para el cliente</h2><p class="nota">Lo que marques a la izquierda aparece aquí. Puedes cambiarlo.</p></div>
+  <div class="cab-tarjeta"><h2>Mensaje para el cliente</h2><p class="nota">Lo que marques a la izquierda aparece aquí. Revísalo y envíalo.</p></div>
   <div class="cuerpo-tarjeta">
   {% if envios_inciertos and email == 'technical' %}<div class="notice" id="envio-incierto" role="status"><strong>Hay un correo sin confirmar.</strong>
     <p>Antes de enviar otro, comprueba en Gmail si el anterior salió. La aplicación también intenta verificarlo.</p>
@@ -189,18 +189,25 @@
     {% if ya_pedidas %}<div class="notice" id="ya-pedidas"><strong>Esto ya se lo pedimos al cliente y aún no lo envía.</strong><ul>{% for p in ya_pedidas %}<li>{{ p.texto }} <small>(se pidió el {{ p.ya_pedida }})</small></li>{% endfor %}</ul>No las volvimos a poner abajo para no insistir. <a class="button secondary" id="volver-a-pedir" href="/case?thread_id={{ thread_id | urlquote }}&amp;template=preguntas&amp;preguntas={{ ya_pedidas | map(attribute='texto') | join('
 ') | urlquote }}#preguntas-bloque">Volver a pedirlo</a></div>{% endif %}
     <div class="preguntas-bloque" id="preguntas-bloque">
-      <div class="chat-caja">
-        <textarea name="questions" id="preguntas-cliente" aria-label="Preguntas para el cliente (una por línea)" placeholder="Escribe aquí lo que quieres preguntarle al cliente, una pregunta por línea.">{{ cuadro_preguntas }}</textarea>
-        <div class="acciones chat-barra" role="group" aria-label="Cómo seguir con este caso">
-          <button type="submit" id="btn-suficiente" class="secondary enlace-suave" name="decision" value="sufficient"{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}
-            data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">Con esto alcanza</button>
-          <button type="submit" id="btn-preguntar" name="decision" value="ask_client">Redactar el correo</button>
-        </div>
+      <textarea name="body" id="correo-unico" class="caja-correo" aria-label="Correo para el cliente" aria-describedby="aviso-espera"
+        data-caso="{{ thread_id }}"
+        placeholder="Aquí aparece el correo. Marca «Preguntar» en lo que falta y se escribe solo; también puedes escribirlo tú.">{{ correo_inicial }}</textarea>
+      <p class="nota" id="aviso-espera" role="status">{% if n_marcadas %}{{ n_marcadas }} pregunta{{ '' if n_marcadas == 1 else 's' }} en el correo. Puedes cambiar el texto.{% else %}Marca «Preguntar» en lo que falta y el correo se escribe solo.{% endif %}</p>
+      <input type="hidden" name="to" value="{{ review.recipient }}">
+      <input type="hidden" name="state_token" value="{{ review.marca_de_estado }}">
+      <div class="acciones fila-correo" role="group" aria-label="Cómo seguir con este caso">
+        <button type="submit" id="btn-enviar-preguntas" formaction="/enviar-preguntas" name="accion_correo" value="enviar"{% if not n_marcadas %} disabled{% endif %}
+          data-confirm="Vas a enviar este correo a {{ review.recipient }}, como respuesta a su conversación. ¿Lo enviamos?"
+          data-resumen="envio" data-para="{{ review.recipient }}" data-asunto="{{ asunto_respuesta }}"
+          data-confirm-boton="Sí, enviar al cliente">Enviar al cliente</button>
+        <button type="submit" id="btn-borrador-preguntas" class="enlace-suave" formaction="/enviar-preguntas" name="accion_correo" value="borrador"{% if not n_marcadas %} disabled{% endif %}>Guardar borrador</button>
+        <button type="submit" id="btn-suficiente" class="enlace-suave" name="decision" value="sufficient"{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}
+          data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">Con esto alcanza</button>
       </div>
       {% if n_internas %}<p class="nota">{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} el equipo de Anka (están en «Qué falta resolver»).</p>{% endif %}
     </div>
     {% if sin_actividades %}<p class="nota" id="sin-actividades">«Con esto alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».</p>{% endif %}
-    <p class="nota">Nada se envía al cliente en este paso: primero ves el correo y lo envías tú.</p>
+    <p class="nota">Nada sale al cliente sin que lo revises y confirmes. Al enviarlo, el caso queda en «Esperando al cliente»: no tienes que hacer nada más, y si no responde te avisamos.</p>
   </form>
   {% if preguntas_sugeridas and not armar_preguntas %}<details class="more"><summary>Ver preguntas sugeridas</summary>
     <p class="nota">El análisis sugiere {{ preguntas_sugeridas | length }} preguntas para el cliente.</p>

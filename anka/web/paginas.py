@@ -27,6 +27,7 @@ from anka.infra.rechazos_de_work import alerta_del_dia, pospuestos
 from anka.infra.work_heartbeat import rejected_drafts
 from anka.web.templating import render
 
+from anka.servicios.comercial import nombre_del_comercial
 from anka.servicios.estado_de_revision import sync_status_text
 from anka.servicios.estado_operativo import estado_operativo
 from anka.servicios.recepcion_visible import solicitudes_en_recepcion
@@ -47,14 +48,16 @@ from anka.servicios.proyectos_repetidos import Grupo, agrupar_en_cache as agrupa
 log = get_logger(__name__)
 
 
-def page(title: str, body: Markup, message: str = "") -> str:
-    """Página completa con el encabezado, el selector de modo y las novedades sin leer."""
+def page(title: str, body: Markup, message: str = "", caso_actual: str = "") -> str:
+    """Página completa con el encabezado, la barra de casos, el selector de modo y las novedades sin leer."""
+    from anka.web.barra_de_casos import barra_de_casos      # lo importa aquí: la barra usa las etapas de este módulo
     try:
         mode = load_config().get("active_mode")
     except (ErrorDeAnka, OSError, ValueError):
         mode = None
     return render_page(title, body, message, unread_thread_count(), mode,
-                       bool(os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY")))
+                       bool(os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY")),
+                       barra_de_casos(all_quotes(), caso_actual), nombre_del_comercial())
 
 
 def _dashboard_insights(quotes: Sequence[Mapping[str, Any]], services: Counter, clients: Counter) -> Markup:
@@ -251,6 +254,7 @@ def render_index(message: str = "", mostrar: int = POR_PAGINA, q: str = "", etap
 
     `q` y `etapa` buscan y filtran entre todos los casos en el servidor (U-49); sin `etapa`, entra en «Por atender»
     si hay algo que atender."""
+    from anka.web.barra_de_casos import inicio_guiado
     quotes = all_quotes()
     recibidas = solicitudes_en_recepcion() if _en_modo_work() else []   # la recepción de Work solo existe en ese modo
     notifications = unread_notifications(8)
@@ -277,6 +281,7 @@ def render_index(message: str = "", mostrar: int = POR_PAGINA, q: str = "", etap
     en_lista = {m["thread_id"] for _, g in todas[:max(POR_PAGINA, mostrar)] for m in g.miembros}
     body = render(
         "index.html",
+        inicio=render("inicio_guiado.html", inicio=inicio_guiado(quotes, nombre_del_comercial())),
         recepcion=render("recepcion_visible.html", recibidas=recibidas),
         recibidas_nuevas=sum(not r['existente'] for r in recibidas),
         sync_text=sync_status_text(),

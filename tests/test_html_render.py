@@ -298,7 +298,8 @@ class InjectionTests(Pages):
                 # `open` lo pone el código en el aviso plegable «Parece el mismo proyecto»; nunca viene de datos.
                 self.assertLessEqual(parsed.attrs, allowed_attrs | {"data-confirm", "required", "checked", "pattern", "open",
                                                          "data-sugerido", "data-anio",   # resumen de la emisión de la T
-                                                         "inputmode", "data-todas", "aria-busy"})   # accesibilidad (U-37)
+                                                         "inputmode", "data-todas", "aria-busy",   # accesibilidad (U-37)
+                                                         "data-caso"})   # el caso al que pide su correo la caja (U-113)
                 self.assertEqual(parsed.scripts, legit_scripts[name])
 
     def test_hostile_page_does_not_add_scripts_beyond_the_legitimate_ones(self):

@@ -21,6 +21,8 @@
 <a class="skip-link" href="#contenido">
 Saltar al contenido
 </a>
+<div class="espacio con-barra">
+<aside class="lateral" id="lateral">
 <header>
 <a class="brand" href="/" aria-label="Anka, solicitudes de cotización: 10 con novedades">
 <img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38">
@@ -36,6 +38,9 @@ Solicitudes de cotización
 10
 </span>
 </a>
+<button type="button" id="abrir-barra" class="secondary" aria-controls="barra-casos" aria-expanded="false" hidden="">
+☰ Casos
+</button>
 <div class="toolbar">
 <span id="bridge-chip" class="bridge-chip" hidden="">
 </span>
@@ -59,6 +64,22 @@ Tema: sistema
 Avisarme de novedades
 </button>
 </div>
+<form method="post" action="/nombre" class="ajustes-nombre">
+<label for="nombre-comercial">
+<strong>
+Tu nombre
+</strong>
+</label>
+<span class="meta">
+Queda en lo que registres, por ejemplo un criterio técnico.
+</span>
+<div class="buscar-fila">
+<input id="nombre-comercial" name="nombre" value="" maxlength="60" autocomplete="name" required="">
+<button type="submit" class="secondary">
+Guardar
+</button>
+</div>
+</form>
 <a class="enlace-ajustes" href="/requests">
 Administrar casos (eliminar, exportar)
 </a>
@@ -123,6 +144,194 @@ Buscar correos nuevos
 </form>
 </div>
 </header>
+<nav class="barra-casos" id="barra-casos" aria-label="Casos">
+<a class="barra-inicio" href="/">
+Inicio
+</a>
+<a class="barra-siguiente" href="/case?thread_id=t-review#respuesta">
+Siguiente caso: Energía Norte →
+</a>
+<h2 class="barra-titulo">
+Casos
+<span class="cuenta">
+10
+</span>
+</h2>
+<ul class="barra-lista">
+<li>
+<a href="/case?thread_id=t-review">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Norte
+</strong>
+<span class="barra-cliente">
+Energía Norte
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-hostile">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</strong>
+<span class="barra-cliente">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-draft">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Sur
+</strong>
+<span class="barra-cliente">
+Cliente Sur
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-ready">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Listo
+</strong>
+<span class="barra-cliente">
+cliente@example.com
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-folder-hostile">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Hostil
+</strong>
+<span class="barra-cliente">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-folder-held">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Retenido
+</strong>
+<span class="barra-cliente">
+Minera Sur
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-folder-done">
+<span class="punto verde" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto con Carpeta
+</strong>
+<span class="barra-cliente">
+Minera Sur
+</span>
+</span>
+<span class="solo-lectores">
+(lista para la T)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-review-tech">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Técnico
+</strong>
+<span class="barra-cliente">
+cliente@example.com
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-hostile-scope" aria-current="page">
+<span class="punto ambar" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</strong>
+<span class="barra-cliente">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</span>
+</span>
+<span class="solo-lectores">
+(te espera)
+</span>
+</a>
+</li>
+<li>
+<a href="/case?thread_id=t-sent">
+<span class="punto gris" aria-hidden="true">
+</span>
+<span class="barra-texto">
+<strong>
+Proyecto Enviado
+</strong>
+<span class="barra-cliente">
+Cliente Enviado
+</span>
+</span>
+<span class="solo-lectores">
+(espera al cliente)
+</span>
+</a>
+</li>
+</ul>
+</nav>
+</aside>
+<div class="columna">
 <div id="cargando" class="solo-lectores" role="status">
 </div>
 <div id="fresh-banner" class="notice" role="status" hidden="">
@@ -148,9 +357,14 @@ Actualizar la página
 "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · x'+ZZINJ+'@a.co · recibido el 2026-09-01
 </div>
 </div>
+<div class="cabecera-estado">
 <span class="badge">
 Por decidir
 </span>
+<a class="enlace-mas" id="enlace-mas" href="#p-hist">
+Más
+</a>
+</div>
 </div>
 <div class="paso-cabecera">
 <details class="more glosario">
@@ -187,7 +401,7 @@ Si lo leído sirve para esta solicitud. Por ejemplo, el plano de otro proyecto n
 </div>
 <section class="section stepper" aria-label="Avance del caso">
 <ol class="process">
-<li class="process-step current" aria-current="step">
+<li class="process-step current llena-0" aria-current="step">
 <strong>
 Revisar y aclarar
 </strong>
@@ -195,10 +409,12 @@ Revisar y aclarar
 <span class="solo-lectores">
 Paso actual.
 </span>
-Por decidir · ronda 1
+0 de 1 resueltas · Por decidir · ronda 1
+</span>
+<span class="barra-llena" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Avance de «Revisar y aclarar»">
 </span>
 </li>
-<li class="process-step">
+<li class="process-step llena-0">
 <strong>
 Información validada
 </strong>
@@ -209,7 +425,7 @@ Pendiente.
 Pendiente
 </span>
 </li>
-<li class="process-step">
+<li class="process-step llena-0">
 <strong>
 T emitida
 </strong>
@@ -220,7 +436,7 @@ Pendiente.
 Pendiente
 </span>
 </li>
-<li class="process-step">
+<li class="process-step llena-0">
 <strong>
 T&E aprobada
 </strong>
@@ -319,6 +535,9 @@ Corregir la tabla
 </button>
 </div>
 </div>
+<p class="frase-guia">
+Falta resolver 1 cosa. Toca «Resolver» para atenderla.
+</p>
 <p class="nota hint-marcar">
 Marca lo que quieres preguntarle al cliente.
 </p>
@@ -339,16 +558,21 @@ Falta un dato
 </div>
 <ul class="renglones" id="lista-actividades">
 <li class="renglon pendiente" data-estado="pendiente" id="renglon-0">
+<span class="marca pendiente" aria-hidden="true">
+!
+</span>
 <div class="renglon-info">
 <strong>
 "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </strong>
+<div class="linea-estado">
 <span class="chip pendiente">
 Falta un dato
 </span>
 <p class="detalle">
 La fila queda pendiente.
 </p>
+</div>
 </div>
 <div class="renglon-acc">
 <label class="preguntar">
@@ -391,7 +615,7 @@ Generales
 "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </h3>
 <button type="button" class="button secondary cerrar-panel">
-Cerrar
+Volver al correo
 </button>
 </header>
 <div class="pregunta-previa">
@@ -405,10 +629,20 @@ La fila queda pendiente.
 </p>
 <div class="botones-si-no">
 <button type="button" class="button secondary panel-no" data-casilla="0">
+<b>
 No, hay que preguntarle al cliente
+</b>
+<small>
+La pregunta entra al correo.
+</small>
 </button>
 <button type="button" class="button panel-si" aria-expanded="false">
+<b>
 Sí, ya la tengo
+</b>
+<small>
+Cuéntanos de dónde viene.
+</small>
 </button>
 </div>
 </div>
@@ -438,19 +672,34 @@ Escribe la unidad
 <label class="origen">
 <input type="radio" name="origen" value="cliente" required="">
 <span>
+<b>
 El cliente me lo dijo
+</b>
+<small>
+Por llamada, mensaje o reunión.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="documento">
 <span>
+<b>
 Está en un documento
+</b>
+<small>
+En un archivo o en su correo.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="tecnico">
 <span>
+<b>
 Criterio técnico de Anka
+</b>
+<small>
+Lo recomendamos nosotros, con su porqué.
+</small>
 </span>
 </label>
 </div>
@@ -510,6 +759,9 @@ Cuéntalo en una frase
 <p class="error-respaldo" role="alert" hidden="">
 </p>
 </fieldset>
+<p class="nota">
+Al guardar, la actividad queda lista y ya no hace falta preguntársela al cliente.
+</p>
 <button type="submit">
 Dejar lista esta actividad
 </button>
@@ -521,7 +773,7 @@ Dejar lista esta actividad
 Agregar una actividad
 </h3>
 <button type="button" class="button secondary cerrar-panel">
-Cerrar
+Volver al correo
 </button>
 </header>
 <form method="post" action="/activity" class="form-panel">
@@ -583,19 +835,34 @@ Plazo o restricción
 <label class="origen">
 <input type="radio" name="origen" value="cliente" required="">
 <span>
+<b>
 El cliente me lo dijo
+</b>
+<small>
+Por llamada, mensaje o reunión.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="documento">
 <span>
+<b>
 Está en un documento
+</b>
+<small>
+En un archivo o en su correo.
+</small>
 </span>
 </label>
 <label class="origen">
 <input type="radio" name="origen" value="tecnico">
 <span>
+<b>
 Criterio técnico de Anka
+</b>
+<small>
+Lo recomendamos nosotros, con su porqué.
+</small>
 </span>
 </label>
 </div>
@@ -659,6 +926,91 @@ Cuéntalo en una frase
 Agregar la actividad
 </button>
 </form>
+</section>
+<section class="panel-actividad" id="panel-corregir" data-fila="corregir" hidden="" aria-label="Corregir la tabla">
+<header>
+<h3>
+Corregir la tabla
+</h3>
+<button type="button" class="button secondary cerrar-panel">
+Volver al correo
+</button>
+</header>
+<p class="nota">
+Toca una actividad para corregir un error de escritura. No cambia su estado y no se envía nada al cliente.
+</p>
+<details class="accion-panel corregir-una">
+<summary>
+<span class="marca pendiente" aria-hidden="true">
+!
+</span>
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</summary>
+<form method="post" action="/activity" class="form-panel">
+<input type="hidden" name="thread_id" value="t-hostile-scope">
+<input type="hidden" name="base_version" value="127b9d46b2d0016b">
+<input type="hidden" name="accion" value="corregir">
+<input type="hidden" name="indice" value="0">
+<label>
+Servicio o técnica
+<textarea name="campo_servicio_tecnica" rows="1" maxlength="2000">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</textarea>
+</label>
+<label>
+Ubicación
+<textarea name="campo_ubicacion" rows="1" maxlength="2000">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</textarea>
+</label>
+<label>
+Cantidad
+<textarea name="campo_quantity" rows="1" maxlength="2000">
+no indicado
+</textarea>
+</label>
+<label>
+Unidad
+<textarea name="campo_unit" rows="1" maxlength="2000">
+no indicado
+</textarea>
+</label>
+<label>
+Entregable
+<textarea name="campo_entregable" rows="1" maxlength="2000">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</textarea>
+</label>
+<label>
+Plazo o restricción
+<textarea name="campo_plazo_restriccion" rows="1" maxlength="2000">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+</textarea>
+</label>
+<label>
+Notas
+<textarea name="campo_notes" rows="1" maxlength="2000">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> La cantidad que venía era un valor en dinero, no una medida. La fila queda pendiente.
+</textarea>
+</label>
+<button type="submit">
+Guardar la corrección
+</button>
+</form>
+</details>
+<details class="accion-panel">
+<summary>
+Sacar la tabla
+</summary>
+<div class="botones-fila">
+<a class="button secondary" href="/export.xlsx?thread_id=t-hostile-scope">
+Bajar en Excel
+</a>
+<a class="button secondary" href="/acta?thread_id=t-hostile-scope">
+Ver historial de cambios
+</a>
+</div>
+</details>
 </section>
 </div>
 </div>
@@ -954,29 +1306,35 @@ Si escribes directo en la hoja, el cambio se pierde en la próxima actualizació
 Mensaje para el cliente
 </h2>
 <p class="nota">
-Lo que marques a la izquierda aparece aquí. Puedes cambiarlo.
+Lo que marques a la izquierda aparece aquí. Revísalo y envíalo.
 </p>
 </div>
 <div class="cuerpo-tarjeta">
 <form method="post" action="/review-decision" class="decision-form" id="decision-form">
 <input type="hidden" name="thread_id" value="t-hostile-scope">
 <div class="preguntas-bloque" id="preguntas-bloque">
-<div class="chat-caja">
-<textarea name="questions" id="preguntas-cliente" aria-label="Preguntas para el cliente (una por línea)" placeholder="Escribe aquí lo que quieres preguntarle al cliente, una pregunta por línea.">
-¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo? "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>: la cantidad y la unidad.
+<textarea name="body" id="correo-unico" class="caja-correo" aria-label="Correo para el cliente" aria-describedby="aviso-espera" data-caso="t-hostile-scope" placeholder="Aquí aparece el correo. Marca «Preguntar» en lo que falta y se escribe solo; también puedes escribirlo tú.">
+Hola, Gracias por compartir la solicitud para el proyecto «"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>». Para completar la información inicial, necesitamos confirmar lo siguiente: 1. ¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo? 2. "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>: la cantidad y la unidad Puede responder a este mismo correo. Saludos, Grupo Anka
 </textarea>
-<div class="acciones chat-barra" role="group" aria-label="Cómo seguir con este caso">
-<button type="submit" id="btn-suficiente" class="secondary enlace-suave" name="decision" value="sufficient" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
+<p class="nota" id="aviso-espera" role="status">
+2 preguntas en el correo. Puedes cambiar el texto.
+</p>
+<input type="hidden" name="to" value="x'+ZZINJ+'@a.co">
+<input type="hidden" name="state_token" value="2026-09-02T10:00:00-05:00|">
+<div class="acciones fila-correo" role="group" aria-label="Cómo seguir con este caso">
+<button type="submit" id="btn-enviar-preguntas" formaction="/enviar-preguntas" name="accion_correo" value="enviar" data-confirm="Vas a enviar este correo a x'+ZZINJ+'@a.co, como respuesta a su conversación. ¿Lo enviamos?" data-resumen="envio" data-para="x'+ZZINJ+'@a.co" data-asunto="" data-confirm-boton="Sí, enviar al cliente">
+Enviar al cliente
+</button>
+<button type="submit" id="btn-borrador-preguntas" class="enlace-suave" formaction="/enviar-preguntas" name="accion_correo" value="borrador">
+Guardar borrador
+</button>
+<button type="submit" id="btn-suficiente" class="enlace-suave" name="decision" value="sufficient" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
 Con esto alcanza
 </button>
-<button type="submit" id="btn-preguntar" name="decision" value="ask_client">
-Redactar el correo
-</button>
-</div>
 </div>
 </div>
 <p class="nota">
-Nada se envía al cliente en este paso: primero ves el correo y lo envías tú.
+Nada sale al cliente sin que lo revises y confirmes. Al enviarlo, el caso queda en «Esperando al cliente»: no tienes que hacer nada más, y si no responde te avisamos.
 </p>
 </form>
 <details class="more">
@@ -1402,6 +1760,8 @@ Pendientes
 Correos que no eran solicitudes
 </a>
 </footer>
+</div>
+</div>
 <dialog id="confirmar" class="confirm-dialog" aria-labelledby="confirmar-titulo" aria-describedby="confirmar-texto">
 <form method="dialog">
 <h2 id="confirmar-titulo">
