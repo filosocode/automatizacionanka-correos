@@ -75,7 +75,7 @@ class ElMecanismo(Base):
     def test_solo_las_rutas_que_guardan_texto(self) -> None:
         # Cubre: U-31
         self.assertEqual(pendientes.RUTAS_CON_TEXTO,
-                         frozenset({"/send", "/draft", "/code-issue", "/review-decision", "/activities"}))
+                         frozenset({"/send", "/draft", "/code-issue", "/review-decision", "/activities", "/activity"}))
 
 
 class AlFallarElEnvio(Base):

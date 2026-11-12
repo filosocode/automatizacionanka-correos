@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from datetime import date
 from typing import Any
 
 from markupsafe import Markup
@@ -14,7 +15,8 @@ from anka.dominio.caso import Caso, timestamp
 from anka.dominio.correo import normalized_address
 from anka.dominio.reception import correo_con_preguntas, suggested_supporting_documents
 from anka.dominio.status import QuoteStatus
-from anka.dominio.estado_coherente import datos_que_faltan
+from anka.dominio.estado_coherente import DATOS_ESENCIALES, datos_que_faltan
+from anka.dominio.respaldo import MEDIOS as MEDIOS_DE_CONTACTO, describir_respaldo
 from anka.dominio.evaluacion import temas_preguntados
 from anka.dominio.lo_que_falta import lo_pendiente, lo_que_dice_la_nota
 from anka.dominio.preguntas import (
@@ -576,20 +578,46 @@ def preguntas_generales(candidatas: Sequence[Mapping[str, Any]], preguntar: Mapp
     return generales
 
 
-def _vista_de_actividades(activities: Sequence[Mapping[str, Any]],
-                          preguntar: Mapping[int, tuple[str, bool]] | None = None) -> list[dict[str, Any]]:
-    """La tabla de lectura del caso (U-103): solo las actividades por completar o contradictorias, con lo que falta
-    y, si el caso espera la decisión, la casilla para preguntarlo al cliente."""
-    filas = []
+_ETIQUETA_SENCILLA = {"confirmado": "Listo", "pendiente": "Falta un dato", "contradictorio": "No cuadra"}
+_ARTICULO = {"ubicación": "la ubicación", "cantidad": "la cantidad", "unidad": "la unidad",
+             "entregable": "el entregable", "plazo": "el plazo"}
+_CAMPOS_PARA_CORREGIR = (("servicio_tecnica", "Servicio o técnica"), ("ubicacion", "Ubicación"),
+                         ("quantity", "Cantidad"), ("unit", "Unidad"), ("entregable", "Entregable"),
+                         ("plazo_restriccion", "Plazo o restricción"), ("notes", "Notas"))
+
+
+def _lo_que_tiene(item: Mapping[str, Any]) -> str:
+    """Lo que dice una actividad lista, en una línea: «Embalse La Esmeralda · 2 km · Informe»."""
+    cantidad = " ".join(f"{item.get('quantity') or ''} {item.get('unit') or ''}".split())
+    partes = [str(item.get("ubicacion") or "").strip(), cantidad, str(item.get("entregable") or "").strip()]
+    return " · ".join(p for p in partes if p and p.casefold() != "no indicado")
+
+
+def _renglones_de_actividades(activities: Sequence[Mapping[str, Any]],
+                              preguntar: Mapping[int, tuple[str, bool]] | None = None,
+                              respaldos: Mapping[str, Mapping[str, str]] | None = None) -> list[dict[str, Any]]:
+    """Un renglón por actividad, de cualquier estado, con lo que el panel de la derecha necesita (U-112.A5, B).
+
+    Cada uno trae su estado en palabras de todos los días, lo que falta (o lo que dice si ya está lista), el respaldo
+    del último cambio si lo hubo, la casilla de «Preguntar» si el caso espera la decisión y los datos que el panel
+    pide para resolverla: los esenciales vacíos y, si es contradictoria o no falta un dato concreto, qué se decidió."""
+    renglones = []
     for indice, item in enumerate(activities):
         estado = normalize_estado(item.get("estado"))
-        if estado == "confirmado":
-            continue
+        nombre = str(item.get("activity") or "Sin nombre")
         pregunta, marcada = (preguntar or {}).get(indice, ("", False))
-        filas.append({"indice": indice, "actividad": str(item.get("activity") or "Sin nombre"), "estado": estado,
-                      "estado_etiqueta": _ETIQUETA_DEL_ESTADO.get(estado, "Por completar"),
-                      "que_falta": _que_hace_falta(item, estado), "pregunta": pregunta, "marcada": marcada})
-    return filas
+        faltan = [{"clave": clave, "nombre": nom, "articulo": _ARTICULO[nom]}
+                  for clave, nom in DATOS_ESENCIALES if nom in datos_que_faltan(item)]
+        respaldo = (respaldos or {}).get(nombre.strip().casefold())
+        renglones.append({
+            "indice": indice, "actividad": nombre, "estado": estado,
+            "etiqueta": _ETIQUETA_SENCILLA.get(estado, "Falta un dato"),
+            "detalle": _lo_que_tiene(item) if estado == "confirmado" else _que_hace_falta(item, estado),
+            "traza": describir_respaldo(respaldo) if respaldo else "",
+            "pregunta": pregunta, "marcada": marcada, "tiene_casilla": indice in (preguntar or {}),
+            "faltan": faltan, "necesita_decision": estado == "contradictorio" or not faltan,
+            "campos": [{"clave": c, "etiqueta": e, "valor": str(item.get(c) or "")} for c, e in _CAMPOS_PARA_CORREGIR]})
+    return renglones
 
 
 def _resumen_de_actividades(activities: Sequence[Mapping[str, Any]]) -> str:
@@ -601,12 +629,24 @@ def _resumen_de_actividades(activities: Sequence[Mapping[str, Any]]) -> str:
     return f"{cuantas} · {f'{faltan} por completar' if faltan else 'todas completas'}"
 
 
+def _panel_a_reabrir(escrito: Mapping[str, str] | None) -> dict[str, Any]:
+    """El panel que se rechazó y lo que traía escrito, listo para reabrirlo (vacío si no hubo rechazo)."""
+    if not escrito:
+        return {}
+    indice = str(escrito.get("indice", ""))
+    panel = "panel-nueva" if escrito.get("accion") == "agregar" else f"panel-{indice}"
+    return {"panel": panel, "valores": {k: v for k, v in escrito.items() if k not in ("indice", "accion")},
+            "accion": escrito.get("accion", "")}
+
+
 def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
                       reasons: list[tuple[str, str]] | None = None, hoja: Mapping[str, Any] | None = None,
                       ultima: Mapping[str, Any] | None = None, abierto: bool = False,
                       base_version: str | None = None,
                       preguntar: Mapping[int, tuple[str, bool]] | None = None,
-                      generales: Sequence[Mapping[str, Any]] | None = None) -> Markup:
+                      generales: Sequence[Mapping[str, Any]] | None = None,
+                      respaldos: Mapping[str, Mapping[str, str]] | None = None,
+                      documentos: Sequence[str] = (), panel_escrito: Mapping[str, str] | None = None) -> Markup:
     """Tabla editable: colores por estado, celdas vacias en gris y una fila nueva al final."""
     def cells(item: Mapping[str, Any]) -> list[dict]:
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
@@ -624,7 +664,9 @@ def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
         thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS, max_celda=MAX_CELL,
         base_version=huella_de_tabla(activities) if base_version is None else base_version,
         abierto=abierto, resumen=_resumen_de_actividades(activities),
-        vista=_vista_de_actividades(activities, preguntar), con_preguntar=preguntar is not None,
+        renglones=_renglones_de_actividades(activities, preguntar, respaldos), con_preguntar=preguntar is not None,
+        documentos=list(documentos), panel_escrito=_panel_a_reabrir(panel_escrito),
+        medios=MEDIOS_DE_CONTACTO, hoy=date.today().isoformat(),
         generales=list(generales or []),
         reasons=reasons or [], etiquetas_de_estado=_ETIQUETA_DEL_ESTADO,
         sin_cambios=_sin_cambios(ultima),

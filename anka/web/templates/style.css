@@ -985,3 +985,44 @@ input[name="preguntar_fila"]:focus-visible { outline: 2px solid var(--accent); o
 #google-chip { white-space: nowrap; cursor: pointer; text-decoration: none; border: 1px solid transparent; }
 #google-chip:hover, #google-chip:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
 #google-chip[data-state="stopped"] { background: var(--caution-bg); color: var(--caution-ink); border-color: currentColor; }
+
+/* U-112.B: lista de actividades con filtros y el panel de una actividad (respaldo incluido). */
+.filtros { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.filtros[hidden] { display: none; }
+.chip-filtro { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; transition: background .18s, border-color .18s, transform .18s; }
+.chip-filtro:hover { border-color: var(--blue); }
+.chip-filtro.activo { background: var(--blue); border-color: var(--blue); color: #fff; }
+.chip-filtro .cuenta { font-weight: 700; opacity: .85; }
+.renglones { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.renglon { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ok-line); border-radius: 12px; animation: entra .28s ease both; }
+.renglon[hidden] { display: none; }
+.renglon.pendiente { border-left-color: var(--warn-line); }
+.renglon.contradictorio { border-left-color: var(--danger); }
+.renglon-info { flex: 1 1 260px; min-width: 0; }
+.renglon .chip { background: var(--ok-bg); color: var(--ok-ink); }
+.renglon .chip.pendiente { background: var(--warn-bg); color: var(--warn-ink); }
+.renglon .chip.contradictorio { background: var(--bad-bg); color: var(--bad-ink); }
+.renglon .detalle, .renglon .traza { margin: 4px 0 0; color: var(--muted); }
+.renglon .traza { font-size: .875rem; }
+.renglon-acc { display: flex; align-items: center; gap: 12px; }
+.renglon .preguntar { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; cursor: pointer; }
+.renglon .abrir-panel.abierto { background: var(--blue); color: #fff; border-color: var(--blue); }
+.paneles { margin-top: 12px; }
+.panel-actividad { padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; animation: entra .28s ease both; }
+.panel-actividad[hidden], .form-panel[hidden], .respaldo [hidden] { display: none; }
+.panel-actividad > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.panel-actividad h3 { margin: 0; }
+.botones-si-no { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.form-panel { display: grid; gap: 12px; margin-top: 12px; }
+.form-panel label { display: grid; gap: 4px; }
+.form-panel textarea { field-sizing: content; min-height: 44px; }
+.accion-panel { margin-top: 10px; }
+.accion-panel > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
+.respaldo { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; }
+.origenes { display: flex; flex-wrap: wrap; gap: 8px; }
+.origen { display: inline-flex !important; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.origen:has(input:checked) { border-color: var(--blue); background: var(--info-bg); color: var(--info-ink); }
+.error-respaldo { color: var(--bad-ink); font-weight: 600; margin: 0; }
+.peligro { border-color: var(--danger); color: var(--danger); }
+@keyframes entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .renglon, .panel-actividad { animation: none; } .chip-filtro { transition: none; } }

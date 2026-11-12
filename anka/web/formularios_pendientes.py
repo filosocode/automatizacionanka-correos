@@ -9,7 +9,7 @@ VIGENCIA_S = 15 * 60            # pasado este tiempo se olvida
 MAX_CASOS = 50                  # un solo proceso local: el tope evita que la memoria crezca sin límite
 MAX_CARACTERES = 60_000         # por campo
 # Las rutas donde la persona escribe texto que cuesta rehacer: el correo, la T, las preguntas y la tabla.
-RUTAS_CON_TEXTO = frozenset({"/send", "/draft", "/code-issue", "/review-decision", "/activities"})
+RUTAS_CON_TEXTO = frozenset({"/send", "/draft", "/code-issue", "/review-decision", "/activities", "/activity"})
 
 Form = dict[str, list[str]]
 

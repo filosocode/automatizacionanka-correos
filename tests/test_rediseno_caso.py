@@ -227,14 +227,15 @@ class TablaYLenguaje(unittest.TestCase):
     def test_barra_de_guardado_con_motivo_dentro_y_exportar_aparte(self) -> None:
         # Cubre: U-21
         html = str(activities_editor("h1", [self.ACTIVIDAD], ultima={"version": 4, "created_at": "2026-10-08T12:35:10"}))
-        barra = html[html.index('id="barra-guardado"'):html.index("</form>")]
+        inicio = html.index('id="barra-guardado"')
+        barra = html[inicio:html.index("</form>", inicio)]
         self.assertIn("Sin cambios por guardar · última versión: 4 (2026-10-08 12:35)", barra)
         self.assertIn('id="caja-motivo"', barra)
         self.assertIn('<select name="reason">', barra)                           # el motivo va con «Guardar tabla»
         self.assertIn('id="guardar-tabla"', barra)
         self.assertIn('href="/acta?thread_id=h1">Ver historial de cambios</a>', barra)
         self.assertNotIn("Bajar en Excel", barra)                               # y nada de Excel cerca del motivo
-        exportar = html[html.index("</form>"):]
+        exportar = html[html.index("</form>", inicio):]
         self.assertIn("Sacar la tabla", exportar)
         self.assertIn('href="/export.xlsx?thread_id=h1">Bajar en Excel</a>', exportar)
         self.assertIn("Cómo funciona la hoja de Google", exportar)               # la explicación larga, plegada

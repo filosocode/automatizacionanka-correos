@@ -208,7 +208,7 @@ class YaRevisePrimero(Base):
         self.assertNotIn('formaction="/send"', pagina)
 
 
-# Cubre: U-105
+# Cubre: U-105, U-112
 class EditarDesdeLaTabla(Base):
     def caso(self) -> str:
         filas = [actividad(f"Actividad {n}", "pendiente" if n in (2, 4) else "confirmado")
@@ -217,26 +217,21 @@ class EditarDesdeLaTabla(Base):
         self.crear(actividades=filas)
         return pantalla_caso.render_case("t-1")
 
-    def test_cada_fila_por_completar_trae_su_boton_editar_con_el_lugar_que_ocupa_en_el_editor(self) -> None:
+    def test_cada_actividad_trae_su_boton_y_su_panel(self) -> None:
         pagina = self.caso()
-        botones = re.findall(r'class="button secondary editar-fila" data-fila="(\d+)" aria-controls="editar-tabla" '
-                             r'aria-label="Editar ([^"]+)"', pagina)
-        self.assertEqual(botones, [("1", "Actividad 2"), ("3", "Actividad 4")])
-        for indice, nombre in botones:       # el índice apunta a la fila del editor que lleva ese nombre
-            self.assertRegex(pagina, rf"name='a{indice}_activity'[^>]*>{nombre}</textarea>")
+        botones = re.findall(r'data-panel="panel-(\d+)" aria-controls="panel-\d+" aria-label="(Resolver|Cambiar) ([^"]+)"', pagina)
+        self.assertEqual(botones, [("0", "Cambiar", "Actividad 1"), ("1", "Resolver", "Actividad 2"),
+                                   ("2", "Cambiar", "Actividad 3"), ("3", "Resolver", "Actividad 4")])
+        for indice, _, _ in botones:
+            self.assertIn(f'id="panel-{indice}"', pagina)
+        self.assertIn('id="panel-nueva"', pagina)
 
-    def test_las_completas_no_traen_boton(self) -> None:
-        self.assertNotIn('data-fila="0"', self.caso())
-
-    def test_el_editor_sigue_con_motivo_y_guardado_y_el_script_muestra_una_sola_fila(self) -> None:
+    def test_el_editor_clasico_sigue_con_motivo_y_guardado(self) -> None:
         pagina = self.caso()
         for parte in ('name="reason"', 'id="guardar-tabla"', 'id="editando-una"', 'action="/activities"'):
             self.assertIn(parte, pagina)
-        for parte in ("editar-fila", "solo-una", "elegida", "Editando: "):
+        for parte in ("solo-una", "elegida", "Editando: "):
             self.assertIn(parte, JS)
-
-    def test_sin_javascript_no_se_muestran_los_botones_editar(self) -> None:
-        self.assertIn(".editar-fila { display: none; }", self.caso())
 
 
 class TablaDelPrototipo(Base):
@@ -247,29 +242,34 @@ class TablaDelPrototipo(Base):
                 for n in range(1, cuantas + 1)]
 
     def vista(self, pagina: str) -> str:
-        inicio = pagina.index('class="act-resumen')
-        return pagina[inicio:pagina.index("</table>", inicio)]
+        inicio = pagina.index('id="lista-actividades"')
+        return pagina[inicio:pagina.index("</ul>", inicio)]
 
-    def test_solo_salen_las_por_completar_y_contradictorias_con_su_estado(self) -> None:
-        # Cubre: U-31, U-83, U-103
+    def test_salen_todas_con_su_estado_en_palabras_sencillas(self) -> None:
+        # Cubre: U-31, U-83, U-103, U-112
         filas = self.filas(4, incompletas=(2,))
         filas[2]["estado"] = "contradictorio"
         self.crear(actividades=filas)
         vista = self.vista(pantalla_caso.render_case("t-1"))
-        self.assertEqual(vista.count("<th "), 4)          # con la decisión pendiente se suma «¿Preguntar?» (U-103.6)
-        for titulo in ("Actividad", "Qué hace falta"):
-            self.assertIn(f'<th scope="col">{titulo}</th>', vista)
-        self.assertIn('<th scope="col" class="col-estado">Estado</th>', vista)      # U-107: se oculta si todas son iguales
-        self.assertNotIn('data-estados="uno"', vista)                               # aquí hay dos estados distintos
-        self.assertEqual(vista.count('class="fila-resumen'), 2)
-        self.assertIn('<span class="chip contradictorio">Contradictoria</span>', vista)
-        self.assertIn('<span class="chip pendiente">Por completar</span>', vista)
-        self.assertIn("Actividad 2", vista)
-        self.assertIn("Actividad 3", vista)
-        self.assertNotIn("Actividad 1", vista)
-        self.assertNotIn("Actividad 4", vista)
-        self.assertNotIn(">Completa<", vista)
-        self.assertIn("fila-resumen falta contradictorio", vista)
+        self.assertEqual(vista.count('class="renglon '), 4)
+        self.assertIn('<span class="chip contradictorio">No cuadra</span>', vista)
+        self.assertIn('<span class="chip pendiente">Falta un dato</span>', vista)
+        self.assertEqual(vista.count('<span class="chip confirmado">Listo</span>'), 2)
+        for nombre in ("Actividad 1", "Actividad 2", "Actividad 3", "Actividad 4"):
+            self.assertIn(nombre, vista)
+        self.assertIn('class="renglon contradictorio" data-estado="contradictorio"', vista)
+
+    def test_los_filtros_cuentan_cada_estado_y_solo_existen_si_hay_de_ese_estado(self) -> None:
+        # Cubre: U-112
+        filas = self.filas(4, incompletas=(2,))
+        self.crear(actividades=filas)
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn('data-filtro="todas"', pagina)
+        self.assertIn('data-filtro="pendiente"', pagina)
+        self.assertIn('data-filtro="confirmado"', pagina)
+        self.assertNotIn('data-filtro="contradictorio"', pagina)
+        self.assertIn('id="filtros-actividades" role="group" aria-label="Qué actividades ver" hidden', pagina)  # sin JS no se ven
+        self.assertIn("sin-coincidencias", JS)
 
     def test_dice_puntualmente_que_falta(self) -> None:
         # Cubre: U-103
@@ -289,36 +289,61 @@ class TablaDelPrototipo(Base):
         vacia = actividad("Replanteo", "pendiente") | completa | {"notes": ""}
         self.crear(actividades=[larga, vacia])
         vista = self.vista(pantalla_caso.render_case("t-1"))
-        celda = vista.split('data-etiqueta="Qué hace falta">')[1].split("</td>")[0]
-        self.assertIn("…", celda)
-        self.assertLess(len(celda), 220)
+        detalle = vista.split('<p class="detalle">')[1].split("</p>")[0]
+        self.assertIn("…", detalle)
+        self.assertLess(len(detalle), 220)
         self.assertIn("Falta confirmar la actividad.", vista)
 
-    def test_sin_filas_por_completar_una_linea_y_ninguna_tabla(self) -> None:
-        # Cubre: U-103
+    def test_una_actividad_lista_dice_lo_que_tiene(self) -> None:
+        # Cubre: U-112
         self.crear(actividades=self.filas(3))
         pagina = pantalla_caso.render_case("t-1")
-        self.assertIn("Todas las actividades están completas.", pagina)
-        self.assertNotIn('id="tabla-resumen"', pagina)
+        self.assertIn('id="tabla-resumen"', pagina)
         self.assertIn("3 actividades · todas completas", pagina)
+        self.assertEqual(pagina.count('class="chip confirmado">Listo<'), 3)
 
-    def test_sin_extras_en_la_vista_de_lectura(self) -> None:
-        # Cubre: U-103
+    def test_la_lista_no_trae_formularios_pero_los_paneles_si(self) -> None:
+        # Cubre: U-103, U-112
         self.crear(actividades=self.filas(11, incompletas=(10, 11)))
         pagina = pantalla_caso.render_case("t-1")
-        lectura = pagina[pagina.index('class="acts-head"'):pagina.index('id="editar-tabla"')]
+        lista = self.vista(pagina)
         for retirado in ("Ver todas", "Ver detalle y fuentes", "Cómo leer esta tabla", "ficha-alcance", "<textarea", "<form"):
-            self.assertNotIn(retirado, lectura)
-        self.assertEqual(lectura.count('class="fila-resumen'), 2)
+            self.assertNotIn(retirado, lista)
+        self.assertEqual(lista.count('class="renglon '), 11)
+        self.assertEqual(pagina.count('action="/activity"'), 2 * 1 + 9 * 3 + 1)     # 2 por resolver, 9 listas con 3 acciones, 1 nueva
 
-    def test_editar_tabla_abre_la_tabla_completa_de_siempre(self) -> None:
+    def test_cada_panel_pide_el_respaldo_y_no_ofrece_suponer(self) -> None:
+        # Cubre: U-112
+        self.crear(actividades=self.filas(2, incompletas=(1,)))
+        pagina = pantalla_caso.render_case("t-1")
+        panel = pagina[pagina.index('id="panel-0"'):pagina.index('id="panel-nueva"')]
+        for parte in ('value="cliente"', 'value="documento"', 'value="tecnico"', 'name="medio"', 'name="fecha"', 'name="nota"',
+                      "¿Ya tenemos la respuesta?", 'name="accion" value="resolver"', 'name="indice" value="0"'):
+            self.assertIn(parte, panel)
+        self.assertNotIn("supuesto", pagina.lower().replace("supuestos", ""))
+        for parte in ("Cerrar", "Corregir un dato", "Volver a abrirla", "Quitarla de la tabla"):
+            self.assertIn(parte, pagina)
+
+    def test_un_panel_rechazado_se_reabre_con_lo_escrito(self) -> None:
+        # Cubre: U-112, U-31
+        from anka.web import formularios_pendientes
+        self.crear(actividades=self.filas(2, incompletas=(1,)))
+        formularios_pendientes.guardar("t-1", "/activity", {
+            "thread_id": ["t-1"], "accion": ["resolver"], "indice": ["0"], "origen": ["cliente"],
+            "nota": ["Me lo dijo por teléfono"], "csrf_token": ["x"]})
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn('data-reabrir="panel-0" data-accion="resolver"', pagina)
+        self.assertIn("Me lo dijo por tel", pagina)
+        formularios_pendientes.limpiar("t-1")
+        self.assertNotIn("data-reabrir", pantalla_caso.render_case("t-1"))
+
+    def test_el_editor_clasico_abre_la_tabla_completa_de_siempre(self) -> None:
         # Cubre: U-31, U-103
         self.crear(actividades=self.filas(2, incompletas=(1,)))
         pagina = pantalla_caso.render_case("t-1")
-        cabecera = pagina[pagina.index('class="acts-head"'):pagina.index('class="act-resumen')]
+        cabecera = pagina[pagina.index('class="acts-head"'):pagina.index('id="tabla-resumen"')]
         self.assertIn("<h2>Actividades detectadas</h2>", cabecera)
-        # Botones reales (no casillas ocultas): «Corregir la tabla» dice si está abierta (U-37)
-        self.assertIn('<button type="button" class="button secondary" id="agregar-fila" aria-controls="editar-tabla">+ Agregar</button>', cabecera)
+        self.assertIn('<button type="button" class="button secondary" id="agregar-fila" aria-controls="panel-nueva">+ Agregar</button>', cabecera)
         self.assertIn('id="editar-boton" aria-expanded="false" aria-controls="editar-tabla">Corregir la tabla</button>', cabecera)
         self.assertNotIn("editar-toggle", pagina)
         self.assertNotIn("toggle-oculto", pagina)
@@ -330,7 +355,6 @@ class TablaDelPrototipo(Base):
         css = (PLANTILLAS / "style.css").read_text(encoding="utf-8")
         self.assertIn(".editor-tabla:target, .editor-tabla:has(:target)", css)
         self.assertIn(".editor-tabla.abierto { display: block; }", css)
-        # el formulario y el cuadro de exportación están dentro del panel que se abre; fuera solo queda la vista de lectura
         self.assertGreater(pagina.index('action="/activities"'), pagina.index('id="editar-tabla"'))
         self.assertGreater(pagina.index('id="hoja-google"'), pagina.index('action="/activities"'))
         self.assertEqual(pagina.count("<details"), pagina.count("</details>"))
@@ -344,7 +368,6 @@ class TablaDelPrototipo(Base):
         self.crear(actividades=[pendiente, con_nota, contradictoria])
         pagina = pantalla_caso.render_case("t-1")
         vista = self.vista(pagina)
-        self.assertIn('<th scope="col" class="col-preguntar">Preguntar al cliente</th>', vista)
         self.assertEqual(vista.count('name="preguntar_fila"'), 3)
         self.assertEqual(vista.count('form="decision-form"'), 3)
         self.assertIn('id="decision-form"', pagina)
@@ -355,12 +378,11 @@ class TablaDelPrototipo(Base):
         self.assertIn('value="Replanteo: No dice cuántos lotes. ¿Nos lo pueden aclarar?"', vista)
         self.assertIn('value="Curvas: 10 ha en el correo y 12,4 ha en el KMZ. ¿Cuál es el dato correcto?"', vista)
 
-    def test_sin_decision_pendiente_la_tabla_no_trae_casillas(self) -> None:
+    def test_sin_decision_pendiente_la_lista_no_trae_casillas(self) -> None:
         # Cubre: U-103
         self.crear(actividades=self.filas(2, incompletas=(1,)), estado=QuoteStatus.WAITING)
         vista = self.vista(pantalla_caso.render_case("t-1"))
         self.assertNotIn("preguntar_fila", vista)
-        self.assertEqual(vista.count("<th "), 3)
 
     def test_lo_que_la_persona_escribio_en_el_cuadro_no_se_reescribe(self) -> None:
         # Cubre: U-103
@@ -1316,19 +1338,12 @@ class PantallaOrdenada(Base):
         self.assertIn('class="secondary enlace-suave"', caja)
         self.assertIn("Nada se envía al cliente en este paso", pagina)                      # R8 sigue visible
 
-    def test_la_columna_estado_se_oculta_solo_si_todas_las_filas_son_iguales(self) -> None:
-        # Cubre: U-107
+    def test_cada_renglon_dice_su_estado_aunque_todos_sean_iguales(self) -> None:
+        # Cubre: U-107, U-112
         self.crear(actividades=[actividad("A", "pendiente"), actividad("B", "pendiente")])
-        iguales = pantalla_caso.render_case("t-1")
-        self.assertIn('data-estados="uno"', iguales)
-        self.assertIn('.act-resumen[data-estados="uno"] .col-estado { display: none; }',
-                      (PLANTILLAS / "style.css").read_text(encoding="utf-8"))
-        db = store.open_db(Path(self.temp.name))
-        db.execute("DELETE FROM quotes WHERE thread_id='t-1'")
-        db.commit()
-        db.close()
-        self.crear(actividades=[actividad("A", "pendiente"), actividad("B", "contradictorio")])
-        self.assertNotIn('data-estados="uno"', pantalla_caso.render_case("t-1"))
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertEqual(pagina.count('<span class="chip pendiente">Falta un dato</span>'), 2)
+        self.assertNotIn("data-estados", pagina)
 
 
 if __name__ == "__main__":

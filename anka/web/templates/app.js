@@ -201,6 +201,110 @@ document.addEventListener('submit', event => {
     editor.scrollIntoView({block: 'start'});
     if (nuevas.length) nuevas[0].focus({preventScroll: true});
   });
+  // Panel de una actividad (U-112.B): se abre bajo la lista y cambia lo que hay que hacer; los filtros solo existen con JS.
+  const paneles = document.getElementById('paneles-actividad');
+  const filtros = document.getElementById('filtros-actividades');
+  function cerrarPanel() {
+    document.querySelectorAll('.panel-actividad').forEach(p => { p.hidden = true; });
+    document.querySelectorAll('.abrir-panel.abierto').forEach(b => b.classList.remove('abierto'));
+  }
+  function abrirPanel(id, boton) {
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    cerrarPanel();
+    panel.hidden = false;
+    if (boton) boton.classList.add('abierto');
+    panel.scrollIntoView({block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+    const campo = panel.querySelector('button.panel-no, textarea, input:not([type=hidden])');
+    if (campo) campo.focus({preventScroll: true});
+  }
+  if (paneles) {
+    document.querySelectorAll('.abrir-panel').forEach(b => b.addEventListener('click', () => abrirPanel(b.dataset.panel, b)));
+    document.querySelectorAll('.cerrar-panel').forEach(b => b.addEventListener('click', cerrarPanel));
+    document.querySelectorAll('.panel-si').forEach(b => b.addEventListener('click', () => {
+      const panel = b.closest('.panel-actividad');
+      panel.querySelector('.form-panel').hidden = false;
+      b.setAttribute('aria-expanded', 'true');
+      const campo = panel.querySelector('.form-panel textarea, .form-panel input:not([type=hidden])');
+      if (campo) campo.focus({preventScroll: true});
+    }));
+    document.querySelectorAll('.panel-no').forEach(b => b.addEventListener('click', () => {
+      const casilla = document.querySelector('#renglon-' + b.dataset.casilla + ' input[name="preguntar_fila"]');
+      if (casilla && !casilla.checked) { casilla.checked = true; casilla.dispatchEvent(new Event('change')); }
+      cerrarPanel();
+    }));
+    // «Agregar» abre el panel con respaldo; el editor clásico queda en «Corregir la tabla».
+    if (agregar) agregar.addEventListener('click', evento => {
+      evento.stopImmediatePropagation();
+      abrirPanel('panel-nueva', agregar);
+    }, true);
+    // El respaldo muestra solo lo que corresponde al origen elegido y avisa antes de enviar (mismos textos que el servidor).
+    document.querySelectorAll('fieldset.respaldo').forEach(caja => {
+      const mostrar = () => {
+        const elegido = (caja.querySelector('input[name="origen"]:checked') || {}).value;
+        caja.querySelectorAll('[data-origen]').forEach(parte => { parte.hidden = parte.dataset.origen !== elegido; });
+      };
+      caja.querySelectorAll('input[name="origen"]').forEach(r => r.addEventListener('change', mostrar));
+      const formulario = caja.closest('form');
+      formulario.addEventListener('submit', evento => {
+        const valor = nombre => ((caja.querySelector('[name="' + nombre + '"]') || {}).value || '').trim();
+        const origen = (caja.querySelector('input[name="origen"]:checked') || {}).value;
+        let error = '';
+        if (!origen) error = 'Elige de dónde viene: el cliente, un documento o tu criterio técnico.';
+        else if (origen === 'cliente' && !valor('medio')) error = 'Elige por qué medio te lo dijo el cliente.';
+        else if (origen === 'cliente' && !valor('fecha')) error = 'Escribe el día en que te lo dijo el cliente.';
+        else if (origen === 'documento' && !valor('documento')) error = 'Elige en cuál documento está.';
+        else if (valor('nota').replace(/\s+/g, ' ').length < 10) error = 'Cuéntalo en una frase (mínimo 10 letras), para que quede claro de dónde sale.';
+        const linea = caja.querySelector('.error-respaldo');
+        linea.hidden = !error;
+        linea.textContent = error;
+        if (error) evento.preventDefault();
+      });
+    });
+    // Filtros por estado: si uno no deja ninguna actividad a la vista, se vuelve a «Todas».
+    if (filtros) {
+      filtros.hidden = false;
+      const aviso = document.getElementById('sin-coincidencias');
+      filtros.querySelectorAll('.chip-filtro').forEach(chip => chip.addEventListener('click', () => {
+        const quiere = chip.dataset.filtro;
+        let vistas = 0;
+        document.querySelectorAll('#lista-actividades .renglon').forEach(r => {
+          const ver = quiere === 'todas' || r.dataset.estado === quiere;
+          r.hidden = !ver;
+          if (ver) vistas += 1;
+        });
+        filtros.querySelectorAll('.chip-filtro').forEach(c => {
+          const activo = c === chip;
+          c.classList.toggle('activo', activo);
+          c.setAttribute('aria-pressed', String(activo));
+        });
+        if (aviso) aviso.hidden = vistas > 0;
+      }));
+    }
+    // Tras un rechazo, el panel de esa actividad vuelve a abrirse con lo escrito.
+    const reabrir = paneles.dataset.reabrir;
+    if (reabrir) {
+      const panel = document.getElementById(reabrir);
+      if (panel) {
+        let escrito = {};
+        try { escrito = JSON.parse(paneles.dataset.escrito || '{}'); } catch (e) { escrito = {}; }
+        const formulario = panel.querySelector('input[name="accion"][value="' + (paneles.dataset.accion || '') + '"]');
+        const caja = formulario ? formulario.closest('form') : panel;
+        Object.keys(escrito).forEach(nombre => {
+          caja.querySelectorAll('[name="' + nombre + '"]').forEach(campo => {
+            if (campo.type === 'radio') campo.checked = campo.value === escrito[nombre];
+            else if (campo.type !== 'hidden') campo.value = escrito[nombre];
+          });
+        });
+        caja.querySelectorAll('input[name="origen"]').forEach(r => { if (r.checked) r.dispatchEvent(new Event('change')); });
+        const detalles = caja.closest('details');
+        if (detalles) detalles.open = true;
+        const si = panel.querySelector('.panel-si');
+        if (si) si.click();
+        abrirPanel(reabrir, document.querySelector('[data-panel="' + reabrir + '"]'));
+      }
+    }
+  }
   document.querySelectorAll('.editar-fila').forEach(b => b.addEventListener('click', () => {
     if (!editor || !boton) return;
     const fila = editor.querySelectorAll('.act-row')[Number(b.dataset.fila)];

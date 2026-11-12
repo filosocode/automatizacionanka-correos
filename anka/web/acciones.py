@@ -40,6 +40,7 @@ from anka.servicios.quotes import (
     aceptar_lectura_revisada, merge_project_thread, recuperar_propuesta, resolve_link, resolve_model_proposal,
     resolve_technical_review, save_quote_metadata, separate_project_thread, seguir_sin_respuesta,
 )
+from anka.servicios.actividad_manual import cambiar_actividad
 from anka.servicios.ediciones import agregar_filas_de_hoja, poner_area_en_actividad, save_activities
 from anka.servicios.work_import import dejar_para_despues_el_rechazo
 
@@ -156,6 +157,15 @@ def _post_activities(form: Form) -> str:
     message = _guidance(lambda: save_activities(
         thread_id, parse_activities_form(form), field(form, "reason"), field(form, "base_version"),
         int_field(form, "row_count")))
+    return _to_case(thread_id, message)
+
+
+def _post_activity(form: Form) -> str:
+    """Una acción sobre una actividad desde el panel del caso, con su respaldo (U-112). Un rechazo vuelve al caso."""
+    thread_id = field(form, "thread_id")
+    datos = {nombre: valores[0] for nombre, valores in form.items() if valores}
+    message = _guidance(lambda: cambiar_actividad(
+        thread_id, field(form, "accion"), int_field(form, "indice"), datos, field(form, "base_version")))
     return _to_case(thread_id, message)
 
 
@@ -361,6 +371,7 @@ POST_ROUTES: dict[str, Callable[[Form], str]] = {
     "/send": _post_send,
     "/mark-sent": _post_mark_sent,
     "/activities": _post_activities,
+    "/activity": _post_activity,
     "/activities-add-sheet-rows": _post_sheet_rows,
     "/activities-set-area": _post_area,
     "/mode": _post_mode,

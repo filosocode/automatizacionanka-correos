@@ -243,6 +243,30 @@ OPERACIONES: tuple[Operacion, ...] = (
                Campo("a0_unit", "Unidad de la fila 0.", ejemplo="ha"),
                Campo("a0_estado", "Estado de la fila 0.", opciones=("confirmado", "pendiente", "contradictorio"))),
               "redirect"),
+    Operacion("post", "/activity", "Acciones del caso", "Cambiar una actividad con su respaldo",
+              "Aplica una acción a UNA actividad desde el panel del caso: `resolver` (pasa a «Completa» con el dato "
+              "que faltaba), `reabrir`, `quitar`, `corregir` (un error de escritura, sin cambiar el estado) o "
+              "`agregar`. Todas menos `corregir` exigen el respaldo (`origen` y su nota; con `cliente`, también "
+              "`medio` y `fecha`; con `documento`, `documento`) y lo dejan en el historial, la versión de la tabla y "
+              "las notas. Rechaza sin guardar si falta algo o si la tabla cambió desde que se abrió "
+              "(`base_version`). **No envía nada al cliente.**",
+              "guarda",
+              (_ID, Campo("accion", "Qué hacer con la actividad.", opciones=("resolver", "reabrir", "quitar",
+                                                                              "corregir", "agregar")),
+               Campo("indice", "Posición de la actividad en la tabla (0 es la primera; ignorado al agregar).",
+                     "integer", ejemplo=0),
+               Campo("base_version", "Huella de la tabla que se abrió; si cambió, no se guarda (opcional)."),
+               Campo("origen", "De dónde viene el cambio.", opciones=("cliente", "documento", "tecnico")),
+               Campo("medio", "Con origen `cliente`: Llamada, WhatsApp, Correo o Reunión.", ejemplo="Llamada"),
+               Campo("fecha", "Con origen `cliente`: el día (AAAA-MM-DD), no futuro.", ejemplo="2026-11-10"),
+               Campo("documento", "Con origen `documento`: cuál.", ejemplo="alcance.pdf"),
+               Campo("nota", "Una frase (mínimo 10 letras) con lo que dijo, lo que dice el documento o el fundamento "
+                     "técnico.", ejemplo="Me lo confirmó por teléfono"),
+               Campo("dato_ubicacion", "Dato que faltaba (también `dato_quantity`, `dato_unit`, `dato_entregable` y "
+                     "`dato_plazo_restriccion`).", ejemplo="Embalse La Esmeralda"),
+               Campo("decision", "Qué quedó decidido (contradictorias o sin dato concreto)."),
+               Campo("nombre", "Nombre de la actividad nueva (solo `agregar`).")),
+              "redirect"),
     Operacion("post", "/activities-add-sheet-rows", "Acciones del caso", "Agregar a la tabla filas de hojas de cálculo",
               "Agrega a la tabla las filas con cantidad de las hojas de cálculo adjuntas que la tabla no recogía y que "
               "la persona marcó (o todas). Entran como `pendiente`, con archivo, hoja y fila como fuente, y se guardan "

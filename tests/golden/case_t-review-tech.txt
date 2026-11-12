@@ -272,6 +272,42 @@ Corregir la tabla
 <p class="nota todo-completo" id="sin-filas">
 Todavía no hay actividades. Pulsa «+ Agregar» para escribir la primera.
 </p>
+<div class="scroll-x alcance-lectura" id="tabla-resumen">
+<div class="generales" id="preguntas-generales">
+<h3>
+Generales
+<span class="nota">
+(no son de una actividad)
+</span>
+</h3>
+<ul>
+<li>
+<label>
+<input type="checkbox" name="preguntar_fila" value="¿Cuál es el objetivo del trabajo y qué elementos o activos deben revisarse o levantarse?" form="decision-form" checked="">
+<span>
+¿Cuál es el objetivo del trabajo y qué elementos o activos deben revisarse o levantarse?
+</span>
+</label>
+</li>
+<li>
+<label>
+<input type="checkbox" name="preguntar_fila" value="¿Puede indicar la ubicación del proyecto y el sector o tramo que debe cubrirse?" form="decision-form" checked="">
+<span>
+¿Puede indicar la ubicación del proyecto y el sector o tramo que debe cubrirse?
+</span>
+</label>
+</li>
+<li>
+<label>
+<input type="checkbox" name="preguntar_fila" value="¿Cuál es el área, longitud o cantidad aproximada de elementos que deben levantarse?" form="decision-form" checked="">
+<span>
+¿Cuál es el área, longitud o cantidad aproximada de elementos que deben levantarse?
+</span>
+</label>
+</li>
+</ul>
+</div>
+</div>
 <div class="editor-tabla" id="editar-tabla">
 <form method="post" action="/activities">
 <input type="hidden" name="thread_id" value="t-review-tech">

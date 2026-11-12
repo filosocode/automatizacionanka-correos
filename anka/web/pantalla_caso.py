@@ -804,7 +804,10 @@ def _case_panels(thread_id: str, review: Caso, analysis: Analisis, assessment: d
             abierto=bool(actividades_escritas), base_version=huella_de_tabla(analysis.get("activities", [])),
             hoja={"url": review.sheet_url, "error": review.sheet_error, "tiene_carpeta": bool(review.folder_id),
                   "actualizada": review.sheet_synced_at[:16].replace("T", " ")},
-            ultima=last_manual_version(thread_id), preguntar=preguntar, generales=generales)),
+            ultima=last_manual_version(thread_id), preguntar=preguntar, generales=generales,
+            respaldos=analysis.get("respaldos"), panel_escrito=_panel_escrito(pendiente),
+            documentos=[*(str(a.get("filename") or "") for a in analysis.get("attachments", []) if a.get("filename")),
+                        "Correo del cliente"])),
         "attachments_panel": attachments_panel(analysis.get("attachments", [])),
         "areas_panel": areas_calculadas_panel(
             analysis.get("areas_calculadas") or [], analysis.get("diferencias_de_area") or [], thread_id,
@@ -917,6 +920,8 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
             email_body = con_codigo_final(_campo(escrito, "body"), _campo(escrito, "suggested_number"),
                                           _campo(escrito, "number"))
             blank_reply, restaurado = False, True
+        elif ruta_pendiente == "/activity" and not reading_blocked:
+            restaurado = True              # el panel de esa actividad se reabre con lo escrito (U-112, U-31)
         elif ruta_pendiente == "/activities" and not reading_blocked:
             try:
                 actividades_escritas = parse_activities_form(dict(escrito)) or None
@@ -992,6 +997,14 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
                        ronda=ronda, preguntar=preguntar, generales=generales),
     )
     return page("Revisar caso", body, message)
+
+
+def _panel_escrito(pendiente: Any) -> dict[str, str]:
+    """Lo que se escribió en el panel de una actividad y se rechazó: se reparte otra vez al abrir el caso."""
+    if not pendiente or pendiente[0] != "/activity":
+        return {}
+    return {nombre: valores[0] for nombre, valores in pendiente[1].items()
+            if valores and nombre not in ("thread_id", "base_version", "csrf_token")}
 
 
 def _acta_versions(thread_id: str, review: Mapping[str, Any] | None) -> list[dict]:

@@ -264,7 +264,7 @@ Actividades detectadas
 </p>
 </div>
 <div class="acciones">
-<button type="button" class="button secondary" id="agregar-fila" aria-controls="editar-tabla">
+<button type="button" class="button secondary" id="agregar-fila" aria-controls="panel-nueva">
 + Agregar
 </button>
 <button type="button" class="button secondary" id="editar-boton" aria-expanded="false" aria-controls="editar-tabla">
@@ -272,46 +272,599 @@ Corregir la tabla
 </button>
 </div>
 </div>
-<div class="scroll-x alcance-lectura" id="tabla-resumen">
-<table class="act-resumen" data-estados="uno" role="table" aria-label="Actividades por completar o contradictorias">
-<caption class="solo-lectores">
-Actividades que todavía no están completas y lo que hace falta en cada una.
-</caption>
-<thead role="rowgroup">
-<tr role="row">
-<th scope="col">
-Actividad
-</th>
-<th scope="col">
-Qué hace falta
-</th>
-<th scope="col" class="col-estado">
-Estado
-</th>
-</tr>
-</thead>
-<tbody role="rowgroup">
-<tr class="fila-resumen falta pendiente" role="row">
-<td role="cell" data-etiqueta="Actividad">
+<div class="alcance-lectura" id="tabla-resumen">
+<div class="filtros" id="filtros-actividades" role="group" aria-label="Qué actividades ver" hidden="">
+<button type="button" class="chip-filtro activo" data-filtro="todas" aria-pressed="true">
+Todas
+<span class="cuenta">
+2
+</span>
+</button>
+<button type="button" class="chip-filtro confirmado" data-filtro="confirmado" aria-pressed="false">
+Listo
+<span class="cuenta">
+1
+</span>
+</button>
+<button type="button" class="chip-filtro pendiente" data-filtro="pendiente" aria-pressed="false">
+Falta un dato
+<span class="cuenta">
+1
+</span>
+</button>
+</div>
+<ul class="renglones" id="lista-actividades">
+<li class="renglon confirmado" data-estado="confirmado" id="renglon-0">
+<div class="renglon-info">
+<strong>
+Levantamiento topográfico
+</strong>
+<span class="chip confirmado">
+Listo
+</span>
+<p class="detalle">
+Bogotá · 10 ha · Planos
+</p>
+</div>
+<div class="renglon-acc">
+<button type="button" class="button secondary abrir-panel" data-panel="panel-0" aria-controls="panel-0" aria-label="Cambiar Levantamiento topográfico">
+Cambiar
+</button>
+</div>
+</li>
+<li class="renglon pendiente" data-estado="pendiente" id="renglon-1">
+<div class="renglon-info">
 <strong>
 Batimetría
 </strong>
-<br>
-<button type="button" class="button secondary editar-fila" data-fila="1" aria-controls="editar-tabla" aria-label="Editar Batimetría">
-Editar
-</button>
-</td>
-<td role="cell" data-etiqueta="Qué hace falta">
-Falta ubicación.
-</td>
-<td role="cell" class="col-estado" data-etiqueta="Estado">
 <span class="chip pendiente">
-Por completar
+Falta un dato
 </span>
-</td>
-</tr>
-</tbody>
-</table>
+<p class="detalle">
+Falta ubicación.
+</p>
+</div>
+<div class="renglon-acc">
+<button type="button" class="button secondary abrir-panel" data-panel="panel-1" aria-controls="panel-1" aria-label="Resolver Batimetría">
+Resolver
+</button>
+</div>
+</li>
+</ul>
+<p class="nota sin-coincidencias" id="sin-coincidencias" hidden="">
+No hay actividades con ese filtro.
+</p>
+<div class="paneles" id="paneles-actividad">
+<section class="panel-actividad" id="panel-0" data-fila="0" hidden="" aria-label="Actividad: Levantamiento topográfico">
+<header>
+<h3>
+Levantamiento topográfico
+</h3>
+<button type="button" class="button secondary cerrar-panel">
+Cerrar
+</button>
+</header>
+<details class="accion-panel">
+<summary>
+Corregir un dato (error de escritura)
+</summary>
+<form method="post" action="/activity" class="form-panel">
+<input type="hidden" name="thread_id" value="t-draft">
+<input type="hidden" name="base_version" value="cb84dc9fd73b842a">
+<input type="hidden" name="accion" value="corregir">
+<input type="hidden" name="indice" value="0">
+<label>
+Servicio o técnica
+<textarea name="campo_servicio_tecnica" rows="1" maxlength="2000">
+Topografía convencional
+</textarea>
+</label>
+<label>
+Ubicación
+<textarea name="campo_ubicacion" rows="1" maxlength="2000">
+Bogotá
+</textarea>
+</label>
+<label>
+Cantidad
+<textarea name="campo_quantity" rows="1" maxlength="2000">
+10
+</textarea>
+</label>
+<label>
+Unidad
+<textarea name="campo_unit" rows="1" maxlength="2000">
+ha
+</textarea>
+</label>
+<label>
+Entregable
+<textarea name="campo_entregable" rows="1" maxlength="2000">
+Planos
+</textarea>
+</label>
+<label>
+Plazo o restricción
+<textarea name="campo_plazo_restriccion" rows="1" maxlength="2000">
+30 días
+</textarea>
+</label>
+<label>
+Notas
+<textarea name="campo_notes" rows="1" maxlength="2000">
+</textarea>
+</label>
+<button type="submit">
+Guardar la corrección
+</button>
+</form>
+</details>
+<details class="accion-panel">
+<summary>
+Volver a abrirla: algo cambió
+</summary>
+<form method="post" action="/activity" class="form-panel">
+<input type="hidden" name="thread_id" value="t-draft">
+<input type="hidden" name="base_version" value="cb84dc9fd73b842a">
+<input type="hidden" name="accion" value="reabrir">
+<input type="hidden" name="indice" value="0">
+<fieldset class="respaldo">
+<legend>
+¿De dónde sale esto?
+<span class="nota">
+(queda en el historial)
+</span>
+</legend>
+<div class="origenes" role="radiogroup">
+<label class="origen">
+<input type="radio" name="origen" value="cliente" required="">
+<span>
+El cliente me lo dijo
+</span>
+</label>
+<label class="origen">
+<input type="radio" name="origen" value="documento">
+<span>
+Está en un documento
+</span>
+</label>
+<label class="origen">
+<input type="radio" name="origen" value="tecnico">
+<span>
+Criterio técnico de Anka
+</span>
+</label>
+</div>
+<div class="si-cliente" data-origen="cliente" hidden="">
+<label>
+¿Por qué medio?
+<select name="medio">
+<option value="">
+Elige uno
+</option>
+<option value="Llamada">
+Llamada
+</option>
+<option value="WhatsApp">
+WhatsApp
+</option>
+<option value="Correo">
+Correo
+</option>
+<option value="Reunión">
+Reunión
+</option>
+</select>
+</label>
+<label>
+¿Qué día?
+<input type="date" name="fecha" max="2026-11-12">
+</label>
+</div>
+<div class="si-documento" data-origen="documento" hidden="">
+<label>
+¿En cuál documento?
+<select name="documento">
+<option value="">
+Elige uno
+</option>
+<option value="alcance.csv">
+alcance.csv
+</option>
+<option value="Correo del cliente">
+Correo del cliente
+</option>
+</select>
+</label>
+</div>
+<p class="nota si-tecnico" data-origen="tecnico" hidden="">
+Se le presenta al cliente como una recomendación de Anka, no como una duda.
+</p>
+<label>
+Cuéntalo en una frase
+<span class="nota">
+(mínimo 10 letras)
+</span>
+<textarea name="nota" rows="2" maxlength="2000" placeholder="Ej.: Me confirmó por teléfono que el embalse es La Esmeralda">
+</textarea>
+</label>
+<p class="error-respaldo" role="alert" hidden="">
+</p>
+</fieldset>
+<button type="submit">
+Volver a abrirla
+</button>
+</form>
+</details>
+<details class="accion-panel">
+<summary>
+Quitarla de la tabla
+</summary>
+<form method="post" action="/activity" class="form-panel">
+<input type="hidden" name="thread_id" value="t-draft">
+<input type="hidden" name="base_version" value="cb84dc9fd73b842a">
+<input type="hidden" name="accion" value="quitar">
+<input type="hidden" name="indice" value="0">
+<fieldset class="respaldo">
+<legend>
+¿De dónde sale esto?
+<span class="nota">
+(queda en el historial)
+</span>
+</legend>
+<div class="origenes" role="radiogroup">
+<label class="origen">
+<input type="radio" name="origen" value="cliente" required="">
+<span>
+El cliente me lo dijo
+</span>
+</label>
+<label class="origen">
+<input type="radio" name="origen" value="documento">
+<span>
+Está en un documento
+</span>
+</label>
+<label class="origen">
+<input type="radio" name="origen" value="tecnico">
+<span>
+Criterio técnico de Anka
+</span>
+</label>
+</div>
+<div class="si-cliente" data-origen="cliente" hidden="">
+<label>
+¿Por qué medio?
+<select name="medio">
+<option value="">
+Elige uno
+</option>
+<option value="Llamada">
+Llamada
+</option>
+<option value="WhatsApp">
+WhatsApp
+</option>
+<option value="Correo">
+Correo
+</option>
+<option value="Reunión">
+Reunión
+</option>
+</select>
+</label>
+<label>
+¿Qué día?
+<input type="date" name="fecha" max="2026-11-12">
+</label>
+</div>
+<div class="si-documento" data-origen="documento" hidden="">
+<label>
+¿En cuál documento?
+<select name="documento">
+<option value="">
+Elige uno
+</option>
+<option value="alcance.csv">
+alcance.csv
+</option>
+<option value="Correo del cliente">
+Correo del cliente
+</option>
+</select>
+</label>
+</div>
+<p class="nota si-tecnico" data-origen="tecnico" hidden="">
+Se le presenta al cliente como una recomendación de Anka, no como una duda.
+</p>
+<label>
+Cuéntalo en una frase
+<span class="nota">
+(mínimo 10 letras)
+</span>
+<textarea name="nota" rows="2" maxlength="2000" placeholder="Ej.: Me confirmó por teléfono que el embalse es La Esmeralda">
+</textarea>
+</label>
+<p class="error-respaldo" role="alert" hidden="">
+</p>
+</fieldset>
+<button type="submit" class="secondary peligro">
+Quitar «Levantamiento topográfico»
+</button>
+</form>
+</details>
+</section>
+<section class="panel-actividad" id="panel-1" data-fila="1" hidden="" aria-label="Actividad: Batimetría">
+<header>
+<h3>
+Batimetría
+</h3>
+<button type="button" class="button secondary cerrar-panel">
+Cerrar
+</button>
+</header>
+<div class="pregunta-previa">
+<p>
+<strong>
+¿Ya tenemos la respuesta?
+</strong>
+</p>
+<p class="nota">
+Falta ubicación.
+</p>
+<div class="botones-si-no">
+<button type="button" class="button secondary panel-no" data-casilla="1">
+No, hay que preguntarle al cliente
+</button>
+<button type="button" class="button panel-si" aria-expanded="false">
+Sí, ya la tengo
+</button>
+</div>
+</div>
+<form method="post" action="/activity" class="form-panel" hidden="">
+<input type="hidden" name="thread_id" value="t-draft">
+<input type="hidden" name="base_version" value="cb84dc9fd73b842a">
+<input type="hidden" name="accion" value="resolver">
+<input type="hidden" name="indice" value="1">
+<label>
+Escribe la ubicación
+<textarea name="dato_ubicacion" rows="1" maxlength="2000">
+</textarea>
+</label>
+<fieldset class="respaldo">
+<legend>
+¿De dónde sale esto?
+<span class="nota">
+(queda en el historial)
+</span>
+</legend>
+<div class="origenes" role="radiogroup">
+<label class="origen">
+<input type="radio" name="origen" value="cliente" required="">
+<span>
+El cliente me lo dijo
+</span>
+</label>
+<label class="origen">
+<input type="radio" name="origen" value="documento">
+<span>
+Está en un documento
+</span>
+</label>
+<label class="origen">
+<input type="radio" name="origen" value="tecnico">
+<span>
+Criterio técnico de Anka
+</span>
+</label>
+</div>
+<div class="si-cliente" data-origen="cliente" hidden="">
+<label>
+¿Por qué medio?
+<select name="medio">
+<option value="">
+Elige uno
+</option>
+<option value="Llamada">
+Llamada
+</option>
+<option value="WhatsApp">
+WhatsApp
+</option>
+<option value="Correo">
+Correo
+</option>
+<option value="Reunión">
+Reunión
+</option>
+</select>
+</label>
+<label>
+¿Qué día?
+<input type="date" name="fecha" max="2026-11-12">
+</label>
+</div>
+<div class="si-documento" data-origen="documento" hidden="">
+<label>
+¿En cuál documento?
+<select name="documento">
+<option value="">
+Elige uno
+</option>
+<option value="alcance.csv">
+alcance.csv
+</option>
+<option value="Correo del cliente">
+Correo del cliente
+</option>
+</select>
+</label>
+</div>
+<p class="nota si-tecnico" data-origen="tecnico" hidden="">
+Se le presenta al cliente como una recomendación de Anka, no como una duda.
+</p>
+<label>
+Cuéntalo en una frase
+<span class="nota">
+(mínimo 10 letras)
+</span>
+<textarea name="nota" rows="2" maxlength="2000" placeholder="Ej.: Me confirmó por teléfono que el embalse es La Esmeralda">
+</textarea>
+</label>
+<p class="error-respaldo" role="alert" hidden="">
+</p>
+</fieldset>
+<button type="submit">
+Dejar lista esta actividad
+</button>
+</form>
+</section>
+<section class="panel-actividad" id="panel-nueva" data-fila="nueva" hidden="" aria-label="Agregar una actividad">
+<header>
+<h3>
+Agregar una actividad
+</h3>
+<button type="button" class="button secondary cerrar-panel">
+Cerrar
+</button>
+</header>
+<form method="post" action="/activity" class="form-panel">
+<input type="hidden" name="thread_id" value="t-draft">
+<input type="hidden" name="base_version" value="cb84dc9fd73b842a">
+<input type="hidden" name="accion" value="agregar">
+<input type="hidden" name="indice" value="-1">
+<label>
+¿Cómo se llama?
+<textarea name="nombre" rows="1" maxlength="2000">
+</textarea>
+</label>
+<label>
+Servicio o técnica
+<span class="nota">
+(opcional)
+</span>
+<textarea name="campo_servicio_tecnica" rows="1" maxlength="2000">
+</textarea>
+</label>
+<details class="accion-panel">
+<summary>
+Ya tengo más datos
+</summary>
+<label>
+Ubicación
+<textarea name="dato_ubicacion" rows="1" maxlength="2000">
+</textarea>
+</label>
+<label>
+Cantidad
+<textarea name="dato_quantity" rows="1" maxlength="2000">
+</textarea>
+</label>
+<label>
+Unidad
+<textarea name="dato_unit" rows="1" maxlength="2000">
+</textarea>
+</label>
+<label>
+Entregable
+<textarea name="dato_entregable" rows="1" maxlength="2000">
+</textarea>
+</label>
+<label>
+Plazo o restricción
+<textarea name="dato_plazo_restriccion" rows="1" maxlength="2000">
+</textarea>
+</label>
+</details>
+<fieldset class="respaldo">
+<legend>
+¿De dónde sale esto?
+<span class="nota">
+(queda en el historial)
+</span>
+</legend>
+<div class="origenes" role="radiogroup">
+<label class="origen">
+<input type="radio" name="origen" value="cliente" required="">
+<span>
+El cliente me lo dijo
+</span>
+</label>
+<label class="origen">
+<input type="radio" name="origen" value="documento">
+<span>
+Está en un documento
+</span>
+</label>
+<label class="origen">
+<input type="radio" name="origen" value="tecnico">
+<span>
+Criterio técnico de Anka
+</span>
+</label>
+</div>
+<div class="si-cliente" data-origen="cliente" hidden="">
+<label>
+¿Por qué medio?
+<select name="medio">
+<option value="">
+Elige uno
+</option>
+<option value="Llamada">
+Llamada
+</option>
+<option value="WhatsApp">
+WhatsApp
+</option>
+<option value="Correo">
+Correo
+</option>
+<option value="Reunión">
+Reunión
+</option>
+</select>
+</label>
+<label>
+¿Qué día?
+<input type="date" name="fecha" max="2026-11-12">
+</label>
+</div>
+<div class="si-documento" data-origen="documento" hidden="">
+<label>
+¿En cuál documento?
+<select name="documento">
+<option value="">
+Elige uno
+</option>
+<option value="alcance.csv">
+alcance.csv
+</option>
+<option value="Correo del cliente">
+Correo del cliente
+</option>
+</select>
+</label>
+</div>
+<p class="nota si-tecnico" data-origen="tecnico" hidden="">
+Se le presenta al cliente como una recomendación de Anka, no como una duda.
+</p>
+<label>
+Cuéntalo en una frase
+<span class="nota">
+(mínimo 10 letras)
+</span>
+<textarea name="nota" rows="2" maxlength="2000" placeholder="Ej.: Me confirmó por teléfono que el embalse es La Esmeralda">
+</textarea>
+</label>
+<p class="error-respaldo" role="alert" hidden="">
+</p>
+</fieldset>
+<button type="submit">
+Agregar la actividad
+</button>
+</form>
+</section>
+</div>
 </div>
 <div class="editor-tabla" id="editar-tabla">
 <form method="post" action="/activities">
