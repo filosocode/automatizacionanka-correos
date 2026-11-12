@@ -34,7 +34,7 @@ Anka
 Solicitudes de cotización
 </span>
 </div>
-<span class="nav-count">
+<span class="nav-count" title="10 con novedades por revisar">
 10
 </span>
 </a>

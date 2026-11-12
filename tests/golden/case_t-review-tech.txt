@@ -34,7 +34,7 @@ Anka
 Solicitudes de cotización
 </span>
 </div>
-<span class="nav-count">
+<span class="nav-count" title="10 con novedades por revisar">
 10
 </span>
 </a>
@@ -409,7 +409,7 @@ Revisar y aclarar
 <span class="solo-lectores">
 Paso actual.
 </span>
-Por decidir · ronda 1
+Por decidir · consulta 1
 </span>
 <span class="barra-llena" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-label="Avance de «Revisar y aclarar»">
 </span>
@@ -422,7 +422,7 @@ Información validada
 <span class="solo-lectores">
 Pendiente.
 </span>
-Pendiente
+Todo aclarado
 </span>
 </li>
 <li class="process-step llena-0">
@@ -433,7 +433,7 @@ T emitida
 <span class="solo-lectores">
 Pendiente.
 </span>
-Pendiente
+Se crea el código de la oferta (T)
 </span>
 </li>
 <li class="process-step llena-0">
@@ -444,7 +444,7 @@ T&E aprobada
 <span class="solo-lectores">
 Pendiente.
 </span>
-Pendiente
+El cliente dice que sí
 </span>
 </li>
 </ol>
@@ -760,6 +760,9 @@ Con esto alcanza
 </div>
 <p class="nota" id="sin-actividades">
 «Con esto alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».
+</p>
+<p class="nota">
+«Con esto alcanza» quiere decir: no falta nada y no se le pregunta nada más al cliente.
 </p>
 <p class="nota">
 Nada sale al cliente sin que lo revises y confirmes. Al enviarlo, el caso queda en «Esperando al cliente»: no tienes que hacer nada más, y si no responde te avisamos.

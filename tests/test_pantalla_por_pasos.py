@@ -979,7 +979,7 @@ class MisCasos(Base):
         marca = html[html.index('<a class="brand"'):html.index("</a>", html.index('<a class="brand"'))]
         self.assertIn('href="/"', marca)
         self.assertIn("2 con novedades", marca)
-        self.assertIn("<span class='nav-count'>2</span>", marca)
+        self.assertIn("<span class='nav-count' title='2 con novedades por revisar'>2</span>", marca)
         self.assertIn("<title>(2) Solicitudes de cotización - Anka</title>", html)
         self.assertIn("document.querySelector('.brand .nav-count')", JS)
 

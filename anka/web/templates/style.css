@@ -1308,4 +1308,12 @@ main { animation: none; }
 /* ===== U-112.H · lo que las pruebas con personas sin contexto mostraron: decir qué pasa y por qué ===== */
 .pista-preguntar { margin: 4px 0 0; font-size: .875rem; color: var(--muted); }
 #google-chip[data-state="stopped"] { flex-wrap: wrap; }
-#google-chip[data-state="stopped"]::after { content: "Sin esto no se leen ni se envían correos."; display: block; flex-basis: 100%; text-align: left; font-size: .8125rem; font-weight: 400; opacity: .85; margin-top: 2px; }
+#google-chip[data-state="stopped"]::after { content: "Toca aquí y entra con tu cuenta de Google. Sin esto no se leen ni se envían correos."; display: block; flex-basis: 100%; text-align: left; font-size: .8125rem; font-weight: 400; opacity: .85; margin-top: 2px; }
+
+/* ===== U-112.I · controles más grandes y separados, y el foco visible en el título del panel ===== */
+.renglon-acc { gap: 18px; }
+.renglon .preguntar input { width: 24px; height: 24px; }
+.renglon .preguntar input:checked::after { width: 7px; height: 12px; }
+.renglon .abrir-panel, .renglon .abrir-panel:hover { min-width: 96px; justify-content: flex-end; }
+.panel-actividad h3:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.fila-correo { gap: 10px 22px; }

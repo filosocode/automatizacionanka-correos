@@ -34,7 +34,7 @@ Anka
 Solicitudes de cotización
 </span>
 </div>
-<span class="nav-count">
+<span class="nav-count" title="10 con novedades por revisar">
 10
 </span>
 </a>
@@ -409,7 +409,7 @@ Revisar y aclarar
 <span class="solo-lectores">
 Paso actual.
 </span>
-0 de 1 resueltas · Correo por revisar · ronda 1
+0 de 1 resueltas · Correo por revisar · consulta 1
 </span>
 <span class="barra-llena" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Avance de «Revisar y aclarar»">
 </span>
@@ -422,7 +422,7 @@ Información validada
 <span class="solo-lectores">
 Pendiente.
 </span>
-Pendiente
+Todo aclarado
 </span>
 </li>
 <li class="process-step llena-0">
@@ -433,7 +433,7 @@ T emitida
 <span class="solo-lectores">
 Pendiente.
 </span>
-Pendiente
+Se crea el código de la oferta (T)
 </span>
 </li>
 <li class="process-step llena-0">
@@ -444,7 +444,7 @@ T&E aprobada
 <span class="solo-lectores">
 Pendiente.
 </span>
-Pendiente
+El cliente dice que sí
 </span>
 </li>
 </ol>

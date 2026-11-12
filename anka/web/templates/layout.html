@@ -15,7 +15,7 @@
   <aside class="lateral" id="lateral">
   <header>
     {% macro actual(ruta) %}{% if nav_actual == ruta %} aria-current="page"{% endif %}{% endmacro %}
-    <a class="brand" href="/"{{ actual('/') }} aria-label="Anka, solicitudes de cotización{% if unread_count %}: {{ unread_count }} con novedades{% endif %}"><img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38"><div><strong>Anka</strong><span>Solicitudes de cotización</span></div>{% if unread_count %}<span class='nav-count'>{{ unread_count }}</span>{% endif %}</a>
+    <a class="brand" href="/"{{ actual('/') }} aria-label="Anka, solicitudes de cotización{% if unread_count %}: {{ unread_count }} con novedades{% endif %}"><img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38"><div><strong>Anka</strong><span>Solicitudes de cotización</span></div>{% if unread_count %}<span class='nav-count' title='{{ unread_count }} con novedades por revisar'>{{ unread_count }}</span>{% endif %}</a>
     <button type="button" id="abrir-barra" class="secondary" aria-controls="barra-casos" aria-expanded="false" hidden>☰ Casos</button>
     <div class="toolbar">
       <span id="bridge-chip" class="bridge-chip" hidden></span>

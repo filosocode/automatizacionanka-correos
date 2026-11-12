@@ -104,9 +104,9 @@ class SegundaRonda(Base):
         self.crear_caso(QuoteStatus.REVIEW, {"preguntas_enviadas": self.ENVIADAS},
                         (("sent", "2026-10-02T10:00:00+00:00"), ("received", "2026-10-03T09:00:00+00:00")))
         pagina = pantalla_caso.render_case("t-1")
-        self.assertIn("El cliente respondió (ronda 2): revisa lo que faltaba.", pagina)
+        self.assertIn("El cliente respondió (consulta 2): revisa lo que faltaba.", pagina)
         self.assertIn("<li>¿Datum?</li>", pagina)
-        self.assertIn("· ronda 2", pagina)                                        # sub-línea del paso 1
+        self.assertIn("· consulta 2", pagina)                                        # sub-línea del paso 1
         self.assertGreater(pagina.index('id="ronda-aviso"'), pagina.index('id="alcance"'))   # U-107: el aviso va en la tarjeta del mensaje
 
     def test_la_primera_ronda_no_lleva_aviso_de_respuesta(self) -> None:
@@ -114,7 +114,7 @@ class SegundaRonda(Base):
         self.crear_caso(QuoteStatus.REVIEW)
         pagina = pantalla_caso.render_case("t-1")
         self.assertNotIn('id="ronda-aviso"', pagina)
-        self.assertIn("· ronda 1", pagina)
+        self.assertIn("· consulta 1", pagina)
 
     def test_enviar_sin_respuesta_no_es_segunda_ronda(self) -> None:
         # Cubre: U-40

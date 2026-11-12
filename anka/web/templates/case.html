@@ -15,7 +15,7 @@
   </section>
   {% if carpeta_plegada %}</details>{% endif %}
 {% endmacro %}
-{% macro nota_de_ronda() %}{% if segunda_ronda %}<p class="ronda-aviso" id="ronda-aviso"><strong>El cliente respondió (ronda {{ ronda }}): revisa lo que faltaba.</strong>
+{% macro nota_de_ronda() %}{% if segunda_ronda %}<p class="ronda-aviso" id="ronda-aviso"><strong>El cliente respondió (consulta {{ ronda }}): revisa lo que faltaba.</strong>
   {% if preguntas_enviadas %}Le preguntamos:</p><ol class="preguntas-enviadas">{% for pregunta in preguntas_enviadas %}<li>{{ pregunta }}</li>{% endfor %}</ol><p class="nota">{{ lo_que_falta or 'La tabla ya no marca nada por completar.' }} Lo que contestó está en la pestaña «Conversación».</p>{% else %}{{ lo_que_falta }}</p>{% endif %}{% endif %}{% endmacro %}
 {% macro bloque_respuesta(ahora) %}
   {% if analysis_blocked and email == 'form' %}
@@ -207,6 +207,7 @@
       {% if n_internas %}<p class="nota">{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} el equipo de Anka (están en «Qué falta resolver»).</p>{% endif %}
     </div>
     {% if sin_actividades %}<p class="nota" id="sin-actividades">«Con esto alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».</p>{% endif %}
+    <p class="nota">«Con esto alcanza» quiere decir: no falta nada y no se le pregunta nada más al cliente.</p>
     <p class="nota">Nada sale al cliente sin que lo revises y confirmes. Al enviarlo, el caso queda en «Esperando al cliente»: no tienes que hacer nada más, y si no responde te avisamos.</p>
   </form>
   {% if preguntas_sugeridas and not armar_preguntas %}<details class="more"><summary>Ver preguntas sugeridas</summary>

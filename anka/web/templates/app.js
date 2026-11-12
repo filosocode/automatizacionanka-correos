@@ -206,6 +206,7 @@ document.addEventListener('submit', event => {
   const filtros = document.getElementById('filtros-actividades');
   // El panel ocupa el contenedor de la derecha (el del correo) y lo devuelve al cerrarse; sin dos columnas queda bajo la lista (U-112.A.4).
   const derecha = document.querySelector('.dos-columnas > .section:not(.actividades)');
+  let origenDelPanel = null;     // el botón que abrió el panel: al volver al correo, el foco regresa a él
   function cerrarPanel() {
     document.querySelectorAll('.panel-actividad').forEach(p => { p.hidden = true; if (paneles) paneles.appendChild(p); });
     document.querySelectorAll('.abrir-panel.abierto, #editar-boton.abierto, #agregar-fila.abierto').forEach(b => b.classList.remove('abierto'));
@@ -229,8 +230,10 @@ document.addEventListener('submit', event => {
       derecha.classList.add('con-panel');
     }
     panel.scrollIntoView({block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
-    const campo = panel.querySelector('button.panel-no, textarea, input:not([type=hidden])');
-    if (campo) campo.focus({preventScroll: true});
+    origenDelPanel = boton || null;
+    // El foco va al título del panel: el lector de pantalla dice qué se abrió y desde ahí se sigue con Tab.
+    const titulo = panel.querySelector('h3');
+    if (titulo) { titulo.tabIndex = -1; titulo.focus({preventScroll: true}); }
   }
   if (paneles) {
     document.querySelectorAll('.abrir-panel').forEach(b => b.addEventListener('click', () => abrirPanel(b.dataset.panel, b)));
@@ -240,7 +243,11 @@ document.addEventListener('submit', event => {
       const b = r.querySelector('.abrir-panel');
       if (b) b.click();
     }));
-    document.querySelectorAll('.cerrar-panel').forEach(b => b.addEventListener('click', cerrarPanel));
+    document.querySelectorAll('.cerrar-panel').forEach(b => b.addEventListener('click', () => {
+      const vuelta = origenDelPanel;
+      cerrarPanel();
+      if (vuelta && vuelta.isConnected) vuelta.focus({preventScroll: true});
+    }));
     document.querySelectorAll('.panel-si').forEach(b => b.addEventListener('click', () => {
       const panel = b.closest('.panel-actividad');
       panel.querySelector('.form-panel').hidden = false;
@@ -823,7 +830,7 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
   function mostrarConteo(n) {
     document.title = (n ? '(' + n + ') ' : '') + tituloBase;
     const cuenta = document.querySelector('.brand .nav-count');
-    if (cuenta) { cuenta.textContent = n; cuenta.hidden = !n; }
+    if (cuenta) { cuenta.textContent = n; cuenta.hidden = !n; cuenta.title = n + ' con novedades por revisar'; }
   }
   function avisarDelNavegador(n) {
     // Solo con la pestaña oculta y si la persona lo activó; no sale nada fuera de este navegador.

@@ -319,13 +319,14 @@ def _stepper(review: Caso, ronda: int = 1) -> Markup:
                  if actividades and not validated and not code else "")
     current_notes = {
         1: resueltas + review["status_label"] + ("" if review["status"] in (QuoteStatus.IGNORED, QuoteStatus.MISSING)
-                                                 else f" · ronda {ronda}"), 2: "Listo para emitir la T",
+                                                 else f" · consulta {ronda}"), 2: "Listo para emitir la T",
         3: code_label(code, "T") + " · cotizando" if code else "",
         4: code_label(code, "TE") + " · aprobada" if code else "",
     }
+    pendientes = {2: "Todo aclarado", 3: "Se crea el código de la oferta (T)", 4: "El cliente dice que sí"}
     titles = {1: "Revisar y aclarar", 2: "Información validada", 3: "T emitida", 4: "T&E aprobada"}
     steps = [{"title": titles[n],
-              "note": "Completado" if n < current else current_notes[n] if n == current else "Pendiente",
+              "note": "Completado" if n < current else current_notes[n] if n == current else pendientes[n],
               "state": "done" if n < current else "current" if n == current else "",
               "llena": _llena(review) if n == current else 100 if n < current else 0}
              for n in range(1, 5)]
