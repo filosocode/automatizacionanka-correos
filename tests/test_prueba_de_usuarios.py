@@ -44,6 +44,16 @@ class AclaracionesDeLaPantalla(unittest.TestCase):
         # Cubre: U-112
         self.assertIn("Toca aquí y entra con tu cuenta de Google", _leer("style.css"))
 
+    def test_el_respaldo_pide_menos_esfuerzo_sin_perder_la_regla(self) -> None:
+        # Cubre: U-112
+        editor = _leer("activities_editor.html")
+        self.assertIn('class="medio"', editor)            # el medio se elige con botones, no con menú
+        self.assertIn('name="fecha" value="{{ hoy }}"', editor)   # la fecha ya viene puesta en hoy
+        self.assertNotIn('<select name="medio">', editor)
+        js = _leer("app.js")
+        self.assertIn("(mínimo 10 letras)", js)           # la regla de la frase no se toca
+        self.assertIn("Elige por qué medio te lo dijo el cliente", js)
+
 
 if __name__ == "__main__":
     unittest.main()

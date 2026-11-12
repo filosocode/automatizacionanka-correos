@@ -279,7 +279,11 @@ document.addEventListener('submit', event => {
       caja.querySelectorAll('input[name="origen"]').forEach(r => r.addEventListener('change', mostrar));
       const formulario = caja.closest('form');
       formulario.addEventListener('submit', evento => {
-        const valor = nombre => ((caja.querySelector('[name="' + nombre + '"]') || {}).value || '').trim();
+        const valor = nombre => {
+          const marcado = caja.querySelector('input[type="radio"][name="' + nombre + '"]');
+          if (marcado) return ((caja.querySelector('input[name="' + nombre + '"]:checked') || {}).value || '').trim();
+          return ((caja.querySelector('[name="' + nombre + '"]') || {}).value || '').trim();
+        };
         const origen = (caja.querySelector('input[name="origen"]:checked') || {}).value;
         let error = '';
         if (!origen) error = 'Elige de dónde viene: el cliente, un documento o tu criterio técnico.';
@@ -290,7 +294,7 @@ document.addEventListener('submit', event => {
         const linea = caja.querySelector('.error-respaldo');
         linea.hidden = !error;
         linea.textContent = error;
-        if (error) evento.preventDefault();
+        if (error) { evento.preventDefault(); linea.scrollIntoView({block: 'nearest'}); }
       });
     });
     // Filtros por estado: si uno no deja ninguna actividad a la vista, se vuelve a «Todas».

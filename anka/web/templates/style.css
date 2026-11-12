@@ -1317,3 +1317,13 @@ main { animation: none; }
 .renglon .abrir-panel, .renglon .abrir-panel:hover { min-width: 96px; justify-content: flex-end; }
 .panel-actividad h3:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
 .fila-correo { gap: 10px 22px; }
+
+/* U-112.J: el respaldo pide menos esfuerzo (fecha puesta en hoy, medio con botones grandes, error visible) */
+.medios { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.medios > .nota { flex-basis: 100%; }
+.medio { display: inline-flex !important; align-items: center; gap: 8px; min-height: 44px; padding: 6px 16px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; background: var(--panel); }
+.medio:has(input:checked) { border-color: var(--blue); background: var(--info-bg); color: var(--info-ink); font-weight: 600; }
+.medio input { width: 20px; height: 20px; }
+.respaldo input[type="date"] { min-height: 44px; font-size: 1rem; }
+.error-respaldo { padding: 10px 12px; border-radius: 10px; background: var(--bad-bg); border: 1px solid var(--bad-ink); }
+.error-respaldo[hidden] { display: none; }

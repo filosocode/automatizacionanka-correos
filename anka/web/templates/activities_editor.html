@@ -4,9 +4,9 @@
 <label class="origen"><input type="radio" name="origen" value="cliente" required> <span><b>El cliente me lo dijo</b><small>Por llamada, mensaje o reunión.</small></span></label>
 <label class="origen"><input type="radio" name="origen" value="documento"> <span><b>Está en un documento</b><small>En un archivo o en su correo.</small></span></label>
 <label class="origen"><input type="radio" name="origen" value="tecnico"> <span><b>Criterio técnico de Anka</b><small>Lo recomendamos nosotros, con su porqué.</small></span></label></div>
-<div class="si-cliente" data-origen="cliente" hidden><label>¿Por qué medio?
-<select name="medio"><option value="">Elige uno</option>{% for medio in medios %}<option value="{{ medio }}">{{ medio }}</option>{% endfor %}</select></label>
-<label>¿Qué día? <input type="date" name="fecha" max="{{ hoy }}"></label></div>
+<div class="si-cliente" data-origen="cliente" hidden><div class="medios" role="radiogroup" aria-label="¿Por qué medio?"><span class="nota">¿Por qué medio?</span>
+{% for medio in medios %}<label class="medio"><input type="radio" name="medio" value="{{ medio }}"> <span>{{ medio }}</span></label>{% endfor %}</div>
+<label>¿Qué día fue? <span class="nota">(ya está puesto hoy; cámbialo si fue otro día)</span> <input type="date" name="fecha" value="{{ hoy }}" max="{{ hoy }}"></label></div>
 <div class="si-documento" data-origen="documento" hidden><label>¿En cuál documento?
 <select name="documento"><option value="">Elige uno</option>{% for doc in documentos %}<option value="{{ doc }}">{{ doc }}</option>{% endfor %}</select></label></div>
 <p class="nota si-tecnico" data-origen="tecnico" hidden>Se le presenta al cliente como una recomendación de Anka, no como una duda.</p>
