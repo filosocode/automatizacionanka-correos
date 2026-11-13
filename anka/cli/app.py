@@ -1,19 +1,22 @@
 """Línea de comandos de Anka: `python app.py <comando>`.
 
 Comandos: auth, drive-tree, mode / set-mode, run (revisar Gmail), reviews / approve, review-ui (dashboard),
-analyze-text (probar el modelo) y dashboard-upsert (importar un borrador de Work). Cada comando es una función
-`_cmd_*` registrada en `COMMANDS`; el trabajo real vive en `anka.servicios` y `anka.infra`.
+analyze-text (probar el modelo), dashboard-upsert (importar un borrador de Work) y usuarios-agregar / usuarios-quitar
+/ usuarios-listar (alta y baja de quien entra al dashboard, U-115). Cada comando es una función `_cmd_*` registrada
+en `COMMANDS`; el trabajo real vive en `anka.servicios` y `anka.infra`.
 """
 
 from __future__ import annotations
 
 import argparse
+import getpass
 import sys
 import json
 from pathlib import Path
 
 from anka.dominio.errores import ErrorDeAnka
 from anka.infra.google_services import authorize_interactive, services, list_folders
+from anka.infra import usuarios_store
 from anka.dominio.reception import (
     reception_questions,
 )
@@ -286,6 +289,7 @@ def warn_unknown_config_keys() -> None:
 COMMANDS_ORDER = (
     "auth", "drive-tree", "mode", "run", "reviews", "approve", "review-ui",
     "set-mode", "analyze-text", "dashboard-upsert", "prepare-work-packet", "work-drive-sync",
+    "usuarios-agregar", "usuarios-quitar", "usuarios-listar",
 )
 
 
@@ -365,12 +369,18 @@ def _add_packet_options(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_user_options(parser: argparse.ArgumentParser) -> None:
+    """Opciones para dar de alta, quitar o cambiar la contraseña de un usuario del dashboard (U-115)."""
+    parser.add_argument("--usuario", help="Usuario a agregar, actualizar o quitar.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Los comandos y opciones de la línea de comandos."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=list(COMMANDS_ORDER))
     for add_options in (
         _add_run_options, _add_text_options, _add_case_options, _add_setup_options, _add_packet_options,
+        _add_user_options,
     ):
         add_options(parser)
     return parser
@@ -475,8 +485,39 @@ def _cmd_run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
         run(args.apply, args.review_only, args.gmail_drafts)
 
 
+def _cmd_usuarios_agregar(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.usuario:
+        parser.error("usuarios-agregar requiere --usuario.")
+    clave = getpass.getpass("Contraseña: ")
+    if clave != getpass.getpass("Repite la contraseña: "):
+        raise ErrorDeAnka("Las dos contraseñas no coinciden.")
+    usuarios_store.agregar_o_actualizar(args.usuario, clave)
+    print(f"Usuario «{args.usuario}» listo para entrar al dashboard.")
+
+
+def _cmd_usuarios_quitar(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.usuario:
+        parser.error("usuarios-quitar requiere --usuario.")
+    if usuarios_store.quitar(args.usuario):
+        print(f"Usuario «{args.usuario}» quitado.")
+    else:
+        print(f"Usuario «{args.usuario}» no existía.")
+
+
+def _cmd_usuarios_listar(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    usuarios = usuarios_store.listar()
+    if not usuarios:
+        print("No hay usuarios dados de alta todavía.")
+        return
+    for nombre in usuarios:
+        print(nombre)
+
+
 COMMANDS = {
     "auth": _cmd_auth,
+    "usuarios-agregar": _cmd_usuarios_agregar,
+    "usuarios-quitar": _cmd_usuarios_quitar,
+    "usuarios-listar": _cmd_usuarios_listar,
     "drive-tree": _cmd_drive_tree,
     "mode": _cmd_mode,
     "run": _cmd_run,

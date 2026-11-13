@@ -28,3 +28,10 @@ from anka.servicios import hoja_de_calculo  # noqa: E402  (después de fijar ANK
 
 hoja_de_calculo.sincronizador = hoja_de_calculo.SincronizadorDeHojas(
     sincronizar=lambda hilo: hoja_de_calculo.ResultadoHoja("sin_caso", "", ""), espera=0, en_hilo=False)
+
+# El inicio de sesión (U-115) protege todo el dashboard; las pruebas que no son sobre eso quieren seguir probando lo
+# suyo como si ya hubiera alguien dentro, así que aquí entra sola como «prueba». Las pruebas de la sesión misma
+# restauran el comportamiento real apuntando a `anka.infra.sesiones.usuario_de` (nunca tocado aquí).
+from anka.servicios import autenticacion  # noqa: E402  (después de fijar ANKA_DATA_DIR)
+
+autenticacion.usuario_de_la_sesion = lambda session_id: "prueba"

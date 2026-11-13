@@ -23,7 +23,7 @@ from anka.infra.store import request_scope
 from anka.infra.settings import load_config
 from anka.web.templating import render
 
-from anka.servicios import salud
+from anka.servicios import autenticacion, salud
 from anka.servicios.autorizacion import estado_de_google
 from anka.infra.work_heartbeat import bridge_state
 from anka.servicios.quotes import (
@@ -37,11 +37,11 @@ from anka.web.acciones import POST_ROUTES, field, int_field
 from anka.web.api import a_json, error_de_api, es_ruta_de_api, resumen_de_caso
 from anka.web import pantalla_caso
 from anka.web.correo_marcado import correo_de_preguntas_marcadas
-from anka.web.views import marcar_como_error
+from anka.web.views import MARCA_DE_ERROR, marcar_como_error
 from anka.web.seguridad import (
-    CSRF_TOKEN, CuerpoNoValido, add_csrf_tokens, cabeceras_de_seguridad, csp_docs, es_mensaje_para_la_persona,
-    firmar_mensaje, id_de_error, is_local_host_header, is_same_origin, longitud_del_cuerpo, mensaje_de_la_direccion,
-    nombre_seguro,
+    CSRF_TOKEN, CuerpoNoValido, add_csrf_tokens, cabeceras_de_seguridad, cookie_de_cierre_de_sesion,
+    cookie_de_sesion, csp_docs, es_mensaje_para_la_persona, firmar_mensaje, id_de_error, is_local_host_header,
+    is_same_origin, longitud_del_cuerpo, mensaje_de_la_direccion, nombre_seguro, sesion_de_cookies,
 )
 
 log = get_logger(__name__)
@@ -66,9 +66,22 @@ GET_ROUTES: dict[str, str] = {
     "/api/autorizacion": "_get_api_authorization",
     "/docs": "_get_docs",
     "/openapi.json": "_get_openapi",
+    "/entrar": "_get_login",
 }
 GET_PATTERNS: dict[str, str] = {"/api/casos/{thread_id}": "_get_api_case", "/static/{archivo}": "_get_static"}
 _GET_PATTERNS = [(re.compile(re.sub(r"\{\w+\}", "([^/]+)", template)), name) for template, name in GET_PATTERNS.items()]
+
+# Rutas que no exigen sesión (U-115): entrar y lo necesario para pintar esa misma pantalla sin estar ya dentro.
+RUTAS_PUBLICAS = frozenset({"/entrar"})
+
+
+def _es_publica(path: str) -> bool:
+    return path in RUTAS_PUBLICAS or path.startswith("/static/")
+
+
+def _siguiente_valido(valor: str) -> str:
+    """Un `next` que solo puede llevar dentro del propio dashboard (nunca a otro sitio, U-115)."""
+    return valor if valor.startswith("/") and not valor.startswith("//") else "/"
 
 
 # Canal de avisos en vivo (U-23): la página deja una conexión abierta y el servidor le avisa cuando algo cambia.
@@ -113,6 +126,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
     """Servidor HTTP local del dashboard: páginas por GET y acciones por POST con token."""
     timeout = 30      # una conexión que no habla en 30 s se corta y libera su hilo (U-43)
     protocol_version = "HTTP/1.1"      # la conexión se reutiliza; toda respuesta lleva su longitud (U-48)
+
+    def _usuario_actual(self) -> str | None:
+        """El usuario con sesión abierta según la cookie de esta petición, o `None` sin sesión válida (U-115)."""
+        return autenticacion.usuario_de_la_sesion(sesion_de_cookies(self.headers.get("Cookie", "")))
 
     def _host_permitido(self) -> bool:
         """¿El Host es local y, si trae puerto, el de este servidor? (sin servidor conocido, solo se mira el nombre)."""
@@ -256,6 +273,11 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return self._reject("Host no permitido.")
         parsed = urllib.parse.urlparse(self.path)
         query = urllib.parse.parse_qs(parsed.query)
+        if not _es_publica(parsed.path) and not self._usuario_actual():
+            if self._ruta_de_api():
+                return self._error_json(401, "Inicia sesión para usar el dashboard.")
+            siguiente = urllib.parse.quote(parsed.path + (f"?{parsed.query}" if parsed.query else ""), safe="")
+            return self._redirect(f"/entrar?next={siguiente}")
         method = GET_ROUTES.get(parsed.path)
         arguments: tuple[str, ...] = ()
         if method is None:
@@ -421,6 +443,31 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def _get_openapi(self, query: dict[str, list[str]]) -> None:
         self._send_json(openapi.build_spec())
 
+    def _get_login(self, query: dict[str, list[str]]) -> None:
+        """La pantalla de inicio de sesión (U-115); con sesión ya abierta, lleva directo a donde iba."""
+        siguiente = _siguiente_valido(field(query, "next", "/"))
+        if self._usuario_actual():
+            return self._redirect(siguiente)
+        mensaje = _mensaje(query)
+        es_error = mensaje.startswith(MARCA_DE_ERROR)
+        self._send_html(render("login.html", message=mensaje.lstrip(MARCA_DE_ERROR), message_is_error=es_error,
+                               usuario=field(query, "usuario"), siguiente=siguiente))
+
+    def _post_login(self, form: dict[str, list[str]]) -> None:
+        usuario = field(form, "usuario").strip()
+        siguiente = _siguiente_valido(field(form, "next", "/"))
+        try:
+            session_id = autenticacion.iniciar_sesion(usuario, field(form, "clave"), field(form, "recordar") == "1")
+        except ErrorDeAnka as exc:
+            consulta = urllib.parse.urlencode({"message": str(exc), "aviso": "error", "usuario": usuario,
+                                               "next": siguiente})
+            return self._redirect(f"/entrar?{consulta}")
+        self._redirect(siguiente, {"Set-Cookie": cookie_de_sesion(session_id, field(form, "recordar") == "1")})
+
+    def _post_logout(self) -> None:
+        autenticacion.cerrar_sesion(sesion_de_cookies(self.headers.get("Cookie", "")))
+        self._redirect("/entrar", {"Set-Cookie": cookie_de_cierre_de_sesion()})
+
     def do_POST(self) -> None:
         """Valida host, origen y token y ejecuta la acción de `POST_ROUTES`; redirige al resultado."""
         host = self.headers.get("Host", "")
@@ -440,6 +487,14 @@ class ReviewHandler(BaseHTTPRequestHandler):
         if not secrets.compare_digest(field(form, "csrf_token"), CSRF_TOKEN):
             return self._reject("Token de seguridad inválido. Recarga la página e inténtalo de nuevo.",
                                 field(form, "thread_id")[:200])
+        if path == "/entrar":
+            return self._post_login(form)
+        if path == "/salir":
+            return self._post_logout()
+        if not _es_publica(path) and not self._usuario_actual():
+            if self._ruta_de_api():
+                return self._error_json(401, "Inicia sesión para usar el dashboard.")
+            return self._redirect("/entrar")
         action = POST_ROUTES.get(path)
         if action is None:
             if self._metodos_de(path):              # es una página o una lectura: solo acepta GET
@@ -471,9 +526,11 @@ class ReviewHandler(BaseHTTPRequestHandler):
         texto = str(exc) if es_mensaje_para_la_persona(exc) else "Los datos enviados no son válidos."
         self._aviso("No se pudo completar", texto, 400, thread_id)
 
-    def _redirect(self, location: str) -> None:
+    def _redirect(self, location: str, extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(303)
         for name, value in cabeceras_de_seguridad().items():
+            self.send_header(name, value)
+        for name, value in (extra_headers or {}).items():
             self.send_header(name, value)
         self.send_header("Location", _firmar_aviso(location))
         self.send_header("Content-Length", "0")

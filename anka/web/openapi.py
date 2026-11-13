@@ -41,6 +41,7 @@ TAGS = {
     "Acciones del caso": "Formularios `POST` que actúan sobre un caso. Responden con una redirección (303).",
     "Acciones generales": "Formularios `POST` que no son de un caso: modo, revisión de Gmail, rescatar, eliminar.",
     "Documentación": "Esta documentación.",
+    "Acceso": "Inicio y cierre de sesión (U-115).",
 }
 
 
@@ -194,6 +195,14 @@ OPERACIONES: tuple[Operacion, ...] = (
     Operacion("get", "/export.xlsx", "Páginas", "Exportar actividades a Excel",
               "Descarga un `.xlsx` con las actividades de un caso, o de todos si no se indica `thread_id`.",
               campos=(Campo("thread_id", "Si se omite, exporta todos los casos."),), contenido="xlsx"),
+    # ------------------------------------------------------------------ acceso
+    Operacion("get", "/entrar", "Acceso", "Inicio de sesión",
+              "La pantalla para entrar con usuario y contraseña (U-115). Con una sesión ya abierta, redirige a "
+              "`next`. El inicio y el cierre de sesión (`POST /entrar`, `POST /salir`) no están bajo `/api` y no "
+              "se documentan aquí: son formularios normales del dashboard, protegidos por el mismo token.",
+              campos=(Campo("next", "A dónde volver tras entrar (una ruta propia del dashboard; cualquier otro "
+                            "valor lleva a «/»)."), Campo("usuario", "Usuario a precargar tras un intento fallido."),
+                     Campo("message", "Aviso a mostrar, por ejemplo el error del intento anterior."))),
     # ------------------------------------------------------------------ documentación
     Operacion("get", "/docs", "Documentación", "Swagger UI", "Esta página."),
     Operacion("get", "/openapi.json", "Documentación", "Especificación OpenAPI",

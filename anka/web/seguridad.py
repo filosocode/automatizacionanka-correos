@@ -51,6 +51,44 @@ def hosts_permitidos() -> set[str]:
     return LOCAL_HOSTS | {nombre for nombre in extra if nombre and "/" not in nombre and ":" not in nombre}
 
 
+# --- cookie de sesión (U-115)
+NOMBRE_COOKIE_SESION = "anka_sesion"
+DURACION_RECORDAR_SEGUNDOS = 14 * 24 * 3600
+
+
+def conexion_https() -> bool:
+    """¿Este dashboard está detrás de un proxy con HTTPS? Mismo indicio que U-85: hay dominios adicionales
+    configurados (`ANKA_HOSTS_PERMITIDOS`), lo que solo pasa en un despliegue real, no en desarrollo local."""
+    return bool(hosts_permitidos() - LOCAL_HOSTS)
+
+
+def cookie_de_sesion(valor: str, recordar: bool) -> str:
+    """El `Set-Cookie` para abrir sesión: con «recordar», dura 14 días; si no, cookie de navegador (U-115.3)."""
+    partes = [f"{NOMBRE_COOKIE_SESION}={valor}", "Path=/", "HttpOnly", "SameSite=Lax"]
+    if recordar:
+        partes.append(f"Max-Age={DURACION_RECORDAR_SEGUNDOS}")
+    if conexion_https():
+        partes.append("Secure")
+    return "; ".join(partes)
+
+
+def cookie_de_cierre_de_sesion() -> str:
+    """El `Set-Cookie` que borra la cookie de sesión al cerrar sesión."""
+    partes = [f"{NOMBRE_COOKIE_SESION}=", "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"]
+    if conexion_https():
+        partes.append("Secure")
+    return "; ".join(partes)
+
+
+def sesion_de_cookies(cabecera: str) -> str:
+    """El valor de la cookie de sesión dentro de la cabecera `Cookie` completa; vacío si no viene."""
+    for parte in (cabecera or "").split(";"):
+        nombre, separador, valor = parte.strip().partition("=")
+        if separador and nombre == NOMBRE_COOKIE_SESION:
+            return valor.strip()
+    return ""
+
+
 def add_csrf_tokens(content: str) -> str:
     """Agrega el token de seguridad a cada formulario POST de la página."""
     field = f'<input type="hidden" name="csrf_token" value="{CSRF_TOKEN}">'

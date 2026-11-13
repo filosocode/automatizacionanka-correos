@@ -13,7 +13,8 @@ from anka.web import server as web
 from tests.test_seguridad_http import Base, atender, formulario
 
 RUTAS_JSON = sorted({r for r in web.GET_ROUTES if api.es_ruta_de_api(r)} - {"/eventos"})
-RUTAS_DE_PAGINA = sorted(set(web.GET_ROUTES) - set(RUTAS_JSON) - {"/eventos"})
+# «/entrar» también acepta POST (U-115): no es una página de solo lectura como las demás.
+RUTAS_DE_PAGINA = sorted(set(web.GET_ROUTES) - set(RUTAS_JSON) - {"/eventos", "/entrar"})
 
 
 def error_de(cuerpo):

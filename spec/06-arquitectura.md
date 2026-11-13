@@ -72,6 +72,7 @@ La descripción es la primera frase de su docstring.
 | `geometria` | Longitudes, áreas y perímetros geodésicos sobre WGS84 a partir de coordenadas, sin leer ningún archivo (T-125). |
 | `lectores_geograficos` | Geometrías, misiones y tablas geográficas en memoria. |
 | `caso` | `Caso`: la vista de una solicitud de cotización tal como la ven el dashboard y las acciones. |
+| `usuarios` | Usuarios del dashboard: validación del nombre, hash de la contraseña y la espera tras varios fallos (U-115). |
 | `configuracion` | La forma de `config.json` (vive fuera del repositorio, en la carpeta de datos): sus claves y sus tipos. |
 | `correo` | El correo como dato: leer cabeceras, texto y adjuntos de un mensaje de Gmail y armar una respuesta. |
 | `decision` | Qué hacer con un hilo ya leído: la decisión (estado, acción, avisos) sin ejecutar nada. |
@@ -124,6 +125,8 @@ La descripción es la primera frase de su docstring.
 | `instantaneas_de_manifiesto` | Copia local mínima del manifiesto que publica el preparador, para verificar la lectura que declara Work (T-37). |
 | `rechazos_de_work` | Cuenta por día los análisis de Work que no se pudieron leer y recuerda cuáles se dejaron para después (U-41). |
 | `work_heartbeat` | Latido del puente Gmail → dashboard (modo chatgpt_work): permite saber si está vivo. |
+| `usuarios_store` | Lectura y escritura de `usuarios.json` (carpeta de datos, fuera del repositorio): quién puede entrar al dashboard y el hash de su contraseña (U-115). |
+| `sesiones` | Sesiones del dashboard: quién inició sesión y hasta cuándo, y la espera tras intentos fallidos (U-115). |
 
 ### `anka/servicios/`
 
@@ -137,6 +140,7 @@ La descripción es la primera frase de su docstring.
 | Módulo | Para qué sirve |
 |---|---|
 | `autorizacion` | Estado de la autorización de Google y su renovación desde el dashboard. |
+| `autenticacion` | Inicio de sesión del dashboard: verifica usuario y contraseña, abre y cierra sesiones y aplica la espera tras intentos fallidos (U-115). |
 | `case_actions` | Acciones sobre un caso desde el dashboard: destinatario, borrador, envío, aprobación. |
 | `change_control` | Código de la oferta (T / T&E) y control de cambios: quién pide qué, con qué código y a quién se avisa. |
 | `commercial_index` | Construye un indice comercial agregado y local desde el archivo historico T&E. |

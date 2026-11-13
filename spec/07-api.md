@@ -9,7 +9,7 @@ describe cómo se documenta y se prueba cada petición con **Swagger UI**.
 | Swagger UI | `GET /docs` | Probar cada petición desde el navegador («Try it out»). |
 | Especificación OpenAPI 3 | `GET /openapi.json` | La misma documentación en JSON, para importarla en Postman, Insomnia, etc. |
 
-Solo se atienden en local (`127.0.0.1`, `localhost`, `[::1]`), igual que el resto del dashboard. En línea (D-204) el dashboard sigue escuchando solo en `127.0.0.1` y lo público es el proxy con HTTPS y contraseña, con su dominio en `ANKA_HOSTS_PERMITIDOS` (U-85).
+Solo se atienden en local (`127.0.0.1`, `localhost`, `[::1]`), igual que el resto del dashboard. En línea (D-204) el dashboard sigue escuchando solo en `127.0.0.1` y lo público es el proxy con HTTPS y el inicio de sesión por usuario (U-85, U-115), con su dominio en `ANKA_HOSTS_PERMITIDOS`.
 
 ## Qué documenta
 Todas las rutas que atiende el servidor, agrupadas en etiquetas:
@@ -18,6 +18,7 @@ Todas las rutas que atiende el servidor, agrupadas en etiquetas:
 |---|---|
 | **Lectura (JSON)** | `GET /api/salud`, `GET /api/casos`, `GET /api/casos/{thread_id}`, `GET /api/correo-preguntas` (el correo con unas preguntas marcadas, sin guardar nada: lo usa la pantalla del caso, U-113), `GET /api/autorizacion`, `GET /state`: devuelven JSON, no cambian nada. `GET /eventos` es el canal de avisos en vivo (`text/event-stream`, no JSON; sus errores sí son JSON). |
 | **Páginas** | Las pantallas HTML (`/`, `/requests`, `/case`, `/acta`, `/desempeno`, `/operacion`, `/discarded`, `/archive`) y la descarga `/export.xlsx`. |
+| **Acceso** | `GET /entrar`: la pantalla de inicio de sesión (U-115). `POST /entrar` (entrar) y `POST /salir` (cerrar sesión) no están bajo `/api` y no se documentan en Swagger: son formularios normales, protegidos por el mismo token CSRF. Sin sesión, toda otra ruta HTML redirige a `/entrar` y toda ruta de `/api/*` responde 401. |
 | **Acciones del caso** | Los formularios `POST` que actúan sobre un caso (tabla, respuesta, código T, cambios, vínculos…). |
 | **Acciones generales** | `POST` que no son de un caso: modo de operación, revisar Gmail, rescatar, eliminar, novedades. |
 

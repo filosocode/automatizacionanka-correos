@@ -1,5 +1,22 @@
 # Requisitos
 
+### U-115 · Inicio de sesión por usuario
+
+**Estado: aclarado, sin código** (cinco respuestas de la persona el 2026-11-13; falta programarlo y probarlo). Decisión: D-210. Resuelve el punto 6 de «Puesta en línea» (`spec/00-alcance.md`): sí hace falta un inicio de sesión por usuario, no basta la contraseña compartida. Estética: el sistema visual ya adoptado de «ANKA Inventario» (D-101, D-103), con el mismo canvas de partículas de fondo.
+
+**Motivo.** Antes de dar acceso al equipo por web (D-204) el dashboard no puede seguir sin identificar quién entra: hoy cualquiera que llegue a la URL ve y cambia los casos de todos los clientes, y ningún cambio queda atribuido a una persona (choca con el principio «todo cambio deja huella», `spec/00-alcance.md`).
+
+1. **Un usuario por persona, no una contraseña compartida (respuesta 1, 2026-11-13).** Cada quien entra con su propio usuario y contraseña. No hay roles ni permisos distintos (eso sigue fuera de alcance): todo usuario válido ve y hace lo mismo; la diferencia es solo saber quién fue.
+2. **Dónde viven los usuarios (respuesta 2, 2026-11-13).** Un archivo `usuarios.json` en la carpeta de datos (`%LOCALAPPDATA%\AnkaCorreos`, junto a `config.json`), fuera del repositorio. Cada usuario guarda su nombre y el hash de su contraseña (nunca la contraseña en claro); no hay pantalla pública de «crear cuenta». Dar de alta o cambiar la contraseña de alguien es un comando de `anka/cli` (`python app.py usuarios agregar`, con confirmación) que pide la contraseña por consola y guarda el hash.
+3. **Duración de la sesión (respuesta 3, 2026-11-13).** Al iniciar sesión, una casilla «Recuérdame en este equipo» (sin marcar por omisión). Marcada, la cookie de sesión dura 14 días; sin marcarla, es una cookie de sesión de navegador (se va al cerrarlo). La cookie es `HttpOnly`, `Secure` cuando la conexión es HTTPS (`ANKA_HOSTS_PERMITIDOS`, U-85) y `SameSite=Lax`.
+4. **Intentos fallidos (respuesta 4, 2026-11-13).** Tras 5 intentos seguidos fallidos de un mismo usuario, la siguiente respuesta espera 1 minuto antes de aceptar otro intento (el tiempo de espera sube si sigue fallando); un intento correcto reinicia el conteo. El mensaje de error no distingue «usuario no existe» de «contraseña incorrecta» (evita confirmar qué usuarios existen).
+5. **Qué protege (respuesta 5, 2026-11-13).** El inicio de sesión se programa completo ya (pantalla, usuarios y sesión) y protege todas las rutas del dashboard (`GET_ROUTES`, `POST_ROUTES`, `/api/*`), aunque hoy el servidor siga escuchando solo en local: queda listo para cuando se resuelvan los demás puntos de «Puesta en línea». Sin sesión válida, cualquier ruta protegida redirige a `/entrar` (las rutas JSON de `/api/*` devuelven 401 en vez de redirigir).
+6. **Qué no hace.** No agrega roles ni permisos distintos, no agrega «olvidé mi contraseña» (la restablece quien administra, con el mismo comando) y no cambia todavía quién queda registrado como autor de cada cambio en `Evento`/`Cambio` (`anka/dominio/registros.py`): eso es un requisito aparte, pendiente, que usaría el usuario de la sesión en vez del valor genérico actual.
+
+**Estética (acordado por el pedido, 2026-11-13).** La pantalla `/entrar` sigue el sistema visual de D-101/D-103: el mismo canvas de partículas de fondo que ya está en el layout, naranja quemado `#bd5209` para la acción de entrar, Inter Variable, una sola tarjeta centrada (usuario, contraseña, «Recuérdame en este equipo», un botón). El error de credenciales inválidas sale en la misma tarjeta, sin recargar a una página en blanco.
+
+**Casos de aceptación.** E-115a · Sin sesión, pedir cualquier ruta protegida redirige a `/entrar`; pedir una ruta de `/api/*` sin sesión devuelve 401. E-115b · Usuario y contraseña correctos crean la sesión y llevan a donde se pedía entrar. E-115c · Con «Recuérdame» sin marcar, la cookie es de sesión de navegador; marcada, dura 14 días. E-115d · Usuario inexistente y contraseña incorrecta muestran el mismo mensaje. E-115e · Al sexto intento fallido seguido del mismo usuario, antes de un minuto el intento se rechaza sin volver a verificar la contraseña. E-115f · Un intento correcto después de varios fallidos reinicia el conteo. E-115g · `usuarios.json` nunca guarda una contraseña en claro. E-115h · Cerrar sesión invalida la cookie (una petición posterior vuelve a pedir `/entrar`).
+
 ### U-113 · El correo al cliente se escribe y se envía en el mismo sitio donde se marcan las preguntas
 **Estado: en construcción.**
 
