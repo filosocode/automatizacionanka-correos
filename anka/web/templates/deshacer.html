@@ -1,0 +1,21 @@
+<section class="section" id="deshacer">
+  <div class="section-head"><h2>Decisiones que puedes deshacer</h2></div>
+  <p class="meta">Si te equivocaste, aquí lo reabres. Queda anotado en el historial.</p>
+  <ul class="deshacer">
+    {% for c in cambios %}<li>
+      <span>Marcaste como «No es un cambio» el mensaje de {{ c.quien }} «{{ c.asunto }}»{% if c.cuando %} ({{ c.cuando }}){% endif %}.</span>
+      <form method="post" action="/change" class="aviso-formulario">
+        <input type="hidden" name="thread_id" value="{{ thread_id }}">
+        <input type="hidden" name="change_id" value="{{ c.id }}">
+        <button type="submit" class="secondary" name="decision" value="reopen">Reabrir este mensaje<span class="solo-lectores"> de {{ c.quien }}</span></button>
+      </form></li>
+    {% endfor %}
+    {% if propuesta %}<li>
+      <span>Dejaste tu tabla y descartaste la propuesta de Work ({{ propuesta }} actividades).</span>
+      <form method="post" action="/proposal" class="aviso-formulario">
+        <input type="hidden" name="thread_id" value="{{ thread_id }}">
+        <button type="submit" class="secondary" name="decision" value="restore">Recuperar la propuesta</button>
+      </form></li>
+    {% endif %}
+  </ul>
+</section>

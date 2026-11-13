@@ -1,0 +1,473 @@
+{
+  "actividades": [
+    {
+      "cantidad_literal": "33.7",
+      "claves": [
+        "lotes",
+        "topograf"
+      ],
+      "entregable": "",
+      "formula": "=Detalle!D8",
+      "grupos_entregable": [],
+      "id": "C3-A1",
+      "nombre": "Levantamiento topográfico de lotes",
+      "origen": {
+        "celda": "C4",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Resumen"
+      },
+      "servicio": "topografia",
+      "unidad_literal": "ha",
+      "unidades_de_origen": "Detalle!D2:D7 en ha; Detalle!C2:C7 en m2 (no se convierte)",
+      "valor": "33.7"
+    },
+    {
+      "cantidad_literal": "3.625",
+      "claves": [
+        "ejes",
+        "viales"
+      ],
+      "entregable": "",
+      "formula": "=SUM(Detalle!G2:G4)/1000",
+      "grupos_entregable": [],
+      "id": "C3-A2",
+      "nombre": "Levantamiento de ejes viales",
+      "origen": {
+        "celda": "C5",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Resumen"
+      },
+      "servicio": "topografia",
+      "unidad_literal": "km",
+      "unidades_de_origen": "Detalle!G2:G4 en m",
+      "valor": "3.625"
+    },
+    {
+      "cantidad_literal": "24",
+      "claves": [
+        "puntos",
+        "control"
+      ],
+      "entregable": "",
+      "formula": "=Supuestos!B2*COUNTA(Detalle!A2:A7)",
+      "grupos_entregable": [],
+      "id": "C3-A3",
+      "nombre": "Puntos de control",
+      "origen": {
+        "celda": "C6",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Resumen"
+      },
+      "servicio": "geodesia",
+      "unidad_literal": "puntos",
+      "unidades_de_origen": "4 puntos por lote × 6 lotes",
+      "valor": "24"
+    },
+    {
+      "cantidad_literal": "3",
+      "claves": [
+        "perfiles",
+        "eje"
+      ],
+      "entregable": "",
+      "formula": "=COUNTA(Detalle!F2:F4)",
+      "grupos_entregable": [],
+      "id": "C3-A4",
+      "nombre": "Perfiles de eje",
+      "origen": {
+        "celda": "C7",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Resumen"
+      },
+      "servicio": "topografia",
+      "unidad_literal": "perfiles",
+      "unidades_de_origen": "un perfil por tramo",
+      "valor": "3"
+    }
+  ],
+  "ambiguedades": [],
+  "cambios": [
+    {
+      "caso": "C3",
+      "efecto": "Desaparecen las dos `restriccion_omitida` falsas.",
+      "id": "V2-C3-1",
+      "origen_del_cambio": "T-74 (límite conocido)",
+      "por_que": "El libro guarda 0.5 y 0.02; exigir coma penalizaba a quien conservaba el literal.",
+      "que": "Las restricciones numéricas aceptan coma o punto decimal («0,5» o «0.5», «0,02» o «0.02»)."
+    },
+    {
+      "caso": "C3",
+      "efecto": "La pregunta de los 7 lotes deja de ser «pregunta de más».",
+      "id": "V2-C3-2",
+      "origen_del_cambio": "T-74",
+      "por_que": "La v1 no tenía faltantes y toda pregunta salía «de más»; la discrepancia sí cambia el área y los 24 puntos.",
+      "que": "Se declara C3-F1: preguntar la discrepancia 7/6 lotes es una pregunta esperada (no bloqueante, afecta cantidades)."
+    },
+    {
+      "caso": "C3",
+      "efecto": "Hallazgos adicionales correctos si aparecen; no se penalizan si faltan.",
+      "id": "V2-C3-3",
+      "origen_del_cambio": "T-74",
+      "por_que": "La hoja oculta difiere en las tres actividades; la v1 solo recogía una.",
+      "que": "Se añaden C3-K3 y C3-K4 (otras dos diferencias de la hoja oculta) como contradicciones opcionales."
+    },
+    {
+      "caso": "C3",
+      "efecto": "Menos falsos aciertos.",
+      "id": "V2-C3-4",
+      "origen_del_cambio": "T-73",
+      "por_que": "Evitar coincidencias por una sola palabra.",
+      "que": "C3-K1 exige «7», «6» y «lote/predio» juntos; C3-I1 exige hoja oculta y vigencia."
+    }
+  ],
+  "caso": "C3",
+  "contradicciones": [
+    {
+      "critica": true,
+      "exigida": true,
+      "grupos": [
+        [
+          "7"
+        ],
+        [
+          "6",
+          "l-06",
+          "seis"
+        ],
+        [
+          "lote",
+          "predio"
+        ]
+      ],
+      "id": "C3-K1",
+      "motivo": "El resumen declara 7 predios y el detalle solo lista 6 lotes.",
+      "tema": "número de predios intervenidos",
+      "valores": [
+        {
+          "literal": "7",
+          "origen": {
+            "celda": "C9",
+            "documento": "cantidades_03.xlsx",
+            "hoja": "Resumen"
+          },
+          "unidad": "lotes"
+        },
+        {
+          "literal": "6",
+          "origen": {
+            "celda": "A2:A7",
+            "documento": "cantidades_03.xlsx",
+            "hoja": "Detalle"
+          },
+          "unidad": "lotes"
+        }
+      ]
+    },
+    {
+      "critica": false,
+      "exigida": true,
+      "grupos": [
+        [
+          "31,2",
+          "31.2"
+        ],
+        [
+          "33,7",
+          "33.7"
+        ]
+      ],
+      "id": "C3-K2",
+      "motivo": "Una hoja oculta conserva cantidades anteriores; no deben tomarse como vigentes.",
+      "tema": "cantidades de la hoja oculta frente a la visible",
+      "valores": [
+        {
+          "literal": "31.2",
+          "origen": {
+            "celda": "C2",
+            "documento": "cantidades_03.xlsx",
+            "hoja": "Borrador_anterior",
+            "nota": "hoja oculta"
+          },
+          "unidad": "ha"
+        },
+        {
+          "literal": "33.7",
+          "origen": {
+            "celda": "C4",
+            "documento": "cantidades_03.xlsx",
+            "hoja": "Resumen"
+          },
+          "unidad": "ha"
+        }
+      ]
+    }
+  ],
+  "contradicciones_opcionales": [
+    {
+      "grupos": [
+        [
+          "3,1",
+          "3.1"
+        ],
+        [
+          "3,625",
+          "3.625"
+        ]
+      ],
+      "id": "C3-K3",
+      "motivo": "La hoja oculta también difiere en los ejes viales.",
+      "palabras_de_contexto": [
+        "eje"
+      ],
+      "tema": "ejes viales: 3.1 km (hoja oculta) frente a 3.625 km"
+    },
+    {
+      "grupos": [
+        [
+          "20"
+        ],
+        [
+          "24"
+        ]
+      ],
+      "id": "C3-K4",
+      "motivo": "La hoja oculta también difiere en los puntos de control.",
+      "palabras_de_contexto": [
+        "punto"
+      ],
+      "tema": "puntos de control: 20 (hoja oculta) frente a 24"
+    }
+  ],
+  "datos_presentes": [
+    {
+      "grupos": [
+        [
+          "vereda"
+        ]
+      ],
+      "tema": "ubicacion"
+    }
+  ],
+  "deriva_de": {
+    "sha256": "563f542dcde613070c649e32c857960717745253d96a09b46bdb10008465de9d",
+    "version": "1"
+  },
+  "documento": {
+    "archivo": "cantidades_03.xlsx",
+    "sha256": "12c52e788feb76d4c7879726d7402cb0c51f8178101e5a7a9e1bfb10cb7c0c6a"
+  },
+  "elementos_visuales": [],
+  "esperado": {
+    "actividades": [
+      {
+        "cantidad": 33.7,
+        "servicio": "topografia",
+        "unidad": "ha"
+      },
+      {
+        "cantidad": 3.625,
+        "servicio": "topografia",
+        "unidad": "km"
+      },
+      {
+        "cantidad": 24.0,
+        "servicio": "geodesia",
+        "unidad": "puntos"
+      },
+      {
+        "cantidad": 3.0,
+        "servicio": "topografia",
+        "unidad": "perfiles"
+      }
+    ],
+    "es_solicitud": true,
+    "faltante": [],
+    "ubicacion": [
+      "esperanza",
+      "mirador"
+    ]
+  },
+  "faltantes": [
+    {
+      "afecta_cantidades": true,
+      "bloqueante": false,
+      "destino": "cliente",
+      "grupos": [
+        [
+          "7"
+        ],
+        [
+          "lote",
+          "predio"
+        ]
+      ],
+      "id": "C3-F1",
+      "motivo": "La discrepancia entre 7 lotes (Resumen!C9) y 6 listados (Detalle!A2:A7) afecta el área y los 24 puntos de control: preguntarla al cliente es legítimo.",
+      "reconoce_en": [
+        "preguntas_cliente"
+      ],
+      "tema": "cantidad de lotes"
+    }
+  ],
+  "ficticio": true,
+  "inventario": {
+    "hojas": [
+      {
+        "comentarios": [
+          "C9"
+        ],
+        "formulas": [
+          "C4",
+          "C5",
+          "C6",
+          "C7"
+        ],
+        "nombre": "Resumen",
+        "rango": "A1:E9",
+        "visibilidad": "visible"
+      },
+      {
+        "formulas": [
+          "D2:D7",
+          "C8",
+          "D8"
+        ],
+        "nombre": "Detalle",
+        "rango": "A1:G8",
+        "visibilidad": "visible"
+      },
+      {
+        "formulas": [],
+        "nombre": "Supuestos",
+        "rango": "A1:C4",
+        "visibilidad": "visible"
+      },
+      {
+        "formulas": [],
+        "nombre": "Borrador_anterior",
+        "rango": "A1:D4",
+        "visibilidad": "hidden"
+      }
+    ]
+  },
+  "nota": "Propuesta posterior a las respuestas de Work: reevaluar con ella no es una evaluación ciega. La referencia v1 sigue siendo la línea base congelada.",
+  "ocr": {
+    "motivo": "celdas con valor y fórmula; no hay imágenes",
+    "requiere": false
+  },
+  "regla_de_valores": "cada valor y unidad se conservan tal como están escritos; no hay conversión implícita",
+  "restricciones": [
+    {
+      "critica": false,
+      "grupos": [
+        [
+          "0,5",
+          "0.5"
+        ],
+        [
+          "curva",
+          "equidistancia"
+        ]
+      ],
+      "id": "C3-R1",
+      "origen": {
+        "celda": "B3",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Supuestos"
+      },
+      "texto": "Equidistancia de curvas de nivel: 0,5 m."
+    },
+    {
+      "critica": false,
+      "grupos": [
+        [
+          "0,02",
+          "0.02"
+        ],
+        [
+          "precision"
+        ]
+      ],
+      "id": "C3-R2",
+      "origen": {
+        "celda": "B4",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Supuestos"
+      },
+      "texto": "Precisión horizontal: 0,02 m."
+    }
+  ],
+  "revisiones_internas": [
+    {
+      "grupos": [
+        [
+          "oculta",
+          "borrador"
+        ],
+        [
+          "histor",
+          "vigente",
+          "anterior",
+          "obsolet"
+        ]
+      ],
+      "id": "C3-I1",
+      "texto": "Confirmar que la hoja oculta Borrador_anterior no es la vigente.",
+      "tipo": "verificable"
+    }
+  ],
+  "tipo": "excel",
+  "titulo": "Resumen de cantidades del proyecto vial ficticio",
+  "trampas": [
+    {
+      "conceptos_confundibles": [
+        "lotes",
+        "topograf"
+      ],
+      "confusion": "tomarla como hectáreas o mezclar la unidad con ha",
+      "es": "suma de áreas en m2",
+      "id": "C3-T1",
+      "origen": {
+        "celda": "C8",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Detalle"
+      },
+      "unidad_distinta": "m2",
+      "valor": "337000",
+      "valor_literal": "337000"
+    },
+    {
+      "conceptos_confundibles": [
+        "lotes",
+        "topograf"
+      ],
+      "confusion": "tomarla como vigente",
+      "es": "área de la hoja oculta",
+      "id": "C3-T2",
+      "origen": {
+        "celda": "C2",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Borrador_anterior"
+      },
+      "valor": "31.2",
+      "valor_literal": "31.2"
+    },
+    {
+      "conceptos_confundibles": [
+        "puntos",
+        "control"
+      ],
+      "confusion": "tomarlo como total de puntos de control",
+      "es": "puntos de control por lote (parámetro)",
+      "id": "C3-T3",
+      "origen": {
+        "celda": "B2",
+        "documento": "cantidades_03.xlsx",
+        "hoja": "Supuestos"
+      },
+      "valor": "4",
+      "valor_literal": "4"
+    }
+  ],
+  "version": "2"
+}

@@ -61,5 +61,5 @@ Casos **sintéticos** para probar la skill. No son correos reales de clientes. S
 **Esperado:** solo si lo envía Ana **y** cita `T26145` (o `T&E26145`) la tabla se actualiza. Si lo envía otra persona (aunque sea de la misma empresa), de otro dominio, o no cita el código, la tabla **no cambia**: el cambio queda como propuesta pendiente. En todos los casos informa `requested_by_email`, `requested_by_name` y `cited_codes`. Los casos exactos están en `casos_paridad.json` (clave `cambios`).
 
 ## 14. Cliente conocido (R4, R5, R7)
-**Situación:** alcance completo de un remitente cuyo cliente ya confirmó una persona y cuya carpeta existe, en el año de la carpeta padre.
-**Esperado:** crear `{año}/{cliente}/{solicitud}`; si la carpeta padre es de otro año, no crear nada y avisar.
+**Situación:** alcance completo de un remitente cuyo cliente ya confirmó una persona y cuya carpeta existe (en este mes o en otro del año).
+**Esperado:** crear `{año}/{mes}/{cliente}/{solicitud}/anexos` (la solicitud se llama `T&E{número} {proyecto}`); si la carpeta padre es la de un año, no crear nada y avisar.

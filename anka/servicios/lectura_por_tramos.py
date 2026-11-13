@@ -31,14 +31,18 @@ MIN_TRAMO_REINTENTO = 1500  # un tramo más corto que el doble de esto ya no se 
 
 def analizar_hilo(
     messages: list[dict], required_fields: list[str], config_llm: ConfigLlm, attachments: list[Adjunto] | None = None,
+    tabla_vigente: list[dict] | None = None,
 ) -> Analisis:
-    """Analiza el hilo completo; usa lectura por tramos solo cuando no cabe en una llamada."""
+    """Analiza el hilo completo; usa lectura por tramos solo cuando no cabe en una llamada.
+
+    `tabla_vigente` es la tabla que el caso ya tiene (un seguimiento): el modelo la actualiza, no la rehace (U-90).
+    """
     attachments = attachments or []
-    if llm.cabe_en_el_modelo(llm.analysis_prompt(messages, required_fields, attachments), config_llm):
-        return llm.analyze(messages, required_fields, config_llm, attachments)
+    if llm.cabe_en_el_modelo(llm.analysis_prompt(messages, required_fields, attachments, tabla_vigente), config_llm):
+        return llm.analyze(messages, required_fields, config_llm, attachments, tabla_vigente)
     contexto = _contexto(messages, required_fields)
-    condensados, traza = _condensar(messages, required_fields, config_llm, attachments, contexto)
-    resultado = llm.analyze(messages, required_fields, config_llm, condensados)
+    condensados, traza = _condensar(messages, required_fields, config_llm, attachments, contexto, tabla_vigente)
+    resultado = llm.analyze(messages, required_fields, config_llm, condensados, tabla_vigente)
     resultado["lectura_por_tramos"] = traza
     return resultado
 
@@ -48,10 +52,12 @@ def _contexto(messages: list[dict], required_fields: list[str]) -> str:
     return f"Asunto del correo: {asunto}\nDatos que interesan especialmente: {', '.join(required_fields) or 'ninguno'}"
 
 
-def _espacio_libre(messages: list[dict], required_fields: list[str], config_llm: ConfigLlm) -> int:
+def _espacio_libre(
+    messages: list[dict], required_fields: list[str], config_llm: ConfigLlm, tabla_vigente: list[dict] | None = None,
+) -> int:
     """Caracteres que quedan para adjuntos una vez colocados el correo y las instrucciones del análisis."""
     total = int((llm.limite_de_tokens(config_llm) - llm.OUTPUT_RESERVE_TOKENS) * llm.CHARS_PER_TOKEN)
-    libre = total - len(llm.analysis_prompt(messages, required_fields, []))
+    libre = total - len(llm.analysis_prompt(messages, required_fields, [], tabla_vigente))
     if libre <= 0:
         cuerpo = sum(len(message_text(m.get("payload", {}))) for m in messages)
         raise ContextoInsuficiente(
@@ -63,9 +69,10 @@ def _espacio_libre(messages: list[dict], required_fields: list[str], config_llm:
 
 def _condensar(
     messages: list[dict], required_fields: list[str], config_llm: ConfigLlm, attachments: list[Adjunto], contexto: str,
+    tabla_vigente: list[dict] | None = None,
 ) -> tuple[list[Adjunto], dict[str, Any]]:
     """Sustituye el texto de los adjuntos grandes por el compendio de sus hallazgos; los pequeños quedan intactos."""
-    libre = _espacio_libre(messages, required_fields, config_llm)
+    libre = _espacio_libre(messages, required_fields, config_llm, tabla_vigente)
     legibles = sorted(
         (i for i, item in enumerate(attachments) if item.get("status") in LEIDOS and item.get("text")),
         key=lambda i: len(attachments[i]["text"]),

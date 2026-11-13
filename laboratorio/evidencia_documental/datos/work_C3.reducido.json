@@ -1,0 +1,111 @@
+{
+  "activities": [
+    {
+      "activity": "Levantamiento topográfico de lotes",
+      "fuente": "cantidades_03.xlsx, Resumen!B4:E4; Detalle!A2:D8",
+      "quantity": "33.7",
+      "unit": "ha"
+    },
+    {
+      "activity": "Levantamiento de ejes viales",
+      "fuente": "cantidades_03.xlsx, Resumen!B5:E5; Detalle!F2:G4",
+      "quantity": "3.625",
+      "unit": "km"
+    },
+    {
+      "activity": "Puntos de control",
+      "fuente": "cantidades_03.xlsx, Resumen!B6:E6; Supuestos!A2:C2; Detalle!A2:A7",
+      "quantity": "24",
+      "unit": "puntos"
+    },
+    {
+      "activity": "Perfiles de eje",
+      "fuente": "cantidades_03.xlsx, Resumen!B7:E7; Detalle!F2:F4",
+      "quantity": "3",
+      "unit": "perfiles"
+    }
+  ],
+  "analysis_complete": false,
+  "attachments": [
+    {
+      "coverage": "completa",
+      "evidence": [
+        {
+          "excerpt": "Levantamiento topográfico de lotes",
+          "location": "Resumen!B4:E4",
+          "topic": "Levantamiento topográfico de lotes",
+          "value": "33.7 ha"
+        },
+        {
+          "excerpt": "Levantamiento de ejes viales",
+          "location": "Resumen!B5:E5",
+          "topic": "Levantamiento de ejes viales",
+          "value": "3.625 km"
+        },
+        {
+          "excerpt": "Puntos de control",
+          "location": "Resumen!B6:E6",
+          "topic": "Puntos de control",
+          "value": "24 puntos"
+        },
+        {
+          "excerpt": "Perfiles de eje",
+          "location": "Resumen!B7:E7",
+          "topic": "Perfiles de eje",
+          "value": "3 perfiles"
+        },
+        {
+          "excerpt": "Pendiente de confirmar con el cliente.",
+          "location": "Resumen!B9:E9; comentario C9",
+          "topic": "Predios",
+          "value": "7 lotes"
+        },
+        {
+          "excerpt": "Equidistancia de curvas",
+          "location": "Supuestos!A3:C3",
+          "topic": "Curvas",
+          "value": "0.5 m"
+        },
+        {
+          "excerpt": "Precisión horizontal",
+          "location": "Supuestos!A4:C4",
+          "topic": "Precisión",
+          "value": "0.02 m"
+        }
+      ],
+      "filename": "cantidades_03.xlsx",
+      "reason": "",
+      "size_bytes": 9087,
+      "status": "extraido"
+    }
+  ],
+  "contradictions": [
+    {
+      "sources": [
+        "cantidades_03.xlsx, Resumen!C9 y comentario",
+        "cantidades_03.xlsx, Detalle!A2:A7"
+      ],
+      "topic": "Número de predios"
+    },
+    {
+      "sources": [
+        "cantidades_03.xlsx, Resumen!C4:D6",
+        "cantidades_03.xlsx, Borrador_anterior!C2:D4"
+      ],
+      "topic": "Versión y cantidades"
+    },
+    {
+      "sources": [
+        "cantidades_03.xlsx, Resumen!C6,C9",
+        "cantidades_03.xlsx, Supuestos!B2",
+        "cantidades_03.xlsx, Detalle!A2:A7"
+      ],
+      "topic": "Control y predios"
+    }
+  ],
+  "origen": {
+    "archivo_original": "retorno_c3_v2.json",
+    "nota": "Reducido: solo los campos que el modelo de evidencia usa. Sin correos, nombres ni texto del borrador.",
+    "sha256_del_retorno_completo": "6978f36bcb39e779619f9979a25b908a2dc4e66a63ebda0a902726dfb30d18f9"
+  }
+}

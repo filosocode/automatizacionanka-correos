@@ -1,7 +1,8 @@
-<section class="next-step warn" aria-label="Posibles actualizaciones">
+<section class="next-step warn" aria-label="Posibles actualizaciones" data-banner-vinculos>
+  <span class="marca-paso">Antes de seguir</span>
   <div>
-    <strong>{{ links|length }} posible(s) actualización(es) en otros hilos</strong>
-    <span>Marca los mensajes que no pertenecen a este caso y descártalos en lote. Descartar solo oculta la sugerencia en este caso; no borra el correo ni el otro caso.</span>
+    <strong>{{ links|length }} correo(s) de otras conversaciones podrían ser de este caso</strong>
+    <span>Marca los que NO son de este caso y pulsa «Descartar». Solo se oculta el aviso en este caso; no borra el correo ni el otro caso.</span>
   </div>
   <form method="post" action="/links-dismiss" class="link-bulk-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
@@ -9,6 +10,7 @@
       <label><input type="checkbox" data-select-all-links> Seleccionar todas</label>
       <button type="submit" class="secondary">Descartar seleccionadas</button>
     </div>
+    <p class="meta" data-links-error role="alert" hidden>Selecciona al menos una posible actualización.</p>
     {% for item in links %}
       <input type="checkbox" name="link_id" value="{{ item.link.id }}" data-link-checkbox hidden>
     {% endfor %}
@@ -36,26 +38,3 @@
     {% endfor %}
   </div>
 </section>
-<script>
-(() => {
-  const root = document.currentScript.previousElementSibling;
-  const toggle = root && root.querySelector('[data-select-all-links]');
-  if (!toggle) return;
-  const sync = () => root.querySelectorAll('[data-link-checkbox]').forEach(hidden => {
-    const visible = root.querySelector(`[data-link-id="${hidden.value}"]`);
-    hidden.checked = Boolean(visible && visible.checked);
-  });
-  root.querySelectorAll('[data-link-id]').forEach(box => box.addEventListener('change', sync));
-  toggle.addEventListener('change', () => {
-    root.querySelectorAll('[data-link-id]').forEach(box => { box.checked = toggle.checked; });
-    sync();
-  });
-  root.querySelector('.link-bulk-form').addEventListener('submit', event => {
-    sync();
-    if (!root.querySelector('[data-link-checkbox]:checked')) {
-      event.preventDefault();
-      alert('Selecciona al menos una posible actualización.');
-    }
-  });
-})();
-</script>

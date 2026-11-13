@@ -1,11 +1,13 @@
-"""El dashboard se actualiza solo y el puente atiende «Revisar ahora». Cubre: U-23, T-30"""
+"""El dashboard se actualiza solo y el puente atiende «Buscar correos nuevos». Cubre: U-23, T-30"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.js_de_las_paginas import JS
 
 import io
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from anka.infra import settings, work_heartbeat
@@ -47,7 +49,8 @@ class AvisosDelServidor(unittest.TestCase):
         salida = ajustes.pop("salida", Salida())
         handler = manejador(salida)
         valores = iter(marcas)
-        with patch.object(web, "change_marker", side_effect=lambda: next(valores)), \
+        compartido = SimpleNamespace(valor=lambda: next(valores))     # el marcador compartido (U-48), sin espera de 1 s
+        with patch.object(web, "_marcador_compartido", compartido), \
                 patch.object(web.time, "sleep"), patch.object(web, "STREAM_SECONDS", 0.55), \
                 patch.object(web.time, "monotonic", side_effect=[0.0] + [0.1 * n for n in range(1, 400)]):
             handler._get_eventos({})
@@ -97,9 +100,10 @@ class AvisosDelServidor(unittest.TestCase):
         try:
             enviado = {}
             handler = manejador(Salida())
-            handler._send_json = lambda valor, status=200: enviado.update(status=status)
+            handler._send_bytes = lambda status, tipo, datos, extra=None: enviado.update(status=status, tipo=tipo)
             handler._get_eventos({})
             self.assertEqual(enviado["status"], 503)
+            self.assertTrue(enviado["tipo"].startswith("application/json"))        # U-50: un error de la API, en JSON
         finally:
             for _ in range(tomadas):
                 web._streams.release()
@@ -108,9 +112,8 @@ class AvisosDelServidor(unittest.TestCase):
         # Cubre: U-23
         self.assertIn("/eventos", web.GET_ROUTES)
         self.assertIn("/eventos", web.STREAM_ROUTES)
-        pagina = render_page("t", "x", "", 0, "chatgpt_work")
-        self.assertIn("new EventSource('/eventos')", pagina)
-        self.assertIn("setInterval(poll", pagina)                   # la consulta periódica sigue de respaldo
+        self.assertIn("new EventSource('/eventos')", JS)
+        self.assertIn("setInterval(poll", JS)                   # la consulta periódica sigue de respaldo
 
 
 class RevisarAhora(unittest.TestCase):
@@ -160,12 +163,12 @@ class RevisarAhora(unittest.TestCase):
                 patch.object(acciones, "sync_status_text", return_value="Estado."):
             destino = acciones._post_refresh({})
         self.assertTrue((Path(self.temp.name) / work_heartbeat.WAKE_FILE).exists())
-        self.assertIn("revise%20Gmail%20ahora", destino)
+        self.assertIn("buscando%20correos%20nuevos", destino)
 
     def test_the_header_offers_the_button_only_in_work_mode(self):
         # Cubre: T-30
-        self.assertIn("Revisar ahora", render_page("t", "x", "", 0, "chatgpt_work"))
-        self.assertNotIn("Revisar ahora", render_page("t", "x", "", 0, "local"))
+        self.assertIn('class="secondary" title="Busca correos nuevos en Gmail ahora', render_page("t", "x", "", 0, "chatgpt_work"))
+        self.assertNotIn('class="secondary" title="Busca correos nuevos en Gmail ahora', render_page("t", "x", "", 0, "local"))
         self.assertIn(seguridad.CSRF_TOKEN, web.add_csrf_tokens(render_page("t", "x", "", 0, "chatgpt_work")))
 
 

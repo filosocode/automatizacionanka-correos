@@ -1,16 +1,17 @@
 <section class="notifications">
-{% if plegar %}<details class="more"><summary>Novedades ({{ items | length }}): ya aparecen en tu cola de hoy</summary>{% endif %}
-  <div class="section-head"><div><h2>Novedades</h2><div class="meta">Correos y respuestas que requieren tu atención.</div></div>
-    <form method="post" action="/notifications/read"><button class="secondary" type="submit">Marcar como revisadas</button></form>
+{% if plegar %}<details class="more"><summary>Novedades ({{ items | length }}): también están en tu lista de casos</summary>{% endif %}
+  <div class="section-head"><div><h2>Novedades</h2><div class="meta">Correos y respuestas que esperan algo de ti.</div></div>
+    <form method="post" action="/notifications/read"><button class="secondary" type="submit">Ya las vi todas</button></form>
   </div>
   {% for item in items %}
 <article class="notification">
-  <span class="notification-dot"></span>
+  <span class="notification-dot"><span class="solo-lectores">Nuevo: </span></span>
   <div><strong>{{ item.title }}</strong>
     <div>{{ item.project_name }}</div>
     <div class="meta">{{ item.message }} {{ item.timestamp }}</div>
+    {% if item.otras %}<div class="meta">También en este caso: {{ item.otras | join(' · ') }}</div>{% endif %}
   </div>
-  <a class="button secondary" href="/case?thread_id={{ item.thread_id | urlquote }}">Revisar</a>
+  <a class="button secondary" href="/case?thread_id={{ item.thread_id | urlquote }}">Ver caso</a>
 </article>
 {% endfor %}
 {% if plegar %}</details>{% endif %}

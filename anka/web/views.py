@@ -5,13 +5,31 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from datetime import date
 from typing import Any
 
 from markupsafe import Markup
 
-from anka.dominio.preguntas import INTERNA, identificador, limpiar
-from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS
+from anka.dominio.analisis import Analisis
+from anka.dominio.caso import Caso, timestamp
+from anka.dominio.correo import normalized_address
+from anka.dominio.reception import correo_con_preguntas, suggested_supporting_documents
+from anka.dominio.status import QuoteStatus
+from anka.dominio.estado_coherente import DATOS_ESENCIALES, datos_que_faltan
+from anka.dominio.respaldo import MEDIOS as MEDIOS_DE_CONTACTO, describir_respaldo
+from anka.dominio.evaluacion import temas_preguntados
+from anka.dominio.insumos import cubierta_en_el_correo
+from anka.dominio.lo_que_falta import lo_pendiente, lo_que_dice_la_nota
+from anka.dominio.preguntas import (
+    INTERNA, como_peticion, en_el_correo, historial_de_rondas, huella_de_pregunta, identificador, limpiar,
+    sumar_preguntas,
+)
+from anka.dominio.activities import ACTIVITY_COLUMNS, ESTADOS, MAX_CELL, huella_de_tabla, normalize_estado
 from anka.dominio.attachments import compactar_paginas
+from anka.dominio.areas_calculadas import clave_de_area, clave_del_total, sin_cantidad, totales_por_archivo
+from anka.dominio.cifras_de_pdf import MAX_CIFRAS, cifras_aun_sin_mencionar
+from anka.dominio.filas_de_hoja import clave_de_fila, filas_aun_sin_cubrir
+from anka.servicios.change_control import code_label
 from anka.web.templating import render
 
 MODE_LABELS = {
@@ -33,12 +51,38 @@ def mode_selector(current: str | None, api_key_set: bool = True) -> Markup:
     return render("mode_selector.html", current=current, labels=labels)
 
 
+_MODO_EN_LLANO = {
+    "local": "Ahora los correos los analiza un programa de este equipo (Ollama).",
+    "api": "Ahora los correos los analiza la API de OpenAI.",
+    "chatgpt_work": "Ahora los correos los analiza ChatGPT Work.",
+}
+
+
+# La marca enlaza a «Solicitudes de cotización» (U-32) y lleva aria-current en esa página; las demás no marcan nada.
+NAV_ACTUAL = {"Solicitudes de cotización": "/"}
+
+
+# Un aviso de fallo viaja con esta marca invisible delante: la página lo dibuja como alerta (U-37).
+MARCA_DE_ERROR = chr(0x2063)      # separador invisible
+
+
+def marcar_como_error(message: str) -> str:
+    """El mismo mensaje, señalado como fallo para que la página lo anuncie como alerta."""
+    return MARCA_DE_ERROR + message if message else message
+
+
 def render_page(title: str, body: str, message: str = "", unread_count: int = 0,
-                mode: str | None = None, api_key_set: bool = True) -> str:
+                mode: str | None = None, api_key_set: bool = True, barra: Mapping[str, Any] | None = None,
+                nombre: str = "") -> str:
     """Página completa: encabezado, avisos, selector de modo y el contenido recibido."""
+    es_error = message.startswith(MARCA_DE_ERROR)
+    message = message.lstrip(MARCA_DE_ERROR)
     return str(render(
-        "layout.html", title=title, body=body, message=message, unread_count=unread_count,
-        mode_selector=mode_selector(mode, api_key_set), is_work=(mode == "chatgpt_work"),
+        "layout.html", title=title, body=body, message=message, message_is_error=es_error, unread_count=unread_count,
+        mode_selector=mode_selector(mode, api_key_set),
+        modo_llano=_MODO_EN_LLANO.get(mode or "", "Todavía no se eligió quién analiza los correos."),
+        is_work=(mode == "chatgpt_work"),
+        nav_actual=NAV_ACTUAL.get(title, ""), barra=barra, nombre=nombre,
     ))
 
 
@@ -59,13 +103,123 @@ def _activities_table(activities: list[dict]) -> Markup:
 
 _PALABRAS = {
     "extraido": "Leído", "completa": "Completa", "parcial": "Parcial", "lectura_parcial": "Lectura parcial",
-    "no_legible": "No se pudo leer", "unreadable": "No se pudo leer", "bloqueado": "Bloqueado: lo revisa una persona",
+    "no_legible": "No se pudo leer", "unreadable": "No se pudo leer", "bloqueado": "Lo revisa una persona",
 }
 
 
 def _palabra(codigo: str) -> str:
     """Un código interno de lectura, dicho como lo diría una persona; lo desconocido pasa igual."""
     return _PALABRAS.get(codigo.strip().casefold().replace(" ", "_"), codigo)
+
+
+_NO_LEIDO = frozenset({"bloqueado", "no_legible", "unreadable"})
+_SIN_LEER = frozenset({"bloqueado", "lectura_parcial", "no_legible", "unreadable", "parcial", "partial"})
+
+
+def _codigo(valor: object) -> str:
+    return str(valor or "").casefold().replace(" ", "_")
+
+
+def adjunto_requiere_atencion(item: Mapping[str, Any]) -> bool:
+    """Un adjunto que no se leyó por completo: una persona debe revisarlo (U-31)."""
+    return (_codigo(item.get("status")) in _SIN_LEER
+            or _codigo(item.get("coverage")) in {"parcial", "no_legible", "unreadable"})
+
+
+def adjunto_no_se_pudo_leer(item: Mapping[str, Any]) -> bool:
+    """Un adjunto que el programa no pudo abrir (por ejemplo un plano CAD): solo una persona puede verlo (U-40)."""
+    return _codigo(item.get("status")) in _NO_LEIDO or _codigo(item.get("coverage")) in {"no_legible", "unreadable"}
+
+
+def attachments_panel(attachments: Sequence[Mapping[str, Any]]) -> Markup:
+    """Los archivos en una línea (U-31): lo que hay que revisar a la vista y lo leído plegado."""
+    items = [item for item in attachments if isinstance(item, Mapping)]
+    atencion = [item for item in items if adjunto_requiere_atencion(item)]
+    leidos = [item for item in items if not adjunto_requiere_atencion(item)]
+    if not items:
+        resumen = "Sin archivos adjuntos"
+    else:
+        cuantos = f"{len(items)} archivo{'' if len(items) == 1 else 's'}"
+        resumen = f"{cuantos} · {f'{len(atencion)} por revisar' if atencion else 'todos leídos'}"
+    filas = [{"nombre": str(item.get("filename") or "Sin nombre"), "atencion": True,
+              "etiqueta": ("No se pudo leer: ábrelo tú o pídele al cliente un PDF" if adjunto_no_se_pudo_leer(item)
+                           else "Se leyó solo una parte: revísalo tú"),
+              "motivo": str(item.get("reason") or "")} for item in atencion]
+    filas += [{"nombre": str(item.get("filename") or "Sin nombre"), "atencion": False, "etiqueta": "Leído",
+               "motivo": ""}
+              for item in leidos]
+    return render("attachments_panel.html", resumen=resumen, filas=filas,
+                  detalle=attachments_table(atencion + leidos) if items else Markup(""))
+
+
+MAX_FILAS_DE_HOJA_EN_PANTALLA = 25
+MAX_DESCRIPCION_EN_PANTALLA = 160   # una celda de Word trae párrafos: se ve el comienzo y el resto con el cursor
+MAX_AREAS_EN_PANTALLA = 25   # un corredor trae más de mil polígonos: se muestran los de mayor área y se resume el resto
+
+
+def areas_calculadas_panel(areas: Sequence[Mapping[str, Any]], diferencias: Sequence[Mapping[str, Any]] = (),
+                           thread_id: str = "", base_version: str = "",
+                           actividades: Sequence[Mapping[str, Any]] = ()) -> Markup:
+    """Las áreas calculadas de los KML/KMZ, como pista (T-125), lo que el correo dice distinto (T-126) y, para quien
+    quiera usarlas, el formulario que pone un área en una actividad sin cantidad (T-130)."""
+    def numero(valor: Any, decimales: int) -> str:
+        return f"{float(valor):,.{decimales}f}".replace(",", " ")   # el separador de miles es un espacio fino
+
+    posiciones = [(n, a) for n, a in enumerate(areas) if isinstance(a, Mapping)]
+    validas = sorted(posiciones, key=lambda p: -float(p[1].get("area_m2") or 0))
+    filas = [{"archivo": str(a.get("archivo") or ""), "poligono": str(a.get("poligono") or ""),
+              "hectareas": numero(a.get("area_ha") or 0, 4), "metros": numero(a.get("area_m2") or 0, 1),
+              "perimetro": numero(a.get("perimetro_m") or 0, 1), "interiores": int(a.get("anillos_interiores") or 0),
+              "clave": clave_de_area(n, str(a.get("archivo") or ""), float(a.get("area_ha") or 0))}
+             for n, a in validas[:MAX_AREAS_EN_PANTALLA]]
+    totales = [{"archivo": archivo, "cuantos": cuantos, "hectareas": numero(total, 4),
+                "clave": clave_del_total(archivo, total)} for archivo, cuantos, total in totales_por_archivo(areas)]
+    destinos = [{"indice": n, "nombre": str(a.get("activity") or "(sin nombre)")}
+                for n, a in enumerate(actividades) if isinstance(a, Mapping) and sin_cantidad(a.get("quantity"))]
+    if not (thread_id and destinos):
+        totales = []   # la suma solo sirve para elegirla en el formulario: sin él el panel es solo la pista de T-125
+    resto = [a for _, a in validas[MAX_AREAS_EN_PANTALLA:]]
+    hectareas_del_resto = numero(sum(float(a.get("area_ha") or 0) for a in resto), 2)
+    resumen_del_resto = f"y {len(resto)} polígonos más, que suman {hectareas_del_resto} ha" if resto else ""
+    avisos = [{"escrita": str(d.get("escrita") or ""), "poligono": str(d.get("poligono") or ""),
+               "archivo": str(d.get("archivo") or ""), "calculada": numero(d.get("calculada_ha") or 0, 4)}
+              for d in diferencias if isinstance(d, Mapping)]
+    return (render("areas_calculadas.html", filas=filas, resto=resumen_del_resto, avisos=avisos, totales=totales,
+                   destinos=destinos, thread_id=thread_id, base_version=base_version,
+                   con_formulario=bool(thread_id))
+            if filas else Markup(""))
+
+
+def filas_de_hoja_panel(filas: Sequence[Mapping[str, Any]], thread_id: str = "", base_version: str = "",
+                        actividades: Sequence[Mapping[str, Any]] = ()) -> Markup:
+    """Las filas con cantidad de las hojas de cálculo que la tabla no recoge, para revisar y agregar (T-127, T-128)."""
+    validas = filas_aun_sin_cubrir(filas, actividades)
+    def cantidad(fila: Mapping[str, Any]) -> str:
+        veces = float(fila.get("veces") or 1)
+        return f"{float(fila.get('cantidad') or 0):g}" + (f" × {veces:g}" if veces != 1 else "")
+
+    def corta(texto: str) -> str:
+        if len(texto) <= MAX_DESCRIPCION_EN_PANTALLA:
+            return texto
+        return texto[:MAX_DESCRIPCION_EN_PANTALLA].rstrip() + "…"
+
+    visibles = [{"archivo": str(f.get("archivo") or ""), "hoja": str(f.get("hoja") or ""),
+                 "fila": int(f.get("fila") or 0), "descripcion": corta(str(f.get("descripcion") or "")),
+                 "completa": str(f.get("descripcion") or ""),
+                 "unidad": str(f.get("unidad") or ""), "cantidad": cantidad(f),
+                 "clave": clave_de_fila(f)}
+                for f in validas[:MAX_FILAS_DE_HOJA_EN_PANTALLA]]
+    resto = len(validas) - len(visibles)
+    return (render("filas_de_hoja.html", filas=visibles, resto=resto, thread_id=thread_id, base_version=base_version)
+            if visibles else Markup(""))
+
+
+def cifras_de_pdf_panel(cifras: Sequence[Mapping[str, Any]], actividades: Sequence[Mapping[str, Any]] = ()) -> Markup:
+    """Las cifras de alcance de los PDF que la tabla no menciona, solo para revisar (T-131): no se agregan a nada."""
+    visibles = [{"archivo": str(c.get("archivo") or ""), "cifra": str(c.get("cifra") or ""),
+                 "contexto": str(c.get("contexto") or "")}
+                for c in cifras_aun_sin_mencionar(cifras, actividades)[:MAX_CIFRAS]]
+    return render("cifras_de_pdf.html", cifras=visibles) if visibles else Markup("")
 
 
 def attachments_table(attachments: Sequence[Mapping[str, Any]]) -> Markup:
@@ -116,7 +270,7 @@ def _audit_review_rows(audit: Sequence[Mapping[str, Any]], waiting_for_client: b
             continue
         disposition = str(item.get("disposition") or "")
         if disposition == "internal_review":
-            status = "Revisión interna pendiente"
+            status = "Pendiente del equipo"
             task = str(item.get("question") or item.get("unresolved") or "Verificar con el equipo de Anka")
         elif disposition == "ask_client":
             status = "Esperando respuesta del cliente" if waiting_for_client else "Pregunta sugerida al cliente"
@@ -157,7 +311,7 @@ def _dependency_review_rows(
         description = str(item.get("description") or "Dependencia de alcance pendiente")
         if description.casefold() not in audit_text:
             source = str(item.get("source") or "")
-            rows.append(("Revisión interna pendiente", description, f"Fuente: {source}" if source else ""))
+            rows.append(("Pendiente del equipo", description, f"Fuente: {source}" if source else ""))
     return rows
 
 
@@ -172,7 +326,7 @@ def _contradiction_review_rows(
         details = str(item.get("details") or "Fuentes con valores discrepantes")
         sources = [str(source) for source in (item.get("sources") or []) if source]
         if details.casefold() not in audit_text and not (sources and all(s.casefold() in audit_text for s in sources)):
-            rows.append(("Revisión interna pendiente", f"Resolver contradicción en {topic}: {details}",
+            rows.append(("Pendiente del equipo", f"Dos fuentes dicen cosas distintas sobre {topic}: {details}",
                          f"Fuentes: {'; '.join(sources)}" if sources else ""))
     return rows
 
@@ -181,14 +335,11 @@ def _attachment_review_rows(
     attachments: Sequence[Mapping[str, Any]], audit_text: str,
 ) -> list[tuple[str, str, str]]:
     rows = []
-    unreadable = {"bloqueado", "lectura_parcial", "no_legible", "unreadable", "parcial", "partial"}
     for item in attachments:
         if not isinstance(item, Mapping):
             continue
         filename = str(item.get("filename") or "adjunto")
-        status = str(item.get("status") or "").casefold().replace(" ", "_")
-        coverage = str(item.get("coverage") or "").casefold().replace(" ", "_")
-        if status not in unreadable and coverage not in {"parcial", "no_legible", "unreadable"}:
+        if not adjunto_requiere_atencion(item):
             continue
         stem = filename.rsplit(".", 1)[0].casefold()
         if filename.casefold() in audit_text or (stem and stem in audit_text):
@@ -197,7 +348,7 @@ def _attachment_review_rows(
         blocked = ", ".join(str(value) for value in (item.get("blocked_fields") or []) if value)
         if blocked:
             reason += f" Datos por verificar: {blocked}."
-        rows.append(("Revisión interna pendiente", f"Revisar el adjunto {filename}", reason))
+        rows.append(("Pendiente del equipo", f"Revisar el adjunto {filename}", reason))
     return rows
 
 
@@ -210,6 +361,7 @@ def review_tasks_panel(
     waiting_for_client: bool = False,
     questions_in_decision: bool = False,
     decisiones: Sequence[Mapping[str, Any]] = (),
+    client_count: int | None = None,
 ) -> Markup:
     """Resume revisiones y dependencias desde las fuentes disponibles, incluidos payloads antiguos.
 
@@ -224,7 +376,7 @@ def review_tasks_panel(
         return identificador(limpiar(texto)) not in decididas
 
     candidates = (
-        [("Revisión interna pendiente", str(p.get("texto")), "Lo decidiste resolver dentro de Anka")
+        [("Pendiente del equipo", str(p.get("texto")), "Esto lo resuelve el equipo de Anka")
          for p in decisiones if p.get("decision") == INTERNA]
         + _audit_review_rows([i for i in audit if not isinstance(i, Mapping) or sin_decidir(i.get("question"))],
                              waiting_for_client)
@@ -248,6 +400,8 @@ def review_tasks_panel(
     if questions_in_decision:
         moved = sum(status == "Pregunta sugerida al cliente" for status, _, _ in rows)
         rows = [row for row in rows if row[0] != "Pregunta sugerida al cliente"]
+        if client_count is not None:
+            moved = client_count
     return render("review_tasks.html", rows=rows, moved_questions=moved)
 
 
@@ -282,25 +436,312 @@ def _sin_cambios(ultima: Mapping[str, Any] | None) -> str:
     return f"Sin cambios por guardar · última versión: {ultima['version']} ({cuando})"
 
 
+_ETIQUETA_DEL_ESTADO = {"confirmado": "Completa", "pendiente": "Por completar", "contradictorio": "Contradictoria"}
+
+
+def _datos_que_faltan(item: Mapping[str, Any]) -> str:
+    """«ubicación, plazo»: los datos esenciales de la fila (R12) vacíos o «no indicado»; vacío si no falta ninguno."""
+    return ", ".join(datos_que_faltan(item))
+
+
+def _que_hace_falta(item: Mapping[str, Any], estado: str) -> str:
+    """Lo puntual que falta en una actividad no confirmada, en una línea (U-103)."""
+    nota = str(item.get("notes") or "")
+    if estado == "contradictorio":
+        return lo_que_dice_la_nota(nota) or "Hay información que no coincide: revísala en «Corregir la tabla»."
+    faltan = _datos_que_faltan(item)
+    return lo_pendiente(nota) or (f"Falta {faltan}." if faltan else lo_que_dice_la_nota(nota)
+                                  or "Falta confirmar la actividad.")
+
+
+_ARTICULO_DEL_DATO = {"ubicación": "la ubicación", "cantidad": "la cantidad", "unidad": "la unidad",
+                      "entregable": "el entregable", "plazo": "el plazo"}
+
+
+def _lista_con_y(partes: Sequence[str]) -> str:
+    """«a», «a y b», «a, b y c»."""
+    return partes[0] if len(partes) == 1 else f"{', '.join(partes[:-1])} y {partes[-1]}"
+
+
+_RAZON_INTERNA = re.compile(r"\s+(?:al\s+no|ya\s+que|porque|pues|dado\s+que|debido\s+a)\b.*$", re.IGNORECASE)
+_PIDE_INDICAR = re.compile(r"^¿Podría indicar (?P<dato>.+)\?$")
+
+
+def _pregunta_de_lo_que_hace_falta(item: Mapping[str, Any], nombre: str) -> str:
+    """La pregunta con las mismas palabras que la columna «Qué hace falta» (U-103.7); vacía si no se puede decir bien.
+
+    Se parte de la frase de la nota que dice qué sigue pendiente. Si la frase quedó cortada («…») o no se deja volver
+    pregunta, se usa la redacción por datos esenciales: nunca se le manda al cliente una pregunta a medias."""
+    frase = lo_pendiente(str(item.get("notes") or ""))
+    if not frase or frase.endswith("…"):
+        return ""
+    frase = _RAZON_INTERNA.sub("", frase.rstrip(" .")) + "."      # «al no contarse con…» es de Anka, no del cliente
+    encaja = _PIDE_INDICAR.match(como_peticion(frase))
+    return f"{nombre}: {encaja.group('dato')}." if encaja else ""     # un dato pedido, no otro «¿Podría…?» (U-108)
+
+
+def _pregunta_de_fila(item: Mapping[str, Any], estado: str) -> str:
+    """La pregunta para el cliente que sale de una actividad no confirmada (U-103.7). No inventa datos: usa los datos
+    esenciales vacíos (R12) y las notas tal como están."""
+    nombre = str(item.get("activity") or "Sin nombre").strip()
+    nota = " ".join(str(item.get("notes") or "").split()).rstrip(" .;:")
+    faltan = [] if estado == "contradictorio" else [d for d in _datos_que_faltan(item).split(", ") if d]
+    if estado != "contradictorio" and (lo_dicho := _pregunta_de_lo_que_hace_falta(item, nombre)):
+        return lo_dicho
+    if faltan:
+        return f"{nombre}: {_lista_con_y([_ARTICULO_DEL_DATO[d] for d in faltan])}."
+    cierre = "¿Cuál es el dato correcto?" if estado == "contradictorio" else "¿Nos lo pueden aclarar?"
+    return f"{nombre}: {nota}. {cierre}" if nota else f"¿Podría confirmar los datos de «{nombre}»?"
+
+
+def preguntas_de_la_tabla(activities: Sequence[Mapping[str, Any]]) -> dict[int, tuple[str, bool]]:
+    """Por cada actividad no confirmada (índice en la tabla): su pregunta y si viene marcada de entrada (U-103.8).
+
+    Vienen marcadas las pendientes con datos esenciales vacíos, que el cliente puede responder; las contradictorias y
+    las pendientes sin un dato concreto no (R12: el criterio técnico de Anka se revisa primero por dentro)."""
+    resultado: dict[int, tuple[str, bool]] = {}
+    for indice, item in enumerate(activities):
+        estado = normalize_estado(item.get("estado"))
+        if estado != "confirmado":
+            de_entrada = estado == "pendiente" and bool(_datos_que_faltan(item))
+            resultado[indice] = (_pregunta_de_fila(item, estado), de_entrada)
+    return resultado
+
+
+def casillas_de_preguntas(activities: Sequence[Mapping[str, Any]], cuadro: str, ya_pedidas: Sequence[str],
+                          nuevo: bool) -> tuple[dict[int, tuple[str, bool]], str]:
+    """(casillas de la tabla, cuadro de preguntas) (U-103.7 a 103.9).
+
+    Si el cuadro es nuevo (la persona no ha escrito nada), recibe las preguntas de las filas marcadas de entrada, salvo
+    las que ya se le pidieron al cliente. Cada casilla queda marcada si su pregunta está en el cuadro."""
+    filas = preguntas_de_la_tabla(activities)
+    if nuevo:
+        pedidas = {huella_de_pregunta(texto) for texto in ya_pedidas}
+        cuadro = sumar_preguntas(cuadro, [texto for texto, de_entrada in filas.values()
+                                          if de_entrada and huella_de_pregunta(texto) not in pedidas])
+    en_el_cuadro = {huella_de_pregunta(linea) for linea in cuadro.splitlines()}
+    return {i: (texto, huella_de_pregunta(texto) in en_el_cuadro) for i, (texto, _) in filas.items()}, cuadro
+
+
+def casillas_del_correo(activities: Sequence[Mapping[str, Any]], cuerpo: str) -> dict[int, tuple[str, bool]]:
+    """Las casillas con el correo ya redactado: marcada si su pregunta ya está, sola o en un grupo (U-114.3)."""
+    puntos = en_el_correo(cuerpo)
+    return {i: (texto, cubierta_en_el_correo(texto, activities, puntos))
+            for i, (texto, _) in preguntas_de_la_tabla(activities).items()}
+
+
+def actividades_sin_nombrar(activities: Sequence[Mapping[str, Any]], cuerpo: str) -> list[dict[str, Any]]:
+    """Las actividades «Por completar» o «Contradictorias» que ningún punto del correo nombra (U-109).
+
+    Está nombrada si un punto numerado del correo contiene el nombre de la actividad o repite la pregunta de su fila.
+    Una pregunta general sobre el mismo dato no la nombra (D-205), pero sí se señala como posible cobertura
+    («puede cubrirla la pregunta 1»): el aviso no esconde la fila, solo dice qué pregunta probablemente la resuelve.
+    Las contradictorias también se muestran: la persona debe saber que existen para decidir si se las pregunta al
+    cliente o las resuelve ella con su criterio (R12); el aviso no las agrega solo. Sin correo con preguntas no hay
+    nada que cubrir. Devuelve, por actividad: nombre, si es contradictoria, su pregunta, los puntos que ya tiene el
+    correo y `cubierta_por` (el número de la pregunta general que trata lo mismo, o `None`). Primero van las que
+    ninguna pregunta parece cubrir."""
+    puntos = en_el_correo(cuerpo)
+    if not puntos:
+        return []
+    huellas = [huella_de_pregunta(punto) for punto in puntos]
+    nombres = [huella_de_pregunta(str(a.get("activity") or "")) for a in activities]
+    generales = [(numero, temas_preguntados([punto]))
+                 for numero, (punto, huella) in enumerate(zip(puntos, huellas, strict=True), 1)
+                 if not any(n and n in huella for n in nombres)]       # un punto que nombra una actividad no es general
+    resultado = []
+    for indice, (pregunta, _) in preguntas_de_la_tabla(activities).items():
+        contradictoria = normalize_estado(activities[indice].get("estado")) == "contradictorio"
+        nombre = str(activities[indice].get("activity") or "").strip()
+        buscadas = [h for h in (huella_de_pregunta(nombre), huella_de_pregunta(pregunta)) if h]
+        if any(buscada in huella for buscada in buscadas for huella in huellas):
+            continue
+        falta = temas_preguntados([_que_hace_falta(activities[indice], "contradictorio" if contradictoria
+                                                   else "pendiente")])
+        cubierta = next((numero for numero, temas in generales if falta & temas), None)
+        resultado.append({"actividad": nombre or "Sin nombre", "contradictoria": contradictoria, "pregunta": pregunta,
+                          "preguntas": [*puntos, pregunta], "cubierta_por": cubierta})
+    return sorted(resultado, key=lambda r: r["cubierta_por"] is not None)
+
+
+def preguntas_generales(candidatas: Sequence[Mapping[str, Any]], preguntar: Mapping[int, tuple[str, bool]] | None,
+                        cuadro: str) -> list[dict[str, Any]]:
+    """Las preguntas que el análisis sugiere para el cliente y no son de una actividad, con su casilla (U-107.7).
+
+    Salen marcadas si están en el cuadro. Una que repite la pregunta de una fila, o una ya pedida (U-98), no se
+    lista."""
+    de_filas = {huella_de_pregunta(texto) for texto, _ in (preguntar or {}).values()}
+    en_el_cuadro = {huella_de_pregunta(linea) for linea in cuadro.splitlines()}
+    vistas: set[str] = set()
+    generales = []
+    for candidata in candidatas:
+        if candidata.get("elegida") != "ask_client" or candidata.get("ya_pedida"):
+            continue
+        texto = como_peticion(str(candidata.get("texto") or ""))
+        huella = huella_de_pregunta(texto)
+        if not texto or huella in de_filas or huella in vistas:
+            continue
+        vistas.add(huella)
+        del_modelo = candidata.get("origen") in ("auditoría", "análisis")
+        generales.append({"pregunta": texto, "marcada": huella in en_el_cuadro, "del_modelo": del_modelo})
+    return generales
+
+
+_ETIQUETA_SENCILLA = {"confirmado": "Listo", "pendiente": "Falta un dato", "contradictorio": "No cuadra"}
+_ARTICULO = {"ubicación": "la ubicación", "cantidad": "la cantidad", "unidad": "la unidad",
+             "entregable": "el entregable", "plazo": "el plazo"}
+_CAMPOS_PARA_CORREGIR = (("servicio_tecnica", "Servicio o técnica"), ("ubicacion", "Ubicación"),
+                         ("quantity", "Cantidad"), ("unit", "Unidad"), ("entregable", "Entregable"),
+                         ("plazo_restriccion", "Plazo o restricción"), ("notes", "Notas"))
+
+
+def _lo_que_tiene(item: Mapping[str, Any]) -> str:
+    """Lo que dice una actividad lista, en una línea: «Embalse La Esmeralda · 2 km · Informe»."""
+    cantidad = " ".join(f"{item.get('quantity') or ''} {item.get('unit') or ''}".split())
+    partes = [str(item.get("ubicacion") or "").strip(), cantidad, str(item.get("entregable") or "").strip()]
+    return " · ".join(p for p in partes if p and p.casefold() != "no indicado")
+
+
+def _renglones_de_actividades(activities: Sequence[Mapping[str, Any]],
+                              preguntar: Mapping[int, tuple[str, bool]] | None = None,
+                              respaldos: Mapping[str, Mapping[str, str]] | None = None) -> list[dict[str, Any]]:
+    """Un renglón por actividad, de cualquier estado, con lo que el panel de la derecha necesita (U-112.A5, B).
+
+    Cada uno trae su estado en palabras de todos los días, lo que falta (o lo que dice si ya está lista), el respaldo
+    del último cambio si lo hubo, la casilla de «Preguntar» si el caso espera la decisión y los datos que el panel
+    pide para resolverla: los esenciales vacíos y, si es contradictoria o no falta un dato concreto, qué se decidió."""
+    renglones = []
+    for indice, item in enumerate(activities):
+        estado = normalize_estado(item.get("estado"))
+        nombre = str(item.get("activity") or "Sin nombre")
+        pregunta, marcada = (preguntar or {}).get(indice, ("", False))
+        faltan = [{"clave": clave, "nombre": nom, "articulo": _ARTICULO[nom]}
+                  for clave, nom in DATOS_ESENCIALES if nom in datos_que_faltan(item)]
+        respaldo = (respaldos or {}).get(nombre.strip().casefold())
+        renglones.append({
+            "indice": indice, "actividad": nombre, "estado": estado,
+            "etiqueta": _ETIQUETA_SENCILLA.get(estado, "Falta un dato"),
+            "detalle": _lo_que_tiene(item) if estado == "confirmado" else _que_hace_falta(item, estado),
+            "traza": describir_respaldo(respaldo) if respaldo else "",
+            "pregunta": pregunta, "marcada": marcada, "tiene_casilla": indice in (preguntar or {}),
+            "faltan": faltan, "necesita_decision": estado == "contradictorio" or not faltan,
+            "campos": [{"clave": c, "etiqueta": e, "valor": str(item.get(c) or "")} for c, e in _CAMPOS_PARA_CORREGIR]})
+    return renglones
+
+
+def _resumen_de_actividades(activities: Sequence[Mapping[str, Any]]) -> str:
+    """«4 actividades · 2 por completar»: cuántas hay y cuántas no están confirmadas (R12). Vacío si no hay ninguna."""
+    if not activities:
+        return ""
+    faltan = sum(1 for item in activities if normalize_estado(item.get("estado")) != "confirmado")
+    cuantas = f"{len(activities)} actividad{'' if len(activities) == 1 else 'es'}"
+    return f"{cuantas} · {f'{faltan} por completar' if faltan else 'todas completas'}"
+
+
+def _panel_a_reabrir(escrito: Mapping[str, str] | None) -> dict[str, Any]:
+    """El panel que se rechazó y lo que traía escrito, listo para reabrirlo (vacío si no hubo rechazo)."""
+    if not escrito:
+        return {}
+    indice = str(escrito.get("indice", ""))
+    panel = "panel-nueva" if escrito.get("accion") == "agregar" else f"panel-{indice}"
+    return {"panel": panel, "valores": {k: v for k, v in escrito.items() if k not in ("indice", "accion")},
+            "accion": escrito.get("accion", "")}
+
+
 def activities_editor(thread_id: str, activities: Sequence[Mapping[str, Any]],
                       reasons: list[tuple[str, str]] | None = None, hoja: Mapping[str, Any] | None = None,
-                      ultima: Mapping[str, Any] | None = None) -> Markup:
+                      ultima: Mapping[str, Any] | None = None, abierto: bool = False,
+                      base_version: str | None = None,
+                      preguntar: Mapping[int, tuple[str, bool]] | None = None,
+                      generales: Sequence[Mapping[str, Any]] | None = None,
+                      respaldos: Mapping[str, Mapping[str, str]] | None = None,
+                      documentos: Sequence[str] = (), panel_escrito: Mapping[str, str] | None = None) -> Markup:
     """Tabla editable: colores por estado, celdas vacias en gris y una fila nueva al final."""
     def cells(item: Mapping[str, Any]) -> list[dict]:
         return [{"key": key, "value": str(item.get(key) or "")} for key, _ in ACTIVITY_COLUMNS]
 
     rows = [
-        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)}}
+        {"index": index, "is_new": False, "cells": cells(item), "by": {c["key"]: c["value"] for c in cells(item)},
+         "nombre": str(item.get("activity") or "").strip() or f"la fila {index + 1}"}
         for index, item in enumerate(activities)
     ]
     new_row = {key: "" for key, _ in ACTIVITY_COLUMNS} | {"estado": "pendiente"}
-    rows.append({"index": len(activities), "is_new": True, "cells": cells(new_row),
+    rows.append({"index": len(activities), "is_new": True, "nombre": "la fila nueva", "cells": cells(new_row),
                  "by": {c["key"]: c["value"] for c in cells(new_row)}})
     return render(
         "activities_editor.html",
-        thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS,
-        reasons=reasons or [],
+        thread_id=thread_id, row_count=len(activities), rows=rows, states=ESTADOS, max_celda=MAX_CELL,
+        base_version=huella_de_tabla(activities) if base_version is None else base_version,
+        abierto=abierto, resumen=_resumen_de_actividades(activities),
+        renglones=_renglones_de_actividades(activities, preguntar, respaldos), con_preguntar=preguntar is not None,
+        documentos=list(documentos), panel_escrito=_panel_a_reabrir(panel_escrito),
+        medios=MEDIOS_DE_CONTACTO, hoy=date.today().isoformat(),
+        generales=list(generales or []),
+        reasons=reasons or [], etiquetas_de_estado=_ETIQUETA_DEL_ESTADO,
         sin_cambios=_sin_cambios(ultima),
         hoja={"url": "", "error": "", "tiene_carpeta": False, "actualizada": ""} | dict(hoja or {}),
         headers=[label for _, label in ACTIVITY_COLUMNS],
     )
+
+
+def pendientes_del_alcance(analysis: Analisis) -> str:
+    """«Faltan: 2 archivos por revisar (…)»: lo que la tabla no muestra (U-103.10). Las actividades por completar ya
+    las dice la tabla; tras la respuesta del cliente, lo que sigue pendiente de él."""
+    rondas = historial_de_rondas(analysis)
+    if rondas and rondas[-1]["con_respuesta"]:
+        pendientes = [p["texto"] for p in rondas[-1]["preguntas"] if p["clase"] != "resuelta"]
+        if pendientes:
+            return "Pendiente del cliente: " + "; ".join(pendientes)
+    archivos = [str(a.get("filename") or "sin nombre") for a in analysis.get("attachments", [])
+                if isinstance(a, Mapping) and adjunto_requiere_atencion(a)]
+    if not archivos:
+        return ""
+    nombres = ", ".join(archivos[:3]) + ("…" if len(archivos) > 3 else "")
+    ilegibles = [str(a.get("filename") or "sin nombre") for a in analysis.get("attachments", [])
+                 if isinstance(a, Mapping) and adjunto_no_se_pudo_leer(a)]
+    salida = (f" No pudimos leer {', '.join(ilegibles[:3])}{'…' if len(ilegibles) > 3 else ''}: ábrelo tú o pídele "
+              "al cliente un PDF.") if ilegibles else ""
+    return (f"Faltan: {len(archivos)} archivo{'' if len(archivos) == 1 else 's'} por revisar ({nombres}). "
+            f"Míralo en la pestaña «Archivos».{salida}")
+
+def ronda_del_caso(review: Caso, analysis: Analisis, mensajes: Sequence[Mapping[str, Any]]) -> tuple[int, bool]:
+    """(número de ronda, ¿el cliente ya contestó un correo con preguntas?) (U-40).
+
+    La ronda 1 es la primera vez que se pregunta; cada correo enviado al cliente abre la siguiente. Sin estados nuevos:
+    sale de lo que ya se guarda (los correos de la conversación, las preguntas enviadas y cuándo llegó la respuesta).
+    """
+    enviados = sum(1 for m in mensajes if m["direction"] == "sent")
+    enviadas = analysis.get("preguntas_enviadas") or {}
+    if review["status"] == QuoteStatus.WAITING:
+        return max(1, enviados), False
+    if not enviadas.get("preguntas") or review["status"] not in (
+            QuoteStatus.REVIEW, QuoteStatus.REVIEW_PENDING, QuoteStatus.DRAFT_CREATED, QuoteStatus.READY_REVIEW):
+        return 1, False
+    salio = timestamp(str(enviadas.get("en") or ""))
+    contesto = salio > 0 and any(
+        m["direction"] == "received" and timestamp(str(m["occurred_at"] or "")) > salio for m in mensajes)
+    return (max(2, enviados + 1), True) if contesto else (max(1, enviados), False)
+
+
+def codigo_para_el_contacto(review: Caso) -> str:
+    """El código de la oferta para citarlo en el correo, o '' si no hay T o el destinatario no es el contacto registrado
+    (R11: a quien no es el contacto nunca se le incluye el código)."""
+    numero = review.get("quote_code", "")
+    if not numero:
+        return ""
+    contacto = review.get("contact_email") or review["recipient"]
+    if normalized_address(contacto) != normalized_address(review["recipient"]):
+        return ""
+    return code_label(numero, review.get("code_stage", "T"))
+
+
+def correo_de_las_preguntas(review: Caso, analysis: Analisis, preguntas: Sequence[str], segunda_ronda: bool) -> str:
+    """El correo con las preguntas de la caja (U-24, U-108): plantilla fija con proyecto, código y ronda.
+
+    Lleva también la lista «también puede adjuntar» (U-100), igual que el correo que sugiere el análisis: rehacer el
+    correo con otras preguntas no debe hacerle perder los documentos opcionales."""
+    reenviado = bool(analysis.get("routing", {}).get("is_forwarded"))
+    return correo_con_preguntas(
+        list(preguntas), reenviado, suggested_supporting_documents(analysis),
+        proyecto=analysis.get("project_name") or "", codigo=codigo_para_el_contacto(review),
+        segunda_ronda=segunda_ronda, actividades=analysis.get("activities"))

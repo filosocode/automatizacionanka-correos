@@ -1,23 +1,28 @@
 """Ciclo de revisión del buzón: decide qué hacer con cada hilo y lo aplica."""
 
 from __future__ import annotations
-from anka.servicios.repositorio import actualizar_caso
+from anka.infra.clientes_google import ClienteDrive, ClienteGmail
+from anka.servicios.estados import cambiar_estado, verificar_transicion
 
 import json
 import sqlite3
-from dataclasses import dataclass
+import sys
+from dataclasses import dataclass, replace
 from collections.abc import Callable, Sequence
 from typing import Any
 from anka.dominio.configuracion import Configuracion
 from anka.dominio.analisis import Analisis
 from anka.dominio.errores import ContextoInsuficiente, ErrorDeAnka, ModoNoPermitido
+from anka.dominio.areas_declaradas import pistas_de_area
+from anka.dominio.cifras_de_pdf import cifras_sin_mencionar
+from anka.dominio.filas_de_hoja import filas_sin_cubrir
 from anka.dominio.status import (
-    QuoteStatus,
+    QuoteStatus, estado_tras_un_analisis,
 )
 from anka.dominio.decision import Action, Decision, decide_analysis, decide_prefilter
 from anka.infra.logging_setup import SENSITIVE, get_logger
 from anka.servicios.drive_layout import (
-    AmbiguousClient, ClientNotFound, create_project_folder, year_mismatch,
+    AmbiguousClient, ClientNotFound, create_project_folder, padre_invalido,
 )
 from anka.servicios.drive_contents import populate_project_folder
 from anka.infra.google_services import services
@@ -33,10 +38,9 @@ from anka.infra.mail import (
     create_reply_draft,
     extract_message_attachments,
     own_addresses,
-    send_reply,
 )
 from anka.dominio.reception import (
-    attachment_report, automated_noise_reason, draft_body_with_review_note,
+    agregar_pregunta_de_ubicacion, attachment_report, automated_noise_reason, draft_body_with_review_note,
     mentions_commercial_terms,
 )
 from anka.dominio.reintentos import analisis_de_fallo, motivo_legible
@@ -45,17 +49,29 @@ from anka.servicios.lectura_por_tramos import analizar_hilo
 from anka.infra.modes import (
     ensure_local_or_api_mode,
 )
+from anka.dominio.tabla_acumulada import anclar_filas
+from anka.dominio.verificacion_de_evidencia import marcar_cifras_sin_respaldo
+from anka.infra import registro_de_uso
+from anka.infra.presupuesto_ocr import presupuesto_de_caso
 from anka.infra.settings import load_config
 from anka.dominio.activities import limpiar_cantidad_y_unidad, normalize_estado
+from anka.dominio.estado_coherente import reconciliar_estados
 from anka.servicios.change_control import apply_guard, find_codes
 from email.utils import parseaddr
 from anka.infra.store import connect, save
+from anka.servicios.repositorio import hilos_descartados_por_reanalizar, hilos_en_estado
 
 from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
-from anka.servicios.quotes import save_review_packet
+from anka.servicios.cola_del_piloto import save_review_packet
 
 
 log = get_logger(__name__)
+
+AVISO_SIN_ENVIO_DIRECTO = (
+    "Aviso: Anka ya no envía correos al cliente desde la línea de comandos, así que --apply no envía nada. "
+    "Cada respuesta propuesta queda en «Correo por revisar» y se envía solo desde el dashboard, "
+    "después de que una persona la revise."
+)
 
 
 @dataclass
@@ -67,7 +83,7 @@ class RevisorDeHilos:
     (`db=None`) es una simulación: decide e informa, pero no guarda ni envía nada.
     """
 
-    def __init__(self, config: Configuracion, gmail: Any, drive: Any, db: sqlite3.Connection | None,
+    def __init__(self, config: Configuracion, gmail: ClienteGmail, drive: ClienteDrive, db: sqlite3.Connection | None,
                  account_addresses: set[str], review_only: bool, gmail_drafts: bool,
                  comprobar_modo: Callable[[], None] | None = None, respetar_espera: bool = True) -> None:
         self.config = config
@@ -88,17 +104,10 @@ class RevisorDeHilos:
             self.gmail, self.config.get("gmail_query", "in:inbox newer_than:7d")
         ))
         if self.db:
-            thread_ids.update(row[0] for row in self.db.execute(
-                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.WAITING}'"
-            ))
-            thread_ids.update(row[0] for row in self.db.execute(
-                f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.IGNORED}' "
-                "AND json_extract(analysis_json, '$.force_analysis') = 1"
-            ))
+            thread_ids.update(hilos_en_estado(self.db, QuoteStatus.WAITING))
+            thread_ids.update(hilos_descartados_por_reanalizar(self.db))
             if self.gmail_drafts:
-                thread_ids.update(row[0] for row in self.db.execute(
-                    f"SELECT thread_id FROM quotes WHERE status='{QuoteStatus.REVIEW_PENDING}'"
-                ))
+                thread_ids.update(hilos_en_estado(self.db, QuoteStatus.REVIEW_PENDING))
         return thread_ids
 
     def run(self) -> None:
@@ -117,8 +126,7 @@ class RevisorDeHilos:
             except Exception as exc:
                 log.warning("%s: no se pudo leer el hilo en Gmail: %s", thread_id, exc)
                 if self.db:
-                    actualizar_caso(self.db, thread_id,
-                        status=QuoteStatus.MISSING)
+                    cambiar_estado(self.db, thread_id, QuoteStatus.MISSING, "hilo_no_disponible")
                     self.db.commit()
                 continue
             try:
@@ -194,21 +202,44 @@ class RevisorDeHilos:
         decision = decide_prefilter(thread_id, noise, email)
         if decision is None:
             attachments = []
-            for message in inbound:
-                attachments.extend(extract_message_attachments(self.gmail, message))
+            with presupuesto_de_caso(config):   # el tiempo de OCR se cuenta por caso (U-55)
+                for message in inbound:
+                    attachments.extend(extract_message_attachments(self.gmail, message))
             blocked = [item for item in attachments
                        if item.get("status") in {"bloqueado", "lectura_parcial"}]
             required = config["required_fields"]
-            analysis = analizar_hilo(inbound, required, config["llm"], attachments)
+            tabla = _tabla_vigente(row)
+            with registro_de_uso.medir(config["llm"]) as medicion:   # U-91: tokens y costo de este análisis
+                try:
+                    analysis = analizar_hilo(inbound, required, config["llm"], attachments, tabla)
+                finally:
+                    registro_de_uso.anotar(thread_id, medicion)
+            if tabla:   # diagnóstico sin nombres: qué número de fila dijo el modelo para cada actividad
+                numeros = [a.get("fila_existente") for a in analysis.get("activities") or [] if isinstance(a, dict)]
+                log.info("%s: seguimiento con %d filas vigentes; el modelo devolvió %d actividades, fila_existente %s",
+                         thread_id, len(tabla), len(numeros), numeros)
+            anclar_filas(analysis.get("activities"), tabla)   # U-94: cada fila conserva el nombre de la que actualiza
             analysis["received_at"] = message_datetime(last)
             analysis["routing"] = routing
             analysis["email"] = email
             analysis["attachments"] = attachment_report(attachments, analysis, required)
+            if not tabla:   # U-95: solo en el primer análisis; en un seguimiento decide el modelo y nunca se insiste
+                agregar_pregunta_de_ubicacion(analysis, attachments)
+            pistas = pistas_de_area("\n\n".join(message_text(m.get("payload", {})) for m in inbound), attachments)
+            analysis["areas_calculadas"] = pistas["areas_calculadas"]   # T-125, T-126: pistas, no entran en la tabla
+            analysis["diferencias_de_area"] = pistas["diferencias_de_area"]
+            analysis["filas_de_hoja_sin_cubrir"] = filas_sin_cubrir(   # T-127: pista, no entra en la tabla
+                attachments, analysis.get("activities") or [])
+            analysis["cifras_de_pdf_sin_mencionar"] = cifras_sin_mencionar(   # T-131: pista, no entra en la tabla
+                attachments, analysis.get("activities") or [])
             for row in analysis.get("activities", []):
                 if isinstance(row, dict):
                     limpiar_cantidad_y_unidad(row)
                 if isinstance(row, dict) and "estado" in row:
                     row["estado"] = normalize_estado(row["estado"])  # R12
+            reconciliar_estados(analysis.get("activities") or [])   # U-104: el estado cuenta lo mismo que los datos
+            marcar_cifras_sin_respaldo(   # U-93: una cifra que ningún documento respalda no queda confirmada
+                analysis, "\n\n".join(message_text(m.get("payload", {})) for m in inbound), attachments)
             if self.db:
                 # R11: con T asignada, la tabla solo cambia por el contacto registrado y citando el código
                 sender_name, sender_email = parseaddr(header(last, "From"))
@@ -232,6 +263,8 @@ class RevisorDeHilos:
         db = self.db
         if not db:
             return
+        d = self._respetar_estado_avanzado(db, thread_id, last, d)
+        verificar_transicion(db, thread_id, d.status, "analisis_python")
         packet_body = d.body
         draft_id = None
         if d.action is Action.GMAIL_DRAFT:
@@ -245,12 +278,7 @@ class RevisorDeHilos:
                 thread_id, recipient, d.analysis, d.questions, packet_body or None,
                 d.folder_name or None,
             )
-        if d.action is Action.SEND:
-            save(db, thread_id, last["id"], QuoteStatus.SENDING, recipient, d.analysis)
-            sent_id = send_reply(self.gmail, thread, recipient, d.body, self.account_addresses)
-            save(db, thread_id, last["id"], d.status, recipient, d.analysis,
-                 sent_message_id=sent_id)
-        elif d.action is Action.FOLDER:
+        if d.action is Action.FOLDER:
             self._create_project_folder_or_hold(thread_id, last, recipient, d, thread)
         elif d.action is Action.GMAIL_DRAFT:
             save(db, thread_id, last["id"], d.status, recipient, d.analysis,
@@ -266,14 +294,29 @@ class RevisorDeHilos:
                     else "ficha de revisión guardada"
                 )
                 log.info("%s: %s: %s", thread_id, verb, packet.name)
-        if d.action is Action.SEND:
-            log.info("%s: preguntas enviadas al cliente; se espera respuesta", thread_id)
         programar_actualizacion_de_hoja(thread_id)   # si el análisis cambió la tabla, la hoja de Google lo refleja
+
+    @staticmethod
+    def _respetar_estado_avanzado(db: sqlite3.Connection, thread_id: str, last: dict, d: Decision) -> Decision:
+        """Un caso `ready`, `sending` o `response_sent` no retrocede por un análisis (U-47, igual que Work).
+
+        El análisis se guarda, pero el estado queda y no se envía ni se crea carpeta: el caso ya pasó por ahí.
+        """
+        row = db.execute("SELECT status, last_inbound_id FROM quotes WHERE thread_id=?", (thread_id,)).fetchone()
+        if not row:
+            return d
+        mismo = row["last_inbound_id"] == last["id"]
+        final = estado_tras_un_analisis(row["status"], d.status, mismo)
+        if estado_tras_un_analisis(row["status"], "", mismo) == "":     # el caso no está protegido
+            return d
+        log.info("%s: el caso sigue en «%s»; el análisis nuevo no lo hace retroceder", thread_id, final)
+        accion = Action.NONE if d.action is Action.FOLDER else d.action
+        return replace(d, status=QuoteStatus(final), action=accion)
 
     def _create_project_folder_or_hold(
         self, thread_id: str, last: dict, recipient: str, d: Decision, thread: dict,
     ) -> None:
-        """Crea `Año/Cliente/Solicitud` solo si el cliente es seguro; si no, lo deja para una persona.
+        """Crea `Año/Mes/Cliente/Solicitud/anexos` solo si el cliente es seguro; si no, lo deja para una persona.
 
         Nunca crea una carpeta de cliente por cuenta propia (ver drive_layout).
         """
@@ -282,10 +325,10 @@ class RevisorDeHilos:
         parent = self.config["drive_parent_id"]
         hold: tuple[str, str] | None = None  # (código genérico, mensaje completo)
         folder: dict | None = None
-        mismatch = year_mismatch(self.drive, parent, d.analysis.get("received_at", ""))
+        mismatch = padre_invalido(self.drive, parent)
         client = confirmed_client(db, thread_id, d.analysis, recipient)
         if mismatch:
-            hold = ("año de la carpeta padre", mismatch)
+            hold = ("carpeta padre", mismatch)
         elif not client:
             hold = ("cliente sin confirmar",
                     "No hay un cliente confirmado para este remitente. Indica la carpeta del cliente.")
@@ -352,6 +395,20 @@ def _skip_reason(row: Sequence[Any] | None, last_id: str, gmail_drafts: bool) ->
     return ""
 
 
+def _tabla_vigente(row: Sequence[Any] | None) -> list[dict] | None:
+    """Las actividades que el caso ya tiene, para que un seguimiento las actualice en vez de rehacerlas (U-90)."""
+    if not row or len(row) < 3:
+        return None
+    try:
+        previo = json.loads(row[2] or "{}")
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(previo, dict) or "analysis_failure" in previo:
+        return None
+    actividades = [a for a in previo.get("activities") or [] if isinstance(a, dict)]
+    return actividades or None
+
+
 def _rescued(row: Sequence[Any] | None) -> bool:
     """¿Una persona pidió reanalizar este hilo descartado desde el dashboard?"""
     if not row or len(row) < 3:
@@ -362,10 +419,27 @@ def _rescued(row: Sequence[Any] | None) -> bool:
         return False
 
 
+_AVISADO = False
+
+
+def _avisar_que_no_se_envia() -> None:
+    """El aviso de U-77, una sola vez por proceso (`watch` repite `run` cada pocos minutos)."""
+    global _AVISADO
+    if _AVISADO:
+        return
+    _AVISADO = True
+    print(AVISO_SIN_ENVIO_DIRECTO, file=sys.stderr, flush=True)
+    log.warning(AVISO_SIN_ENVIO_DIRECTO)
+
+
 def run(apply: bool, review_only: bool = False, gmail_drafts: bool = False, respetar_espera: bool = True) -> None:
-    """Revisa Gmail una vez: simula o, con `apply`, guarda para revisión (y envía o crea carpetas sin `review_only`)."""
+    """Revisa Gmail una vez: simula o, con `apply`, guarda para revisión. Nunca envía al cliente (R8, U-77)."""
     config = load_config()
     ensure_local_or_api_mode(config)
+    if apply and not review_only and not gmail_drafts:
+        # Antes esta combinación enviaba las preguntas sin que nadie las revisara: ya no existe (U-77). La decisión
+        # deja cada pregunta en «Correo por revisar» y solo el dashboard envía; las carpetas no cambian.
+        _avisar_que_no_se_envia()
     if review_only and not apply:
         raise ErrorDeAnka("--review-only se usa junto con --apply.")
     if gmail_drafts and not apply:

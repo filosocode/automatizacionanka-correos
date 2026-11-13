@@ -17,7 +17,8 @@ class AnalysisShapeTests(unittest.TestCase):
 
     def test_activity_fields_match_the_editable_table_and_the_model_schema(self):
         declared = set(get_type_hints(Actividad))
-        self.assertEqual(declared, {key for key, _ in ACTIVITY_COLUMNS})
+        # `fila_existente` (U-94) solo viaja del modelo al programa: no es una columna de la tabla y no se guarda
+        self.assertEqual(declared - {"fila_existente"}, {key for key, _ in ACTIVITY_COLUMNS})
         self.assertEqual(declared, set(ANALYSIS_SCHEMA["properties"]["activities"]["items"]["properties"]))
 
     def test_the_extracted_fields_have_name_and_value(self):
@@ -50,6 +51,6 @@ class HealthReportShapeTests(unittest.TestCase):
     def test_the_report_type_matches_what_swagger_documents(self):
         from anka.servicios.salud import InformeDeSalud, ResultadoDeComprobacion
         from anka.web import openapi
-        schema = openapi.build_spec("t")["components"]["schemas"]["Salud"]["properties"]
+        schema = openapi.build_spec()["components"]["schemas"]["Salud"]["properties"]
         self.assertEqual(set(get_type_hints(InformeDeSalud)), set(schema))
         self.assertEqual(set(get_type_hints(ResultadoDeComprobacion)), set(schema["comprobaciones"]["items"]["properties"]))

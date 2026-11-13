@@ -15,6 +15,8 @@ from anka.web import pantalla_caso, seguridad
 from tests.test_app import complete_analysis
 from tests.test_openapi import request
 
+ORIGINAL = case_actions._comprobar_drive_antes_de_emitir   # la real, antes de que cada prueba la sustituya
+
 TEXTO = ("Hola,\n\nRecibimos toda la información de su proyecto «P». Hemos generado el código T26001.\n\n"
          "Escriba desde ana@acme.com.\n\nSaludos,\nGrupo Anka")
 
@@ -33,6 +35,15 @@ class IssueCodeInOneStep(unittest.TestCase):
         db.commit()
         db.close()
         self.calls = []
+        # La comprobación previa a emitir (U-34.2) necesita Gmail y el destinatario: aquí se da por buena.
+        for name, valor in (("case_email_context", ({"recipient": "ana@acme.com"}, None, {}, set())),
+                            ("_recipient", "ana@acme.com")):
+            patcher = patch.object(case_actions, name, return_value=valor)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = patch.object(case_actions, "_comprobar_drive_antes_de_emitir")    # su prueba es la de más abajo
+        patcher.start()
+        self.addCleanup(patcher.stop)
         for name, resultado in (("auto_create_project_folder", "Carpeta en Drive: creada."),
                                 ("send_dashboard_reply", "Correo enviado a ana@acme.com en el mismo hilo.")):
             patcher = patch.object(case_actions, name, side_effect=self.registrar(name, resultado))
@@ -64,6 +75,36 @@ class IssueCodeInOneStep(unittest.TestCase):
         self.assertIn("T26001", message)
         self.assertIn("Carpeta en Drive: creada.", message)
         self.assertIn("Correo enviado", message)
+
+    # Cubre: U-102
+    def emitir_con_drive(self, config, drive=None, error=None):
+        servicios = patch.object(case_actions, "services", side_effect=error) if error else \
+            patch.object(case_actions, "services", return_value=(None, drive))
+        with patch.object(case_actions, "_comprobar_drive_antes_de_emitir", ORIGINAL), \
+                patch.object(case_actions, "load_config", return_value=config), servicios:
+            return case_actions.issue_code_and_notify("t-1", "26001", TEXTO, "26001")
+
+    def test_without_a_drive_parent_the_code_is_not_issued(self):
+        with self.assertRaisesRegex(ValueError, "drive_parent_id"):
+            self.emitir_con_drive({})
+        self.assertIsNone(self.code())
+        self.assertEqual(self.calls, [])
+
+    def test_a_year_folder_as_the_drive_parent_stops_before_issuing_the_code(self):
+        from tests.fake_drive import FakeDriveTree
+        with self.assertRaisesRegex(ValueError, "Proyectos"):
+            self.emitir_con_drive({"drive_parent_id": "parent"}, FakeDriveTree(root_name="2026"))
+        self.assertIsNone(self.code())                         # la T no se emitió: no hay nada que deshacer
+        self.assertEqual(self.calls, [])
+
+    def test_the_projects_folder_lets_the_code_be_issued(self):
+        from tests.fake_drive import FakeDriveTree
+        self.emitir_con_drive({"drive_parent_id": "parent"}, FakeDriveTree(root_name="Proyectos"))
+        self.assertEqual(self.code(), "26001")
+
+    def test_if_drive_does_not_answer_the_code_is_still_issued(self):
+        self.emitir_con_drive({"drive_parent_id": "parent"}, error=RuntimeError("sin red"))
+        self.assertEqual(self.code(), "26001")                 # la carpeta queda pendiente con su motivo, como siempre
 
     def test_a_corrected_number_is_reflected_in_the_text_that_goes_out(self):
         case_actions.issue_code_and_notify("t-1", "26045", TEXTO, "26001")
@@ -106,11 +147,11 @@ class IssueCodeInOneStep(unittest.TestCase):
 
     def test_a_folder_that_cannot_be_created_does_not_stop_the_email(self):
         patcher = patch.object(case_actions, "auto_create_project_folder",
-                               return_value="No creé la carpeta todavía: Indica la carpeta del cliente.")
+                               return_value="Todavía no se creó la carpeta todavía: Indica la carpeta del cliente.")
         patcher.start()
         self.addCleanup(patcher.stop)
         message = case_actions.issue_code_and_notify("t-1", "26001", TEXTO, "26001")
-        self.assertIn("No creé la carpeta todavía", message)
+        self.assertIn("Todavía no se creó la carpeta todavía", message)
         self.assertIn("Correo enviado", message)
 
 
@@ -175,7 +216,7 @@ class Route(unittest.TestCase):
     def test_a_validation_error_is_shown_as_a_message_not_a_500(self):
         body = urllib.parse.urlencode({"csrf_token": seguridad.CSRF_TOKEN, "thread_id": "t-1", "number": "x",
                                        "body": TEXTO}).encode()
-        with patch("anka.web.acciones.issue_code_and_notify", side_effect=ValueError("El número debe tener 5 dígitos")):
+        with patch("anka.web.acciones.issue_code_and_notify", side_effect=ValueError("El número debe tener 5 dígitos.")):
             hecho = request("POST", "/code-issue", body, origin=self.ORIGIN)
         self.assertEqual(hecho["status"], 303)
         self.assertIn("5%20d%C3%ADgitos", hecho["location"])

@@ -13,3 +13,7 @@ htmlcov/
 
 # Archivos de trabajo del equipo que no son parte del código
 archivo_local/
+
+# Entrega (T-113): paquetes ZIP anteriores y copias de la configuración de cada ejecución de laboratorio
+Entrega_Anka*.zip
+laboratorio/**/config.json.original

@@ -187,6 +187,32 @@ class Pantalla(unittest.TestCase):
         self.assertIn("pocos casos", pagina.lower())
         self.assertIn("nadie revisó", pagina)
 
+    def test_a_group_with_nothing_to_measure_shows_dashes_instead_of_failing(self):
+        # Cubre: T-112 (HTTP 500: una tasa sin datos es None y se omitía del diccionario que lee la plantilla)
+        analisis = complete_analysis()
+        analisis["activities"] = []              # un análisis de Work sin ninguna fila: no hay filas iniciales que comparar
+        analisis["work_skill_version"], analisis["work_model"] = "PRECISO_V6.1.3", "no indicado"
+        db = store.open_db(Path(self.temp.name))
+        store.save(db, "a", "m-a", QuoteStatus.REVIEW, "cliente@empresa.co", analisis)
+        db.close()
+        grupo = servicio.por_grupo()[0]
+        self.assertIsNone(grupo["resumen"]["filas_conservadas"])
+        pagina = paginas.render_desempeno()
+        self.assertIn("PRECISO_V6.1.3", pagina)
+        self.assertIn("Filas de la tabla que se conservaron</td><td>—</td>", pagina)    # sin dato: raya, no 0 % inventado
+        self.assertIn("Cantidades que quedaron intactas</td><td>—</td>", pagina)
+
+    def test_the_percentages_keep_every_rate_even_when_it_has_no_data(self):
+        # Cubre: T-112
+        grupo = {"prompt": "P", "modelo": "M", "casos": 1, "resumen": {"casos": 1, "pocos": True, "sin_correcciones": 1.0,
+                                                                  "filas_conservadas": None, "cantidades_intactas": 0.5},
+                 "cambios": {}, "preguntas": {}}
+        with patch("anka.web.paginas.desempeno_por_grupo", return_value=[grupo]), patch("anka.web.paginas.render") as dibujar:
+            dibujar.return_value = ""
+            paginas.render_desempeno()
+        porcentajes = dibujar.call_args.kwargs["grupos"][0]["porcentajes"]
+        self.assertEqual(porcentajes, {"sin_correcciones": 100, "filas_conservadas": None, "cantidades_intactas": 50})
+
     def test_the_route_is_registered_and_documented(self):
         self.assertIn("/desempeno", web.GET_ROUTES)
         self.assertIn("/desempeno", openapi.rutas_documentadas()[0])

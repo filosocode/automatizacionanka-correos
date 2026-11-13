@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar - Anka</title>
+  <script src="{{ url_del_script('tema') }}"></script>
+  <link rel="stylesheet" href="{{ url_del_estilo() }}">
+</head>
+<body class="pantalla-entrar">
+  <canvas id="particulas" aria-hidden="true" hidden></canvas>
+  <main class="entrar-tarjeta">
+    <img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38">
+    <h1>Solicitudes de cotización</h1>
+    <p class="entrar-frase">Grupo Anka · Topografía y geomática</p>
+    {% if message %}<div class='notice flash{% if message_is_error %} error{% endif %}' role="{{ 'alert' if message_is_error else 'status' }}">{% if message_is_error %}<span class="solo-lectores">Error: </span>{% endif %}{{ message }}</div>{% endif %}
+    <form method="post" action="/entrar">
+      <input type="hidden" name="next" value="{{ siguiente }}">
+      <label for="campo-usuario">Usuario</label>
+      <input id="campo-usuario" name="usuario" value="{{ usuario }}" autocomplete="username" required autofocus>
+      <label for="campo-clave">Contraseña</label>
+      <input id="campo-clave" name="clave" type="password" autocomplete="current-password" required>
+      <label class="entrar-recordar"><input type="checkbox" name="recordar" value="1"> Recuérdame en este equipo</label>
+      <button type="submit" class="entrar-boton">Entrar</button>
+    </form>
+  </main>
+  <script src="{{ url_del_script('app') }}" defer></script>
+</body>
+</html>

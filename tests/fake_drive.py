@@ -18,7 +18,7 @@ class FakeHttpError(Exception):
 
 
 class FakeDriveTree:
-    def __init__(self, tree=None, root_name="2026", root_id="parent"):
+    def __init__(self, tree=None, root_name="Proyectos", root_id="parent"):
         """`tree` = {"Cliente": {"Subcarpeta": {}}} bajo la carpeta padre `root_name`."""
         self.folders = {}
         self.trashed = set()
@@ -31,6 +31,22 @@ class FakeDriveTree:
         self._next = 1
         self.root_id = self._add(root_name, None, root_id)
         self._load(self.root_id, tree or {})
+
+    @classmethod
+    def de_clientes(cls, clientes=None, *, fecha=None, root_name="Proyectos"):
+        """Un árbol con los clientes dentro del año y el mes de `fecha` (hoy si no se da): `Proyectos/2026/11-Noviembre/...`."""
+        from anka.dominio.reloj import ahora
+        from anka.servicios.drive_layout import nombre_del_mes
+        fecha = fecha or ahora()
+        return cls({str(fecha.year): {nombre_del_mes(fecha): clientes or {}}}, root_name=root_name)
+
+    @staticmethod
+    def ruta_del_mes(fecha=None):
+        """La ruta `2026/11-Noviembre` del mes de `fecha` (hoy si no se da)."""
+        from anka.dominio.reloj import ahora
+        from anka.servicios.drive_layout import nombre_del_mes
+        fecha = fecha or ahora()
+        return f"{fecha.year}/{nombre_del_mes(fecha)}"
 
     def _add(self, name, parent, folder_id=None):
         folder_id = folder_id or f"f{self._next}"

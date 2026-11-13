@@ -1,6 +1,7 @@
 """Decidir cada pregunta y saber de qué correos se espera respuesta (U-22). Cubre: U-22"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.cuadro_unico import cuadro_de
 
 import io
 import tempfile
@@ -144,7 +145,7 @@ class SugerenciaDeRespuestaTests(unittest.TestCase):
 
     def test_without_decisions_the_suggestion_is_the_one_from_before(self):
         analisis = complete_analysis(location="")
-        self.assertIn("¿podría confirmar lo siguiente?", reception.suggested_reply(analisis, ["ubicación del proyecto"]))
+        self.assertIn("necesitamos confirmar lo siguiente:", reception.suggested_reply(analisis, ["ubicación del proyecto"]))
 
 
 class CasoCompletoTests(unittest.TestCase):
@@ -162,7 +163,10 @@ class CasoCompletoTests(unittest.TestCase):
             parche.start()
             self.addCleanup(parche.stop)
         db = store.open_db(Path(self.temp.name))
-        store.save(db, "t-1", "m-1", QuoteStatus.REVIEW, "cliente@empresa.co", analisis_de_work())
+        analisis = analisis_de_work()
+        # T-133: se prueban preguntas y envíos después de revisar personalmente el adjunto parcial.
+        analisis["reading_review"] = {"at": "2026-11-03T10:00:00-05:00", "files": ["parque.kmz"]}
+        store.save(db, "t-1", "m-1", QuoteStatus.REVIEW, "cliente@empresa.co", analisis)
         db.close()
 
     def caso(self):
@@ -188,10 +192,10 @@ class CasoCompletoTests(unittest.TestCase):
 
     def test_the_page_lists_every_candidate_and_suggests_nothing_for_the_client(self):
         pagina = pantalla_caso.render_case("t-1")
-        self.assertEqual(pagina.count('<div class="pregunta">'), 5)
-        self.assertNotIn('value="ask_client" selected', pagina)
-        self.assertIn("Guardar mis decisiones sin preguntar al cliente", pagina)
-        self.assertIn("Agregar mis propias preguntas", pagina)
+        decision = pagina.split('id="decision"')[1].split("</section>")[0]
+        self.assertEqual(decision.count('class="pregunta"'), 0)             # ya no hay una tarjeta por pregunta (U-31)
+        self.assertEqual(cuadro_de(decision).strip(), "")
+        self.assertIn('id="correo-unico"', decision)
 
     def test_choosing_questions_builds_the_email_with_them_instead_of_the_work_acknowledgement(self):
         lidar = "¿Qué densidad y precisión LiDAR requieren?"
@@ -222,7 +226,7 @@ class CasoCompletoTests(unittest.TestCase):
         self.assertEqual(caso["status"], QuoteStatus.WAITING)
         self.assertEqual(len(caso["analysis"]["preguntas_enviadas"]["preguntas"]), 2)
         pagina = pantalla_caso.render_case("t-1")
-        self.assertIn("Esperamos su respuesta a 2 preguntas", pagina)
+        self.assertIn("Estamos esperando que el cliente conteste 2 preguntas", pagina)
 
     def test_sending_an_acknowledgement_does_not_leave_the_case_waiting(self):
         # el defecto real: se «preguntó» por tareas internas, salió el acuse y el caso quedó esperando al cliente
@@ -276,7 +280,7 @@ class CasoCompletoTests(unittest.TestCase):
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn('id="aviso-espera"', pagina)
         self.assertIn('name="esperar" value="1"', pagina)
-        self.assertIn("Esperar su respuesta aunque el correo no tenga preguntas", pagina)
+        self.assertIn("Esperar respuesta aunque no haya preguntas", pagina)
 
     def test_the_event_and_the_notice_say_whether_an_answer_is_expected(self):
         self.enviar(ACUSE)
@@ -296,22 +300,21 @@ class CasoCompletoTests(unittest.TestCase):
         self.assertEqual(caso["status"], QuoteStatus.REVIEW)           # la revisión técnica sigue abierta
         self.assertNotIn("manual_review", caso["analysis"])
         pagina = pantalla_caso.render_case("t-1")
-        self.assertIn("Revisión interna pendiente", pagina)
-        self.assertIn("Lo decidiste resolver dentro de Anka", pagina)
-        self.assertIn(" decidida por ti", pagina)                       # las tarjetas recuerdan lo decidido
+        self.assertIn("Pendiente del equipo", pagina)
+        self.assertIn("Esto lo resuelve el equipo de Anka", pagina)
 
     def test_discarded_questions_disappear_from_the_pending_list(self):
         elecciones = {c["id"]: (dominio.DESCARTAR, c["texto"])
                       for c in dominio.con_decisiones(dominio.candidatas(self.caso()["analysis"], {}), None)}
         quotes.resolve_technical_review("t-1", "internal_only", elecciones=elecciones)
         pagina = pantalla_caso.render_case("t-1")
-        self.assertNotIn("Lo decidiste resolver dentro de Anka", pagina)
+        self.assertNotIn("Esto lo resuelve el equipo de Anka", pagina)
 
     def test_choosing_ask_client_without_any_question_is_rejected_with_guidance(self):
         with self.assertRaisesRegex(ValueError, "al menos una pregunta"):
             quotes.resolve_technical_review("t-1", "ask_client", elecciones=self.elegir())
         self.assertEqual(self.caso()["status"], QuoteStatus.REVIEW)
-        with self.assertRaisesRegex(ValueError, "Elige qué hacer"):
+        with self.assertRaisesRegex(ValueError, "Falta elegir qué hacer"):
             quotes.resolve_technical_review("t-1", "internal_only")
 
     def test_the_old_one_line_per_question_form_still_works(self):

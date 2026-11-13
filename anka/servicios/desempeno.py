@@ -7,7 +7,7 @@ from typing import Any
 
 from anka.dominio import desempeno as medida
 from anka.dominio.caso import load_analysis
-from anka.infra.store import connect
+from anka.infra.store import lectura
 
 SIN_DATO = "sin dato"
 
@@ -34,8 +34,7 @@ def _tablas_del_primer_analisis(versiones: list[Any]) -> tuple[list[dict[str, An
 
 def por_grupo() -> list[dict[str, Any]]:
     """Un resumen por (versión del prompt, modelo declarado), con el más usado primero."""
-    db = connect()
-    try:
+    with lectura() as db:
         casos: dict[tuple[str, str], list[dict[str, Any]]] = {}
         for fila in db.execute("SELECT thread_id, analysis_json FROM quotes"):
             versiones = db.execute(
@@ -50,8 +49,6 @@ def por_grupo() -> list[dict[str, Any]]:
             casos.setdefault(clave, []).append({
                 "cambios": medida.cambios_de_tabla(inicial, final), "tuvo_edicion": edito,
                 "preguntas": medida.concordancia_de_preguntas(analisis.get("preguntas"))})
-    finally:
-        db.close()
     grupos = []
     for (prompt, modelo), lista in casos.items():
         totales = {clave: sum(c["preguntas"][clave] for c in lista) for clave in lista[0]["preguntas"]}

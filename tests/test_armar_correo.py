@@ -81,7 +81,8 @@ class PlantillaConCodigo(unittest.TestCase):
         # Cubre: U-24
         correo = correo_con_preguntas(["¿Plazo?"], proyecto="Proyecto Norte", codigo="")
         self.assertIn("Para completar la información inicial", correo)
-        self.assertNotIn("Proyecto Norte", correo)
+        self.assertIn("para el proyecto «Proyecto Norte»", correo)          # U-108: siempre nombra el proyecto
+        self.assertNotIn("(T", correo)                                       # pero sin código no lo cita
 
     def test_the_questions_are_still_counted_with_the_code_template(self):
         # Cubre: U-24
@@ -109,7 +110,7 @@ class EnLaPantalla(unittest.TestCase):
         db.close()
 
     def cuadro(self, pagina):
-        return pagina.split('name="body"')[1].split("</textarea>")[0].split(">", 1)[1]
+        return pagina.split('id="cuerpo-correo"')[1].split("</textarea>")[0].split(">", 1)[1]
 
     def test_the_box_is_offered_in_every_stage_where_you_can_write_to_the_client(self):
         # Cubre: U-24
@@ -119,7 +120,7 @@ class EnLaPantalla(unittest.TestCase):
             with self.subTest(estado=estado):
                 self.caso(estado, codigo)
                 pagina = pantalla_caso.render_case("t-1", template=plantilla)
-                self.assertIn("Armar correo con estas preguntas", pagina)
+                self.assertIn("Preparar el correo de nuevo", pagina)
                 self.assertIn('name="preguntas"', pagina)
 
     def test_asking_for_the_email_fills_the_box_with_the_template_and_keeps_what_was_typed(self):
@@ -150,7 +151,7 @@ class EnLaPantalla(unittest.TestCase):
         pagina = pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto="Nombre del encargado")
         cuadro = self.cuadro(pagina)
         self.assertIn("(T26145), necesitamos confirmar lo siguiente:", cuadro)
-        self.assertIn("1. Nombre del encargado", cuadro)
+        self.assertIn("Nombre del encargado", cuadro)
         self.assertIn("cite el código T26145", cuadro)
 
     def test_the_code_is_never_sent_to_someone_who_is_not_the_registered_contact(self):
@@ -158,7 +159,7 @@ class EnLaPantalla(unittest.TestCase):
         self.con_codigo(contacto="otra.persona@empresa.co")           # el correo va a cliente@empresa.co
         cuadro = self.cuadro(pantalla_caso.render_case("t-1", template="preguntas", preguntas_texto="¿Plazo?"))
         self.assertNotIn("T26145", cuadro)
-        self.assertIn("1. ¿Plazo?", cuadro)
+        self.assertIn("¿Plazo?", cuadro)
 
     def test_what_is_typed_is_escaped(self):
         # Cubre: U-24
@@ -187,3 +188,53 @@ class EnLaPantalla(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlantillaQueSeAdapta(unittest.TestCase):
+    """U-108: el correo nombra el proyecto, reconoce la respuesta del cliente y no numera una sola pregunta."""
+
+    def test_nombra_el_proyecto_sin_codigo_y_sin_nombre_queda_como_antes(self):
+        # Cubre: U-108
+        con = correo_con_preguntas(["¿Datum?", "¿Plazo?"], proyecto="La Calera")
+        self.assertIn("Gracias por su solicitud para el proyecto «La Calera». Para completar", con)
+        self.assertIn("1. ¿Datum?\n2. ¿Plazo?", con)
+        sin = correo_con_preguntas(["¿Datum?", "¿Plazo?"], proyecto="  ")
+        self.assertIn("Gracias por su solicitud. Para completar", sin)
+
+    def test_la_apertura_avisa_y_no_vuelve_a_pedir(self):
+        # Cubre: U-108
+        correo = correo_con_preguntas(["¿Podría indicar el datum?", "¿Podría indicar el plazo?"], proyecto="La Calera")
+        self.assertIn("necesitamos confirmar lo siguiente:", correo)
+        self.assertNotIn("¿podría confirmar", correo)
+        self.assertEqual(dominio.en_el_correo(correo), ["¿Podría indicar el datum?", "¿Podría indicar el plazo?"])
+
+    def test_el_prompt_del_modo_api_pide_el_dato_y_no_otro_podria(self):
+        # Cubre: U-108
+        from anka.infra import llm
+        prompt = llm.analysis_prompt([{"from": "a@b.co", "subject": "x", "body": "hola"}], ["ubicación"])
+        self.assertIn("sin «¿Podría…?»", prompt)
+        self.assertIn("«Archivo de ubicación del proyecto (KML/KMZ o plano del trazado)»", prompt)
+
+    def test_un_nombre_muy_largo_se_acorta(self):
+        # Cubre: U-108
+        correo = correo_con_preguntas(["¿Datum?"], proyecto="Proyecto " + "muy largo " * 30)
+        nombre = correo.split("«")[1].split("»")[0]
+        self.assertLessEqual(len(nombre), 90)
+        self.assertTrue(nombre.endswith("…"))
+
+    def test_segunda_ronda_agradece_la_respuesta(self):
+        # Cubre: U-108
+        sin_codigo = correo_con_preguntas(["¿Datum?", "¿Plazo?"], proyecto="La Calera", segunda_ronda=True)
+        self.assertIn("Gracias por su respuesta para el proyecto «La Calera». Nos queda por confirmar", sin_codigo)
+        self.assertNotIn("información inicial", sin_codigo)
+        con_codigo = correo_con_preguntas(["¿Datum?"], proyecto="La Calera", codigo="T26145", segunda_ronda=True)
+        self.assertIn("Gracias por su respuesta. Sobre su proyecto «La Calera» (T26145)", con_codigo)
+
+    def test_la_segunda_ronda_se_sigue_leyendo_como_lista_de_preguntas(self):
+        # Cubre: U-108
+        correo = correo_con_preguntas(["¿Cuál es el datum?", "Plazo"], proyecto="X", segunda_ronda=True)
+        self.assertEqual(dominio.en_el_correo(correo), ["¿Cuál es el datum?", "Plazo"])
+
+    def test_sin_codigo_no_se_cita_ninguno_ni_en_segunda_ronda(self):
+        # Cubre: U-108
+        self.assertNotIn("T26145", correo_con_preguntas(["¿Datum?"], proyecto="X", codigo="", segunda_ronda=True))

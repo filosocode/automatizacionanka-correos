@@ -29,7 +29,7 @@ flowchart TD
     REC --> S
     Q -- "completo" --> OK["Información suficiente<br/>para revisión interna"]
     OK --> S2{"Persona confirma y envía<br/>acuse / aclaración"}
-    S2 --> F["7 · Carpeta en Drive<br/>{año}/{cliente}/{solicitud} (R4–R10)"]
+    S2 --> F["7 · Carpeta en Drive<br/>{año}/{mes}/{cliente}/{solicitud}/anexos (R4–R10)"]
     F --> Z([Proyecto creado])
 ```
 

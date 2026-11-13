@@ -1,4 +1,4 @@
-"""Aprobación humana de un caso con alcance completo: crea Año/Cliente/Solicitud."""
+"""Aprobación humana de un caso con alcance completo: crea Año/Mes/Cliente/Solicitud/anexos."""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
@@ -21,6 +21,9 @@ from anka.dominio.status import QuoteStatus
 from tests.test_app import FakeGmail, complete_analysis, test_config
 
 
+MES = FakeDriveTree.ruta_del_mes()   # `2026/11-Noviembre`: dónde pone los clientes el árbol de prueba (U-102)
+
+
 def ready_analysis(**extra):
     return complete_analysis() | {"received_at": "2026-09-01T09:00:00-05:00"} | extra
 
@@ -30,7 +33,7 @@ class ApproveFolderTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self.drive = FakeDriveTree({"Minera Sur S.A.S.": {}})
+        self.drive = FakeDriveTree.de_clientes({"Minera Sur S.A.S.": {}})
         for p in (
             patch.object(settings, "DATA_DIR", Path(self._tmp.name)),
             patch("anka.servicios.case_actions.load_config", return_value=test_config()),
@@ -60,9 +63,22 @@ class ApproveFolderTests(unittest.TestCase):
         message = self.approve(client_name="minera sur")
         status, folder_id, analysis, _ = self.state()
         self.assertEqual(status, QuoteStatus.READY)
-        self.assertRegex(self.drive.path(folder_id), r"^2026/Minera Sur S\.A\.S\./Cotizacion - Proyecto Norte - ")
-        self.assertEqual(len(self.drive.created), 1)  # solo la carpeta de la solicitud
+        self.assertRegex(self.drive.path(folder_id),
+                         rf"^Proyectos/{MES}/Minera Sur S\.A\.S\./Cotizacion - Proyecto Norte - ")
+        self.assertEqual(len(self.drive.created), 2)  # la carpeta de la solicitud y su `anexos`
         self.assertNotIn("nuevo", message.lower())
+
+    # Cubre: U-102
+    def test_with_the_code_issued_the_folder_is_named_after_it_and_filed_under_its_issue_month(self):
+        db = store.open_db(Path(self._tmp.name))
+        db.execute("UPDATE quotes SET quote_code='26145', code_stage='T', code_assigned_at='2027-01-05T10:00:00-05:00' "
+                   "WHERE thread_id='t-1'")
+        db.commit()
+        db.close()
+        self.approve(client_name="minera sur")           # el cliente existe en el mes anterior: se reconoce sin confirmar
+        folder_id = self.state()[1]
+        self.assertEqual(self.drive.path(folder_id), "Proyectos/2027/01-Enero/Minera Sur S.A.S./T&E26145 Proyecto Norte")
+        self.assertTrue(self.drive.folder_id("2027/01-Enero/Minera Sur S.A.S./T&E26145 Proyecto Norte/anexos"))
 
     def test_unknown_client_is_not_created_without_explicit_confirmation(self):
         with self.assertRaisesRegex(ErrorDeAnka, "cliente nuevo"):
@@ -74,15 +90,16 @@ class ApproveFolderTests(unittest.TestCase):
         message = self.approve(client_name="Empresa Nueva", new_client=True)
         status, folder_id, _, client_name = self.state()
         self.assertEqual(status, QuoteStatus.READY)
-        self.assertEqual([p.split("/", 2)[1] for p in self.drive.created], ["Empresa Nueva", "Empresa Nueva"])
-        self.assertRegex(self.drive.path(folder_id), r"^2026/Empresa Nueva/")
+        self.assertEqual(len(self.drive.created), 3)  # el cliente, la solicitud y su `anexos`
+        self.assertTrue(self.drive.created[0].endswith("/Empresa Nueva"))
+        self.assertRegex(self.drive.path(folder_id), rf"^Proyectos/{MES}/Empresa Nueva/")
         self.assertEqual(client_name, "Empresa Nueva")  # recordado para los próximos correos
         self.assertIn("cliente nuevo", message)
 
     def test_new_client_flag_does_not_duplicate_an_existing_client(self):
         self.approve(client_name="Minera Sur", new_client=True,
             allow_similar_project=False)
-        self.assertEqual(len(self.drive.created), 1)
+        self.assertEqual(len(self.drive.created), 2)
 
     def test_client_name_is_required_unless_a_person_already_set_it(self):
         with self.assertRaisesRegex(ErrorDeAnka, "carpeta del cliente"):
@@ -95,14 +112,14 @@ class ApproveFolderTests(unittest.TestCase):
         self.assertEqual(self.state()[0], QuoteStatus.READY)
 
     def test_ambiguous_client_folders_are_reported(self):
-        self.drive = FakeDriveTree({"Acme": {}, "ACME SAS": {}})
+        self.drive = FakeDriveTree.de_clientes({"Acme": {}, "ACME SAS": {}})
         with self.assertRaisesRegex(ErrorDeAnka, "varias"):
             self.approve(client_name="acme corp")
         self.assertEqual(self.drive.created, [])
 
-    def test_parent_folder_from_another_year_blocks_the_creation(self):
-        self.drive = FakeDriveTree({"Minera Sur": {}}, root_name="2025")
-        with self.assertRaisesRegex(ErrorDeAnka, "2025.*2026"):
+    def test_a_parent_folder_named_after_a_year_blocks_the_creation(self):
+        self.drive = FakeDriveTree.de_clientes({"Minera Sur": {}}, root_name="2025")
+        with self.assertRaisesRegex(ErrorDeAnka, "2025.*Proyectos"):
             self.approve(client_name="Minera Sur")
         self.assertEqual(self.drive.created, [])
 
@@ -113,7 +130,7 @@ class ApproveFolderTests(unittest.TestCase):
 
     def test_only_cases_waiting_for_approval_can_be_approved(self):
         self.seed(status=QuoteStatus.IGNORED)
-        with self.assertRaisesRegex(ErrorDeAnka, "no pendiente"):
+        with self.assertRaisesRegex(ErrorDeAnka, "ya no está pendiente"):
             self.approve(client_name="Minera Sur")
 
     def test_the_audit_line_never_contains_the_client_name(self):

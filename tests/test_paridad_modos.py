@@ -88,7 +88,7 @@ class RulesMatchTheCode(unittest.TestCase):
         self.assertIs(self.rules["drive"]["crear_cliente_automatico"], False)
         default = inspect.signature(drive_layout.create_project_folder).parameters["create_client"].default
         self.assertIs(default, False)
-        self.assertIs(inspect.signature(drive_layout.resolve_client_folder).parameters["create"].default,
+        self.assertIs(inspect.signature(drive_layout._decidir_cliente).parameters["create"].default,
                       inspect.Parameter.empty)  # quien llama debe decidirlo de forma explícita
 
     def test_discard_needs_every_message_and_never_a_human_alone(self):
@@ -107,11 +107,11 @@ class RulesMatchTheCode(unittest.TestCase):
         rows, _, _, drive = flow.run_complete()
         self.assertTrue(drive_rules["proyecto_requiere_cliente_confirmado"])
         self.assertEqual((rows[0][1], drive.created), (QuoteStatus.READY_REVIEW, []))
-        # carpeta padre de otro año (R4)
+        # carpeta padre que es la de un año (R4)
         seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
         rows, _, _, drive = flow.run_complete(
-            metadata={"t-1": "Minera Sur"}, seed=seed, drive=FakeDriveTree({"Minera Sur": {}}, root_name="2025"))
-        self.assertTrue(drive_rules["bloquear_si_anio_distinto"])
+            metadata={"t-1": "Minera Sur"}, seed=seed, drive=FakeDriveTree.de_clientes({"Minera Sur": {}}, root_name="2025"))
+        self.assertTrue(drive_rules["bloquear_si_padre_es_un_anio"])
         self.assertEqual((rows[0][1], drive.created), (QuoteStatus.READY_REVIEW, []))
 
     def test_pilot_mode_never_sends_email_on_its_own(self):
@@ -187,11 +187,11 @@ class SharedCaseCatalogue(unittest.TestCase):
                 same = drive_layout.normalize_client_name(pair["a"]) == drive_layout.normalize_client_name(pair["b"])
                 self.assertEqual(same, pair["igual"])
 
-    def test_year_rule(self):
-        for case in self.cases["anios"]:
-            with self.subTest(parent=case["carpeta_padre"], date=case["fecha_solicitud"][:10]):
+    def test_parent_folder_rule(self):
+        for case in self.cases["padres"]:
+            with self.subTest(parent=case["carpeta_padre"]):
                 drive = FakeDriveTree(root_name=case["carpeta_padre"])
-                blocked = drive_layout.year_mismatch(drive, drive.root_id, case["fecha_solicitud"]) is not None
+                blocked = drive_layout.padre_invalido(drive, drive.root_id) is not None
                 self.assertEqual(blocked, case["bloquea"])
 
     def test_the_catalogue_is_documented_for_manual_testing_in_work(self):
@@ -315,7 +315,7 @@ class ChangeRuleR11(unittest.TestCase):
         """Integración: run() de Python con un mensaje de otra persona sobre un caso con T."""
         thread = RunFlowTests.thread("Ahora el plazo es de 30 días", thread_id="t-1")
         gmail = FakeGmail(thread)
-        drive = FakeDriveTree({"Minera Sur": {}})
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {}})
         with patch("anka.servicios.pipeline.load_config", return_value=test_config()), patch(
                 "anka.servicios.pipeline.services", return_value=(gmail, drive)), patch(
                 "anka.servicios.pipeline.analizar_hilo", return_value=complete_analysis(location="")):
@@ -376,7 +376,8 @@ class OllamaAndApiBehaveTheSame(unittest.TestCase):
 
     def test_the_prompt_cannot_depend_on_the_engine(self):
         parameters = inspect.signature(llm.analysis_prompt).parameters
-        self.assertEqual(list(parameters), ["messages", "required_fields", "attachments"])
+        # U-90: la tabla vigente del caso es un dato del caso, no del motor; ningún parámetro nombra al proveedor
+        self.assertEqual(list(parameters), ["messages", "required_fields", "attachments", "tabla_vigente"])
 
     def test_both_engines_send_the_same_output_schema_to_their_service(self):
         sent = {}

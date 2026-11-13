@@ -1,0 +1,12 @@
+{
+ "thread_id": "1a164b05cb1bd9aa",
+ "message_id": "1a164b05cb1bd9aa",
+ "adjunto_ok": true,
+ "adjunto": {
+  "nombre": "tdr_02.pdf",
+  "bytes_declarados": 492471,
+  "bytes": 492471,
+  "sha256": "0287414f91bb1c9b3ecfd05e98de713adaa81177261885f89e4fe8f23c66d732"
+ },
+ "obtenido": "2026-10-22T12:37:31-05:00"
+}

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inicio ligero · propuesta</title>
+<style>
+:root{--bg:#f5f8fb;--panel:#fff;--ink:#171717;--muted:#525252;--line:#e6e9ef;--accent:#bd5209;--accent-soft:#fff1e6;--surface:#eef2f7;
+  --warn-bg:#fff4d6;--warn-ink:#6f4500;--bad-bg:#fbe4e2;--bad-ink:#991b1b;--ok-bg:#e3f4e8;--ok-ink:#17653a;--radius:14px}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--panel:#171717;--ink:#f5f5f5;--muted:#a3a3a3;--line:#2b2b2b;--accent:#f9a668;--accent-soft:#3a210d;--surface:#212121;
+  --warn-bg:#33260a;--warn-ink:#f5c565;--bad-bg:#361412;--bad-ink:#ff9c92;--ok-bg:#10281a;--ok-ink:#7ddba0}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh}
+aside{border-right:1px solid var(--line);padding:20px 16px;display:flex;flex-direction:column;gap:6px;background:var(--panel)}
+.marca{font-weight:700;letter-spacing:.08em;color:var(--accent);margin-bottom:12px}
+aside a{display:block;padding:10px 12px;border-radius:10px;color:var(--ink);text-decoration:none;font-size:14px}
+aside a.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+aside .sep{margin:14px 12px 4px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+aside a small{display:block;color:var(--muted);font-size:12px}
+.punto{display:inline-block;width:8px;height:8px;border-radius:50%;background:#e0a21b;margin-right:8px}
+main{padding:40px 32px 64px;max-width:920px;width:100%;margin:0 auto}
+h1{font-size:1.75rem;margin:0 0 4px;font-weight:600;letter-spacing:-.02em}
+.frase{color:var(--muted);margin:0 0 20px}
+.cta{display:inline-flex;align-items:center;gap:10px;background:var(--accent);color:#fff;border:0;border-radius:12px;padding:14px 22px;font-size:1rem;font-weight:600;min-height:48px;text-decoration:none}
+@media (prefers-color-scheme:dark){.cta{color:#1a0e04}}
+.cta small{font-weight:400;opacity:.85}
+.barra{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:36px 0 14px}
+.filtros{display:flex;gap:6px;flex-wrap:wrap}
+.filtros button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:8px 14px;font:inherit;font-size:14px;min-height:40px;cursor:pointer}
+.filtros button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.filtros b{font-weight:600;margin-left:4px}
+.buscar{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:8px 16px;font:inherit;font-size:14px;min-height:40px;width:220px}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.caso{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;text-decoration:none;color:inherit;min-height:72px}
+.caso:hover{border-color:var(--accent)}
+.caso strong{display:block;font-size:1rem;font-weight:600}
+.caso span.cli{color:var(--muted);font-size:14px}
+.ico{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:15px}
+.ico.falta{background:var(--warn-bg);color:var(--warn-ink)}
+.ico.decide{background:var(--accent-soft);color:var(--accent)}
+.ico.ok{background:var(--ok-bg);color:var(--ok-ink)}
+.estado{font-size:14px;color:var(--muted);text-align:right}
+.estado b{display:block;color:var(--ink);font-weight:600}
+.mas{margin-top:28px;color:var(--muted);font-size:14px}
+.mas summary{cursor:pointer;padding:8px 0}
+.nota-prop{margin:0 0 28px;background:var(--surface);border-radius:12px;padding:14px 18px;font-size:14px;color:var(--muted)}
+.nota-prop b{color:var(--ink)}
+.nota-prop ul{display:block;margin:8px 0 0;padding-left:18px;list-style:disc}
+.nota-prop li{margin:2px 0}
+.google{margin-top:auto;font-size:13px;background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:10px 12px}
+@media (max-width:760px){.app{grid-template-columns:1fr}aside{display:none}main{padding:24px 16px}.buscar{width:100%}.estado{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="marca">ANKA</div>
+    <a class="on" href="#">Inicio</a>
+    <div class="sep">Casos · 3</div>
+    <a href="#"><span class="punto"></span>Proyecto Norte 2<small>Energía Norte</small></a>
+    <a href="#"><span class="punto"></span>Lote El Mirador<small>Constructora Mirador</small></a>
+    <a href="#"><span class="punto"></span>Embalse La Esmeralda<small>Hidroeléctrica Andina</small></a>
+    <div style="flex:1"></div>
+    <div class="google"><b>Google desconectado.</b> Toca para volver a conectar.</div>
+    <a href="#">Buscar correos nuevos</a>
+    <a href="#">Ajustes</a>
+  </aside>
+
+  <main>
+    <div class="nota-prop"><b>Propuesta · inicio ligero.</b> Qué cambia frente al inicio de hoy:
+      <ul>
+        <li>Una sola lista de casos (hoy salen tres veces: barra lateral, «Te esperan» y la cola con filtros).</li>
+        <li>Un solo botón grande: atender el caso más urgente.</li>
+        <li>Una sola fila de filtros que también cuenta; se quitan los contadores aparte y «Novedades».</li>
+        <li>Cada caso dice una sola cosa: qué espera de ti, con un icono de color.</li>
+        <li>El nombre se pide una vez, en Ajustes (no como formulario en el inicio). Los números y el resumen pasan a «Más».</li>
+      </ul>
+    </div>
+
+    <h1>Hola, Andrés</h1>
+    <p class="frase">3 casos esperan algo de ti.</p>
+    <a class="cta" href="#">Atender Proyecto Norte 2 <small>· Energía Norte</small> →</a>
+
+    <div class="barra">
+      <div class="filtros" role="group" aria-label="Qué casos ver">
+        <button class="on" aria-pressed="true">Esperan por ti<b>3</b></button>
+        <button aria-pressed="false">Esperando al cliente<b>0</b></button>
+        <button aria-pressed="false">Listos para la T<b>0</b></button>
+        <button aria-pressed="false">Todos<b>3</b></button>
+      </div>
+      <input class="buscar" type="search" placeholder="Buscar un caso…" aria-label="Buscar un caso">
+    </div>
+
+    <ul>
+      <li><a class="caso" href="#"><span class="ico falta">!</span><span><strong>Proyecto Norte 2</strong><span class="cli">Energía Norte</span></span><span class="estado"><b>Faltan 3 datos</b>Revisar el correo</span></a></li>
+      <li><a class="caso" href="#"><span class="ico decide">?</span><span><strong>Lote El Mirador</strong><span class="cli">Constructora Mirador</span></span><span class="estado"><b>Por decidir</b>Elegir cómo seguir</span></a></li>
+      <li><a class="caso" href="#"><span class="ico falta">!</span><span><strong>Embalse La Esmeralda</strong><span class="cli">Hidroeléctrica Andina</span></span><span class="estado"><b>Falta 1 dato</b>Elegir cómo seguir</span></a></li>
+    </ul>
+
+    <details class="mas"><summary>Más: números y resumen</summary>
+      <p>Aquí quedan las cifras (solicitudes por estado, tiempos de respuesta) para quien las necesite. No son parte del trabajo de cada día.</p>
+    </details>
+  </main>
+</div>
+</body>
+</html>

@@ -9,6 +9,7 @@ nunca son el mismo proyecto.
 from __future__ import annotations
 
 import re
+import threading
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -111,13 +112,48 @@ def motivo_entre(a: Mapping[str, Any], b: Mapping[str, Any]) -> str:
     return _motivo(_ficha(a), _ficha(b))
 
 
+def _pares_candidatos(fichas: Sequence[_Ficha]) -> list[tuple[int, int]]:
+    """Los pares (i < j) que pueden parecer el mismo proyecto, en el orden de la lista (U-48).
+
+    `_motivo` solo devuelve algo si los dos hilos comparten un documento (nombre y texto leído iguales) o, al menos, una
+    palabra del nombre del proyecto y los mismos números; cualquier otro par da cadena vacía sin mirar nada más. Por
+    eso basta indexar por documento y por palabra y comparar solo dentro de cada cubeta: el resultado es el mismo que
+    comparar todos contra todos, sin el costo cuadrático."""
+    por_palabra: dict[tuple[str, frozenset[str]], list[int]] = {}
+    por_archivo: dict[tuple[str, int], list[int]] = {}
+    for i, ficha in enumerate(fichas):
+        for palabra in ficha.palabras:          # sin los mismos números en el nombre tampoco se parecen (ver `_motivo`)
+            por_palabra.setdefault((palabra, ficha.numeros), []).append(i)
+        for archivo in ficha.archivos:
+            if archivo[1] > 0:
+                por_archivo.setdefault(archivo, []).append(i)
+    vecinos: list[set[int]] = [set() for _ in fichas]
+    for cubeta in (*por_palabra.values(), *por_archivo.values()):
+        for posicion, i in enumerate(cubeta):
+            vecinos[i].update(cubeta[posicion + 1:])
+    return [(i, j) for i in range(len(fichas)) for j in sorted(vecinos[i])]
+
+
 def agrupar(quotes: Sequence[Mapping[str, Any]], separados: Collection[frozenset[str]] = ()) -> list[Grupo]:
     """Todos los hilos, agrupados por proyecto; los que están solos van en un grupo de uno.
 
     Los grupos salen en el orden en que aparece su primer hilo y los hilos de cada uno en el orden de la lista.
     `separados` son pares de hilos que una persona dijo que no son el mismo proyecto: entre ellos no hay parecido.
+    Solo se comparan los pares que comparten una palabra del nombre o un documento (U-48); el resultado es el de
+    comparar todos con todos (`agrupar_lento`, que las pruebas conservan como referencia).
     """
     fichas = [_ficha(q) for q in quotes]
+    return _armar(quotes, fichas, _pares_candidatos(fichas), separados)
+
+
+def agrupar_lento(quotes: Sequence[Mapping[str, Any]], separados: Collection[frozenset[str]] = ()) -> list[Grupo]:
+    """Lo mismo que `agrupar`, comparando todos los pares: la referencia de las pruebas de equivalencia (U-48)."""
+    n = len(quotes)
+    return _armar(quotes, [_ficha(q) for q in quotes], [(i, j) for i in range(n) for j in range(i + 1, n)], separados)
+
+
+def _armar(quotes: Sequence[Mapping[str, Any]], fichas: Sequence[_Ficha], pares: Sequence[tuple[int, int]],
+           separados: Collection[frozenset[str]]) -> list[Grupo]:
     padre = list(range(len(quotes)))
 
     def raiz(i: int) -> int:
@@ -126,17 +162,16 @@ def agrupar(quotes: Sequence[Mapping[str, Any]], separados: Collection[frozenset
             i = padre[i]
         return i
 
-    aristas: list[tuple[int, int, str]] = []
-    for i in range(len(quotes)):
-        for j in range(i + 1, len(quotes)):
-            if frozenset((str(quotes[i].get("thread_id")), str(quotes[j].get("thread_id")))) in separados:
-                continue
-            motivo = _motivo(fichas[i], fichas[j])
-            if motivo:
-                aristas.append((i, j, motivo))
-                padre[raiz(j)] = raiz(i)
+    aristas: list[tuple[int, str]] = []
+    for i, j in pares:
+        if separados and frozenset((str(quotes[i].get("thread_id")), str(quotes[j].get("thread_id")))) in separados:
+            continue
+        motivo = _motivo(fichas[i], fichas[j])
+        if motivo:
+            aristas.append((i, motivo))
+            padre[raiz(j)] = raiz(i)
     motivos: dict[int, str] = {}
-    for i, _, motivo in aristas:
+    for i, motivo in aristas:
         r = raiz(i)
         if _FUERZA[motivo] > _FUERZA.get(motivos.get(r, ""), 0):
             motivos[r] = motivo
@@ -144,3 +179,39 @@ def agrupar(quotes: Sequence[Mapping[str, Any]], separados: Collection[frozenset
     for i, quote in enumerate(quotes):
         miembros.setdefault(raiz(i), []).append(quote)
     return [Grupo(tuple(hilos), motivos.get(r, "")) for r, hilos in miembros.items()]
+
+
+_cache_lock = threading.Lock()
+_cache: tuple[object, list[tuple[tuple[int, ...], str]]] | None = None
+
+
+def _firma(quotes: Sequence[Mapping[str, Any]], separados: Collection[frozenset[str]], marcador: str) -> object:
+    """Todo lo que decide los grupos: el marcador de cambios y, por si algo cambia sin tocarlo (el cliente confirmado
+    vive en otra tabla), los datos que lee `_ficha` de cada hilo."""
+    filas = []
+    for q in quotes:
+        analisis = q.get("analysis") or {}
+        filas.append((q.get("thread_id"), q.get("client_name"), q.get("client_email"), q.get("quote_code"),
+                      analisis.get("project_name"),
+                      tuple((a.get("filename"), a.get("extracted_chars")) for a in analisis.get("attachments") or []
+                            if isinstance(a, Mapping))))
+    return (marcador, tuple(filas), frozenset(separados))
+
+
+def agrupar_en_cache(quotes: Sequence[Mapping[str, Any]], separados: Collection[frozenset[str]],
+                     marcador: str) -> list[Grupo]:
+    """`agrupar`, pero recordando el último resultado mientras no cambie el `marcador` de cambios ni los datos (U-48).
+
+    Se guardan posiciones, no los hilos: los grupos que se devuelven siempre contienen los hilos recibidos."""
+    global _cache
+    firma = _firma(quotes, separados, marcador)
+    with _cache_lock:
+        guardado = _cache
+    if guardado is None or guardado[0] != firma:
+        grupos = agrupar(quotes, separados)
+        posicion = {id(q): i for i, q in enumerate(quotes)}
+        guardado = (firma, [(tuple(posicion[id(m)] for m in g.miembros), g.motivo) for g in grupos])
+        with _cache_lock:
+            _cache = guardado
+    return [Grupo(tuple(quotes[i] for i in posiciones), motivo) for posiciones, motivo in guardado[1]]
+

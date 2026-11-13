@@ -14,8 +14,10 @@ from pathlib import Path
 
 from anka.dominio.tramos import Hallazgo
 from anka.infra import settings
+from anka.infra.logging_setup import get_logger
 
 MAX_ENTRADAS = 2000
+log = get_logger(__name__)
 
 
 def _carpeta() -> Path:
@@ -45,8 +47,8 @@ def guardar(identificador: str, hallazgos: list[Hallazgo]) -> None:
         temporal.write_text(json.dumps(hallazgos, ensure_ascii=False), encoding="utf-8")
         os.replace(temporal, carpeta / f"{identificador}.json")
         _podar(carpeta)
-    except OSError:
-        pass
+    except OSError as exc:   # sin caché el análisis sigue: solo se repetirá la llamada al modelo
+        log.warning("No se pudo guardar la caché de hallazgos (%s)", type(exc).__name__)
 
 
 def _podar(carpeta: Path) -> None:

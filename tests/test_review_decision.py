@@ -22,6 +22,8 @@ from tests.test_app import complete_analysis, test_config
 def technical_analysis() -> dict:
     analysis = complete_analysis()
     analysis["attachments"] = [{"filename": "plano.dwg", "status": "bloqueado", "detail": "plano CAD"}]
+    # T-133: estos escenarios de decisión parten de una revisión documental personal ya registrada.
+    analysis["reading_review"] = {"at": "2026-11-03T10:00:00-05:00", "files": ["plano.dwg"]}
     return analysis
 
 
@@ -75,11 +77,11 @@ class ReviewDecisionTests(unittest.TestCase):
         self.assertNotIn("Respuesta en pausa", page)
 
     def test_only_cases_in_technical_review_and_valid_decisions(self):
-        with self.assertRaisesRegex(ValueError, "revisión técnica"):
+        with self.assertRaisesRegex(ValueError, "ya no espera una decisión"):
             quotes.resolve_technical_review("t-ok", "sufficient")
-        with self.assertRaisesRegex(ValueError, "no válida"):
+        with self.assertRaisesRegex(ValueError, "No entendimos esa opción"):
             quotes.resolve_technical_review("t-tech", "otra")
-        with self.assertRaisesRegex(ValueError, "no existe"):
+        with self.assertRaisesRegex(ValueError, "ya no existe"):
             quotes.resolve_technical_review("no-existe", "sufficient")
 
     def test_a_new_analysis_discards_the_human_decision(self):
@@ -140,11 +142,11 @@ class ReviewDecisionTests(unittest.TestCase):
     def test_una_sola_seccion_de_decision_sin_repetir_preguntas_ni_respuesta_en_pausa(self):
         # Cubre: U-12
         page = pantalla_caso.render_case("t-tech")
-        self.assertIn("¿Cómo seguimos?", page)
+        self.assertIn("Mensaje para el cliente", page)
         self.assertNotIn("Respuesta en pausa", page)
         self.assertNotIn('id="respuesta"', page)
-        self.assertIn("Ya lo revisé", page)
-        self.assertIn("Preparar el correo con las preguntas elegidas", page)
+        self.assertNotIn("Con esto alcanza", page)                    # oculto por ahora
+        self.assertIn(">Enviar al cliente<", page)
 
     def test_las_preguntas_para_el_cliente_se_cuentan_en_vez_de_repetirse(self):
         # Cubre: U-12

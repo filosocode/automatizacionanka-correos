@@ -31,7 +31,7 @@ def resumen_del_fallo(motivo: str, fallos: int, proximo: datetime) -> str:
     """La frase que ve la persona en el caso mientras el hilo no se pueda analizar."""
     return (
         f"No se pudo analizar este correo automáticamente (intento {fallos}): {motivo} "
-        f"Se reintentará solo a partir de las {proximo:%H:%M} del {proximo:%d/%m}; el botón «Actualizar correo» lo "
+        f"Se reintentará solo a partir de las {proximo:%H:%M} del {proximo:%d/%m}; el botón «Buscar correos nuevos» lo "
         "reintenta ya. Mientras tanto, revísalo a mano en Gmail."
     )
 

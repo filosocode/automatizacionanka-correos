@@ -56,7 +56,7 @@ class DocumentationCoversTheRealRoutes(unittest.TestCase):
 # Cubre: T-13
 class SpecShape(unittest.TestCase):
     def setUp(self):
-        self.spec = openapi.build_spec("TOKEN-DE-PRUEBA")
+        self.spec = openapi.build_spec()
 
     def test_it_is_a_complete_openapi_3_document(self):
         self.assertTrue(self.spec["openapi"].startswith("3."))
@@ -74,14 +74,16 @@ class SpecShape(unittest.TestCase):
                         self.assertIn(name, [p["name"] for p in operation["parameters"] if p["in"] == "path"])
         self.assertEqual(len(operation_ids), len(set(operation_ids)), "operationId repetido")
 
-    def test_every_action_takes_the_csrf_token_prefilled(self):
+    def test_every_action_requires_the_csrf_token_but_the_json_does_not_carry_it(self):
+        # Cubre: T-07
         for path, methods in self.spec["paths"].items():
             if "post" not in methods:
                 continue
             with self.subTest(route=path):
                 schema = methods["post"]["requestBody"]["content"]["application/x-www-form-urlencoded"]["schema"]
                 self.assertIn("csrf_token", schema["required"])
-                self.assertEqual(schema["properties"]["csrf_token"]["default"], "TOKEN-DE-PRUEBA")
+                self.assertNotIn("default", schema["properties"]["csrf_token"])
+                self.assertNotIn("example", schema["properties"]["csrf_token"])
 
     def test_actions_with_real_effects_say_so_in_their_summary(self):
         for operation in openapi.OPERACIONES:
@@ -115,8 +117,11 @@ class SpecShape(unittest.TestCase):
 # Cubre: T-13
 class SwaggerPage(unittest.TestCase):
     def test_the_page_loads_pinned_assets_with_integrity_hashes_and_the_local_spec(self):
-        page = openapi.docs_page()
-        self.assertIn('url: "/openapi.json"', page)
+        page = openapi.docs_page("TOKEN-DE-PRUEBA", "NONCE1")
+        self.assertIn('fetch("/openapi.json"', page)
+        self.assertIn('<meta name="anka-csrf" content="TOKEN-DE-PRUEBA">', page)
+        self.assertIn('<script nonce="NONCE1">', page)
+        self.assertEqual(page.count("<script>"), 0)          # ningún script en línea sin el nonce de la CSP
         self.assertIn(f"swagger-ui-dist@{openapi.SWAGGER_VERSION}", page)
         self.assertEqual(page.count("integrity=\"sha384-"), 2)
         self.assertEqual(page.count('crossorigin="anonymous"'), 2)
@@ -148,10 +153,19 @@ class ServedByTheRealHandler(unittest.TestCase):
         self.assertIn(b"SwaggerUIBundle", page["body"])
         spec = request("GET", "/openapi.json")
         self.assertEqual(spec["status"], 200)
-        document = json.loads(spec["body"])
-        self.assertEqual(document["paths"]["/send"]["post"]["requestBody"]["content"][
-            "application/x-www-form-urlencoded"]["schema"]["properties"]["csrf_token"]["default"],
-            seguridad.CSRF_TOKEN)
+        self.assertIn("/send", json.loads(spec["body"])["paths"])
+
+    def test_the_token_is_in_the_docs_page_but_never_in_the_json(self):
+        # Cubre: T-07
+        self.assertNotIn(seguridad.CSRF_TOKEN.encode(), request("GET", "/openapi.json")["body"])
+        page = request("GET", "/docs")
+        self.assertIn(seguridad.CSRF_TOKEN.encode(), page["body"])
+        csp = page["headers"]["Content-Security-Policy"]
+        nonce = csp.split("'nonce-")[1].split("'")[0]
+        self.assertIn(f'<script nonce="{nonce}">'.encode(), page["body"])
+        self.assertNotIn("'unsafe-inline'", csp.split("script-src")[1].split(";")[0])
+        self.assertNotEqual(nonce, request("GET", "/docs")["headers"]["Content-Security-Policy"].split("'nonce-")[1]
+                            .split("'")[0])                     # un nonce nuevo por respuesta
 
     def test_the_case_list_hides_discarded_ones_unless_asked(self):
         listed = json.loads(request("GET", "/api/casos")["body"])
@@ -184,10 +198,9 @@ class ServedByTheRealHandler(unittest.TestCase):
         self.assertEqual(request("GET", "/openapi.json", host="atacante.example")["status"], 403)
         self.assertEqual(request("GET", "/api/casos", host="atacante.example")["status"], 403)
 
-    def test_an_action_works_with_the_token_the_spec_provides_and_not_without_it(self):
-        token = json.loads(request("GET", "/openapi.json")["body"])["paths"]["/notifications/read"][
-            "post"]["requestBody"]["content"]["application/x-www-form-urlencoded"]["schema"][
-            "properties"]["csrf_token"]["default"]
+    def test_an_action_works_with_the_token_the_docs_page_provides_and_not_without_it(self):
+        pagina = request("GET", "/docs")["body"].decode("utf-8")
+        token = pagina.split('<meta name="anka-csrf" content="')[1].split('"')[0]
         body = urllib.parse.urlencode({"csrf_token": token}).encode()
         done = request("POST", "/notifications/read", body, origin="http://127.0.0.1:8765")
         self.assertEqual(done["status"], 303)

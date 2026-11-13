@@ -1,0 +1,20 @@
+{
+  "referencias": [
+    {
+      "archivo": "C1.referencia.v2.json",
+      "id": "C1",
+      "sha256": "97bb553139c2afa4d44b1968eca87b64499beb0b6736c1c77acfa44a9d91308c"
+    },
+    {
+      "archivo": "C2.referencia.v2.json",
+      "id": "C2",
+      "sha256": "4f57d8490e6f4cffc38cf56e5ab43768aad3835693fa8ba5cea5ef51661a3fd4"
+    },
+    {
+      "archivo": "C3.referencia.v2.json",
+      "id": "C3",
+      "sha256": "baeeb2146dc9bc5477a34180f3d803469652a00edf2757d54f0acb24ca44368b"
+    }
+  ],
+  "version": "2"
+}

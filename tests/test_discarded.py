@@ -71,7 +71,7 @@ class DiscardedTests(unittest.TestCase):
 
     def test_rescue_flags_the_thread_for_the_next_review_without_changing_its_status(self):
         message = quotes.rescue_discarded("t-news")
-        self.assertIn("próxima revisión", message)
+        self.assertIn("próxima búsqueda de correos", message)
         row = self.rows()["t-news"]
         self.assertTrue(row["rescued"])
         saved = quotes.get_quote("t-news")
@@ -105,11 +105,11 @@ class DiscardedTests(unittest.TestCase):
         quotes.rescue_discarded("t-news")
         page = paginas.render_discarded()
         self.assertEqual(page.count('action="/rescue"'), 2)
-        self.assertIn("Se reanalizará", page)
+        self.assertIn("Se volverá a mirar", page)
 
     def test_empty_state(self):
         with tempfile.TemporaryDirectory() as other, patch.object(settings, "DATA_DIR", Path(other)):
-            self.assertIn("No hay correos descartados", paginas.render_discarded())
+            self.assertIn("No hay correos aparte", paginas.render_discarded())
 
     def request(self, method, path, body=b""):
         handler = web.ReviewHandler.__new__(web.ReviewHandler)

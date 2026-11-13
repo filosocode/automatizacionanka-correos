@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inicio de sesión · propuesta</title>
+<style>
+:root{--bg:#f5f8fb;--panel:#fff;--ink:#171717;--muted:#525252;--line:#e6e9ef;--accent:#bd5209;--accent-soft:#fff1e6;--surface:#eef2f7;
+  --blue:#2f4d73;--on-accent:#fff;--radius:14px;--shadow:0 1px 2px #2f4d730f, 0 1px 3px #2f4d7314}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--panel:#171717;--ink:#f5f5f5;--muted:#a3a3a3;--line:#2b2b2b;--accent:#f9a668;--accent-soft:#3a210d;--surface:#212121;
+  --blue:#7ea8d8;--shadow:0 1px 2px #00000066, 0 1px 3px #00000052}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
+.pantalla{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);min-height:100vh}
+/* ---- panel izquierdo: marca, con el fondo de partículas de D-103 (aquí, estático, como boceto) ---- */
+.marca{position:relative;overflow:hidden;background:linear-gradient(160deg,#17243a,#0d1117 65%);color:#fff;display:flex;flex-direction:column;justify-content:space-between;padding:48px}
+@media (prefers-color-scheme:light){.marca{background:linear-gradient(160deg,#2f4d73,#1c3353 70%)}}
+.marca svg{position:absolute;inset:0;width:100%;height:100%;opacity:.55}
+.marca-top{position:relative;display:flex;align-items:center;gap:12px;font-weight:700;letter-spacing:.04em;font-size:1.0625rem}
+.marca-top .punto{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.marca-frase{position:relative;max-width:360px}
+.marca-frase h1{font-size:1.75rem;line-height:1.25;margin:0 0 12px;font-weight:600;letter-spacing:-.02em}
+.marca-frase p{margin:0;color:#cbd5e3;font-size:.9375rem}
+.marca-pie{position:relative;font-size:.8125rem;color:#9fb0c6}
+/* ---- panel derecho: la tarjeta de entrada ---- */
+.entrar{display:flex;align-items:center;justify-content:center;padding:32px}
+.tarjeta{width:100%;max-width:360px;display:grid;gap:18px}
+.tarjeta h2{margin:0;font-size:1.5rem;font-weight:600;letter-spacing:-.02em}
+.tarjeta .sub{margin:-10px 0 0;color:var(--muted);font-size:.9375rem}
+form{display:grid;gap:16px}
+label{display:grid;gap:6px;font-size:.875rem;font-weight:650;color:var(--muted)}
+input[type=text],input[type=password]{min-height:46px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:0 14px;font:inherit}
+input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent)}
+.recordar{display:flex !important;flex-direction:row;align-items:center;gap:10px;font-weight:500;color:var(--ink);font-size:.9375rem}
+.recordar input{width:20px;height:20px;accent-color:var(--accent)}
+.cta{margin-top:4px;min-height:48px;border:0;border-radius:12px;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:650;font-size:1rem;cursor:pointer;box-shadow:var(--shadow)}
+.cta:hover{filter:brightness(1.05)}
+.aviso{border-radius:10px;padding:10px 14px;font-size:.875rem;background:#fbe4e2;color:#991b1b;border:1px solid transparent}
+@media (prefers-color-scheme:dark){.aviso{background:#361412;color:#ff9c92}}
+.pie-tarjeta{text-align:center;color:var(--muted);font-size:.8125rem;margin-top:4px}
+@media (max-width:760px){.pantalla{grid-template-columns:1fr}.marca{padding:28px;min-height:200px}.marca-frase h1{font-size:1.375rem}.entrar{padding:24px 20px}}
+.nota-prop{grid-column:1 / -1;background:var(--surface);color:var(--muted);font-size:13px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.nota-prop b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="pantalla">
+  <div class="nota-prop"><b>Propuesta · inicio de sesión.</b> Pantalla partida: a la izquierda la marca (con el fondo de
+    partículas real, aquí solo dibujado como boceto), a la derecha la tarjeta de siempre, pero con más aire y un
+    campo de error que no rompe el layout. En el celular se apila: la marca arriba, el formulario abajo.</div>
+  <div class="marca">
+    <svg viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#f47c27" stroke-width="1" opacity=".5">
+        <line x1="60" y1="120" x2="180" y2="200"/><line x1="180" y1="200" x2="140" y2="340"/>
+        <line x1="420" y1="90" x2="340" y2="220"/><line x1="340" y1="220" x2="480" y2="300"/>
+        <line x1="90" y1="520" x2="220" y2="560"/><line x1="220" y1="560" x2="180" y2="690"/>
+        <line x1="440" y1="540" x2="520" y2="640"/><line x1="340" y1="220" x2="220" y2="560"/>
+      </g>
+      <g fill="#2f4d73"><circle cx="60" cy="120" r="5"/><circle cx="420" cy="90" r="4"/><circle cx="90" cy="520" r="4"/></g>
+      <g fill="#f47c27"><circle cx="180" cy="200" r="6"/><circle cx="140" cy="340" r="4"/><circle cx="340" cy="220" r="5"/>
+        <circle cx="480" cy="300" r="4"/><circle cx="220" cy="560" r="6"/><circle cx="180" cy="690" r="4"/>
+        <circle cx="440" cy="540" r="4"/><circle cx="520" cy="640" r="5"/></g>
+    </svg>
+    <div class="marca-top"><span class="punto"></span>ANKA</div>
+    <div class="marca-frase">
+      <h1>Cotizaciones de topografía, sin perder tiempo en lo repetitivo.</h1>
+      <p>Lee los correos, arma la tabla y pide al cliente solo lo que falta.</p>
+    </div>
+    <div class="marca-pie">Grupo Anka · Topografía y geomática</div>
+  </div>
+  <div class="entrar">
+    <div class="tarjeta">
+      <div><h2>Entrar</h2><p class="sub">Usa tu usuario del equipo.</p></div>
+      <div class="aviso" role="alert">El usuario o la contraseña no son correctos.</div>
+      <form>
+        <label for="u">Usuario<input id="u" type="text" autocomplete="username" value="andres"></label>
+        <label for="p">Contraseña<input id="p" type="password" autocomplete="current-password"></label>
+        <label class="recordar"><input type="checkbox"> Recuérdame en este equipo</label>
+        <button class="cta" type="button">Entrar</button>
+      </form>
+      <p class="pie-tarjeta">¿Olvidaste tu contraseña? Pide a quien administra que te la reinicie.</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

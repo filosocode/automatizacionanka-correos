@@ -87,7 +87,7 @@ class UnionDeProyectosTests(unittest.TestCase):
         db.close()
         plegado = pantalla_caso.render_case("t-a")                                                         # 3 parecidos
         self.assertIn('<details class="section project-suggestion" id="mismo-proyecto">', plegado)
-        self.assertIn("3 hilo(s) parecido(s)", plegado)
+        self.assertIn("3 conversación(es) parecida(s)", plegado)
 
     def test_unir_deja_el_otro_en_descartadas_con_huella_en_los_dos_casos(self) -> None:
         mensaje = quotes.merge_project_thread("t-a", "t-b")
@@ -115,7 +115,7 @@ class UnionDeProyectosTests(unittest.TestCase):
         self.assertIn('action="/project-separate"', pagina)                                # separar sigue disponible
 
     def test_validaciones_de_la_union(self) -> None:
-        with self.assertRaisesRegex(ValueError, "otro hilo"):
+        with self.assertRaisesRegex(ValueError, "otra conversación"):
             quotes.merge_project_thread("t-a", "t-a")
         with self.assertRaisesRegex(ValueError, "ya no existe"):
             quotes.merge_project_thread("t-a", "no-existe")

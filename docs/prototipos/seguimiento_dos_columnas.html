@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seguimiento · misma estructura de siempre</title>
+<style>
+:root{--bg:#f5f8fb;--panel:#fff;--ink:#171717;--muted:#525252;--line:#e6e9ef;--accent:#bd5209;--accent-soft:#fff1e6;
+  --blue:#2f4d73;--info-bg:#eef3fa;--radius:14px;--shadow:0 1px 2px #2f4d730f,0 1px 3px #2f4d7314}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--panel:#171717;--ink:#f5f5f5;--muted:#a3a3a3;--line:#2b2b2b;--accent:#f9a668;--accent-soft:#3a210d;
+  --blue:#7ea8d8;--info-bg:#1a2535;--shadow:0 1px 2px #00000066,0 1px 3px #00000052}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Inter",system-ui,-apple-system,sans-serif}
+.app{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:100vh}
+aside{border-right:1px solid var(--line);padding:20px 16px;background:var(--panel)}
+.marca{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--accent);margin-bottom:16px}
+main{padding:28px 32px;max-width:1080px}
+.nota-prop{background:var(--info-bg);color:var(--muted);font-size:13px;padding:10px 16px;border-radius:10px;margin-bottom:20px}
+.nota-prop b{color:var(--ink)}
+.paso{display:flex;align-items:center;gap:10px;font-size:.875rem;color:var(--muted);margin-bottom:18px}
+.paso b{color:var(--ink)}
+.paso .pista{flex:1;height:4px;background:var(--line);border-radius:99px;position:relative;overflow:hidden;max-width:220px}
+.paso .pista i{position:absolute;inset:0;width:28%;background:var(--accent);border-radius:99px}
+/* ---- la misma estructura de siempre: tabla a la izquierda, correo/chat a la derecha ---- */
+.dos-columnas{display:grid;grid-template-columns:1.05fr 1fr;gap:20px;align-items:start}
+@media (max-width:860px){.dos-columnas{grid-template-columns:1fr}}
+.caja{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 24px}
+.caja h2{margin:0 0 4px;font-size:1.0625rem}
+.caja .meta{color:var(--muted);font-size:.875rem;margin:0 0 14px}
+.chip{border:1px solid var(--line);background:none;color:var(--muted);border-radius:999px;padding:5px 14px;font-size:.8125rem;cursor:pointer}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+ul.filas{list-style:none;margin:14px 0 0;padding:0}
+.fila{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.fila:first-child{border-top:0}
+.marca-fila{width:8px;height:8px;border-radius:50%;background:#d97706;flex:none}
+.fila strong{display:block;font-size:.9375rem;font-weight:500}
+.fila .falta{color:#d97706;font-size:.8125rem;font-weight:600}
+.fila .resolver{margin-left:auto;color:var(--muted);font-size:.875rem;text-decoration:none}
+/* derecha: estado "esperando" en el mismo sitio donde iría el correo/chat */
+.ahora{display:flex;gap:12px;align-items:flex-start;margin-bottom:4px}
+.ahora .punto{width:10px;height:10px;border-radius:50%;background:var(--accent);margin-top:6px;flex:none}
+.ahora p{margin:4px 0 0;color:var(--muted);font-size:.9375rem}
+.llamada{margin-top:14px}
+.llamada button{width:100%;min-height:44px;border:1px solid var(--line);background:none;color:var(--ink);border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+details.seguimiento{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+details.seguimiento summary{cursor:pointer;font-weight:600;color:var(--blue);list-style:none}
+details.seguimiento summary::-webkit-details-marker{display:none}
+details.seguimiento summary::before{content:"▸ ";display:inline-block;transition:transform .15s}
+details.seguimiento[open] summary::before{transform:rotate(90deg)}
+.seg-tabs{display:flex;gap:4px;margin:12px 0}
+.seg-tabs button{border:0;background:none;color:var(--muted);padding:6px 12px;border-radius:8px;font:inherit;cursor:pointer}
+.seg-tabs button.on{background:var(--info-bg);color:var(--ink);font-weight:600}
+.seg-item{padding:10px 0;border-top:1px solid var(--line);font-size:.875rem}
+.seg-item:first-child{border-top:0}
+.seg-item .quien{color:var(--muted);font-size:.8125rem}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside><div class="marca">◆ ANKA</div></aside>
+  <main>
+    <div class="nota-prop"><b>Propuesta.</b> Se mantiene la estructura de siempre: tabla a la izquierda, correo/chat
+      a la derecha. Lo único nuevo es «Ver seguimiento», que se despliega dentro de la misma caja de la derecha
+      (conversación, archivos, historial) sin salir de la pantalla ni mover la tabla.</div>
+    <section class="paso"><b>Revisar y aclarar</b> · 0 de 6 resueltas <div class="pista"><i></i></div> Esperando al cliente · consulta 1</section>
+
+    <div class="dos-columnas">
+      <div class="caja">
+        <h2>Actividades detectadas</h2>
+        <p class="meta">6 actividades · 6 por completar</p>
+        <div><button class="chip on">Todas 6</button> <button class="chip">Falta un dato 6</button></div>
+        <ul class="filas">
+          <li class="fila"><span class="marca-fila"></span><div><strong>Materialización y georreferenciación de puntos de control horizontal</strong><span class="falta">Falta un dato</span></div><a class="resolver" href="#">Resolver ›</a></li>
+          <li class="fila"><span class="marca-fila"></span><div><strong>Control vertical mediante nivelación geométrica</strong><span class="falta">Falta un dato · cantidad, unidad</span></div><a class="resolver" href="#">Resolver ›</a></li>
+          <li class="fila"><span class="marca-fila"></span><div><strong>Levantamiento de detalles topográficos</strong><span class="falta">Falta un dato · cantidad, unidad</span></div><a class="resolver" href="#">Resolver ›</a></li>
+        </ul>
+      </div>
+
+      <div class="caja">
+        <div class="ahora">
+          <div class="punto"></div>
+          <div><h2>Esperando al cliente</h2>
+            <p>Nada que hacer: esperando su respuesta. Si no contesta, desde 1 día te avisamos para un recordatorio y a los 7 para llamarlo.</p>
+          </div>
+        </div>
+        <div class="llamada"><button>☎ Ya hablé con el cliente</button></div>
+
+        <details class="seguimiento">
+          <summary>Ver seguimiento</summary>
+          <div class="seg-tabs">
+            <button class="on">Conversación</button>
+            <button>Archivos</button>
+            <button>Historial</button>
+          </div>
+          <div class="seg-item">Correo enviado al cliente con 5 preguntas.<div class="quien">Tú · hace 2 días</div></div>
+          <div class="seg-item">Sin respuesta todavía.<div class="quien">Automático · hoy</div></div>
+        </details>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

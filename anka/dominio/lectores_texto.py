@@ -3,6 +3,11 @@
 from __future__ import annotations
 from html.parser import HTMLParser
 import re
+import unicodedata
+
+from anka.dominio.attachments import (
+    MAX_CARACTERES_DE_CELDA, MIN_CARACTERES_DE_LINEA_REPETIDA, MIN_CELDAS_SUELTAS_DE_TABLA,
+)
 
 
 class Unreadable(Exception):
@@ -50,6 +55,56 @@ class _VisibleHtml(HTMLParser):
         if tag == "img":
             alt = dict(attrs).get("alt") or ""
             self.parts.append(f"\n[Imagen: {alt or 'sin texto alternativo; requiere inspección visual'}]\n")
+
+
+def _compacto(texto: str) -> str:
+    """El texto en minúsculas, sin espacios, signos ni tildes: la forma en que se comparan el OCR y el texto nativo."""
+    sin_tildes = "".join(c for c in unicodedata.normalize("NFKD", texto.casefold()) if not unicodedata.combining(c))
+    return re.sub(r"\W+", "", sin_tildes)
+
+
+def lineas_nuevas_del_ocr(ocr: str, nativo: str) -> list[str]:
+    """Las líneas del OCR que el texto nativo de la página no trae ya (T-124).
+
+    Una línea es repetida si coincide completa con una del texto nativo o si es larga y está contenida en él.
+    Una corta no se descarta por estar «contenida»: la celda «150» de una tabla está dentro de «1500 hectáreas».
+    """
+    lineas_nativas = {_compacto(linea) for linea in nativo.splitlines()}
+    nativo_compacto = _compacto(nativo)
+    nuevas = []
+    for linea in ocr.splitlines():
+        compacta = _compacto(linea)
+        if not compacta:
+            continue
+        if compacta in lineas_nativas or (
+                len(compacta) >= MIN_CARACTERES_DE_LINEA_REPETIDA and compacta in nativo_compacto):
+            continue
+        nuevas.append(linea)
+    return nuevas
+
+
+def hay_tabla_en_imagen(lineas: list[str]) -> bool:
+    """Si el OCR aportó varias cifras cortas sueltas: la huella de una tabla en imagen (T-124)."""
+    sueltas = [linea for linea in lineas
+               if len(linea.strip()) <= MAX_CARACTERES_DE_CELDA and re.fullmatch(r"[\d.,]+", linea.strip())]
+    return len(sueltas) >= MIN_CELDAS_SUELTAS_DE_TABLA
+
+
+def reparar_ligaduras_perdidas(texto: str) -> tuple[str, int]:
+    """Cambia por «ti» el nulo que deja una ligadura sin mapear; devuelve (texto, ligaduras recuperadas) (T-124).
+
+    Un nulo pegado a una letra («co\\x00zación», «\\x00enen») era siempre «ti» en los casos observados; uno
+    aislado no es una letra y se elimina. Es una reparación por heurística: quien la usa debe declararla.
+    """
+    recuperadas = 0
+
+    def cambiar(coincidencia: re.Match[str]) -> str:
+        nonlocal recuperadas
+        recuperadas += 1
+        return "ti"
+
+    texto = re.sub(r"(?<=[^\W\d_])\x00|\x00(?=[^\W\d_])", cambiar, texto)
+    return texto.replace("\x00", ""), recuperadas
 
 
 def html_text(content: bytes) -> str:

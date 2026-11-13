@@ -8,10 +8,12 @@ import unicodedata
 from functools import lru_cache
 from email.utils import parseaddr
 
-from anka.dominio.activities import tiene_cifra
-from anka.dominio.analisis import Analisis, Adjunto
+from anka.dominio.activities import normalize_estado, tiene_cifra
+from anka.dominio.analisis import Actividad, Analisis, Adjunto
 from anka.dominio.correo import attachment_names, header, message_datetime, message_text
-from anka.dominio.preguntas import para_el_cliente
+from anka.dominio.insumos import agrupar_preguntas
+from anka.dominio.preguntas import EXTENSIONES_GEOGRAFICAS, como_peticion, para_el_cliente, sin_nota_interna
+from anka.dominio.work_contract import control_documental
 
 
 @lru_cache(maxsize=4096)   # función pura que se llama con los mismos textos (nombres de campos) una y otra vez
@@ -52,6 +54,13 @@ def _noise_signal_id(message: dict) -> str | None:
     if "SPAM" in message.get("labelIds", []):
         return "spam_gmail"
     return None
+
+
+def noise_signal_id(message: dict) -> str | None:
+    """El identificador de la señal de ruido (R1) de un mensaje de Gmail, o None.
+
+    Es el que el receptor guarda en la evidencia del mensaje y el que usa la elegibilidad de los trabajos (T-51)."""
+    return _noise_signal_id(message)
 
 
 def _automated_signal(message: dict) -> str | None:
@@ -297,6 +306,33 @@ def blank_analysis(summary: str = "") -> Analisis:
     }
 
 
+def actividades_sin_confirmar(analysis: Analisis) -> list[Actividad]:
+    """Las actividades sin confirmar (pendientes o contradictorias): el alcance aún no está cerrado (U-87)."""
+    return [item for item in analysis.get("activities", [])
+            if isinstance(item, dict) and normalize_estado(item.get("estado")) != "confirmado"]
+
+
+_FALTA_DE_UNA_ACTIVIDAD = re.compile(r"^falta(?:n)?\s+(?:por\s+)?(?:definir|confirmar|indicar|aclarar)?\s*(.+)$", re.I)
+
+
+def preguntas_de_pendientes(analysis: Analisis) -> list[str]:
+    """Preguntas para el cliente a partir de lo que el análisis dejó pendiente en cada actividad (U-87).
+
+    Primero las dudas que el propio análisis formuló (`other_questions`); luego, por cada actividad sin confirmar, lo
+    que su nota dice que falta. Son un borrador: una persona lo revisa antes de que salga nada (R8).
+    """
+    preguntas = [q.strip() for q in analysis.get("other_questions", []) if isinstance(q, str) and q.strip()]
+    for item in actividades_sin_confirmar(analysis):
+        nombre = str(item.get("activity") or "la actividad").strip()
+        nota = sin_nota_interna(str(item.get("notes") or ""))
+        faltante = _FALTA_DE_UNA_ACTIVIDAD.match(nota.strip().rstrip(".").strip())
+        if faltante:
+            preguntas.append(f"Sobre «{nombre}»: ¿puede indicar {faltante.group(1).strip()}?")
+        else:
+            preguntas.append(f"Sobre «{nombre}»: ¿puede confirmar los datos que faltan (cantidad, ubicación o plazo)?")
+    return list(dict.fromkeys(preguntas))
+
+
 def unresolved_scope_issues(analysis: Analisis) -> list[str]:
     """Dependencias de alcance y contradicciones que siguen pendientes (lo que manda un caso a revisión técnica)."""
     issues = []
@@ -304,11 +340,13 @@ def unresolved_scope_issues(analysis: Analisis) -> list[str]:
         if dependency.get("status") == "pendiente":
             issues.append(f"Dependencia: {dependency.get('description', 'sin descripción')}")
     for contradiction in analysis.get("contradictions", []):
-        if contradiction.get("status") == "pendiente":
+        if contradiction.get("status", "pendiente") == "pendiente":
             issues.append(
                 f"Contradicción en {contradiction.get('topic', 'dato técnico')}: "
                 f"{contradiction.get('details', 'requiere revisión')}"
             )
+    control = control_documental(analysis)
+    issues.extend(m for m in control["pendientes_lectura"] if m not in issues)
     return issues
 
 
@@ -325,14 +363,15 @@ def _question_repeats_field(question: str, field: str) -> bool:
 
 def question_email(questions: list[str], forwarded: bool = False) -> str:
     """Correo al cliente con las preguntas numeradas, en el tono de un reenvío o de un mensaje directo."""
-    items = "\n".join(f"{i}. {question}" for i, question in enumerate(questions, 1))
+    textos = [str(q) for q in questions if q is not None and str(q).strip()]   # una pregunta vacía no se numera
+    items = "\n".join(f"{i}. {question}" for i, question in enumerate(textos, 1))
     opening = (
         "Gracias por compartir la solicitud. Para completar la información inicial, "
         if forwarded else
         "Gracias por su solicitud. Para completar la información inicial, "
     )
     return (
-        "Hola,\n\n" + opening + "¿podría confirmar lo siguiente?\n\n" + items +
+        "Hola,\n\n" + opening + "necesitamos confirmar lo siguiente:\n\n" + items +
         "\n\nPuede responder a este mismo correo.\n\nSaludos"
     )
 
@@ -444,27 +483,51 @@ def suggested_supporting_documents(analysis: Analisis) -> list[str]:
     return suggestions
 
 
+def _sin_repetir_lo_preguntado(documentos: list[str], preguntas: list[str]) -> list[str]:
+    """Quita de la lista «también puede adjuntar» lo que ya es una pregunta del correo (el archivo de ubicación)."""
+    textos = [normalized_text(pregunta) for pregunta in preguntas]
+    if not any(palabra in t for t in textos for palabra in _PALABRAS_DE_UBICACION) and not any(
+            "archivo" in t and "ubicacion" in t for t in textos):
+        return documentos
+    return [d for d in documentos if not d.startswith("Archivo de ubicación")]
+
+
+def _nombre_del_proyecto(proyecto: str) -> str:
+    """El nombre para el correo (U-108): sin espacios de más y a 90 caracteres como mucho; vacío si no hay."""
+    limpio = " ".join(str(proyecto or "").split())
+    return limpio if len(limpio) <= 90 else limpio[:89].rstrip() + "…"
+
+
 def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, documentos: list[str] | None = None,
-                         proyecto: str = "", codigo: str = "") -> str:
+                         proyecto: str = "", codigo: str = "", segunda_ronda: bool = False,
+                         actividades: list[Actividad] | None = None) -> str:
     """El correo al cliente con sus preguntas numeradas: la plantilla fija de todos los modos (no usa ningún modelo).
 
     Con `codigo` (la T del caso, para el contacto registrado) el correo nombra el proyecto y el código y pide citarlo al
     responder: desde la T la tabla solo se actualiza con mensajes que lo citen (R11). Nunca se pasa a quien no es el
     contacto registrado.
     """
+    if actividades:       # lo que se repite se pide una sola vez (U-114)
+        preguntas = agrupar_preguntas(preguntas, actividades)
+    # Lo que llega al cliente son preguntas, no notas (U-99); lo que la persona escribió no se reescribe (U-33).
+    preguntas = [como_peticion(p, quitar_verbo=False) for p in preguntas]
+    nombre = _nombre_del_proyecto(proyecto)
+    # Siempre numeradas, también una sola: el sistema reconoce lo preguntado por la lista numerada (U-26).
+    question_lines = "\n".join(f"{number}. {question}" for number, question in enumerate(preguntas, 1))
     if codigo:
-        question_lines = "\n".join(f"{number}. {question}" for number, question in enumerate(preguntas, 1))
+        intro = "Gracias por su respuesta. Sobre" if segunda_ronda else "Sobre"
         return (
-            f"Hola,\n\nSobre su proyecto «{proyecto or 'su solicitud'}» ({codigo}), necesitamos confirmar lo siguiente:"
+            f"Hola,\n\n{intro} su proyecto «{nombre or 'su solicitud'}» ({codigo}), necesitamos confirmar lo siguiente:"
             f"\n\n{question_lines}\n\nAl responder, por favor cite el código {codigo} para que podamos asociar su "
             "respuesta al proyecto.\n\nPuede responder a este mismo correo.\n\nSaludos,\nGrupo Anka"
         )
-    opening = (
-        "Gracias por compartir la solicitud. Para completar la información inicial, "
-        if reenviado else
-        "Gracias por su solicitud. Para completar la información inicial, "
-    )
-    question_lines = "\n".join(f"{number}. {question}" for number, question in enumerate(preguntas, 1))
+    de = f" para el proyecto «{nombre}»" if nombre else ""
+    if segunda_ronda:
+        opening = f"Gracias por su respuesta{de}. Nos queda por confirmar lo siguiente:"
+    else:
+        base = "Gracias por compartir la solicitud" if reenviado else "Gracias por su solicitud"
+        opening = f"{base}{de}. Para completar la información inicial, necesitamos confirmar lo siguiente:"
+    documentos = _sin_repetir_lo_preguntado(documentos or [], preguntas)
     document_block = ""
     if documentos:
         document_lines = "\n".join(f"- {document}" for document in documentos)
@@ -473,7 +536,7 @@ def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, document
             "documentos para complementar la revisión:\n\n" + document_lines
         )
     return (
-        "Hola,\n\n" + opening + "¿podría confirmar lo siguiente?\n\n"
+        "Hola,\n\n" + opening + "\n\n"
         + question_lines + document_block
         + "\n\nPuede responder a este mismo correo.\n\nSaludos,\nGrupo Anka"
     )
@@ -491,7 +554,7 @@ def suggested_reply(analysis: Analisis, required_fields: list[str] | None = None
     documents = suggested_supporting_documents(analysis)
     forwarded = analysis.get("routing", {}).get("is_forwarded", False)
     if questions:
-        return correo_con_preguntas(questions, forwarded, documents)
+        return correo_con_preguntas(questions, forwarded, documents, actividades=analysis.get("activities"))
     if analysis.get("routing", {}).get("is_forwarded"):
         opening = "Gracias por reenviar la solicitud."
     else:
@@ -512,8 +575,47 @@ def suggested_reply(analysis: Analisis, required_fields: list[str] | None = None
     )
 
 
-def safe_folder_name(project: str, thread_id: str, prefix: str) -> str:
-    """Nombre de carpeta de la solicitud: prefijo, proyecto sin caracteres no válidos y final del id del hilo."""
-    clean = re.sub(r'[\\/:*?"<>|\x00-\x1f]', " ", project).strip(" .")
-    clean = re.sub(r"\s+", " ", clean)[:90] or "Sin nombre"
-    return f"{prefix} - {clean} - {thread_id[-8:]}"
+def _sin_caracteres_de_control(texto: str) -> str:
+    """El texto sin caracteres de control ni de formato invisibles (p. ej. «\\u202e», que invierte lo que se ve)."""
+    return "".join(" " if unicodedata.category(c) in ("Cc", "Cf") else c for c in texto)
+
+
+def safe_folder_name(project: str | None, thread_id: str | None, prefix: str) -> str:
+    """Nombre de carpeta de la solicitud: prefijo, proyecto sin caracteres no válidos y final del id del hilo.
+
+    El final del id también se limpia: un id de Gmail es alfanumérico, así que fuera de letras, cifras, «-» y «_» no
+    queda nada que pueda partir la ruta (separadores, «..», controles) ni dejar un punto o espacio al final.
+    """
+    clean = re.sub(r'[\\/:*?"<>|]', " ", _sin_caracteres_de_control(str(project or ""))).strip(" .")
+    clean = re.sub(r"\s+", " ", clean)[:90].strip(" .") or "Sin nombre"
+    final = re.sub(r"[^0-9A-Za-z_-]", "", str(thread_id or ""))[-8:] or "sin-id"
+    return f"{prefix} - {clean} - {final}"
+
+
+# --- Siempre se pide el archivo de ubicación cuando falta (U-95) ----------------------------------------------
+
+_EXTENSIONES_GEOGRAFICAS = EXTENSIONES_GEOGRAFICAS
+_PALABRAS_DE_UBICACION = ("kmz", "kml", "shape", "delimit", "trazado", "coordenada", "archivo con la ubicacion",
+                          "plano de ubicacion", "poligono")
+PREGUNTA_DE_UBICACION = ("¿Podrían remitir el archivo con la ubicación y delimitación exacta del proyecto "
+                         "(KML/KMZ o plano del trazado)?")
+
+
+def agregar_pregunta_de_ubicacion(analysis: Analisis, adjuntos: list[Adjunto]) -> bool:
+    """Agrega a las preguntas al cliente la del archivo de ubicación si hace falta y el modelo no la hizo (U-95).
+
+    Hace falta cuando alguna actividad no trae cantidad (no se puede medir sin el polígono o el trazado) y el caso no
+    tiene ningún archivo geográfico ni la pregunta ya está entre las del modelo. Devuelve si la agregó.
+    """
+    actividades = [a for a in analysis.get("activities") or [] if isinstance(a, dict)]
+    if not analysis.get("is_quote_request") or not actividades:
+        return False
+    if all(tiene_cifra(a.get("quantity")) for a in actividades):
+        return False
+    if any(str(a.get("filename") or "").lower().endswith(_EXTENSIONES_GEOGRAFICAS) for a in adjuntos):
+        return False
+    preguntas = analysis.setdefault("other_questions", [])
+    if any(palabra in normalized_text(str(p)) for p in preguntas for palabra in _PALABRAS_DE_UBICACION):
+        return False
+    preguntas.append(PREGUNTA_DE_UBICACION)
+    return True

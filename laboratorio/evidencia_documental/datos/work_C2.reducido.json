@@ -1,0 +1,27 @@
+{
+  "activities": [
+    {
+      "activity": "Trabajos de levantamiento batimétrico descritos en términos de referencia no inspeccionados",
+      "fuente": "Correo 1a164b05cb1bd9aa, cuerpo; tdr_02.pdf, 2 páginas escaneadas no interpretadas",
+      "quantity": "",
+      "unit": ""
+    }
+  ],
+  "analysis_complete": null,
+  "attachments": [
+    {
+      "coverage": "parcial",
+      "evidence": [],
+      "filename": "tdr_02.pdf",
+      "reason": "El lector devolvió: No text could be parsed from document 'tdr_02.pdf' which contains 2 pages. Vista previa de 2 páginas sin imágenes accesibles en esta sesión.",
+      "size_bytes": 492471,
+      "status": "bloqueado"
+    }
+  ],
+  "contradictions": [],
+  "origen": {
+    "archivo_original": "retorno_c2.json",
+    "nota": "Reducido: solo los campos que el modelo de evidencia usa. Sin correos, nombres ni texto del borrador.",
+    "sha256_del_retorno_completo": "7f23dc5467e902870f0032c169435b9476fc32a3e126815e0c3b3125832610fa"
+  }
+}

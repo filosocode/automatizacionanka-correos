@@ -113,6 +113,13 @@ class ValidateConfigTests(unittest.TestCase):
         config = with_changes(active_mode="api", llm={"provider": "openai", "model": "gpt-x"})
         self.assertEqual(settings.validate_config(config), [])
 
+    def test_gmail_reception_is_opt_in_and_interval_is_bounded(self):
+        self.assertEqual(settings.validate_config(with_changes()), [])
+        self.assertTrue(settings.validate_config(with_changes(gmail_reception_enabled="true")))
+        for value in (29, 3601, True, "60"):
+            with self.subTest(value=value):
+                self.assertTrue(settings.validate_config(with_changes(gmail_reception_interval_seconds=value)))
+
     def test_mode_and_provider_must_agree(self):
         local_with_openai = with_changes(llm={"provider": "openai"})
         api_with_ollama = with_changes(active_mode="api")

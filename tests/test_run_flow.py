@@ -47,11 +47,11 @@ class RunFlowTests(unittest.TestCase):
     def run_flow(self, gmail, analysis=None, *, seed=None, drive=None, metadata=None, **flags):
         """Ejecuta run() aislado; devuelve (filas, analyze_mock, paquetes, drive).
 
-        `drive` es un FakeDriveTree (por defecto uno con el cliente "Minera Sur" bajo "2026");
+        `drive` es un FakeDriveTree (por defecto uno con el cliente "Minera Sur" bajo `Proyectos/año/mes`);
         `metadata` = {thread_id: nombre_de_cliente} que una persona ya confirmó.
         """
         flags.setdefault("review_only", False)
-        drive = drive or FakeDriveTree({"Minera Sur": {}})
+        drive = drive or FakeDriveTree.de_clientes({"Minera Sur": {}})
         with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "DATA_DIR", Path(temp_dir)
         ), patch("anka.servicios.pipeline.load_config", return_value=test_config()), patch(
             "anka.servicios.pipeline.services", return_value=(gmail, drive)
@@ -91,13 +91,13 @@ class RunFlowTests(unittest.TestCase):
 
     def test_implicit_request_without_keywords_reaches_the_model(self):
         # Antes un filtro de palabras clave la descartaba sin que el modelo la viera.
-        gmail = FakeGmail(self.thread("Buenas, ¿cuánto vale medir un lote de 5 ha en Cota?",
+        gmail = FakeGmail(self.thread("Buenas, ¿cuánto vale medir un lote de 10 ha en Cota?",
                                       subject="Consulta"))
         rows, analyze_mock, _, _ = self.run_flow(gmail, complete_analysis(), review_only=True)
         analyze_mock.assert_called_once()
         self.assertEqual(rows[0][1], QuoteStatus.READY_REVIEW)
 
-    def automated_thread(self, subject="Ofertas", text="Descuentos de oficina"):
+    def automated_thread(self, subject="Ofertas", text="Descuentos de oficina para 10 ha"):
         return {"id": "t-1", "messages": [
             encoded_message("n-1", "Tienda <noreply@tienda.com>", text, 1, subject=subject)]}
 
@@ -111,7 +111,7 @@ class RunFlowTests(unittest.TestCase):
         self.assertIn("noreply@tienda.com", saved["email"]["from"])
 
     def test_automated_message_that_mentions_a_quote_is_still_analyzed(self):
-        gmail = FakeGmail(self.automated_thread("Solicitud de cotización #88", "Se registró."))
+        gmail = FakeGmail(self.automated_thread("Solicitud de cotización #88", "Se registró un levantamiento de 10 ha."))
         rows, analyze_mock, _, _ = self.run_flow(gmail, complete_analysis(), review_only=True)
         analyze_mock.assert_called_once()
         self.assertEqual(rows[0][1], QuoteStatus.READY_REVIEW)
@@ -161,12 +161,13 @@ class RunFlowTests(unittest.TestCase):
         self.assertEqual(len(packets), 1)
         self.assertEqual(gmail.sent_messages, [])
 
-    def test_missing_data_direct_mode_sends_question_and_waits(self):
+    def test_missing_data_without_flags_never_sends_and_waits_for_review(self):
+        # Cubre: U-77  (antes enviaba la pregunta sin revisión: R8)
         gmail = FakeGmail(self.thread())
-        rows, _, _, _ = self.run_flow(gmail, complete_analysis(location=""))
-        self.assertEqual(rows[0][1], QuoteStatus.WAITING)
-        self.assertEqual(rows[0][5], "sent-1")
-        self.assertEqual(len(gmail.sent_messages), 1)
+        rows, _, packets, _ = self.run_flow(gmail, complete_analysis(location=""))
+        self.assertEqual(rows[0][1], QuoteStatus.REVIEW_PENDING)
+        self.assertEqual(len(packets), 1)
+        self.assertEqual(gmail.sent_messages, [])
 
     def test_complete_scope_review_only_never_touches_drive(self):
         rows, _, packets, drive = self.run_flow(
@@ -249,8 +250,8 @@ class DriveStructureFlowTests(unittest.TestCase):
         seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
         rows, _, _, drive = self.run_complete(metadata={"t-1": "MINERA SUR S.A.S."}, seed=seed)
         self.assertEqual(rows[0][1], QuoteStatus.READY)
-        self.assertEqual(len(drive.created), 1)
-        self.assertRegex(drive.created[0], r"^2026/Minera Sur/Cotizacion - Proyecto Norte - ")
+        self.assertEqual(len(drive.created), 2)   # la solicitud y su `anexos`
+        self.assertRegex(drive.created[0], rf"^Proyectos/{FakeDriveTree.ruta_del_mes()}/Minera Sur/Cotizacion - Proyecto Norte - ")
         self.assertIsNotNone(rows[0][4])
 
     def test_without_a_confirmed_client_the_folder_waits_for_a_person(self):
@@ -264,7 +265,7 @@ class DriveStructureFlowTests(unittest.TestCase):
             seed=db_seed, metadata={"t-prev": "Minera Sur"})
         new = [r for r in rows if r[0] != "p-1"][0]
         self.assertEqual(new[1], QuoteStatus.READY)
-        self.assertRegex(drive.created[0], r"^2026/Minera Sur/")
+        self.assertRegex(drive.created[0], rf"^Proyectos/{FakeDriveTree.ruta_del_mes()}/Minera Sur/")
 
     def test_a_client_without_a_folder_is_never_created_automatically(self):
         seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
@@ -273,13 +274,13 @@ class DriveStructureFlowTests(unittest.TestCase):
 
     def test_ambiguous_client_folders_wait_for_a_person(self):
         seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
-        drive = FakeDriveTree({"Acme": {}, "ACME SAS": {}})
+        drive = FakeDriveTree.de_clientes({"Acme": {}, "ACME SAS": {}})
         rows, _, _, drive = self.run_complete(metadata={"t-1": "Acme Corp"}, seed=seed, drive=drive)
         self.assert_held(rows, drive, "varias")
 
     def test_parent_folder_of_another_year_waits_for_a_person(self):
         seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
-        drive = FakeDriveTree({"Minera Sur": {}}, root_name="2025")
+        drive = FakeDriveTree.de_clientes({"Minera Sur": {}}, root_name="2025")
         rows, _, _, drive = self.run_complete(metadata={"t-1": "Minera Sur"}, seed=seed, drive=drive)
         self.assert_held(rows, drive, "2025")
 
@@ -288,7 +289,7 @@ class DriveStructureFlowTests(unittest.TestCase):
             "fwd-1", "Diego <diego@anka.com.co>",
             "---------- Mensaje reenviado ---------\n"
             "De: Cliente Real <real@minera.co>\n"
-            "Asunto: x\n\nSolicitamos cotización de levantamiento.",
+            "Asunto: x\n\nSolicitamos cotización de levantamiento de 10 ha.",
             INTERNAL_DATE, subject="Fwd: Solicitud de cotización")]}
         db_seed = ("t-prev", "p-1", QuoteStatus.READY, "diego@anka.com.co",
                    {"routing": {"original_sender_email": "real@minera.co"}})
@@ -296,7 +297,7 @@ class DriveStructureFlowTests(unittest.TestCase):
             FakeGmail(forwarded), complete_analysis(), seed=db_seed, metadata={"t-prev": "Minera Sur"})
         new = [r for r in rows if r[0] != "p-1"][0]
         self.assertEqual(new[1], QuoteStatus.READY)
-        self.assertRegex(drive.created[0], r"^2026/Minera Sur/")
+        self.assertRegex(drive.created[0], rf"^Proyectos/{FakeDriveTree.ruta_del_mes()}/Minera Sur/")
 
     def test_a_held_case_says_why_without_putting_the_client_name_in_the_file_log(self):
         seed = ("t-1", "old", QuoteStatus.WAITING, "cliente@example.com", {})
@@ -357,13 +358,13 @@ class LogPrivacyTests(unittest.TestCase):
         self.assertIn("Borrador para", console)
         self.assertIn(self.CLIENT_EMAIL, console)
 
-    def test_manual_review_and_direct_send_leave_an_audit_line(self):
+    def test_manual_review_and_queued_question_leave_an_audit_line(self):
         _, review_file = self.run_logged(
             FakeGmail(self.thread()), self.analysis(activities=[]), review_only=True,
         )
         self.assertIn("t-log: sin actividades identificables; requiere revisión manual", review_file)
         _, send_file = self.run_logged(FakeGmail(self.thread()), self.analysis())
-        self.assertIn("t-log: preguntas enviadas al cliente; se espera respuesta", send_file)
+        self.assertIn("t-log: guardado para revisión humana", send_file)
         self.assertNotIn(self.CLIENT_EMAIL, send_file)
 
     def test_warning_level_marks_the_cases_that_need_a_human(self):
@@ -386,7 +387,7 @@ class DecideAnalysisTests(unittest.TestCase):
     def test_mode_flags_pick_the_action_for_missing_data(self):
         analysis = complete_analysis(location="")
         cases = [
-            ({}, QuoteStatus.WAITING, decisiones.Action.SEND),
+            ({}, QuoteStatus.REVIEW_PENDING, decisiones.Action.QUEUE),   # U-77: nunca se envía
             ({"review_only": True}, QuoteStatus.REVIEW_PENDING, decisiones.Action.QUEUE),
             ({"gmail_drafts": True}, QuoteStatus.DRAFT_CREATED, decisiones.Action.GMAIL_DRAFT),
         ]

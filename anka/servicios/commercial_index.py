@@ -24,6 +24,7 @@ MAX_SOURCE_REFERENCES = 12   # topes por cliente: indexar el archivo histórico 
 MAX_DOCUMENTS_PER_CLIENT = 12   # no en horas, aunque un cliente tenga miles de archivos
 MAX_PDF_BYTES = 12 * 1024 * 1024   # un PDF más grande se omite: tarda y pesa en memoria
 MAX_PDF_PAGES = 4   # solo se leen las primeras páginas: el índice no necesita el documento entero
+MAX_DOCX_XML_BYTES = 50 * 1024 * 1024   # un Word cuyo XML se expande más que esto no se lee (bomba)
 
 SENSITIVE_PARTS = (
     "afiliacion", "cedula", "documentos personal", "hoja de vida", "personal campo",
@@ -123,6 +124,8 @@ def extract_docx_text(path: Path) -> str:
     """Texto de un Word, o vacío si no se puede leer."""
     try:
         with zipfile.ZipFile(path) as archive:
+            if archive.getinfo("word/document.xml").file_size > MAX_DOCX_XML_BYTES:
+                return ""           # un .docx que se expande a cientos de MB no se lee (bomba de descompresión)
             data = archive.read("word/document.xml")
         root = ElementTree.fromstring(data)
         return " ".join(node.text or "" for node in root.iter() if node.tag.endswith("}t"))[:120000]

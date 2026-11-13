@@ -1,0 +1,18 @@
+# Fuentes del paquete contractual de Work: siempre LF, para que su versión y sus huellas no dependan del entorno (T-59).
+spec/contrato_work.schema.json text eol=lf
+docs/PROMPT_WORK_ANKA_V6.txt text eol=lf
+docs/paquete_work/*.md text eol=lf
+
+# Documentos binarios del banco de laboratorio: sin conversion de fin de linea (T-113); un PDF tratado como texto cambia su huella al clonar en Windows.
+laboratorio/banco_documental/documentos/*.pdf binary
+laboratorio/banco_documental/documentos/*.xlsx binary
+laboratorio/**/*.pdf binary
+laboratorio/banco_documental/**/*.json text eol=lf
+laboratorio/banco_documental/**/*.md text eol=lf
+laboratorio/banco_documental/**/*.txt text eol=lf
+# Evidencias congeladas: se guardan byte a byte, sin ninguna conversion (sus huellas estan registradas en manifiestos)
+laboratorio/banco_documental/evidencias_t72_t74/** -text
+laboratorio/banco_documental/respaldo_t83/** -text
+laboratorio/banco_documental/respaldo_t84/** -text
+laboratorio/banco_documental/parche_t82/** -text
+laboratorio/banco_documental/ejecucion_c1/evidencia_*/** -text

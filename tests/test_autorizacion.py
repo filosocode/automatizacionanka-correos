@@ -1,4 +1,4 @@
-"""Reautorizar Google desde el dashboard (anka/servicios/autorizacion.py, spec/07-api.md, requisito T-15)."""
+"""Volver a conectar Google desde el dashboard (anka/servicios/autorizacion.py, spec/07-api.md, requisito T-15)."""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
@@ -51,7 +51,7 @@ class StateTests(unittest.TestCase):
         servicio = ReautorizacionDeGoogle(verificar=verificar, reloj=reloj)
         estado = servicio.estado()
         self.assertEqual(estado.estado, VENCIDA)
-        self.assertIn("Reautorizar Google", estado.texto)
+        self.assertIn("Volver a conectar Google", estado.texto)
         vencida[0] = False                                       # alguien reautorizó desde la terminal
         reloj.ahora += 61
         self.assertEqual(servicio.estado().estado, OK)
@@ -180,17 +180,18 @@ class DashboardIntegration(unittest.TestCase):
         self.assertIn("Cuenta de Google", ajustes)
         self.assertIn("csrf_token", ajustes)
         self.assertIn("data-confirm", ajustes)
-        self.assertEqual(html.count('action="/google/reautorizar"'), 2)   # el de Ajustes y el aviso rojo (oculto)
-        self.assertIn('id="google-reauth" hidden', html)
+        # Cubre: T-15, U-80
+        self.assertEqual(html.count('action="/google/reautorizar"'), 1)   # un solo botón, el de Ajustes
+        self.assertIn('id="google-reauth"', ajustes)
+        self.assertIn('id="google-chip" class="bridge-chip" href="#ajustes" hidden', html)  # el aviso lleva a él
 
-    def test_every_page_carries_the_hidden_button_with_its_token_and_a_confirmation(self):
+    def test_every_page_carries_the_button_with_its_token_and_a_confirmation(self):
         from anka.web import paginas
         with patch("anka.web.paginas.load_config", return_value={"active_mode": "local"}), \
                 patch("anka.web.paginas.unread_notifications", return_value=[]):
             html = seguridad.add_csrf_tokens(paginas.page("Prueba", "<p>x</p>"))
         formulario = html[html.index('id="google-reauth"'):]
         formulario = formulario[:formulario.index("</form>")]
-        self.assertIn("hidden", html[html.index('<form method="post" action="/google/reautorizar"'):][:120])
         self.assertIn("csrf_token", formulario)                  # el servidor le pone el token como a cualquier formulario
         self.assertIn("data-confirm", formulario)                # avisa antes de abrir la ventana de Google
         self.assertNotIn("onclick", formulario)                  # sin manejadores en línea (T-07)

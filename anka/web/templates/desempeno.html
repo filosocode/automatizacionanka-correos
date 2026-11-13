@@ -10,7 +10,7 @@
   <div class="section-head"><h2>Prompt {{ g.prompt }} · modelo {{ g.modelo }}</h2><span class="badge info">{{ g.casos }} caso{{ 's' if g.casos != 1 }}</span></div>
   {% if g.resumen.pocos %}<p class="meta"><strong>Hay pocos casos para concluir</strong> (menos de {{ minimo }}): las cifras son orientativas.</p>{% endif %}
   <table>
-    <thead><tr><th>Medida</th><th>Resultado</th><th>Qué significa</th></tr></thead>
+    <thead><tr><th scope="col">Medida</th><th scope="col">Resultado</th><th scope="col">Qué significa</th></tr></thead>
     <tbody>
       <tr><td>Casos sin ninguna corrección</td><td>{{ g.porcentajes.sin_correcciones ~ ' %' if g.porcentajes.sin_correcciones is not none else '—' }}</td><td>La tabla quedó como la propuso el análisis.</td></tr>
       <tr><td>Filas de la tabla que se conservaron</td><td>{{ g.porcentajes.filas_conservadas ~ ' %' if g.porcentajes.filas_conservadas is not none else '—' }}</td><td>{{ g.cambios.quitadas }} fila(s) quitada(s) y {{ g.cambios.agregadas }} agregada(s) por las personas.</td></tr>

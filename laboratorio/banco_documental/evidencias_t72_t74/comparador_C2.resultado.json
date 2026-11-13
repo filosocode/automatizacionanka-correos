@@ -1,0 +1,74 @@
+{
+  "casos": [
+    {
+      "caso": "C2",
+      "documento": "tdr_02.pdf",
+      "actividades_esperadas": 4,
+      "actividades_obtenidas": 4,
+      "actividades_encontradas": 4,
+      "actividades_con_valor_y_unidad_correctos": 4,
+      "errores_criticos": 0,
+      "errores_no_criticos": 5,
+      "no_evaluables": 3,
+      "sin_errores_criticos": true,
+      "hallazgos": [
+        {
+          "gravedad": "no_critico",
+          "codigo": "entregable_omitido",
+          "ref": "C2-A1",
+          "detalle": "Falta el entregable: Modelo digital del fondo y plano batimétrico."
+        },
+        {
+          "gravedad": "no_critico",
+          "codigo": "entregable_omitido",
+          "ref": "C2-A4",
+          "detalle": "Falta el entregable: Plano de franja en DWG."
+        },
+        {
+          "gravedad": "no_critico",
+          "codigo": "revision_interna_omitida",
+          "ref": "C2-I1",
+          "detalle": "Evaluar si la profundidad máxima esperada de 14 m exige ecosonda de doble frecuencia."
+        },
+        {
+          "gravedad": "no_critico",
+          "codigo": "revision_interna_omitida",
+          "ref": "C2-I2",
+          "detalle": "Definir el nivel de referencia vertical del embalse antes de planear los perfiles."
+        },
+        {
+          "gravedad": "no_critico",
+          "codigo": "pregunta_de_mas",
+          "ref": "C2",
+          "detalle": "Pregunta sin respaldo en la referencia: «¿Cuál es el trazado de los 3 perfiles longitudinales y la extensión y orientació»."
+        },
+        {
+          "gravedad": "no_evaluable",
+          "codigo": "interpretacion_visual_para_revision_humana",
+          "ref": "C2-V1",
+          "detalle": "cifra 45,0 tachada con una anotación manuscrita de 41,8 — mencionado en la extracción; juzgar la interpretación requiere una persona."
+        },
+        {
+          "gravedad": "no_evaluable",
+          "codigo": "interpretacion_visual_para_revision_humana",
+          "ref": "C2-V2",
+          "detalle": "Figura 1: zona rayada rotulada como excluida del levantamiento (3,2 ha) — mencionado en la extracción; juzgar la interpretación requiere una persona."
+        },
+        {
+          "gravedad": "no_evaluable",
+          "codigo": "interpretacion_visual_para_revision_humana",
+          "ref": "C2-V3",
+          "detalle": "flecha norte y barra de escala (0, 250, 500 m) — mencionado en la extracción; juzgar la interpretación requiere una persona."
+        }
+      ]
+    }
+  ],
+  "actividades_esperadas": 4,
+  "actividades_obtenidas": 4,
+  "actividades_con_valor_y_unidad_correctos": 4,
+  "exhaustividad": "4/4",
+  "precision": "4/4",
+  "errores_criticos": 0,
+  "errores_no_criticos": 5,
+  "no_evaluables": 3
+}

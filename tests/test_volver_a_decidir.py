@@ -1,8 +1,10 @@
 """Cambiar de idea antes de enviar las preguntas. Cubre: U-27"""
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
+from tests.cuadro_unico import cuadro_de
 
 import io
+import json
 import tempfile
 import unittest
 import urllib.parse
@@ -47,6 +49,17 @@ class Base(unittest.TestCase):
     def caso(self):
         return quotes.get_quote("t-1")
 
+    def resolver_contradiccion(self):
+        # T-133: dejar de preguntar no resuelve una contradicción; el escenario positivo exige resolverla antes.
+        analisis = self.caso()["analysis"]
+        analisis["contradictions"][0]["status"] = "resuelta"
+        db = store.connect()
+        try:
+            db.execute("UPDATE quotes SET analysis_json=? WHERE thread_id='t-1'", (json.dumps(analisis),))
+            db.commit()
+        finally:
+            db.close()
+
     def eventos(self):
         db = store.connect()
         try:
@@ -65,17 +78,16 @@ class VolverAtras(Base):
         self.assertEqual(caso["status"], QuoteStatus.REVIEW)
         self.assertNotIn("manual_review", caso["analysis"])
         self.assertEqual({p["texto"]: p.get("decision") for p in caso["analysis"]["preguntas"]}, antes)
-        self.assertIn("elegir las preguntas", mensaje)
+        self.assertIn("Volviste a decidir", mensaje)
         self.assertTrue(any("Volviste a la decisión técnica" in e for e in self.eventos()))
 
     def test_after_going_back_the_selectors_come_back_with_what_was_chosen(self):
         self.elegir({PUNTO: dominio.PREGUNTAR, NOTA: dominio.DESCARTAR})
         quotes.volver_a_decidir("t-1", "reconsiderar")
         pagina = pantalla_caso.render_case("t-1")
-        tarjetas = [t.split("</select>")[0] for t in pagina.split('<div class="pregunta">')[1:]]
-        elegida = {nota: next(t for t in tarjetas if nota[:20] in t) for nota in (NOTA, PUNTO)}
-        self.assertIn('value="ask_client" selected', elegida[PUNTO])
-        self.assertIn('value="discard" selected', elegida[NOTA])
+        cuadro = cuadro_de(pagina.split('id="decision"')[1])
+        self.assertIn(PUNTO[:20], cuadro)                              # lo elegido para el cliente vuelve al cuadro
+        self.assertNotIn(NOTA[:20], cuadro)                            # lo descartado ya no
 
     def test_the_person_can_then_choose_other_questions_and_prepare_the_email_again(self):
         self.elegir({PUNTO: dominio.PREGUNTAR})
@@ -86,12 +98,13 @@ class VolverAtras(Base):
 
     def test_giving_up_on_asking_marks_the_information_as_sufficient(self):
         self.elegir({PUNTO: dominio.PREGUNTAR})
+        self.resolver_contradiccion()
         mensaje = quotes.volver_a_decidir("t-1", "suficiente")
         caso = self.caso()
         self.assertEqual(caso["status"], QuoteStatus.READY_REVIEW)
         self.assertEqual(caso["analysis"]["manual_review"]["decision"], "sufficient")
         self.assertEqual(caso["analysis"]["manual_review"]["questions"], [])
-        self.assertIn("suficiente", mensaje)
+        self.assertIn("con esto alcanza", mensaje)
         self.assertTrue(any("no preguntar" in e.lower() for e in self.eventos()))
 
     def test_nothing_is_sent_by_going_back(self):
@@ -121,7 +134,7 @@ class NoSePuede(Base):
                 db.execute("UPDATE quotes SET status=?, sent_at='2099-01-01T00:00:00-05:00' WHERE thread_id='t-1'", (estado,))
                 db.commit()
                 db.close()
-                with self.assertRaisesRegex(ValueError, "no ha salido"):
+                with self.assertRaisesRegex(ValueError, "el correo con las preguntas ya salió"):
                     quotes.volver_a_decidir("t-1", "reconsiderar")
                 self.assertEqual(self.caso()["status"], estado)
 
@@ -131,7 +144,7 @@ class NoSePuede(Base):
         db.execute("UPDATE quotes SET sent_at='2099-01-01T00:00:00-05:00' WHERE thread_id='t-1'")
         db.commit()
         db.close()
-        with self.assertRaisesRegex(ValueError, "no ha salido"):
+        with self.assertRaisesRegex(ValueError, "el correo con las preguntas ya salió"):
             quotes.volver_a_decidir("t-1", "suficiente")
 
     def test_without_a_previous_decision_to_ask_there_is_nothing_to_undo(self):
@@ -139,14 +152,14 @@ class NoSePuede(Base):
         db.execute("UPDATE quotes SET status=? WHERE thread_id='t-1'", (QuoteStatus.REVIEW_PENDING,))
         db.commit()
         db.close()
-        with self.assertRaisesRegex(ValueError, "no ha salido"):
+        with self.assertRaisesRegex(ValueError, "el correo con las preguntas ya salió"):
             quotes.volver_a_decidir("t-1", "reconsiderar")
 
     def test_an_unknown_action_and_a_missing_case_are_refused(self):
         self.elegir({PUNTO: dominio.PREGUNTAR})
-        with self.assertRaisesRegex(ValueError, "no válida"):
+        with self.assertRaisesRegex(ValueError, "No entendimos esa opción"):
             quotes.volver_a_decidir("t-1", "borrar-todo")
-        with self.assertRaisesRegex(ValueError, "no existe"):
+        with self.assertRaisesRegex(ValueError, "ya no existe"):
             quotes.volver_a_decidir("inexistente", "reconsiderar")
 
 
@@ -155,8 +168,8 @@ class EnLaPantalla(Base):
         self.elegir({PUNTO: dominio.PREGUNTAR})
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn("¿Cambiaste de idea?", pagina)
-        self.assertIn("Volver a elegir las preguntas", pagina)
-        self.assertIn("No preguntar: la información es suficiente", pagina)
+        self.assertIn("Volver a decidir", pagina)
+        self.assertNotIn("No preguntar: con esto alcanza", pagina)     # oculto por ahora
         self.assertIn('action="/review-reopen"', pagina)
         db = store.connect()
         db.execute("UPDATE quotes SET status=?, sent_at='2099-01-01T00:00:00-05:00' WHERE thread_id='t-1'", (QuoteStatus.WAITING,))
@@ -189,6 +202,7 @@ class EnLaPantalla(Base):
 
     def test_giving_up_lands_on_issuing_the_code(self):
         self.elegir({PUNTO: dominio.PREGUNTAR})
+        self.resolver_contradiccion()
         respuesta = self.pedir({"thread_id": "t-1", "accion": "suficiente"})
         self.assertTrue(respuesta["location"].endswith("#emitir-t"))
         self.assertEqual(self.caso()["status"], QuoteStatus.READY_REVIEW)
@@ -196,7 +210,7 @@ class EnLaPantalla(Base):
     def test_a_rejection_comes_back_with_its_reason_and_changes_nothing_and_the_form_needs_the_token(self):
         respuesta = self.pedir({"thread_id": "t-1", "accion": "reconsiderar"})        # todavía no hay nada que deshacer
         self.assertEqual(respuesta["status"], 303)
-        self.assertIn("no%20ha%20salido", respuesta["location"])
+        self.assertIn("ya%20sali%C3%B3", respuesta["location"])
         self.assertEqual(self.caso()["status"], QuoteStatus.REVIEW)
         self.assertEqual(self.pedir({"thread_id": "t-1", "accion": "reconsiderar"}, token=False)["status"], 403)
 

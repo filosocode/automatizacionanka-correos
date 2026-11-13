@@ -27,8 +27,8 @@ def libro(datos):
 # Cubre: T-17
 class PublishingToDrive(unittest.TestCase):
     def setUp(self):
-        self.drive = FakeDriveTree({"ACME": {"Solicitud": {}}})
-        self.carpeta = self.drive.folder_id("ACME/Solicitud")
+        self.drive = FakeDriveTree.de_clientes({"ACME": {"Solicitud": {}}})
+        self.carpeta = self.drive.folder_id(FakeDriveTree.ruta_del_mes() + "/ACME/Solicitud")
         self.nombre = nombre_de_hoja("Línea Norte")
 
     def test_the_first_time_it_creates_the_sheet_in_the_project_folder(self):
@@ -93,8 +93,8 @@ class CaseFixture(unittest.TestCase):
         patcher = patch.object(settings, "DATA_DIR", self.folder)
         patcher.start()
         self.addCleanup(patcher.stop)
-        self.drive = FakeDriveTree({"ACME": {"Solicitud": {}}})
-        self.carpeta = self.drive.folder_id("ACME/Solicitud")
+        self.drive = FakeDriveTree.de_clientes({"ACME": {"Solicitud": {}}})
+        self.carpeta = self.drive.folder_id(FakeDriveTree.ruta_del_mes() + "/ACME/Solicitud")
         self.repo = RepositorioDeCasos()
         db = store.open_db(self.folder)
         analysis = complete_analysis()
@@ -215,7 +215,7 @@ class BackgroundSync(CaseFixture):
         sincronizador = SincronizadorDeHojas(sincronizar=vencida, espera=0, en_hilo=False)
         with self.assertLogs("anka.servicios.hoja_de_calculo", "WARNING"):
             sincronizador.programar("t-1")
-        self.assertIn("Reautorizar Google", self.repo.obtener("t-1").sheet_error)
+        self.assertIn("Volver a conectar Google", self.repo.obtener("t-1").sheet_error)
 
     def test_a_good_update_clears_the_previous_error(self):
         self.repo.registrar_error_de_hoja("t-1", "falló antes")

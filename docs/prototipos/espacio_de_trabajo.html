@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anka · Prototipo del espacio de trabajo</title>
+<style>
+:root{
+  --bg:#f7f6f3; --panel:#ffffff; --side:#f1efea; --ink:#1f1e1b; --ink2:#5c5a54; --ink3:#8a877f;
+  --line:#e4e1da; --line2:#cfcbc2; --brand:#b85c1e; --brand-h:#a24f17; --brand-soft:#f6e6d9;
+  --warn-bg:#fbf0d9; --warn-ink:#7a5410; --ok-bg:#e3f1e4; --ok-ink:#25602d; --bad-bg:#f9e1de; --bad-ink:#8c2f26; --info-bg:#e8eef7; --info-ink:#2b4c7e;
+  --r:8px; --h:32px;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#1b1a18; --panel:#242321; --side:#201f1d; --ink:#efede8; --ink2:#b3b0a8; --ink3:#86837b;
+  --line:#34322f; --line2:#47443f; --brand:#e08a4c; --brand-h:#eb9a60; --brand-soft:#3a2a1d;
+  --warn-bg:#3a2f16; --warn-ink:#efc66b; --ok-bg:#1f3523; --ok-ink:#8fd19a; --bad-bg:#40201d; --bad-ink:#f1a39b; --info-bg:#1f2b3f; --info-ink:#9bbbe8;
+}}
+@media (pointer:coarse){:root{--h:44px}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Inter","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer}
+.app{display:grid;grid-template-columns:272px minmax(0,1fr);height:100vh}
+.side{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.side-top{padding:14px 12px 8px;display:grid;gap:10px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:.06em;color:var(--brand);font-size:15px;padding:0 6px}
+.logo small{font-weight:400;letter-spacing:0;color:var(--ink3);font-size:12px}
+.btn-new{display:flex;align-items:center;justify-content:center;gap:8px;height:var(--h);border-radius:var(--r);border:0;background:var(--brand);color:#fff;font-weight:500;font-size:13px}
+.btn-new:hover{background:var(--brand-h)}
+.search{height:var(--h);border-radius:var(--r);border:1px solid var(--line);background:var(--panel);padding:0 10px;font:inherit;font-size:13px;color:var(--ink);width:100%}
+.search::placeholder{color:var(--ink3)}
+.search:focus{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+.list{overflow:auto;padding:4px 8px 8px;flex:1}
+.sec{display:flex;align-items:center;gap:6px;padding:12px 8px 4px;font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--ink3)}
+.sec .n{margin-left:auto;font-weight:400}
+.it{display:flex;align-items:center;gap:10px;width:100%;min-height:var(--h);padding:6px 10px;border-radius:var(--r);border:0;background:none;text-align:left;color:var(--ink2)}
+.it:hover{background:rgba(127,120,105,.12)}
+.it.sel{background:var(--panel);color:var(--ink);box-shadow:0 0 0 1px var(--line2)}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.it .tx{min-width:0;flex:1}
+.it .a{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .b{display:block;font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it.sel .a{font-weight:500}
+.chip{font-size:11px;color:var(--ink3)}
+.side-foot{border-top:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink3)}
+.side-foot .ok{width:7px;height:7px;border-radius:50%;background:var(--ok-ink)}
+.side-foot button{margin-left:auto;background:none;border:0;color:var(--ink3);height:28px;padding:0 6px;border-radius:6px}
+.side-foot button:hover{background:rgba(127,120,105,.12);color:var(--ink)}
+.main{overflow:auto;min-width:0}
+.wrap{max-width:1080px;margin:0 auto;padding:22px 32px 48px;display:grid;gap:18px}
+.head{display:flex;align-items:flex-start;gap:16px}
+.head h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.015em;line-height:1.25}
+.meta{font-size:12.5px;color:var(--ink2)}
+.badge{margin-left:auto;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;background:var(--info-bg);color:var(--info-ink);white-space:nowrap}
+.badge.warn{background:var(--warn-bg);color:var(--warn-ink)}
+.badge.ok{background:var(--ok-bg);color:var(--ok-ink)}
+.prog{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink2)}
+.bar{display:flex;gap:4px}.bar i{width:28px;height:3px;border-radius:2px;background:var(--line2)}.bar i.on{background:var(--brand)}
+.cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.card h2{margin:0;font-size:14px;font-weight:600}
+.sub{font-size:12.5px;color:var(--ink2);margin-top:2px}
+.sh{display:flex;align-items:center;margin-bottom:10px}
+.sh .tools{margin-left:auto}
+.ghost{height:28px;padding:0 10px;border:0;border-radius:6px;background:none;color:var(--ink2);font-size:12.5px;transition:background-color .15s,color .15s}
+.ghost:hover{background:rgba(127,120,105,.12);color:var(--ink)}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--ink3);text-align:left;padding:4px 8px 6px}
+td{padding:10px 8px;border-top:1px solid var(--line);font-size:13.5px;vertical-align:top;transition:background-color .15s}
+tbody tr,tr[onclick]{cursor:pointer}
+tr:hover td{background-color:rgba(127,120,105,.06)}
+tr.falta td{background:color-mix(in srgb,var(--warn-bg) 50%,transparent)}
+tr.contra td{background:color-mix(in srgb,var(--bad-bg) 40%,transparent)}
+tr.edit td{background:var(--brand-soft)!important}
+tr.flash td{animation:flash 1.3s ease-out}
+@keyframes flash{0%{background:var(--ok-bg)}100%{background:transparent}}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;padding:1px 9px;border-radius:999px;background:var(--warn-bg);color:var(--warn-ink);white-space:nowrap;border:0}
+.pill.ok{background:var(--ok-bg);color:var(--ok-ink)}
+.pill.contra{background:var(--bad-bg);color:var(--bad-ink)}
+button.pill{cursor:pointer}
+button.pill::after{content:"▾";font-size:9px;opacity:.6}
+button.pill:hover{filter:brightness(.97)}
+th.c,td.c{text-align:center;width:84px}
+.chk{appearance:none;-webkit-appearance:none;margin:0;width:16px;height:16px;border:1.25px solid var(--line2);border-radius:5px;background:transparent center/10px no-repeat;cursor:pointer;transition:background-color .15s,border-color .15s,box-shadow .15s;vertical-align:middle;flex:none}
+.chk:hover{border-color:var(--brand)}
+.chk:checked{background-color:var(--brand);border-color:var(--brand);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.8 5.3l2.2 2.2 4.2-4.6' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+.chk:focus-visible{outline:none;box-shadow:0 0 0 3px var(--brand-soft),0 0 0 1px var(--brand)}
+@media (pointer:coarse){.chk{width:22px;height:22px;background-size:13px}}
+.filtros{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.fchip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 9px;border-radius:999px;border:1px solid var(--line);background:transparent;font-size:12px;color:var(--ink3);transition:background-color .15s,border-color .15s,color .15s}
+.fchip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.35}
+.fchip span{font-size:11.5px;color:var(--ink3)}
+.fchip:hover{border-color:var(--line2);color:var(--ink)}
+.fchip.on{color:var(--ink);border-color:var(--line2);background:var(--panel)}
+.fchip.on::before{opacity:1}
+.fchip.on.f-falta::before{color:var(--warn-ink)}.fchip.on.f-contra::before{color:var(--bad-ink)}.fchip.on.f-ok::before{color:var(--ok-ink)}
+.fchip:not(.on) span{text-decoration:line-through}
+.empty{padding:22px 8px;text-align:center;color:var(--ink2);font-size:13.5px}
+.now{border-color:var(--line2);box-shadow:0 1px 0 var(--line),0 8px 24px -16px rgba(0,0,0,.25)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
+.now h2{font-size:16px;margin:2px 0 4px;letter-spacing:-.01em}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pri{height:var(--h);padding:0 16px;border-radius:var(--r);border:0;background:var(--ink);color:var(--panel);font-weight:500;font-size:13px;transition:opacity .15s,transform .1s}
+.pri:hover{opacity:.9}.pri:active,.sec2:active{transform:scale(.98)}
+.pri.brand{background:var(--brand);color:#fff}
+.sec2{height:var(--h);padding:0 14px;border-radius:var(--r);border:1px solid var(--line2);background:transparent;font-size:13px;transition:background-color .15s,transform .1s}
+.sec2:hover{background:rgba(127,120,105,.1)}
+.row .ghost.end{margin-left:auto}
+.note{font-size:12.5px;color:var(--ink2)}
+textarea,input.f{width:100%;border:1px solid var(--line2);border-radius:var(--r);background:var(--panel);color:var(--ink);font:inherit;font-size:13.5px;padding:10px 12px}
+textarea{min-height:110px;resize:vertical;line-height:1.55;margin:10px 0}
+input.f{height:var(--h);margin:6px 0 4px;width:160px}
+.mailbox{min-height:190px;line-height:1.65;background:var(--bg);margin:12px 0 8px}
+ol.p{margin:8px 0 12px;padding-left:20px;color:var(--ink2);font-size:13.5px;line-height:1.7}
+.ed{width:100%;height:34px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;font-size:13.5px;padding:0 10px;transition:border-color .15s,box-shadow .15s}
+textarea.ed{field-sizing:content;overflow:hidden;resize:none;height:auto;min-height:0;padding:8px 10px;margin:6px 0 0;line-height:1.5}
+.ed:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.ed.err{border-color:var(--bad-ink)}
+.fl{display:grid;gap:5px;font-size:12px;color:var(--ink2);margin-top:12px}
+.errmsg{font-size:12px;color:var(--bad-ink);min-height:0}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;padding:2px;gap:2px;width:max-content;max-width:100%}
+.seg button{height:28px;padding:0 11px;border:0;border-radius:6px;background:none;font-size:12.5px;color:var(--ink2);transition:background-color .15s,color .15s;white-space:nowrap}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--ink);color:var(--panel);font-weight:500}
+.chkline{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink);margin-top:16px;cursor:pointer}
+.resp{margin-top:14px;padding:12px 14px;border:1px solid var(--line2);border-radius:10px;background:var(--bg)}
+.resp-t{font-size:12.5px;font-weight:600}.resp-t span{font-weight:400;font-size:11px;color:var(--brand);margin-left:6px}
+.resp .seg{flex-wrap:wrap}
+.solo-movil{display:none}
+.tscroll{overflow-x:auto;margin:0 -4px;padding:0 4px}
+.cols>*{min-width:0}
+@media (max-width:720px){.wrap{padding:14px}.card{padding:14px}th:nth-child(2),td:nth-child(2){display:none}.solo-movil{display:block}.head{flex-wrap:wrap}.badge{margin-left:0}}
+button.pill{cursor:pointer;transition:filter .15s,box-shadow .15s}
+button.pill::after{content:"▾";font-size:9px;opacity:.55;margin-left:1px}
+button.pill:hover{box-shadow:0 0 0 1px currentColor}
+td.go{width:64px;text-align:right}
+.editar{border:0;background:none;color:var(--ink3);font-size:12.5px;height:26px;padding:0 8px;border-radius:6px}
+.editar:hover,tr:hover .editar{color:var(--brand)}
+.editar::after{content:" ›"}
+.tag{margin-top:4px;font-size:11.5px;line-height:1.35;color:var(--ink3)}
+.tag.cliente,.tag.doc{color:var(--ok-ink)}.tag.tecnico{color:var(--info-ink)}
+.aviso{display:grid;gap:2px;margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--warn-bg);color:var(--warn-ink);font-size:12.5px;line-height:1.45}.aviso b{font-weight:600}
+.nota-t{display:grid;gap:2px;margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--info-bg);color:var(--info-ink);font-size:12.5px;line-height:1.45}.nota-t b{font-weight:600}
+
+.opciones{display:grid;gap:6px;margin-top:6px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:border-color .15s,background-color .15s}
+.opt:hover{border-color:var(--line2)}
+.opt.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand-soft) 45%,transparent)}
+.opt input[type=radio]{appearance:none;-webkit-appearance:none;margin:3px 0 0;width:15px;height:15px;border:1.25px solid var(--line2);border-radius:50%;flex:none;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.opt input[type=radio]:checked{border-color:var(--brand);box-shadow:inset 0 0 0 3.5px var(--panel),inset 0 0 0 8px var(--brand)}
+.opt input[type=radio]:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.opt b{display:block;font-weight:500;font-size:13.5px}
+.opt span{display:block;font-size:12px;color:var(--ink3);margin-top:1px}
+.opt .campos{cursor:default;margin-top:4px}
+.opt .campos .fl{margin-top:10px}
+.opt .campos span.errmsg{display:block;color:var(--bad-ink)}
+.ctx{font-size:12.5px}
+.back{border:0;background:none;color:var(--ink2);font-size:12.5px;padding:0;margin-bottom:12px;display:inline-flex;gap:6px;align-items:center}
+.back:hover{color:var(--ink)}
+.rm{border:0;background:none;color:var(--ink3);font-size:12.5px;height:28px;padding:0 8px;border-radius:6px;margin-left:auto}
+.rm:hover{background:rgba(127,120,105,.14);color:var(--bad-ink)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 -18px 10px;padding:0 14px}
+.tabs button{border:0;background:none;padding:8px 10px;font-size:13px;color:var(--ink2);border-bottom:2px solid transparent}
+.tabs button.on{color:var(--ink);border-color:var(--brand);font-weight:500}
+.msg{padding:10px 2px;border-top:1px solid var(--line)}
+.msg:first-of-type{border-top:0}
+.msg b{font-weight:500;font-size:13.5px}.msg span{font-size:12px;color:var(--ink3);margin-left:8px}
+.msg p,.msg ul{margin:4px 0 0;font-size:13.5px;color:var(--ink2)}.msg ul{padding-left:18px}
+.hint{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink3)}
+kbd{font:inherit;font-size:11px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--panel);color:var(--ink2)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:10px;font-size:13px;transition:.25s;pointer-events:none;z-index:50}
+.toast.on{opacity:1;transform:translateX(-50%)}
+.toast.u{pointer-events:auto}
+.undo{margin-left:12px;border:0;background:none;color:#f0a368;font-weight:600;font-size:13px;padding:0}
+.pop{position:absolute;z-index:40;background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:4px;box-shadow:0 10px 30px -10px rgba(0,0,0,.3);min-width:170px}
+.pop button{display:flex;align-items:center;gap:8px;width:100%;height:32px;padding:0 10px;border:0;background:none;border-radius:7px;font-size:13px;text-align:left}
+.pop button:hover{background:rgba(127,120,105,.12)}
+.menu{display:none}
+.fchip:focus-visible,.ghost:focus-visible,.pri:focus-visible,.sec2:focus-visible,.it:focus-visible,.seg button:focus-visible,.pill:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+@media (max-width:980px){.cols{grid-template-columns:1fr}.wrap{padding:16px}}
+@media (max-width:720px){
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;inset:0 20% 0 0;z-index:20;transform:translateX(-100%);transition:.2s;box-shadow:0 0 40px rgba(0,0,0,.3)}
+  .side.open{transform:none}
+  .menu{display:inline-flex;align-items:center;height:var(--h);padding:0 12px;border:1px solid var(--line2);border-radius:var(--r);background:var(--panel);width:max-content}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side">
+    <div class="side-top">
+      <div class="logo">ANKA <small>cotizaciones</small></div>
+      <button class="btn-new" onclick="toast('Buscando correos nuevos…')">↻ Buscar correos nuevos</button>
+      <input class="search" id="q" placeholder="Buscar proyecto o cliente" aria-label="Buscar">
+    </div>
+    <nav class="list" id="lista" aria-label="Casos"></nav>
+    <div class="side-foot"><span class="ok"></span>Google conectado<button aria-label="Ajustes">Ajustes</button></div>
+  </aside>
+  <main class="main"><div class="wrap" id="caso"></div></main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+const CASOS=[
+ {id:'norte',nombre:'Proyecto Norte',cliente:'Energía Norte',grupo:'hoy',fase:'revisar',paso:1,estado:'Correo por revisar',cuando:'1 sep',
+  acts:[{n:'Levantamiento topográfico',d:'Bogotá · 10 ha',e:'ok'},
+        {n:'Batimetría',d:'Falta la ubicación',e:'falta',q:'¿Cuál es la ubicación del proyecto para la batimetría?',on:1},
+        {n:'Perfil longitudinal',d:'Falta la longitud del tramo',e:'falta',q:'¿Qué longitud tiene el tramo del perfil longitudinal?',on:1},
+        {n:'Área del levantamiento',d:'El correo dice 10 ha y el anexo 12 ha',e:'contra',q:'El correo indica 10 ha y el anexo 12 ha: ¿cuál es el área correcta?',on:0},
+        {n:'Ortofoto',d:'Zona norte · GSD 5 cm',e:'ok'}]},
+ {id:'sur',nombre:'Proyecto Sur',cliente:'Cliente Sur',grupo:'hoy',fase:'revisar',paso:1,estado:'Correo por revisar',cuando:'2 sep',
+  acts:[{n:'Levantamiento topográfico',d:'Cali · 4 ha',e:'ok'},{n:'Perfil longitudinal',d:'Falta la longitud',e:'falta',q:'¿Qué longitud aproximada tiene el perfil longitudinal?',on:1}]},
+ {id:'tecnico',nombre:'Proyecto Técnico',cliente:'tecnico@example.com',grupo:'hoy',fase:'decidir',paso:1,estado:'Por decidir',cuando:'1 sep',acts:[]},
+ {id:'calera',nombre:'La Calera',cliente:'Minera Sur',grupo:'espera',fase:'espera',paso:1,estado:'Esperando al cliente',cuando:'27 oct',dias:7,
+  acts:[{n:'Topografía y LiDAR',d:'Falta el área',e:'falta',q:'¿Qué área cubre el LiDAR?',on:0}]},
+ {id:'listo',nombre:'Proyecto Listo',cliente:'Minera Sur',grupo:'listas',fase:'emitir',paso:2,estado:'Información validada',cuando:'1 sep',
+  acts:[{n:'Levantamiento topográfico',d:'Bogotá · 10 ha',e:'ok'}]},
+ {id:'oferta',nombre:'Proyecto Andes',cliente:'Consorcio Andes',grupo:'listas',fase:'emitir',paso:2,estado:'Información validada',cuando:'3 sep',
+  acts:[{n:'Batimetría',d:'Embalse · 2 km',e:'ok',resp:{como:'cliente',medio:'Llamada',fecha:'2026-09-02',nota:'Confirmó que el embalse mide 2 km',quien:'Andrés'}},
+        {n:'Topografía',d:'Cota 2600 · 8 ha',e:'ok',resp:{como:'doc',doc:'alcance.pdf',nota:'El alcance indica 8 ha en la página 2',quien:'Andrés'}},
+        {n:'Control con GNSS RTK',d:'6 puntos de apoyo',e:'ok',resp:{como:'tecnico',nota:'Con ese relieve el método tradicional no alcanza la precisión pedida',quien:'Andrés'}}]}
+];
+const GRUPOS={hoy:['Para ti hoy','#b85c1e'],espera:['Esperando al cliente','#8a877f'],listas:['Listas para la T','#25a244']};
+const PASOS=['Revisar y aclarar','Información validada','T emitida','T&E aprobada'];
+const EST={ok:['Completa','ok'],falta:['Por completar',''],contra:['Contradictoria','contra']};
+const VER={ok:true,falta:true,contra:true};
+const INTRO='Hola,\n\nPara avanzar con la cotización necesitamos:',CIERRE='Quedamos atentos.';
+let sel='norte',filtro='';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const actual=()=>CASOS.find(x=>x.id===sel);
+const ahora=()=>new Date().toLocaleString('es-CO',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+function toast(t){const e=$('#toast');e.textContent=t;e.className='toast on';clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),2200)}
+function toastU(t,fn){const e=$('#toast');e.innerHTML=esc(t)+' <button class="undo">Deshacer</button>';e.className='toast on u';e.querySelector('button').onclick=()=>{fn();e.classList.remove('on','u')};clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on','u'),6000)}
+
+/* correo: las preguntas entran y salen sin tocar lo escrito a mano */
+function armar(c){const qs=c.acts.filter(a=>a.on&&a.q).map((a,i)=>(i+1)+'. '+a.q);return INTRO+(qs.length?'\n'+qs.join('\n'):'\n(marca en la tabla lo que quieres preguntar)')+'\n\n'+CIERRE}
+function ajustar(texto,a){
+  let ls=texto.split('\n');const esP=l=>/^\d+\.\s/.test(l);
+  if(a.q)ls=ls.filter(l=>!(esP(l)&&l.replace(/^\d+\.\s/,'')===a.q));
+  if(a.on&&a.q){let k=-1;ls.forEach((l,i)=>{if(esP(l))k=i});if(k<0){k=ls.findIndex(l=>l.startsWith('Para avanzar'));if(k<0)k=0}ls.splice(k+1,0,'0. '+a.q)}
+  let n=0;ls=ls.map(l=>esP(l)?(++n)+'. '+l.replace(/^\d+\.\s/,''):l);
+  ls=ls.filter(l=>l!=='(marca en la tabla lo que quieres preguntar)');
+  if(!n){const i=ls.findIndex(l=>l.startsWith('Para avanzar'));ls.splice(i+1,0,'(marca en la tabla lo que quieres preguntar)')}
+  return ls.join('\n');
+}
+const npreg=t=>t.split('\n').filter(l=>/^\d+\.\s/.test(l)).length;
+const resumenMail=t=>{const n=npreg(t);return n?n+' pregunta'+(n>1?'s':'')+' en el correo':'Sin preguntas: no se espera respuesta'};
+function cuerpo(c){if(c.body===undefined)c.body=armar(c);return c.body}
+function foto(c){return JSON.stringify({acts:c.acts,body:c.body,h:(c.hist||[]).length})}
+function restaurar(c,f){const o=JSON.parse(f);c.acts=o.acts;c.body=o.body;c.hist=(c.hist||[]).slice(c.hist.length-o.h);c.hist=c.hist}
+function histor(c,lista){c.hist=c.hist||[];c.hist.unshift({t:ahora(),quien:'Andrés',lista})}
+function sinHistorial(c,n){while((c.hist||[]).length>n)c.hist.shift()}
+
+/* lista lateral */
+function lista(){
+  const q=filtro.toLowerCase();let h='';
+  for(const g in GRUPOS){
+    const cs=CASOS.filter(c=>c.grupo===g&&(c.nombre+c.cliente).toLowerCase().includes(q));
+    if(!cs.length)continue;
+    h+=`<div class="sec">${GRUPOS[g][0]}<span class="n">${cs.length}</span></div>`;
+    for(const c of cs){h+=`<button class="it${c.id===sel?' sel':''}" onclick="abrir('${c.id}')"><span class="dot" style="background:${GRUPOS[g][1]}"></span><span class="tx"><span class="a">${esc(c.nombre)}</span><span class="b">${esc(c.cliente)}</span></span>${c.dias?`<span class="chip">${c.dias} d</span>`:''}</button>`}
+  }
+  $('#lista').innerHTML=h||'<div class="empty">Ningún caso coincide.</div>';
+}
+
+/* tabla de actividades (solo lectura: se edita en el panel de la derecha) */
+function filtros(c){
+  if(!c.acts.length)return '';
+  const cuenta=e=>c.acts.filter(a=>a.e===e).length;
+  const chips=['falta','contra','ok'].filter(e=>cuenta(e)).map(e=>`<button class="fchip ${VER[e]?'on':''} f-${e}" aria-pressed="${VER[e]}" onclick="alternar('${e}')">${EST[e][0]} <span>${cuenta(e)}</span></button>`).join('');
+  const ocultas=c.acts.filter(a=>!VER[a.e]).length;
+  return `<div class="filtros">${chips}${ocultas?`<button class="ghost" onclick="verTodo()">Mostrar todo</button><span class="note">${ocultas} oculta${ocultas>1?'s':''}</span>`:''}</div>`;
+}
+function tabla(c){
+  if(!c.acts.length)return `<div class="empty">Todavía no hay actividades.<br>Pulsa «+ Agregar» para escribir la primera.</div>`;
+  const con=c.fase==='revisar';
+  const vis=c.acts.map((a,i)=>[a,i]).filter(([a])=>VER[a.e]);
+  if(!vis.length)return `<div class="empty">Todas las actividades están ocultas por el filtro.<br><button class="ghost" onclick="verTodo()">Mostrar todo</button></div>`;
+  return `<div class="tscroll"><table><tr><th>Actividad</th><th>Qué hace falta</th><th>Estado</th>${con?'<th class="c" title="Poner la pregunta en el correo">Preguntar</th>':''}</tr>${vis.map(([a,i])=>`<tr id="fila-${i}" class="${a.e==='falta'?'falta':a.e==='contra'?'contra':''}${c.panel==='act'&&c.idx===i?' edit':''}${c.flash===i?' flash':''}" onclick="abrirAct(${i})" title="Editar esta actividad"><td><strong style="font-weight:500">${esc(a.n)}</strong><div class="note solo-movil">${esc(a.d)}</div></td><td>${esc(a.d)}${a.e==='contra'?'<div class="note">La decides tú: pregúntasela o resuélvela con tu criterio.</div>':''}</td><td><button class="pill ${EST[a.e][1]}" onclick="event.stopPropagation();abrirAct(${i},'estado')" title="Cambiar el estado" aria-label="Cambiar el estado de ${esc(a.n)}: ahora ${EST[a.e][0]}">${EST[a.e][0]}</button>${a.resp?`<div class="tag ${a.resp.como}">${esc(resumenResp(a.resp))}</div>`:''}</td>${con?`<td class="c" onclick="event.stopPropagation();if(event.target===this&&this.firstElementChild)this.firstElementChild.click()">${a.q?`<input type="checkbox" class="chk" ${a.on?'checked':''} onchange="marcar(${i},this.checked)" aria-label="Preguntar al cliente: ${esc(a.n)}">`:''}</td>`:''}</tr>`).join('')}</table></div>`;
+}
+function alternar(e){VER[e]=!VER[e];caso()}
+function verTodo(){VER.ok=VER.falta=VER.contra=true;caso()}
+function marcar(i,v){const c=actual();c.acts[i].on=v?1:0;c.body=ajustar(cuerpo(c),c.acts[i]);const t=document.getElementById('cuerpo'),r=document.getElementById('resumen-mail');if(t)t.value=c.body;if(r)r.textContent=resumenMail(c.body);toast(v?'Pregunta agregada al correo':'Pregunta quitada del correo')}
+
+/* respaldo: cambiar a mano lo que pidió el cliente exige dejar el cómo y el porqué */
+const COMO={cliente:'Me lo confirmó el cliente',doc:'Está en un documento o correo',tecnico:'Criterio técnico de Anka'};
+const MEDIOS=['Llamada','WhatsApp','Correo','Reunión'];
+const hoyISO=()=>new Date().toISOString().slice(0,10);
+const fechaCorta=iso=>new Date(iso+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'short'});
+function resumenResp(r){
+  if(r.como==='cliente')return 'Confirmada por el cliente · '+r.medio.toLowerCase()+' · '+fechaCorta(r.fecha);
+  if(r.como==='doc')return 'Según '+(r.doc||'un documento');
+  if(r.como==='reabrir')return 'Reabierta por '+r.quien+' · '+r.nota;
+  if(r.como==='tecnico')return 'Criterio técnico de '+r.quien+' · se presenta como recomendación';
+  return '';
+}
+function lineaResp(r){return 'Respaldo: '+resumenResp(r)+' — «'+r.nota+'»'}
+function cerrarMenu(){const p=document.getElementById('pop');if(p)p.remove()}
+
+/* panel de la derecha: el mismo contenedor cambia de función. Se decide CÓMO se resuelve la actividad; el estado sale de esa decisión */
+const OPC={
+  preguntar:['Preguntárselo al cliente','Entra como pregunta en el correo.'],
+  cliente:['Ya lo hablé con el cliente','Llamada, WhatsApp, reunión… queda registrado.'],
+  doc:['Está en un documento o correo','Indico cuál y qué dice.'],
+  tecnico:['Lo resuelvo con criterio técnico','Es mi asesoría, con su fundamento.'],
+  editar:['Corregir un dato','Un error de escritura; el estado no cambia.'],
+  reabrir:['Reabrir: todavía falta algo','Vuelve a «Por completar».']
+};
+const DATO={cliente:'Dato que confirmó',doc:'Dato que consta',tecnico:'Dato que defines'};
+const NOTA={cliente:['Lo que te dijo','Por ejemplo: «Confirmó que el proyecto queda en el embalse La Esmeralda».'],doc:['Qué dice y dónde','Por ejemplo: «Página 2 del alcance: batimetría del embalse».'],tecnico:['Fundamento técnico','Por ejemplo: «Con ese relieve se requiere GNSS RTK para la precisión pedida».'],reabrir:['Por qué se reabre','Por ejemplo: «El cliente cambió la ubicación».']};
+function abrirAct(i,foco){
+  const c=actual();cerrarMenu();
+  const o=i<0?null:c.acts[i];
+  const f=o?{...o}:{n:'',d:'',e:'falta',q:'',on:1,nuevo:1};
+  f.accion=!o?'cliente':(o.e==='ok'?'editar':'preguntar');
+  if(o&&!f.q)f.q='¿Puede indicarnos '+o.n.toLowerCase()+'?';
+  f.dato='';f.resp={medio:'',fecha:hoyISO(),doc:'alcance.pdf',nota:''};
+  c.panel='act';c.idx=i;c.form=f;c.err='';c.errR='';caso();
+  if(i<0){const x=document.getElementById('f-n');if(x)x.focus()}
+  if(foco==='estado'){const b=document.querySelector('#panel .opt.on input');if(b)b.focus()}
+  if(window.innerWidth<980)document.getElementById('panel').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function cerrarPanel(){const c=actual();c.panel=undefined;c.form=undefined;c.idx=undefined;caso()}
+function setAccion(a){const c=actual();c.form.accion=a;c.errR='';c.err='';caso();const x=document.getElementById('f-foco');if(x)x.focus()}
+function setResp(k,v){const c=actual();c.form.resp[k]=v;c.errR='';caso()}
+function campos(c){
+  const f=c.form,a=f.accion,r=f.resp;
+  if(a==='preguntar')return `<textarea id="f-foco" class="ed" aria-label="Pregunta para el cliente" oninput="actual().form.q=this.value">${esc(f.q)}</textarea>`;
+  if(a==='editar')return `<label class="fl">Qué hace falta o qué incluye<input id="f-foco" class="ed" value="${esc(f.d)}" oninput="actual().form.d=this.value"></label>`;
+  let h='';
+  if(a==='cliente')h+=`<div class="fl">Medio<div class="seg" role="group">${MEDIOS.map(m=>`<button class="${r.medio===m?'on':''}" aria-pressed="${r.medio===m}" onclick="setResp('medio','${m}')">${m}</button>`).join('')}</div></div><label class="fl">Fecha<input type="date" class="ed" style="width:auto" value="${r.fecha}" max="${hoyISO()}" onchange="actual().form.resp.fecha=this.value"></label>`;
+  if(a==='doc')h+=`<label class="fl">Documento<select class="ed" onchange="actual().form.resp.doc=this.value"><option ${r.doc==='alcance.pdf'?'selected':''}>alcance.pdf</option><option ${r.doc==='Correo del cliente'?'selected':''}>Correo del cliente</option></select></label>`;
+  if(DATO[a])h+=`<label class="fl">${DATO[a]}<input id="f-foco" class="ed" value="${esc(f.dato)}" placeholder="Por ejemplo: Embalse La Esmeralda, Cundinamarca" oninput="actual().form.dato=this.value;actual().errR='';document.getElementById('err-r').textContent=''"></label>`;
+  h+=`<label class="fl">${NOTA[a][0]}<textarea class="ed" placeholder="${NOTA[a][1]}" oninput="actual().form.resp.nota=this.value;actual().errR='';document.getElementById('err-r').textContent=''">${esc(r.nota)}</textarea></label><div class="errmsg" id="err-r">${esc(c.errR)}</div>`;
+  if(a==='tecnico')h+='<div class="note">En el correo al cliente irá como una recomendación de Anka, con este fundamento.</div>';
+  return h;
+}
+function efecto(c){
+  const a=c.form.accion;
+  return {preguntar:'Al guardar, esta pregunta entra al correo.',cliente:'Al guardar, la actividad queda Completa con ese dato y su pregunta sale del correo.',doc:'Al guardar, la actividad queda Completa con ese dato y su pregunta sale del correo.',tecnico:'Al guardar, la actividad queda Completa como criterio técnico de Anka y su pregunta sale del correo.',editar:'Al guardar, se corrige el dato; el estado no cambia.',reabrir:'Al guardar, vuelve a «Por completar» y su pregunta entra al correo.'}[a];
+}
+function panelAct(c){
+  const f=c.form,o=c.idx>=0?c.acts[c.idx]:null,mail=c.fase==='revisar'?' · '+resumenMail(cuerpo(c)):'';
+  const volver=`<button class="back" onclick="cerrarPanel()">← Volver${c.fase==='revisar'?' al correo':''}<span style="color:var(--ink3)">${mail}</span></button>`;
+  const atajo=`onkeydown="if(event.key==='Escape')cerrarPanel()"`;
+  if(f.quitando)return `<section class="card now" id="panel" ${atajo}>${volver}<div class="eyebrow">Quitar actividad</div><h2>${esc(f.n)}</h2><div class="note">Quedará en el historial con su motivo.</div>
+   <div class="opciones" role="radiogroup" aria-label="Motivo">${['cliente','doc','tecnico'].map(k=>`<label class="opt ${f.resp.como===k?'on':''}"><input type="radio" name="mq" ${f.resp.como===k?'checked':''} onchange="setResp('como','${k}')"><div><b>${{cliente:'El cliente pidió quitarla',doc:'No está en el correo ni en los archivos',tecnico:'Criterio técnico: no aplica'}[k]}</b></div></label>`).join('')}</div>
+   ${f.resp.como?`<label class="fl">${f.resp.como==='cliente'?'Lo que te dijo':f.resp.como==='doc'?'Qué revisaste':'Fundamento técnico'}<textarea class="ed" oninput="actual().form.resp.nota=this.value;actual().errR='';document.getElementById('err-r').textContent=''">${esc(f.resp.nota)}</textarea></label>`:''}
+   <div class="errmsg" id="err-r">${esc(c.errR)}</div>
+   <div class="row" style="margin-top:14px"><button class="pri" onclick="confirmarQuitar()">Quitar la actividad</button><button class="ghost" onclick="actual().form.quitando=0;caso()">Volver</button></div></section>`;
+  const opciones=!o?['cliente','doc','tecnico']:(o.e==='ok'?['editar','reabrir']:['preguntar','cliente','doc','tecnico']);
+  const cab=!o?`<div class="eyebrow">Nueva actividad</div><label class="fl">Nombre<input id="f-n" class="ed${c.err?' err':''}" value="${esc(f.n)}" placeholder="Por ejemplo: Batimetría" oninput="actual().form.n=this.value;this.classList.remove('err');document.getElementById('err').textContent=''"><span class="errmsg" id="err">${esc(c.err)}</span></label><div class="fl" style="margin-top:14px">¿De dónde sale esta actividad?</div>`
+   :`<div class="eyebrow">Actividad</div><h2>${esc(o.n)} <span class="pill ${EST[o.e][1]}" style="vertical-align:2px">${EST[o.e][0]}</span></h2><div class="note">${esc(o.d)}</div><div class="fl" style="margin-top:14px">${o.e==='ok'?'¿Qué quieres hacer?':'¿Cómo lo resolvemos?'}</div>`;
+  return `<section class="card now" id="panel" ${atajo}>${volver}${cab}
+   <div class="opciones" role="radiogroup">${opciones.map(k=>`<label class="opt ${f.accion===k?'on':''}"><input type="radio" name="acc" ${f.accion===k?'checked':''} onchange="setAccion('${k}')"><div><b>${OPC[k][0]}</b><span>${OPC[k][1]}</span>${f.accion===k?`<div class="campos" onclick="event.stopPropagation()">${campos(c)}</div>`:''}</div></label>`).join('')}</div>
+   <div class="note" style="margin:12px 0 4px">${efecto(c)}</div>
+   <div class="row" style="margin-top:10px"><button class="pri" onclick="guardarAct()">Guardar</button><button class="ghost" onclick="cerrarPanel()">Cancelar</button>${o?'<button class="rm" onclick="pedirQuitar()">Quitar actividad</button>':''}</div>
+  </section>`;
+}
+function errResp(r,dato){
+  if(dato!==null&&dato!==undefined&&dato.trim().length<2)return 'Escribe el dato (por ejemplo, la ubicación).';
+  if(r.como==='cliente'&&!r.medio)return 'Elige por qué medio te lo confirmó.';
+  if(r.nota.trim().length<10)return 'Cuéntalo en una frase (mínimo 10 letras): así queda claro de dónde sale.';
+  return '';
+}
+function guardarAct(){
+  const c=actual(),f=c.form,a=f.accion,i=c.idx,orig=i>=0?c.acts[i]:null,fo=foto(c),nh=(c.hist||[]).length;
+  if(!orig&&!f.n.trim()){c.err='Escribe un nombre para la actividad.';caso();document.getElementById('f-n').focus();return}
+  const l={n:(orig?orig.n:f.n.trim()),d:orig?orig.d:'',e:orig?orig.e:'falta',q:orig?orig.q:'',on:orig?orig.on:0};
+  let resp=null;
+  if(['cliente','doc','tecnico','reabrir'].includes(a)){
+    const r={...f.resp,como:a};
+    const m=errResp(r,a==='reabrir'?null:f.dato);if(m){c.errR=m;caso();return}
+    resp={...r,quien:'Andrés'};
+    if(a==='reabrir'){l.e='falta';l.on=1;if(!l.q)l.q='¿Puede indicarnos '+l.n.toLowerCase()+'?'}
+    else{l.e='ok';l.d=f.dato.trim();l.on=0}
+    l.resp=resp;
+  }else if(a==='preguntar'){l.on=1;l.q=f.q.trim()||'¿Puede indicarnos '+l.n.toLowerCase()+'?'}
+  else if(a==='editar'){l.d=f.d;if(orig.resp)l.resp=orig.resp}
+  const lista=[];
+  if(!orig)lista.push('Agregó «'+l.n+'»');
+  else{
+    if(orig.d!==l.d)lista.push('Cambió el detalle de «'+l.n+'»: «'+l.d+'»');
+    if(orig.e!==l.e)lista.push('«'+l.n+'»: de '+EST[orig.e][0]+' a '+EST[l.e][0]);
+    if(a==='preguntar'&&(!orig.on||orig.q!==l.q))lista.push('Puso la pregunta de «'+l.n+'» en el correo');
+  }
+  if(!lista.length&&!resp){cerrarPanel();toast('No había cambios');return}
+  if(resp)lista.push(lineaResp(resp));
+  if(c.body!==undefined){if(orig&&orig.q)c.body=ajustar(c.body,{...orig,on:0});if(l.on)c.body=ajustar(c.body,l)}
+  if(orig)c.acts[i]=l;else{c.acts.push(l);c.idx=c.acts.length-1}
+  histor(c,lista);c.flash=c.idx;c.panel=undefined;c.form=undefined;caso();
+  setTimeout(()=>{const r=document.getElementById('fila-'+c.flash);if(r)r.scrollIntoView({block:'nearest',behavior:'smooth'})},50);
+  toastU(lista[0],()=>{const o=JSON.parse(fo);c.acts=o.acts;c.body=o.body;sinHistorial(c,nh);c.flash=undefined;caso()});
+}
+function pedirQuitar(){const c=actual();c.form.quitando=1;c.form.resp.como='';c.form.resp.nota='';c.errR='';caso()}
+function confirmarQuitar(){
+  const c=actual(),r=c.form.resp;
+  if(!r.como){c.errR='Elige el motivo.';caso();return}
+  const m=errResp({...r},null);if(m){c.errR=m;caso();return}
+  const a=c.acts[c.idx],fo=foto(c),nh=(c.hist||[]).length;
+  if(c.body!==undefined&&a.q)c.body=ajustar(c.body,{...a,on:0});
+  c.acts.splice(c.idx,1);
+  histor(c,['Quitó «'+a.n+'»','Motivo: '+({cliente:'el cliente pidió quitarla',doc:'no está en el correo ni en los archivos',tecnico:'criterio técnico: no aplica'})[r.como]+' — «'+r.nota+'»']);
+  c.panel=undefined;c.form=undefined;caso();
+  toastU('Quitó «'+a.n+'»',()=>{const o=JSON.parse(fo);c.acts=o.acts;c.body=o.body;sinHistorial(c,nh);caso()});
+}
+
+/* acciones por fase */
+function accion(c){
+  if(c.panel==='act')return panelAct(c);
+  if(c.fase==='revisar'){const t=cuerpo(c);return `<section class="card now"><div class="eyebrow">Ahora</div><h2>Revisa el correo y envíalo</h2><div class="note">Para: contacto@${esc(c.cliente.toLowerCase().replace(/\s/g,''))}.co · <span id="resumen-mail">${resumenMail(t)}</span></div><textarea id="cuerpo" class="mailbox" oninput="actual().body=this.value">${esc(t)}</textarea><div class="note" style="margin:-4px 0 10px">Marca «Preguntar» en la tabla y la pregunta entra aquí; también puedes editar el texto a mano.</div><div class="row"><button class="pri" onclick="enviar()">Enviar al cliente</button><button class="sec2" onclick="toast('Borrador guardado en Gmail')">Guardar borrador</button><button class="ghost end">Cambiar de idea</button></div></section>`}
+  if(c.fase==='decidir')return `<section class="card now"><div class="eyebrow">Ahora</div><h2>Mensaje para el cliente</h2><div class="note">Falta: 1 archivo por revisar (plano.dwg). Ábrelo tú o pídele al cliente un PDF.</div><textarea placeholder="Escribe aquí lo que quieres preguntarle al cliente, una pregunta por línea.">¿Cuál es el objetivo del trabajo?\n¿Puede indicar la ubicación del proyecto?</textarea><div class="row"><button class="pri" onclick="toast('Correo preparado para revisar')">Redactar el correo</button><button class="ghost" title="Se activa con al menos una actividad">Con esto alcanza</button></div><div class="note" style="margin-top:8px">Nada se envía en este paso: primero ves el correo y lo envías tú.</div></section>`;
+  if(c.fase==='emitir')return `<section class="card now"><div class="eyebrow">Ahora</div><h2>Listo para cotizar: emitir la T</h2><div class="note">La información ya está validada. Al emitir la T pasan 3 cosas:</div><ol class="p"><li>Se crea el código de la T con el número de abajo.</li><li>Se crea la carpeta en Drive con los archivos y la tabla.</li><li>Se envía al cliente un correo con el código. Lo puedes editar antes.</li></ol><label class="note">Número de la T (año + consecutivo)<br><input class="f" value="26001"></label><div class="note">Es el siguiente número según los códigos que ya hay aquí.</div>${c.acts.filter(a=>a.resp&&a.resp.como==='tecnico').length?`<div class="nota-t"><b>Recomendaciones de Anka</b><span>${c.acts.filter(a=>a.resp&&a.resp.como==='tecnico').map(a=>'«'+esc(a.n)+'»').join(', ')} irá en el correo como recomendación técnica, con su fundamento. El cliente decide si la acepta.</span></div>`:''}<div class="row" style="margin-top:12px"><button class="pri brand" onclick="toast('T emitida · carpeta creada en Drive')">Emitir la T</button><button class="ghost">Ver el correo</button></div></section>`;
+  if(c.fase==='espera')return `<section class="card now" style="border-color:var(--warn-ink)"><div class="eyebrow" style="color:var(--warn-ink)">Ahora</div><h2>Llamar al cliente</h2><div class="note">Hace ${c.dias} días de trabajo que no contesta. Llámalo y, después, pulsa «Ya hablé con el cliente».</div><div class="row" style="margin-top:14px"><button class="pri" onclick="toast('Anotado en el historial')">Ya hablé con el cliente</button><button class="sec2">Ver seguimiento</button></div></section>`;
+}
+function pestana(c){
+  const t=c.tab||'conv';
+  const tabs=[['conv','Conversación'],['arch','Archivos (1)'],['hist','Historial']].map(([k,n])=>`<button class="${t===k?'on':''}" onclick="actual().tab='${k}';caso()">${n}</button>`).join('');
+  let b='';
+  if(t==='conv')b=`<div class="msg"><b>${esc(c.cliente)}</b><span>${esc(c.cuando)}</span><p>Buenos días, quisiéramos cotizar los trabajos adjuntos. Quedamos atentos a sus comentarios.</p></div>`;
+  if(t==='arch')b=`<div class="msg"><b>alcance.pdf</b><span>Leído · 2 páginas</span><p class="note">Se usó para detectar las actividades de la tabla.</p></div>`;
+  if(t==='hist')b=(c.hist||[]).map(x=>`<div class="msg"><b>${esc(x.quien)}</b><span>${esc(x.t)}</span><ul>${x.lista.map(l=>`<li>${esc(l)}</li>`).join('')}</ul></div>`).join('')+`<div class="msg"><b>Análisis del sistema</b><span>${esc(c.cuando)} 09:00</span><ul><li>Detectó las actividades del correo</li></ul></div>`;
+  return `<section class="card"><div class="tabs">${tabs}</div>${b}</section>`;
+}
+function caso(){
+  const c=actual(),pend=CASOS.filter(x=>x.grupo==='hoy').length;
+  const cls=c.fase==='espera'?'warn':(c.fase==='emitir'?'ok':'');
+  $('#caso').innerHTML=`
+   <button class="menu" onclick="document.getElementById('side').classList.toggle('open')">☰ Casos</button>
+   <div class="head"><div><h1>${esc(c.nombre)}</h1><div class="meta">${esc(c.cliente)} · recibido el ${esc(c.cuando)}</div></div><span class="badge ${cls}">${c.estado}</span></div>
+   <div class="prog"><div class="bar">${PASOS.map((_,i)=>`<i class="${i<c.paso?'on':''}"></i>`).join('')}</div>Paso ${c.paso} de 4 · ${PASOS[c.paso-1]}<span style="margin-left:auto">${pend} por atender</span></div>
+   <div class="cols">
+     <section class="card"><div class="sh"><div><h2>Actividades detectadas</h2><div class="sub">${c.acts.length?c.acts.filter(a=>a.e!=='ok').length+' por resolver de '+c.acts.length:'Aún sin actividades'}</div></div><div class="tools"><button class="ghost" onclick="abrirAct(-1)">+ Agregar</button></div></div>${filtros(c)}${tabla(c)}</section>
+     ${accion(c)}
+   </div>
+   ${pestana(c)}
+   <div class="hint"><span><kbd>J</kbd> / <kbd>K</kbd> siguiente y anterior</span><span><kbd>/</kbd> buscar</span><span><kbd>E</kbd> enviar</span><span><kbd>Esc</kbd> volver al correo</span></div>`;
+  if(c.flash!==undefined){const f=c.flash;setTimeout(()=>{if(c.flash===f)c.flash=undefined},1400)}
+}
+function abrir(id){cerrarMenu();sel=id;lista();caso();$('#side').classList.remove('open');$('.main').scrollTo(0,0)}
+function enviar(){toast('Enviado. Abriendo el siguiente caso…');setTimeout(()=>{const hoy=CASOS.filter(c=>c.grupo==='hoy');const i=hoy.findIndex(c=>c.id===sel);abrir((hoy[i+1]||hoy[0]).id)},900)}
+$('#q').addEventListener('input',e=>{filtro=e.target.value;lista()});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){cerrarMenu();const c=actual();if(c.panel==='act'){cerrarPanel();return}}
+  if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){if(e.key==='Escape')document.activeElement.blur();return}
+  const ids=CASOS.map(c=>c.id),i=ids.indexOf(sel);
+  if(e.key==='j')abrir(ids[Math.min(i+1,ids.length-1)]);
+  if(e.key==='k')abrir(ids[Math.max(i-1,0)]);
+  if(e.key==='/'){e.preventDefault();$('#q').focus()}
+  if(e.key==='e'&&CASOS[i].fase==='revisar'&&!CASOS[i].panel)enviar();
+});
+lista();caso();
+</script>
+</body>
+</html>

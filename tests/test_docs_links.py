@@ -15,10 +15,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SKIP = {".venv", ".git", "simulaciones", "golden", "__pycache__", "archivo_local", ".ruff_cache", ".uv-cache"}
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+# Copia histórica de T-83 (evidencia con SHA-256): sus enlaces apuntan al árbol original, no al de la copia. No se edita.
+COPIA_HISTORICA = ("laboratorio", "banco_documental", "respaldo_t83", "originales")
 
 
 def markdown_files():
-    return sorted(p for p in ROOT.rglob("*.md") if not (set(p.relative_to(ROOT).parts) & SKIP))
+    return sorted(p for p in ROOT.rglob("*.md") if not (set(p.relative_to(ROOT).parts) & SKIP)
+                  and p.relative_to(ROOT).parts[:4] != COPIA_HISTORICA)
 
 
 class DocumentationLinks(unittest.TestCase):

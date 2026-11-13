@@ -1,0 +1,4 @@
+respuesta_work_C3.raw.txt  SHA-256 5d24a4883d21d4bac1edfa594aa758f03210f1f863cfc631949b48debe4e716d (14696 bytes, 392 lineas)
+json.tool: Expecting ',' delimiter: line 378 column 37 (char 12754)
+causa: comillas dobles sin escapar en fullCalcOnLoad="1" dentro de una cadena (linea 378)
+comparador: JSONDecodeError con la misma posicion; sin resultado

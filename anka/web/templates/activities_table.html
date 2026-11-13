@@ -1,3 +1,3 @@
-{% if not rows %}<p class='meta'>No hay actividades identificadas.</p>{% else %}<div style='overflow-x:auto'><table><thead><tr><th>Actividad</th><th>Servicio/técnica</th><th>Ubicación</th><th>Cantidad</th><th>Unidad</th><th>Entregable</th><th>Plazo/restricción</th><th>Fuente</th><th>Estado</th></tr></thead><tbody>
+{% if not rows %}<p class='meta'>No hay actividades identificadas.</p>{% else %}<div class='scroll-x'><table><thead><tr><th scope="col">Actividad</th><th scope="col">Tipo de servicio</th><th scope="col">Ubicación</th><th scope="col">Cantidad</th><th scope="col">Unidad</th><th scope="col">Entregable</th><th scope="col">Plazo o límite</th><th scope="col">Fuente</th><th scope="col">Estado</th></tr></thead><tbody>
 {% for row in rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
 {% endfor %}</tbody></table></div>{% endif %}

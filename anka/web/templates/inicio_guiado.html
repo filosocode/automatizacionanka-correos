@@ -1,0 +1,5 @@
+<section class="inicio" id="inicio-guiado" aria-labelledby="inicio-titulo">
+  <h2 id="inicio-titulo">{% if inicio.nombre %}Hola, {{ inicio.nombre }}{% else %}Hola{% endif %}</h2>
+  <p class="inicio-frase">{% if inicio.cuantos == 0 %}Nada espera por ti ahora mismo.{% elif inicio.cuantos == 1 %}1 caso espera algo de ti.{% else %}{{ inicio.cuantos }} casos esperan algo de ti.{% endif %}</p>
+  {% if inicio.boton %}<p><a class="button" id="atender-primero" href="{{ inicio.boton.href }}">Atender a {{ inicio.boton.cliente }}</a></p>{% endif %}
+</section>

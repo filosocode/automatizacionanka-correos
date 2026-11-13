@@ -76,6 +76,16 @@ class HealthTests(unittest.TestCase):
         self.assertNotIn("datos que no deben salir", json.dumps(report))     # el texto del error no se expone
         gmail.users().getProfile.assert_called()
 
+    # Cubre: U-102
+    def test_a_drive_parent_named_after_a_year_is_reported_before_issuing_a_code(self):
+        self.config(WORK)
+        gmail, drive = MagicMock(), MagicMock()
+        drive.files().get().execute.return_value = {"id": "carpeta-1", "name": "2026"}
+        with patch("anka.servicios.salud.bridge_state", return_value=("ok", "ok")),                 patch("anka.servicios.salud.services", return_value=(gmail, drive)),                 patch("anka.servicios.salud.credentials"):
+            report = salud.informe(profundo=True)
+        self.assertEqual(by_name(report)["drive"]["estado"], "error")
+        self.assertIn("Proyectos", by_name(report)["drive"]["detalle"])
+
     def test_a_missing_authorization_is_an_error_without_calling_google(self):
         (self.folder / "token.json").unlink()
         self.config(LOCAL)
@@ -124,7 +134,7 @@ class HealthRoute(unittest.TestCase):
 
     def test_it_is_documented_with_its_503(self):
         from anka.web import openapi
-        operation = openapi.build_spec("t")["paths"]["/api/salud"]["get"]
+        operation = openapi.build_spec()["paths"]["/api/salud"]["get"]
         self.assertIn("503", operation["responses"])
         self.assertEqual(operation["responses"]["200"]["content"]["application/json"]["schema"],
                          {"$ref": "#/components/schemas/Salud"})

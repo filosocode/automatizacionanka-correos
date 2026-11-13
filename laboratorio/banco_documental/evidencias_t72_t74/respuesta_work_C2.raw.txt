@@ -1,0 +1,183 @@
+{
+  "caso": "C2",
+  "actividades": [
+    {
+      "nombre": "Batimetría monohaz del espejo de agua",
+      "cantidad": "45,0",
+      "unidad": "ha",
+      "entregable": "No se especifica un producto de entrega. La cantidad impresa está tachada y presenta una corrección manuscrita «41,8 ha», pendiente de confirmación.",
+      "origen": {
+        "pagina": 1,
+        "tabla": "Cuadro 1",
+        "fila": "A"
+      }
+    },
+    {
+      "nombre": "Perfiles longitudinales de fondo",
+      "cantidad": "3",
+      "unidad": "perfiles",
+      "entregable": "Perfiles longitudinales de fondo; formato no especificado.",
+      "origen": {
+        "pagina": 1,
+        "tabla": "Cuadro 1",
+        "fila": "B"
+      }
+    },
+    {
+      "nombre": "Secciones transversales (espaciamiento)",
+      "cantidad": "50",
+      "unidad": "m",
+      "entregable": "Secciones transversales; formato no especificado. «50 m» corresponde al espaciamiento, no al número de secciones.",
+      "origen": {
+        "pagina": 1,
+        "tabla": "Cuadro 1",
+        "fila": "C"
+      }
+    },
+    {
+      "nombre": "Topografía de la franja de ronda (25 m a cada lado del eje)",
+      "cantidad": "6,8",
+      "unidad": "km",
+      "entregable": "No se especifica un producto de entrega.",
+      "origen": {
+        "pagina": 1,
+        "tabla": "Cuadro 1",
+        "fila": "D"
+      }
+    }
+  ],
+  "entregables": [
+    "3 perfiles longitudinales de fondo, sin formato de entrega indicado.",
+    "Secciones transversales con espaciamiento de 50 m, sin número total ni formato de entrega indicados."
+  ],
+  "restricciones": [
+    "Página 1, Cuadro 1, fila A: se solicita batimetría monohaz.",
+    "Página 1, Cuadro 1, fila C: espaciamiento de secciones transversales de 50 m.",
+    "Página 1, Cuadro 1, fila D y nota inferior: la franja de ronda se mide 25 m a cada lado del eje del embalse.",
+    "Página 2, Figura 1: la zona rayada de captación, rotulada «3,2 ha», corresponde a la categoría «Excluida del levantamiento» de la leyenda.",
+    "Página 2, nota 1: la rampa de acceso para la embarcación tiene 6,8 m de ancho.",
+    "Página 2, nota 2: calado máximo de la embarcación de 0,6 m.",
+    "Página 2, nota 3: el permiso de navegación está a cargo del contratista.",
+    "Página 2, nota 4: profundidad máxima esperada de 14 m.",
+    "Página 2, nota 5: la ubicación del embalse remite al plano del Anexo 3, no incluido en las dos páginas."
+  ],
+  "contradicciones": [
+    "Página 1, Cuadro 1, fila A: la magnitud impresa «45,0» con unidad «ha» está tachada y debajo aparece la corrección manuscrita «41,8 ha». Se conservan ambos valores; no se acredita cuál fue formalmente aprobado.",
+    "El alcance impreso de la batimetría indica «45,0 ha» en la página 1, Cuadro 1, fila A, mientras que la página 2 distingue un espejo de agua total de «45,0» ha y una zona de captación de «3,2» ha en el Cuadro 2, representada como excluida en la Figura 1. La corrección manuscrita «41,8 ha» es compatible con esa exclusión, pero requiere confirmar el alcance definitivo.",
+    "Página 2: el título de la Figura 1 dice «Croquis del embalse (sin escala)», aunque el dibujo contiene una barra gráfica marcada «0», «250» y «500 m». No puede asumirse una escala válida para medir el croquis."
+  ],
+  "preguntas_cliente": [
+    "¿Confirman que la magnitud definitiva de la batimetría es la corrección manuscrita «41,8 ha», en lugar del valor impreso tachado «45,0 ha», y que la exclusión de la zona de captación aplica a esta actividad?",
+    "¿Pueden suministrar el plano del Anexo 3 con la ubicación, delimitación del levantamiento, zona excluida y eje de referencia de la franja de ronda?",
+    "¿Cuál es el trazado de los 3 perfiles longitudinales y la extensión y orientación de las secciones transversales espaciadas cada 50 m?",
+    "¿Cuáles son los productos y formatos de entrega, las precisiones exigidas y el sistema de coordenadas y datum horizontal y vertical requeridos?",
+    "¿Cuál es el plazo requerido para ejecutar y entregar el trabajo?"
+  ],
+  "revisiones_internas": [
+    "Revisar la viabilidad de la operación monohaz y de la embarcación considerando el calado máximo de 0,6 m, la profundidad máxima esperada de 14 m y la rampa de 6,8 m de ancho.",
+    "Revisar los requisitos y la gestión del permiso de navegación a cargo del contratista, una vez conocida la ubicación.",
+    "Mantener separadas las magnitudes «6,8 km» de topografía de ronda y «6,8 m» de ancho de rampa.",
+    "No utilizar el croquis para medir distancias o delimitar áreas debido a la contradicción entre «sin escala» y la barra gráfica.",
+    "No adoptar la corrección manuscrita como alcance contractual definitivo sin confirmación."
+  ],
+  "elementos_visuales": [
+    "Página 1: la cifra impresa «45,0» de la fila A está cruzada por una línea; debajo aparece «41,8 ha» manuscrito.",
+    "Página 1: sello inclinado «COPIA CONTROLADA No. 0457». Es una identificación documental, no una cantidad de actividad.",
+    "Página 1: encabezado «TDR No. 0318-2026 · Folio 14» y pie «Página 1 de 2».",
+    "Página 2: polígono irregular gris del embalse, con un sector rayado en la parte superior derecha y una línea de llamada «Zona de captación 3,2 ha».",
+    "Página 2: la leyenda asocia el relleno gris con «Área a levantar» y el rayado diagonal con «Excluida del levantamiento».",
+    "Página 2: flecha orientada hacia la parte superior de la página con la letra «N».",
+    "Página 2: barra gráfica con marcas «0», «250» y «500 m», pese al título «sin escala».",
+    "Página 2: Cuadro 2 con áreas del espejo de agua total y de la zona de captación; cinco notas inferiores y pie «Página 2 de 2»."
+  ],
+  "evidencia_visual": [
+    {
+      "pagina": 1,
+      "elemento": "Cuadro 1, fila A, magnitud de batimetría",
+      "descripcion_observada": "La cifra impresa está atravesada por una línea oblicua. Debajo se observa una cifra de apariencia manuscrita con unidad.",
+      "texto_impreso": "45,0; ha",
+      "texto_manuscrito": "41,8 ha",
+      "interpretacion": "Existe una corrección manuscrita del valor impreso. Se conservan ambos sin decidir cuál es definitivo.",
+      "certeza": "alta"
+    },
+    {
+      "pagina": 1,
+      "elemento": "Cuadro 1, filas B, C y D",
+      "descripcion_observada": "Las filas muestran magnitudes y unidades en columnas separadas; la fila C identifica expresamente un espaciamiento.",
+      "texto_impreso": "B: Perfiles longitudinales de fondo; 3; perfiles. C: Secciones transversales (espaciamiento); 50; m. D: Topografía de la franja de ronda (25 m a cada lado del eje); 6,8; km.",
+      "texto_manuscrito": "",
+      "interpretacion": "«3» es número de perfiles; «50 m» es espaciamiento; «6,8 km» corresponde a la topografía de ronda.",
+      "certeza": "alta"
+    },
+    {
+      "pagina": 1,
+      "elemento": "Nota debajo del Cuadro 1",
+      "descripcion_observada": "Texto impreso que define la referencia para medir la franja.",
+      "texto_impreso": "La franja de ronda se mide 25 m a cada lado del eje del embalse.",
+      "texto_manuscrito": "",
+      "interpretacion": "La referencia indicada es el eje del embalse; no se sustituye por la orilla.",
+      "certeza": "alta"
+    },
+    {
+      "pagina": 2,
+      "elemento": "Figura 1, zona de captación y leyenda",
+      "descripcion_observada": "Un sector del polígono tiene rayado diagonal. La llamada «Zona de captación 3,2 ha» apunta a ese sector. La leyenda reproduce el rayado como exclusión.",
+      "texto_impreso": "Zona de captación 3,2 ha; Área a levantar; Excluida del levantamiento",
+      "texto_manuscrito": "",
+      "interpretacion": "La zona de captación rayada está representada como excluida del levantamiento; el resto gris se identifica como área a levantar.",
+      "certeza": "alta"
+    },
+    {
+      "pagina": 2,
+      "elemento": "Figura 1, orientación y escala",
+      "descripcion_observada": "Flecha vertical hacia arriba rotulada «N» y barra gráfica con tres marcas.",
+      "texto_impreso": "Figura 1. Croquis del embalse (sin escala); N; 0; 250; 500 m",
+      "texto_manuscrito": "",
+      "interpretacion": "Se muestra orientación norte hacia arriba. La presencia de una barra gráfica contradice la indicación «sin escala» y no permite asumir mediciones fiables.",
+      "certeza": "alta"
+    },
+    {
+      "pagina": 2,
+      "elemento": "Cuadro 2. Áreas",
+      "descripcion_observada": "Dos filas de conceptos con una columna titulada «Área (ha)».",
+      "texto_impreso": "Espejo de agua total: 45,0; Zona de captación (ver Figura 1): 3,2",
+      "texto_manuscrito": "",
+      "interpretacion": "Son áreas de referencia del embalse y de la zona de captación, no actividades adicionales.",
+      "certeza": "alta"
+    },
+    {
+      "pagina": 2,
+      "elemento": "Notas 1 a 5",
+      "descripcion_observada": "Cinco notas impresas legibles debajo del Cuadro 2.",
+      "texto_impreso": "1. La rampa de acceso para la embarcación tiene 6,8 m de ancho. 2. Calado máximo de la embarcación: 0,6 m. 3. El permiso de navegación está a cargo del contratista. 4. Profundidad máxima esperada: 14 m. 5. Ubicación del embalse: ver plano del Anexo 3.",
+      "texto_manuscrito": "",
+      "interpretacion": "Se establecen condiciones de acceso, calado y permiso, una profundidad esperada y una referencia de ubicación a un anexo ausente.",
+      "certeza": "alta"
+    }
+  ],
+  "calidad_ocr": [
+    {
+      "pagina": 1,
+      "cobertura": "completa",
+      "dificultades": [
+        "Lectura visual local del escaneo; no se utilizó OCR automático.",
+        "La tachadura cruza «45,0», pero el valor impreso y la corrección manuscrita «41,8 ha» son legibles."
+      ],
+      "elementos_pendientes": []
+    },
+    {
+      "pagina": 2,
+      "cobertura": "completa",
+      "dificultades": [
+        "Lectura visual local del escaneo; no se utilizó OCR automático."
+      ],
+      "elementos_pendientes": []
+    }
+  ],
+  "limitaciones_de_lectura": [
+    "Se interpretaron visualmente las dos páginas completas. El Anexo 3 mencionado no forma parte del PDF adjunto, por lo que no se pudo verificar la ubicación ni su plano.",
+    "La autoría, fecha y aprobación de la corrección manuscrita no se pueden determinar con el contenido visible.",
+    "El documento no especifica sistema de coordenadas, datum horizontal o vertical, precisiones, formatos de entrega ni plazo.",
+    "La contradicción entre «sin escala» y la barra gráfica impide utilizar el croquis como base métrica verificada."
+  ]
+}

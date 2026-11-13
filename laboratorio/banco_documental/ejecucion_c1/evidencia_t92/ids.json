@@ -1,0 +1,12 @@
+{
+ "thread_id": "1a1630438e70ae21",
+ "message_id": "1a1630438e70ae21",
+ "adjunto_ok": true,
+ "adjunto": {
+  "nombre": "solicitud_01.pdf",
+  "bytes_declarados": 4913,
+  "bytes": 4913,
+  "sha256": "f47ed4da974e982b09954bfd1b71472b0fefa5859309d7ab1e24c924c92bd844"
+ },
+ "obtenido": "2026-10-22T04:49:52-05:00"
+}

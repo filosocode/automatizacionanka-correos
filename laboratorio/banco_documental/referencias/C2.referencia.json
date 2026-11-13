@@ -1,0 +1,435 @@
+{
+  "actividades": [
+    {
+      "cantidad_literal": "45,0",
+      "claves": [
+        "batim",
+        "espej"
+      ],
+      "claves_entregable": [
+        "modelo",
+        "plano"
+      ],
+      "entregable": "Modelo digital del fondo y plano batimétrico",
+      "id": "C2-A1",
+      "nombre": "Batimetría monohaz del espejo de agua",
+      "nota_visual": "la cifra impresa está tachada y hay una anotación manuscrita de 41,8 ha",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "fila": "A",
+        "pagina": 1,
+        "tabla": "Cuadro 1"
+      },
+      "requiere_ocr": true,
+      "requiere_vision": true,
+      "servicio": "batimetria",
+      "unidad_literal": "ha",
+      "valor": "45.0"
+    },
+    {
+      "cantidad_literal": "3",
+      "claves": [
+        "perfil",
+        "longitud"
+      ],
+      "claves_entregable": [
+        "perfil"
+      ],
+      "entregable": "Perfiles en PDF",
+      "id": "C2-A2",
+      "nombre": "Perfiles longitudinales de fondo",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "fila": "B",
+        "pagina": 1,
+        "tabla": "Cuadro 1"
+      },
+      "requiere_ocr": true,
+      "servicio": "batimetria",
+      "unidad_literal": "perfiles",
+      "valor": "3"
+    },
+    {
+      "cantidad_literal": "50",
+      "claves": [
+        "seccion",
+        "transvers"
+      ],
+      "claves_entregable": [
+        "seccion"
+      ],
+      "entregable": "Secciones en PDF",
+      "id": "C2-A3",
+      "nombre": "Secciones transversales (espaciamiento)",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "fila": "C",
+        "pagina": 1,
+        "tabla": "Cuadro 1"
+      },
+      "requiere_ocr": true,
+      "servicio": "batimetria",
+      "unidad_literal": "m",
+      "valor": "50"
+    },
+    {
+      "cantidad_literal": "6,8",
+      "claves": [
+        "ronda",
+        "topograf"
+      ],
+      "claves_entregable": [
+        "dwg"
+      ],
+      "entregable": "Plano de franja en DWG",
+      "id": "C2-A4",
+      "nombre": "Topografía de la franja de ronda (25 m a cada lado del eje)",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "fila": "D",
+        "pagina": 1,
+        "tabla": "Cuadro 1"
+      },
+      "requiere_ocr": true,
+      "servicio": "topografia",
+      "unidad_literal": "km",
+      "valor": "6.8"
+    }
+  ],
+  "caso": "C2",
+  "contradicciones": [
+    {
+      "critica": true,
+      "id": "C2-K1",
+      "literales_clave": [
+        "45,0",
+        "41,8"
+      ],
+      "motivo": "La cifra impresa está tachada y una anotación a mano da otra; el croquis excluye 3,2 ha.",
+      "palabras": [
+        "espejo",
+        "batim"
+      ],
+      "tema": "área del espejo de agua a levantar",
+      "valores": [
+        {
+          "literal": "45,0",
+          "origen": {
+            "documento": "tdr_02.pdf",
+            "fila": "A",
+            "nota": "impresa y tachada",
+            "pagina": 1,
+            "tabla": "Cuadro 1"
+          },
+          "unidad": "ha"
+        },
+        {
+          "literal": "41,8",
+          "origen": {
+            "documento": "tdr_02.pdf",
+            "nota": "manuscrita junto a la fila A",
+            "pagina": 1
+          },
+          "unidad": "ha"
+        }
+      ]
+    }
+  ],
+  "datos_presentes": [
+    {
+      "palabras": [
+        "calado"
+      ],
+      "tema": "calado"
+    },
+    {
+      "palabras": [
+        "permiso"
+      ],
+      "tema": "permiso"
+    }
+  ],
+  "documento": {
+    "archivo": "tdr_02.pdf",
+    "sha256": "0287414f91bb1c9b3ecfd05e98de713adaa81177261885f89e4fe8f23c66d732"
+  },
+  "elementos_visuales": [
+    {
+      "claves": [
+        "tachad",
+        "manuscrit",
+        "41,8"
+      ],
+      "descripcion": "cifra 45,0 tachada con una anotación manuscrita de 41,8",
+      "id": "C2-V1",
+      "interpretacion": "el área impresa fue corregida a mano; hay que preguntar cuál rige",
+      "pagina": 1
+    },
+    {
+      "claves": [
+        "rayad",
+        "excluid",
+        "captacion"
+      ],
+      "descripcion": "Figura 1: zona rayada rotulada como excluida del levantamiento (3,2 ha)",
+      "id": "C2-V2",
+      "interpretacion": "la zona rayada no se levanta; el área neta es 45,0 − 3,2 = 41,8 ha (derivada, no impresa)",
+      "pagina": 2
+    },
+    {
+      "claves": [
+        "norte",
+        "escala"
+      ],
+      "descripcion": "flecha norte y barra de escala (0, 250, 500 m)",
+      "id": "C2-V3",
+      "interpretacion": "orientación y escala gráfica; sin cantidad contratable",
+      "pagina": 2
+    }
+  ],
+  "esperado": {
+    "actividades": [
+      {
+        "cantidad": 45.0,
+        "servicio": "batimetria",
+        "unidad": "ha"
+      },
+      {
+        "cantidad": 3.0,
+        "servicio": "batimetria",
+        "unidad": "perfiles"
+      },
+      {
+        "cantidad": 50.0,
+        "servicio": "batimetria",
+        "unidad": "m"
+      },
+      {
+        "cantidad": 6.8,
+        "servicio": "topografia",
+        "unidad": "km"
+      }
+    ],
+    "es_solicitud": true,
+    "faltante": [
+      "plazo",
+      "ubicacion"
+    ],
+    "ubicacion": []
+  },
+  "faltantes": [
+    {
+      "bloqueante": true,
+      "destino": "cliente",
+      "id": "C2-F1",
+      "motivo": "La ubicación se remite al «Anexo 3», que no viene; solo se nombra el embalse.",
+      "palabras": [
+        "ubicacion",
+        "anexo",
+        "plano",
+        "municipio"
+      ],
+      "tema": "ubicacion"
+    },
+    {
+      "bloqueante": false,
+      "destino": "cliente",
+      "id": "C2-F2",
+      "motivo": "No se indica plazo de ejecución.",
+      "palabras": [
+        "plazo"
+      ],
+      "tema": "plazo"
+    },
+    {
+      "bloqueante": false,
+      "destino": "cliente",
+      "id": "C2-F3",
+      "motivo": "Confirmar el área final (impresa, manuscrita y croquis).",
+      "palabras": [
+        "45,0",
+        "41,8",
+        "area"
+      ],
+      "tema": "area final"
+    }
+  ],
+  "ficticio": true,
+  "inventario": {
+    "paginas": [
+      {
+        "elementos": [
+          "encabezado y sello",
+          "objeto",
+          "Cuadro 1 (4 filas)",
+          "tachadura y anotación a mano"
+        ],
+        "n": 1
+      },
+      {
+        "elementos": [
+          "Figura 1 (croquis)",
+          "leyenda",
+          "Cuadro 2 (2 filas)",
+          "notas"
+        ],
+        "n": 2
+      }
+    ],
+    "tablas": [
+      {
+        "columnas": [
+          "Código",
+          "Actividad",
+          "Magnitud",
+          "Unidad"
+        ],
+        "filas": 4,
+        "id": "Cuadro 1",
+        "pagina": 1
+      },
+      {
+        "columnas": [
+          "Concepto",
+          "Área (ha)"
+        ],
+        "filas": 2,
+        "id": "Cuadro 2",
+        "pagina": 2
+      }
+    ]
+  },
+  "ocr": {
+    "motivo": "ambas páginas son una imagen sin texto extraíble",
+    "paginas_con_ocr": [
+      1,
+      2
+    ],
+    "requiere": true
+  },
+  "regla_de_valores": "cada valor y unidad se conservan tal como están escritos; no hay conversión implícita",
+  "restricciones": [
+    {
+      "claves": [
+        "permiso",
+        "navegacion"
+      ],
+      "critica": false,
+      "id": "C2-R1",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "pagina": 2
+      },
+      "texto": "El permiso de navegación está a cargo del contratista."
+    },
+    {
+      "claves": [
+        "25",
+        "ronda"
+      ],
+      "critica": false,
+      "id": "C2-R2",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "pagina": 1
+      },
+      "texto": "Franja de ronda de 25 m a cada lado del eje del embalse."
+    },
+    {
+      "claves": [
+        "calado"
+      ],
+      "critica": false,
+      "id": "C2-R3",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "pagina": 2
+      },
+      "texto": "Calado máximo de la embarcación: 0,6 m."
+    }
+  ],
+  "revisiones_internas": [
+    {
+      "id": "C2-I1",
+      "palabras": [
+        "ecosonda",
+        "frecuencia"
+      ],
+      "texto": "Evaluar si la profundidad máxima esperada de 14 m exige ecosonda de doble frecuencia."
+    },
+    {
+      "id": "C2-I2",
+      "palabras": [
+        "nivel de referencia",
+        "vertical"
+      ],
+      "texto": "Definir el nivel de referencia vertical del embalse antes de planear los perfiles."
+    }
+  ],
+  "tipo": "pdf_escaneado",
+  "titulo": "Términos de referencia de levantamiento batimétrico",
+  "trampas": [
+    {
+      "conceptos_confundibles": [
+        "rampa",
+        "acceso"
+      ],
+      "confusion": "mezclar los 6,8 m de ancho con los 6,8 km de ronda",
+      "es": "ancho de la rampa de acceso: 6,8 m",
+      "id": "C2-T1",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "pagina": 2
+      },
+      "unidad_distinta": "m",
+      "valor": "6.8",
+      "valor_literal": "6,8"
+    },
+    {
+      "conceptos_confundibles": [
+        "batim",
+        "espej"
+      ],
+      "confusion": "sumarla o tomarla como área a levantar",
+      "es": "zona de captación excluida del levantamiento",
+      "id": "C2-T2",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "elemento": "Figura 1 y Cuadro 2",
+        "pagina": 2
+      },
+      "valor": "3.2",
+      "valor_literal": "3,2"
+    },
+    {
+      "conceptos_confundibles": [
+        "levan"
+      ],
+      "confusion": "tomarlo como cantidad",
+      "es": "número del sello «copia controlada»",
+      "id": "C2-T3",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "pagina": 1
+      },
+      "valor": "457",
+      "valor_literal": "0457"
+    },
+    {
+      "conceptos_confundibles": [
+        "perfil",
+        "seccion"
+      ],
+      "confusion": "tomarla como número de perfiles o secciones",
+      "es": "profundidad máxima esperada: 14 m",
+      "id": "C2-T4",
+      "origen": {
+        "documento": "tdr_02.pdf",
+        "pagina": 2
+      },
+      "valor": "14",
+      "valor_literal": "14"
+    }
+  ],
+  "version": "1"
+}

@@ -1,0 +1,297 @@
+diff --git a/anka/infra/work_heartbeat.py b/anka/infra/work_heartbeat.py
+--- a/anka/infra/work_heartbeat.py
++++ b/anka/infra/work_heartbeat.py
+@@ -4,12 +4,15 @@
+ 
+ import json
+ import os
++import sqlite3
+ import sys
+ import time
+-from collections.abc import Callable
++from collections.abc import Callable, Mapping
+ from datetime import datetime
+-
+-from anka.infra import rechazos_de_work, settings
++from typing import Any
++
++from anka.dominio.coordinacion_work import puente_general_habilitado
++from anka.infra import rechazos_de_work, settings, store
+ from anka.infra.logging_setup import get_logger
+ 
+ HEARTBEAT_FILE = "work_sync_heartbeat.json"
+@@ -103,8 +106,88 @@
+     return " " + texto if texto else ""
+ 
+ 
++def _config_de_la_revision() -> Mapping[str, Any] | None:
++    """La configuración vigente, o `None` si no se puede leer (entonces manda el latido, como antes)."""
++    try:
++        return settings.load_config()
++    except Exception as exc:     # sin config legible no se adivina: el indicador clásico sigue siendo válido
++        log.debug("Sin configuración para el indicador de la revisión (%s)", type(exc).__name__)
++        return None
++
++
++def _revisa_la_recepcion(config: Mapping[str, Any] | None) -> bool:
++    """¿Quién revisa los correos es el receptor Gmail del lanzador y no el puente general (D-161, D-163)?
++
++    Lo es cuando el modo es Work, la recepción está habilitada y el puente general no corre: apagado, o desplazado
++    por la coordinación. Con el puente general en marcha manda su latido."""
++    if not config or config.get("active_mode") != "chatgpt_work" or config.get("gmail_reception_enabled") is not True:
++        return False
++    puente_corre = puente_general_habilitado(config) and config.get("work_coordination_enabled") is not True
++    return not puente_corre
++
++
++def _intervalo_de_recepcion(config: Mapping[str, Any]) -> int:
++    valor = config.get("gmail_reception_interval_seconds", 60)
++    return valor if isinstance(valor, int) and not isinstance(valor, bool) and 30 <= valor <= 3600 else 60
++
++
++def _edad(marca: object) -> float | None:
++    """Segundos desde una marca ISO, o `None` si falta o está dañada."""
++    try:
++        return (_now() - datetime.fromisoformat(str(marca))).total_seconds() if marca else None
++    except ValueError:
++        return None
++
++
++def _control_de_recepcion() -> Mapping[str, Any] | None:
++    """La fila de `recepcion_control` más reciente (solo lectura); `None` si no hay base, tabla o fila."""
++    if not (settings.DATA_DIR / "quotes.sqlite3").exists():
++        return None                                   # leer no debe crear una base vacía
++    try:
++        with store.lectura() as db:
++            fila = db.execute("SELECT last_success_at,last_attempt_at,consecutive_errors,last_error_kind,"
++                              "last_error_type FROM recepcion_control ORDER BY updated_at DESC LIMIT 1").fetchone()
++    except sqlite3.Error as exc:
++        log.debug("No se pudo leer el estado de la recepción (%s)", type(exc).__name__)
++        return None
++    return dict(fila) if fila else None
++
++
++def _estado_de_la_recepcion(config: Mapping[str, Any]) -> tuple[str, str]:
++    """El estado de la revisión de correos según el receptor Gmail (`recepcion_control`), no según el puente."""
++    control = _control_de_recepcion()
++    intento = _edad(control.get("last_attempt_at")) if control else None
++    exito = _edad(control.get("last_success_at")) if control else None
++    if control is None or (intento is None and exito is None):
++        return "never", (
++            "La revisión de correos aún no ha empezado: el receptor de Gmail no ha hecho ninguna revisión. "
++            "Abre «Iniciar Anka.bat» y espera un minuto.")
++    limite = max(3 * _intervalo_de_recepcion(config), 180)
++    errores = int(control.get("consecutive_errors") or 0)
++    ultimo = control.get("last_success_at") or ""
++    cuando = str(ultimo)[11:19]
++    if errores > 0 and intento is not None and intento <= limite:
++        causa = control.get("last_error_kind") or control.get("last_error_type") or "error sin detallar"
++        return "error", (f"La revisión de correos sigue intentándolo, pero falló {errores} vez/veces seguidas "
++                         f"({causa}). Último éxito: {cuando or 'ninguno'}.")
++    if exito is None:
++        return "never", ("La revisión de correos aún no ha tenido un éxito: el receptor de Gmail ya lo intentó. "
++                         "Revisa el registro de Anka si sigue así.")
++    if exito > limite:
++        return "stopped", (
++            f"La revisión de correos está detenida: el receptor de Gmail no revisa desde las {cuando} ({_ago(exito)}). "
++            "Comprueba que «Iniciar Anka.bat» siga abierto; si lo está, busca el aviso en el registro de Anka.")
++    return "ok", f"La revisión de correos está activa: Gmail revisado a las {cuando} ({_ago(exito)})." + _alerta()
++
++
+ def bridge_state() -> tuple[str, str]:
+-    """(estado, texto): estado es 'ok', 'attention', 'error', 'stopped' o 'never'."""
++    """(estado, texto): estado es 'ok', 'attention', 'error', 'stopped' o 'never'.
++
++    Con el receptor Gmail como revisor (recepción habilitada y puente general sin usar) el estado sale de
++    `recepcion_control`; si no, del latido del puente general."""
++    config = _config_de_la_revision()
++    if config is not None and _revisa_la_recepcion(config):
++        return _estado_de_la_recepcion(config)
+     beat = read_heartbeat()
+     if not beat:
+         return "never", (
+diff --git a/spec/05-decisiones.md b/spec/05-decisiones.md
+--- a/spec/05-decisiones.md
++++ b/spec/05-decisiones.md
+@@ -14,6 +14,7 @@
+ |---|---|---|---|---|
+ | D-150 | 2026-10-17 | La importación aislada (T-47) es una función aparte del puente general, no un filtro dentro de él: recibe el par `(thread_id, message_id)`, filtra por hilo antes de interpretar, **fuerza** `_verify_origin` (la verificación por versión de T-41/T-44 sigue igual en el modo general) y no usa estado, latido, casos mínimos, seguimiento de actividad, hoja de Google ni `work_rejections`. Ante dos borradores válidos para el mismo mensaje no elige: informa y termina con error. La verificación de lectura contra el manifiesto de Drive (T-37/T-38) o contra los adjuntos de Gmail (T-41) se conserva tal cual: sin instantánea no hay advertencia, y con una instantánea que no incluya el mensaje el análisis queda incompleto. No actualiza `recepcion_mensajes` (el acuse es otro cambio). | El piloto del retorno Work → Python debe poder probar un solo borrador sin efectos en el resto de la cuenta; forzar el origen sin tocar la versión evita fingir `skill_version` o `DRIVE_PREFLIGHT`; no usar estado evita pisar el checkpoint del puente (la importación es idempotente por la referencia del hecho de auditoría). | Añadir `--thread-id` a `sync_once` (arrastra casos mínimos, seguimiento y estado); declarar `PRECISO_V6.1` para forzar la verificación (finge una versión que Work no declaró); elegir el borrador más nuevo ante dos válidos (puede importar el equivocado); omitir los datos comerciales del caso (el caso quedaría sin cliente). |
+ | D-145 | 2026-10-15 | El respaldo (local y Drive) lleva `config.redactado.json` y no `config.json`; la redacción es por nombre y por aspecto del valor, la restauración no pisa la configuración viva y acepta copias antiguas (U-78). | `config.json` es de uso libre y se subía a Drive tal cual: una clave puesta a mano allí habría salido de la máquina. La clave de OpenAI vive en una variable de entorno y el token de Google no entra en la copia, así que con esto la copia no lleva ningún secreto conocido. | Dos zips, uno local completo y otro redactado (duplica la superficie y el local seguiría llevando secretos junto a la base); cifrar `config.json` (requiere contraseña o dependencia nueva); no respaldar la configuración (se perdería lo ajustado a mano: filtros, ids de carpeta). Las copias que ya estén en Drive no se tocan desde aquí: queda la recomendación de revisarlas y rotar credenciales. |
++| D-180 | 2026-10-21 | El indicador «Revisión de correos» (`bridge_state`) lee `recepcion_control` cuando quien revisa es el receptor Gmail (modo Work, recepción habilitada, puente general sin usar) y conserva el latido solo cuando el puente general corre | Tras D-161 y D-163 nadie escribe el latido: el chip decía «detenida» con el receptor sano (T-82E) | Un aviso aparte en el chip; escribir un latido desde el receptor |
+ | D-178 | 2026-10-20 | Los cambios de cantidad entre mensajes del cliente se detectan en una capa nueva y aparte (`cambios_de_magnitud`), en modo sombra, con la procedencia de cada mensaje guardada en el texto local del hilo; nunca eligen un valor vigente ni se consideran aceptados por Anka. | T-67 mostró que una cifra sustituida en un seguimiento pasa por verificada. El dato más reciente no es el vigente por serlo, y Work no distingue valor anterior de vigente: describir la discrepancia y dejar que la persona decida es lo único que no inventa precedencias. | Poner la procedencia en el contrato con Work (cambia el esquema y la skill); usar `case_messages` (recorta a 8000 caracteres y no guarda la fecha de Gmail); tomar el mensaje más reciente como vigente; cambiar `integrar_seguimiento`. |
+ | D-177 | 2026-10-20 | Una cita explícita de `fuente` (archivo, página, hoja o celda) que no se puede leer da `NO_COMPROBABLE` (`fuente_inexistente`, `referencia_ambigua` o `ubicacion_no_resuelta`) y nunca una contradicción. | La evaluación T-67 mostró un falso positivo: con un archivo inexistente se buscaba en todo el expediente y se afirmaba `CONTRADICTORIA_VALOR` con la cifra de otro documento. | Dejar la búsqueda amplia como respaldo (reproduce el falso positivo); tratarlo como `NO_ENCONTRADA` (sugiere que la cifra falta, cuando no se pudo mirar). |
+ | D-176 | 2026-10-20 | La verificación contextual de cantidades y unidades (T-66, antes T-65.2) es una capa nueva, en modo sombra, dentro de `evidence_check["observaciones"]`: no cambia los cubos ni la semántica de `comprobar_tabla`, no muestra avisos y no bloquea nada. Una contradicción de valor exige evidencia verificable del mismo concepto y unidad en una lectura completa; la ausencia de una cifra, el OCR dudoso o un separador ambiguo nunca la producen. | El diseño de T-65.1 pedía no alterar el esquema, el prompt ni el flujo de conciliación, y medir antes de avisar: en sombra se revisan los falsos positivos con importaciones reales antes de mostrar nada. | Corregir `numeros_del_texto` (cambia resultados antiguos y rompe la compatibilidad); activar los avisos de una vez; rechazar borradores con contradicciones (convertiría un apoyo en bloqueo). |
+diff --git a/spec/requisitos.md b/spec/requisitos.md
+--- a/spec/requisitos.md
++++ b/spec/requisitos.md
+@@ -2337,6 +2337,15 @@
+    `conciliar_con_work` aceptan un mensaje cancelado; restaurar una copia anterior pierde la lápida; el panel lo muestra como
+    pendiente; no existe la orden `cancelar` ni el diario de lápidas.
+ 
++### T-84 · El indicador «Revisión de correos» mide al receptor Gmail, no al puente apagado
++**Problema.** Con la coordinación activa el puente general no corre (D-161, D-163), pero el chip del dashboard seguía leyendo su latido
++y decía «detenida» aunque el receptor Gmail revisaba cada minuto.
++1. **Quién manda.** Con modo Work, `gmail_reception_enabled` verdadero y el puente general sin usar (apagado, o desplazado por la
++   coordinación), el estado sale de `recepcion_control`; con el puente general en marcha manda su latido, como antes.
++2. **Estados.** `ok`: último éxito dentro de `max(3 × intervalo, 180 s)` y sin errores; `error`: errores consecutivos con un intento
++   reciente (con su causa); `stopped`: último éxito vencido; `never`: sin base, sin fila o sin ninguna revisión. Leer no crea la base.
++3. **Texto.** La indicación para reactivar es «Iniciar Anka.bat», no el puente apagado. No cambia la frecuencia ni lanza ciclos.
++
+ ## Recepción determinista de correos en modo `chatgpt_work` (previsto)
+ 
+ **Estado de toda esta sección: previsto. Es solo especificación (incremento 1): no hay código, tablas, migraciones ni pruebas.** La base es la especificación técnica v2, que el dueño aprobó conceptualmente; **eso no autoriza implementar**: cada incremento (2 a 7) necesita la autorización expresa del dueño. Decisiones: D-131 a D-143 y las decisiones técnicas DT en `05-decisiones.md`.
+diff --git a/tests/test_indicador_recepcion.py b/tests/test_indicador_recepcion.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_indicador_recepcion.py
+@@ -0,0 +1,150 @@
++"""El chip «Revisión de correos» mide al receptor Gmail cuando el puente general no corre (T-84, D-180)."""
++
++from tests import _isolate  # noqa: F401  (debe ir primero)
++
++import json
++import tempfile
++import unittest
++from datetime import datetime, timedelta
++from pathlib import Path
++from unittest.mock import patch
++
++from anka.infra import settings, store, work_heartbeat
++from tests.test_openapi import request
++
++AHORA = datetime(2026, 10, 21, 15, 50, 0).astimezone()
++CUENTA = "ankacomercialia@gmail.com"
++WORK = {"active_mode": "chatgpt_work", "gmail_reception_enabled": True, "work_coordination_enabled": True}
++
++
++def marca(segundos_atras: float) -> str:
++    return (AHORA - timedelta(seconds=segundos_atras)).isoformat(timespec="seconds")
++
++
++class _Datos(unittest.TestCase):
++    def setUp(self) -> None:
++        self.temp = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temp.cleanup)
++        self.data = Path(self.temp.name)
++        for parche in (patch.object(settings, "DATA_DIR", self.data), patch.object(work_heartbeat, "_now", return_value=AHORA)):
++            parche.start()
++            self.addCleanup(parche.stop)
++
++    def control(self, exito: float | None, intento: float | None, errores: int = 0, tipo: str = "") -> None:
++        with store.transaccion() as db:
++            db.execute("INSERT OR REPLACE INTO recepcion_control(account,history_id,last_success_at,last_attempt_at,"
++                       "last_error_kind,consecutive_errors,updated_at) VALUES(?,?,?,?,?,?,?)",
++                       (CUENTA, "1", None if exito is None else marca(exito), None if intento is None else marca(intento),
++                        tipo, errores, marca(0)))
++
++    def latido(self, segundos_atras: float) -> None:
++        datos = {"at": marca(segundos_atras), "pid": 1, "interval": 30}
++        (self.data / work_heartbeat.HEARTBEAT_FILE).write_text(json.dumps(datos), encoding="utf-8")
++
++    def estado(self, config: dict | None = None) -> tuple[str, str]:
++        with patch.object(settings, "load_config", return_value=config if config is not None else WORK):
++            return work_heartbeat.bridge_state()
++
++
++# Cubre: T-84
++class IndicadorDeRecepcionTests(_Datos):
++    def test_01_receptor_activo_con_ultimo_exito_reciente(self) -> None:
++        self.control(exito=30, intento=30)
++        estado, texto = self.estado()
++        self.assertEqual(estado, "ok")
++        self.assertIn("La revisión de correos está activa", texto)
++        self.assertIn("hace 30 s", texto)
++
++    def test_02_receptor_realmente_detenido_sin_intentos_nuevos(self) -> None:
++        self.control(exito=3 * 3600, intento=3 * 3600)
++        estado, texto = self.estado()
++        self.assertEqual(estado, "stopped")
++        self.assertIn("hace 3 h", texto)
++        self.assertIn("Iniciar Anka.bat", texto)
++        self.assertNotIn("Puente Work", texto)
++
++    def test_03_ultimo_exito_vencido_segun_el_intervalo_configurado(self) -> None:
++        self.control(exito=400, intento=20)
++        self.assertEqual(self.estado({**WORK, "gmail_reception_interval_seconds": 60})[0], "stopped")   # 400 s > 3 × 60
++        self.assertEqual(self.estado({**WORK, "gmail_reception_interval_seconds": 300})[0], "ok")       # 400 s < 3 × 300
++        self.control(exito=170, intento=20)
++        self.assertEqual(self.estado()[0], "ok")                       # el mínimo de 180 s evita falsas alarmas
++
++    def test_04_errores_consecutivos_con_un_intento_reciente(self) -> None:
++        self.control(exito=900, intento=20, errores=4, tipo="red")
++        estado, texto = self.estado()
++        self.assertEqual(estado, "error")
++        self.assertIn("4 vez", texto)
++        self.assertIn("red", texto)
++
++    def test_04b_errores_pero_sin_intentos_recientes_es_una_detencion(self) -> None:
++        self.control(exito=3600, intento=3000, errores=9, tipo="red")
++        self.assertEqual(self.estado()[0], "stopped")
++
++    def test_05_recepcion_sin_historial_no_inventa_actividad(self) -> None:
++        self.assertEqual(self.estado()[0], "never")                    # ni siquiera existe la base
++        self.assertFalse((self.data / "quotes.sqlite3").exists())      # leer el indicador no la crea
++        with store.transaccion():
++            pass
++        self.assertEqual(self.estado()[0], "never")                    # base sin fila de control
++        self.control(exito=None, intento=None)
++        self.assertEqual(self.estado()[0], "never")                    # fila vacía
++        self.control(exito=None, intento=10)
++        estado, texto = self.estado()
++        self.assertEqual(estado, "never")
++        self.assertIn("ya lo intentó", texto)
++
++    def test_06_con_el_puente_general_en_marcha_manda_su_latido(self) -> None:
++        self.control(exito=30, intento=30)                             # el receptor está sano, pero no es lo que se mide
++        config = {**WORK, "work_general_bridge_enabled": True, "work_coordination_enabled": False}
++        self.assertEqual(self.estado(config)[0], "never")              # sin latido
++        self.latido(3 * 3600)
++        estado, texto = self.estado(config)
++        self.assertEqual(estado, "stopped")
++        self.assertIn("Puente Work - Dashboard.bat", texto)
++
++    def test_07_coordinacion_activa_con_el_puente_general_apagado_o_desplazado(self) -> None:
++        self.latido(3 * 3600)                                          # el latido viejo del puente ya no cuenta
++        self.control(exito=30, intento=30)
++        self.assertEqual(self.estado(WORK)[0], "ok")
++        self.assertEqual(self.estado({**WORK, "work_general_bridge_enabled": True})[0], "ok")   # la coordinación lo desplaza
++        self.assertEqual(self.estado({**WORK, "work_general_bridge_enabled": False})[0], "ok")
++
++    def test_08_otro_modo_o_sin_recepcion_conserva_el_comportamiento_del_latido(self) -> None:
++        self.control(exito=30, intento=30)
++        self.latido(3 * 3600)
++        self.assertEqual(self.estado({**WORK, "gmail_reception_enabled": False})[0], "stopped")
++        self.assertEqual(self.estado({**WORK, "active_mode": "local"})[0], "stopped")
++        with patch.object(settings, "load_config", side_effect=OSError("sin config")):
++            self.assertEqual(work_heartbeat.bridge_state()[0], "stopped")
++
++
++# Cubre: T-84
++class IndicadorEnElDashboardTests(_Datos):
++    """El dashboard (`/state`) entrega el texto de cada estado al chip."""
++
++    def pedir(self, config: dict) -> dict:
++        with patch.object(settings, "load_config", return_value=config), \
++                patch("anka.web.server.load_config", return_value=config):
++            return json.loads(request("GET", "/state")["body"])
++
++    def test_09_cada_estado_llega_al_chip_con_su_texto(self) -> None:
++        esperado = {"ok": "está activa", "error": "sigue intentándolo", "stopped": "está detenida", "never": "aún no ha empezado"}
++        casos = {"ok": (30, 30, 0), "error": (900, 20, 3), "stopped": (3 * 3600, 3 * 3600, 0)}
++        for estado, (exito, intento, errores) in casos.items():
++            self.control(exito=exito, intento=intento, errores=errores, tipo="red")
++            respuesta = self.pedir(WORK)
++            self.assertEqual(respuesta["bridge"], estado)
++            self.assertIn(esperado[estado], respuesta["text"])
++        with store.transaccion() as db:
++            db.execute("DELETE FROM recepcion_control")
++        respuesta = self.pedir(WORK)
++        self.assertEqual(respuesta["bridge"], "never")
++        self.assertIn(esperado["never"], respuesta["text"])
++
++    def test_10_fuera_del_modo_work_no_hay_chip(self) -> None:
++        self.assertEqual(self.pedir({"active_mode": "local"})["bridge"], "")
++
++
++if __name__ == "__main__":
++    unittest.main()

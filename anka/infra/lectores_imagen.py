@@ -4,12 +4,16 @@ from __future__ import annotations
 from typing import Any
 from functools import lru_cache
 import shutil
+import time
 import subprocess
 import tempfile
 from io import BytesIO
 from pathlib import Path
 from anka.dominio.attachments import MAX_OCR_PIXELS
 from anka.dominio.lectores_texto import Unreadable, plain_text
+from anka.infra.presupuesto_ocr import OcrOmitidoPorTiempo, presupuesto_actual
+
+TOPE_DE_PILLOW = MAX_OCR_PIXELS      # Pillow avisa por encima y rechaza al doble, antes de decodificar nada
 
 
 @lru_cache(maxsize=1)
@@ -29,6 +33,7 @@ def ocr_image(content: bytes) -> str:
         import numpy as np
     except ImportError:
         raise Unreadable("falta instalar Pillow y numpy para leer imágenes") from None
+    Image.MAX_IMAGE_PIXELS = TOPE_DE_PILLOW       # tope explícito, no el de la versión de Pillow (U-61, B2-10)
     try:
         with Image.open(BytesIO(content)) as source:
             if source.width * source.height > MAX_OCR_PIXELS:
@@ -50,10 +55,16 @@ def ocr_pil_image(image: Any, numpy_module: Any = None) -> str:
             import numpy as numpy_module
         except ImportError:
             raise Unreadable("falta instalar numpy para leer imágenes") from None
+    presupuesto = presupuesto_actual()
+    if presupuesto.agotado():
+        raise OcrOmitidoPorTiempo(f"OCR omitido por tiempo (presupuesto: {presupuesto.descripcion()})")
+    inicio = time.monotonic()
     try:
         result, _ = ocr_engine()(numpy_module.asarray(image.convert("RGB")))
     except Exception as exc:
         raise Unreadable(f"no se pudo ejecutar OCR sobre la imagen: {exc}") from None
+    finally:
+        presupuesto.consumir(time.monotonic() - inicio)
     lines = []
     if result:
         for entry in result:
@@ -65,7 +76,13 @@ def ocr_pil_image(image: Any, numpy_module: Any = None) -> str:
 
 
 def image_text(filename: str, content: bytes) -> str:
-    """Asocia el texto reconocido con el nombre de la imagen."""
+    """Asocia el texto reconocido con el nombre de la imagen.
+
+    Con `ocr_omitir_escaneados` no se hace OCR local: la imagen se marca «requiere visión» para que la lea Work.
+    """
+    if presupuesto_actual().omitir_escaneados:
+        raise Unreadable("requiere visión: imagen sin capa de texto; OCR local omitido por la política "
+                         "ocr_omitir_escaneados")
     return f"[Imagen: {Path(filename).name}; texto OCR]\n{ocr_image(content)}"
 
 

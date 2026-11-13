@@ -7,6 +7,7 @@ como el texto de siempre, así que las filas existentes siguen siendo válidas.
 from __future__ import annotations
 
 import unicodedata
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -24,20 +25,80 @@ class QuoteStatus(StrEnum):
     IGNORED = "ignored"                # no es solicitud comercial
 
 
-# Estados en los que ya no se debe redactar ni enviar correo al cliente.
-CLOSED_STATUSES = frozenset({
-    QuoteStatus.IGNORED, QuoteStatus.MISSING, QuoteStatus.READY, QuoteStatus.RESPONSE_SENT,
-})
-# Estados que esperan una acción humana.
-ACTION_STATUSES = frozenset({
-    QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW, QuoteStatus.SENDING,
-    QuoteStatus.REVIEW, QuoteStatus.MISSING,
-})
-# Estados que aparecen en la cola de revisión.
-REVIEW_QUEUE_STATUSES = (
-    QuoteStatus.REVIEW_PENDING, QuoteStatus.READY_REVIEW,
-    QuoteStatus.SENDING, QuoteStatus.REVIEW,
-)
+@dataclass(frozen=True)
+class InfoDeEstado:
+    """Todo lo que se sabe de un estado, en un solo lugar (U-52): añadir un estado es añadir una fila a `ESTADOS`."""
+
+    etiqueta: str                  # lo que ve la persona en la insignia («Correo por revisar»)
+    etapa: str                     # la etapa de la lista cuando nada más la decide (`case_stage`)
+    requiere_accion: bool          # esa etapa pide algo a una persona
+    cerrado: bool = False          # ya no se redacta ni se envía correo al cliente
+    espera_accion: bool = False    # espera una acción humana
+    en_cola: bool = False          # aparece en la cola de revisión
+    protegido: bool = False        # un análisis posterior nunca lo mueve (U-47)
+    protegido_del_mismo_mensaje: bool = False   # solo un mensaje nuevo del cliente lo mueve (U-47)
+    sugiere_respuesta: bool = False             # genera la novedad «Respuesta sugerida lista para revisar»
+    etapa_si_acuse: str = ""       # su etapa cuando el último correo del cliente era un simple acuse
+
+
+# La tabla única de estados. El orden es el de las listas y las consultas; `spec/transiciones.json` dice a qué estados
+# se puede pasar desde cada uno. Un estado nuevo se añade aquí y allí, y una prueba exige que no falte ninguno.
+ESTADOS: dict[QuoteStatus, InfoDeEstado] = {
+    QuoteStatus.REVIEW_PENDING: InfoDeEstado(
+        "Correo por revisar", "Correo por revisar", True, espera_accion=True, en_cola=True, sugiere_respuesta=True),
+    QuoteStatus.READY_REVIEW: InfoDeEstado(
+        "Información validada", "Información validada", True, espera_accion=True, en_cola=True,
+        sugiere_respuesta=True),
+    QuoteStatus.SENDING: InfoDeEstado(
+        "Enviando", "El correo no salió", True, espera_accion=True, en_cola=True, protegido=True),
+    QuoteStatus.REVIEW: InfoDeEstado(
+        "Por decidir", "Por decidir", True, espera_accion=True, en_cola=True, sugiere_respuesta=True),
+    QuoteStatus.WAITING: InfoDeEstado("Esperando al cliente", "Esperando al cliente", False),
+    QuoteStatus.DRAFT_CREATED: InfoDeEstado(
+        "Correo por revisar", "Correo por revisar", True, sugiere_respuesta=True),
+    QuoteStatus.RESPONSE_SENT: InfoDeEstado(
+        "Respuesta enviada", "Esperando al cliente", False, cerrado=True, protegido_del_mismo_mensaje=True,
+        etapa_si_acuse="Respuesta enviada · sin espera"),
+    QuoteStatus.READY: InfoDeEstado(
+        "Proyecto creado", "Información validada", True, cerrado=True, protegido=True),
+    QuoteStatus.MISSING: InfoDeEstado(
+        "Ya no está en Gmail", "Ya no está en Gmail", True, cerrado=True, espera_accion=True),
+    QuoteStatus.IGNORED: InfoDeEstado("Descartada", "Descartada", False, cerrado=True),
+}
+
+
+def _estados(condicion: str) -> tuple[QuoteStatus, ...]:
+    return tuple(estado for estado, info in ESTADOS.items() if getattr(info, condicion))
+
+
+# Los grupos de siempre, derivados de la tabla (no se editan a mano).
+CLOSED_STATUSES = frozenset(_estados("cerrado"))                  # ya no se redacta ni se envía correo al cliente
+ACTION_STATUSES = frozenset(_estados("espera_accion"))            # esperan una acción humana
+REVIEW_QUEUE_STATUSES = _estados("en_cola")                       # aparecen en la cola de revisión
+ESTADOS_QUE_UN_ANALISIS_NO_MUEVE = frozenset(_estados("protegido"))
+ESTADOS_CON_RESPUESTA_SUGERIDA = _estados("sugiere_respuesta")
+
+
+def info_de_estado(estado: object) -> InfoDeEstado | None:
+    """La fila de un estado, o `None` si no es uno conocido (un texto viejo o dañado en la base)."""
+    try:
+        return ESTADOS[QuoteStatus(str(estado))]
+    except (KeyError, ValueError):
+        return None
+
+
+def estado_tras_un_analisis(actual: str | None, propuesto: str, mismo_mensaje: bool) -> str:
+    """El estado que queda al guardar un análisis, igual en los tres modos (U-47, TR-07, TR-08).
+
+    `ready` y `sending` se conservan siempre; `response_sent` solo si el análisis es del mismo mensaje del cliente.
+    Un caso nuevo (`actual` vacío) toma el estado propuesto.
+    """
+    if actual in ESTADOS_QUE_UN_ANALISIS_NO_MUEVE:
+        return str(actual)
+    info = info_de_estado(actual)
+    if info is not None and info.protegido_del_mismo_mensaje and mismo_mensaje:
+        return str(actual)
+    return propuesto
 
 
 def sql_in(*statuses: QuoteStatus) -> str:
@@ -54,8 +115,18 @@ WORK_STATUS_LABELS = (
 
 
 def _plain(text: object) -> str:
-    decomposed = unicodedata.normalize("NFD", str(text or ""))
-    return " ".join("".join(c for c in decomposed if unicodedata.category(c) != "Mn").casefold().split())
+    """El texto para comparar estados: sin tildes, mayúsculas, espacios de más ni caracteres invisibles.
+
+    NFKC lleva las formas de ancho completo («Ｆａｌｔａｎ») y las ligaduras a letras normales; los caracteres de
+    formato (ancho cero, marcas de dirección) y la puntuación de los extremos se quitan. Un valor que no es texto no
+    se reconoce (falla segura).
+    """
+    if not isinstance(text, str):
+        return ""
+    compatible = unicodedata.normalize("NFKC", text)
+    decomposed = unicodedata.normalize("NFD", compatible)
+    kept = "".join(c for c in decomposed if unicodedata.category(c) not in ("Mn", "Cf"))
+    return " ".join(kept.casefold().split()).strip(" .,;:!?¡¿«»\"'`")   # «Faltan datos.» es el mismo estado
 
 
 def canonical_work_status(value: object) -> str | None:

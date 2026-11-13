@@ -2,6 +2,9 @@
 line-length = 120
 target-version = "py311"
 
+# Copia histórica de T-83 (evidencia de lo que había antes del cambio): no se lintea ni se tipa, se conserva tal cual.
+extend-exclude = ["laboratorio/banco_documental/respaldo_t83/originales"]
+
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "UP", "C90", "D100", "D101", "D102", "D103"]
 
@@ -13,6 +16,9 @@ select = ["E", "F", "W", "B", "UP", "C90", "D100", "D101", "D102", "D103"]
 "work_dashboard_sync.py" = ["D", "E501"]
 "check_spec.py" = ["D", "E501"]
 "simulaciones/*" = ["D", "E501"]   # material de apoyo local, fuera del repositorio
+"laboratorio/*" = ["E501"]   # banco de evaluación (T-71): datos y textos de ejemplo largos
+# Las pruebas del laboratorio se explican solas, como las de tests/. El código del laboratorio sí lleva docstrings.
+"laboratorio/**/test_*.py" = ["D", "E501"]
 
 [tool.ruff.lint.mccabe]
 # Ninguna función pasa de 15 caminos: si crece, se divide en pasos con nombre.
@@ -30,7 +36,11 @@ skip_covered = false
 [tool.mypy]
 # Usa la versión del intérprete: CI comprueba 3.11 y 3.12 con sus dependencias respectivas.
 files = ["."]
-exclude = ['^simulaciones/', '^\.venv/', '^\.uv-cache/', '^tests/', '^archivo_local/']
+exclude = [
+    '^simulaciones/', '^\.venv/', '^\.uv-cache/', '^tests/', '^archivo_local/',
+    # Laboratorio histórico (T-110): sus pruebas y la copia de T-83 no se tipan; su código (no las pruebas) sí.
+    '^laboratorio/banco_documental/respaldo_t83/originales/', '^laboratorio/.*/test_[^/]*\.py$',
+]
 # Las librerías de Google no publican tipos completos.
 ignore_missing_imports = true
 warn_unused_ignores = true

@@ -29,12 +29,12 @@ class CasePanel(unittest.TestCase):
         self.assertIn('rel="noopener noreferrer"', html)               # la hoja se abre en otra pestaña, sin darle acceso
         self.assertIn("Se actualiza sola cada vez que guardas la tabla", html)
         self.assertIn("última actualización 2026-10-02 10:30", html)
-        self.assertIn("Actualizar ahora", html)
+        self.assertIn("Actualizar la hoja ahora", html)
 
     def test_before_the_folder_exists_it_explains_where_the_sheet_will_come_from(self):
         html = page(replace(case(), folder_id=None))
-        self.assertIn("que se crea al emitir la T", html)
-        self.assertIn("Descargar Excel", html)                          # mientras tanto, el Excel de siempre
+        self.assertIn("(al emitir la T)", html)
+        self.assertIn("Bajar en Excel", html)                          # mientras tanto, el Excel de siempre
         self.assertNotIn("Crear la hoja de Google", html)
 
     def test_a_failed_update_is_shown_in_the_case(self):
@@ -43,7 +43,7 @@ class CasePanel(unittest.TestCase):
 
     def test_the_warning_that_edits_made_in_the_sheet_are_overwritten_is_visible(self):
         html = page(replace(case(), sheet_id="abc"))
-        self.assertIn("se sobrescribe en la próxima actualización", html)
+        self.assertIn("el cambio se pierde en la próxima actualización", html)
         self.assertIn("solicitud inicial y el historial de cambios", html)
 
 

@@ -1,9 +1,28 @@
 <section class="section work-rejected" id="borradores-rechazados">
-  <h2>Borradores de Work que no se importaron</h2>
-  <p class="meta">El puente está activo, pero {{ items | length }} borrador(es) de Work no cumplen el contrato, así que ese caso no llega al dashboard. Pídele a Work que lo vuelva a generar (o corrígelo en Gmail): se revisa solo cuando el borrador cambie.</p>
+  {% if alerta %}<div class="notice error" role="alert" id="alerta-de-rechazos">{{ alerta }}</div>{% endif %}
+  {% if items %}
+  <h2>{% if items | length == 1 %}Falta el análisis de un caso{% else %}Falta el análisis de {{ items | length }} casos{% endif %}</h2>
+  <p class="meta">Work dejó el análisis, pero Anka no pudo leerlo. {% if items | selectattr('case_href') | list %}El caso solo tiene el correo (quién, asunto y fecha) y quedó <strong>por decidir</strong>. {% endif %}Si Work vuelve a mandar el análisis, se revisa solo.</p>
   <ul class="review-task-list">
-    {% for item in items %}<li><strong>Borrador {{ item.draft }}</strong>{% if item.case_href %} · <a href="{{ item.case_href }}">ver el caso</a>{% elif item.thread %} · hilo {{ item.thread }} (aún sin caso){% endif %}
-      <div class="meta">Motivo: {{ item.reason }}</div></li>
+    {% for item in items %}<li>
+      <strong>{{ item.titulo }}</strong>
+      <div class="meta">Qué pasó: {{ item.reason }}{% if item.campos %} Campos: {{ item.campos | join(', ') }}.{% endif %}{% if item.fecha %} ({{ item.fecha }}){% endif %}</div>
+      <div class="acciones spaced-sm">
+        {% if item.case_href %}<a class="button" href="{{ item.case_href }}#editar-tabla">Completar la tabla yo</a>{% else %}<span class="meta">Todavía no hay caso en la lista: se crea en cuanto Anka pueda leer el correo.</span>{% endif %}
+        {% if item.draft %}<form method="post" action="/rejection-dismiss" class="inline-form">
+          <input type="hidden" name="draft" value="{{ item.draft }}">
+          <input type="hidden" name="message" value="{{ item.message }}">
+          <input type="hidden" name="thread_id" value="{{ item.thread }}">
+          <button type="submit" class="secondary">Dejarlo para después</button>
+        </form>{% endif %}
+      </div></li>
     {% endfor %}
   </ul>
+  <details class="more"><summary>Ver más detalles</summary>
+  <ul class="review-task-list">
+    {% for item in items %}<li><strong>Análisis {{ item.draft }}</strong>{% if item.case_href %} · <a href="{{ item.case_href }}">ver el caso</a>{% elif item.thread %} · conversación {{ item.thread }} (aún sin caso){% endif %}
+      <div class="meta">Motivo: {{ item.reason }}</div></li>
+    {% endfor %}
+  </ul></details>
+  {% endif %}
 </section>

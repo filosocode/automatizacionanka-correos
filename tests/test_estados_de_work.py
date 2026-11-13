@@ -112,8 +112,8 @@ class ElPrompt(unittest.TestCase):
         self.assertRegex(self.prompt(), r"No inventes ni traduzcas")
 
     def test_the_prompt_version_changed_so_the_history_can_tell_the_two_apart(self):
-        self.assertRegex(self.prompt(), r"Versión 4\.1")
-        self.assertIn("exactamente `PRECISO_V4.1`", self.prompt())
+        self.assertRegex(self.prompt(), r"Versión 4\.2")
+        self.assertIn("exactamente `PRECISO_V4.2_DRIVE`", self.prompt())
 
 
 if __name__ == "__main__":

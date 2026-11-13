@@ -247,8 +247,10 @@ def xlsx_text(content: bytes) -> str:
     rows = []
     for sheet in workbook.worksheets:
         formula_sheet = formulas[sheet.title]
+        oculta = "HOJA OCULTA; " if sheet.sheet_state != "visible" else ""
         rows.append(
-            f"Hoja: {sheet.title}; visibilidad: {sheet.sheet_state}; rango declarado: {sheet.calculate_dimension()}"
+            f"Hoja: {sheet.title}; visibilidad: {sheet.sheet_state}; {oculta}"
+            f"rango declarado: {sheet.calculate_dimension()}"
         )
         cell_count = 0
         over_limit = False
@@ -304,7 +306,44 @@ def xlsx_text(content: bytes) -> str:
         ]
         if drawings:
             rows.append("DIBUJOS/FORMAS DE HOJA PENDIENTES DE LECTURA VISUAL: " + ", ".join(drawings))
+    rows.extend(_xlsx_conteos(workbook))
+    workbook.close()
+    formulas.close()
     return "\n".join(rows)
+
+
+def _xlsx_conteos(workbook: Any) -> list[str]:
+    """Contrasta inventarios explícitos de lotes/predios con su resumen, sin inferir áreas ni recalcular fórmulas."""
+    inventarios: list[tuple[str, str, int]] = []
+    declarados: list[tuple[str, str, int]] = []
+    for sheet in workbook.worksheets:
+        if sheet.sheet_state != "visible":
+            declarados.append((sheet.title, "hoja oculta: confirmar vigencia", -1))
+            continue
+        if sheet.max_row * sheet.max_column > MAX_SPREADSHEET_CELLS:
+            continue
+        filas = list(sheet.iter_rows())
+        if not filas:
+            continue
+        for column, cell in enumerate(filas[0]):
+            if str(cell.value or "").strip().casefold() in {"lote", "predio"}:
+                ids = [str(row[column].value).strip() for row in filas[1:]
+                       if row[column].value is not None
+                       and str(row[column].value).strip().casefold() not in {"total", "totales"}]
+                inventarios.append((sheet.title, cell.coordinate, len(set(ids))))
+        for row in filas:
+            values = [str(c.value or "").strip().casefold() for c in row]
+            if not any(v in {"predios intervenidos", "total de predios", "total de lotes"} for v in values):
+                continue
+            for i, cell in enumerate(row[:-1]):
+                if (isinstance(cell.value, (int, float)) and not isinstance(cell.value, bool)
+                        and values[i + 1] in {"lotes", "predios"}):
+                    if float(cell.value).is_integer():
+                        declarados.append((sheet.title, cell.coordinate, int(cell.value)))
+    return [f"VALIDACIÓN PENDIENTE: {hoja}: {celda}." for hoja, celda, n in declarados if n < 0] + [
+            f"VALIDACIÓN PENDIENTE: {hoja}!{celda} declara {n} predios/lotes; inventario {detalle}!{inicio} "
+            f"contiene {cantidad} identificadores distintos. Confirmar si corresponden al mismo alcance."
+            for hoja, celda, n in declarados for detalle, inicio, cantidad in inventarios if n >= 0 and n != cantidad]
 
 
 def _xlsx_value(cell: Any, formula_cell: Any, sheet: Any, rows: list[str]) -> str | None:

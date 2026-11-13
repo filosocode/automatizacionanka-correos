@@ -1,0 +1,1563 @@
+diff --git a/anka/cli/work_jobs.py b/anka/cli/work_jobs.py
+--- a/anka/cli/work_jobs.py
++++ b/anka/cli/work_jobs.py
+@@ -14,8 +14,9 @@
+ from typing import Any
+ 
+ from anka.cli import paquete_work
++from anka.dominio.cancelacion_work import Autorizacion
+ from anka.dominio.errores import ErrorDeAnka
+-from anka.servicios import trabajos_work
++from anka.servicios import cancelaciones, trabajos_work
+ 
+ 
+ def build_parser() -> argparse.ArgumentParser:
+@@ -53,6 +54,17 @@
+     coordinar.add_argument("--message-id", default="", help="laboratorio: y a este mensaje")
+     coordinar.add_argument("--confirmar", action="store_true", help="autoriza leer Gmail y escribir en Drive y SQLite")
+     sub.add_parser("verificar-piloto", help="solo lectura: qué está habilitado y en marcha antes de activar T-55")
++    cancelar = sub.add_parser("cancelar", help="cancela de forma persistente un mensaje de prueba autorizado (T-83)")
++    cancelar.add_argument("--thread-id", required=True)
++    cancelar.add_argument("--message-id", required=True)
++    cancelar.add_argument("--etiqueta", required=True, help="etiqueta de prueba autorizada, p. ej. [PI-T79-PRUEBA-01]")
++    cancelar.add_argument("--operador", required=True)
++    cancelar.add_argument("--motivo", required=True)
++    cancelar.add_argument("--preventiva", action="store_true", help="antes de que el receptor registre el mensaje")
++    cancelar.add_argument("--confirmar", action="store_true", help="autoriza escribir la lápida en SQLite")
++    sub.add_parser("verificar-lapidas", help="solo lectura: ¿el diario de cancelaciones y la base coinciden?")
++    reaplicar = sub.add_parser("reaplicar-lapidas", help="devuelve a la base las lápidas del diario que falten (T-83)")
++    reaplicar.add_argument("--confirmar", action="store_true", help="autoriza escribir en SQLite")
+     return parser
+ 
+ 
+@@ -124,6 +136,13 @@
+     return {"pendientes": filas}
+ 
+ 
++def _cancelar(args: argparse.Namespace) -> dict[str, Any]:
++    if not args.confirmar:
++        raise ErrorDeAnka("Cancelar escribe en SQLite: agrega --confirmar cuando esté autorizado.")
++    return cancelaciones.cancelar_mensaje(Autorizacion(args.thread_id, args.message_id, args.operador, args.motivo,
++                                                       args.etiqueta, args.preventiva))
++
++
+ def _publico(trabajo: dict[str, Any] | None) -> dict[str, Any]:
+     if trabajo is None:
+         raise ErrorDeAnka("No existe ese trabajo.")
+@@ -147,6 +166,14 @@
+             resultado = _coordinar(args)
+         elif args.orden == "verificar-piloto":
+             resultado = _verificar_piloto()
++        elif args.orden == "cancelar":
++            resultado = _cancelar(args)
++        elif args.orden == "verificar-lapidas":
++            resultado = cancelaciones.verificar_lapidas()
++        elif args.orden == "reaplicar-lapidas":
++            if not args.confirmar:
++                raise ErrorDeAnka("Reaplicar escribe en SQLite: agrega --confirmar cuando esté autorizado.")
++            resultado = cancelaciones.reaplicar_lapidas()
+         elif args.orden == "ver":
+             resultado = _publico(trabajos_work.obtener(args.job_id))
+         elif args.orden == "exportar":
+diff --git a/anka/cli/work_sync.py b/anka/cli/work_sync.py
+--- a/anka/cli/work_sync.py
++++ b/anka/cli/work_sync.py
+@@ -34,6 +34,7 @@
+ from anka.infra.settings import load_config
+ from anka.infra.work_heartbeat import other_bridge_running, wait_for_next_cycle, write_heartbeat
+ from anka.servicios.lectura_de_adjuntos import verificar_lectura
++from anka.dominio.cancelacion_work import MensajeCancelado
+ from anka.servicios.work_import import dashboard_upsert
+ 
+ MOTIVO_MAX = 300
+@@ -464,6 +465,8 @@
+     draft_id, stamp, (payload, raw) = candidatos[0]
+     try:
+         upsert(_codificar_para_importar(payload, raw, stamp))
++    except MensajeCancelado:
++        return {**resultado, "resultado": "mensaje_cancelado"}      # T-83: la lápida del mensaje manda
+     except (Exception, SystemExit) as exc:
+         log.warning("Importación aislada fallida (%s)", type(exc).__name__, exc_info=True)
+         return {**resultado, "resultado": "fallo_de_importacion", "error": type(exc).__name__}
+@@ -512,6 +515,8 @@
+             _guardar_estado(checkpoint, state)
+             updated += 1
+             print(f"Dashboard actualizado: {thread}", flush=True)
++        except MensajeCancelado:
++            log.info("Hilo %s: su mensaje está cancelado (T-83); no se importa", thread)
+         except (Exception, SystemExit) as exc:
+             failures += 1
+             log.warning("Hilo %s: importación fallida (%s); se reintentará", thread, type(exc).__name__, exc_info=True)
+diff --git a/anka/dominio/cancelacion_work.py b/anka/dominio/cancelacion_work.py
+new file mode 100644
+--- /dev/null
++++ b/anka/dominio/cancelacion_work.py
+@@ -0,0 +1,72 @@
++"""Cancelación de un mensaje de prueba: quién la autoriza, qué se rechaza y los errores que explican por qué (T-83).
++
++Reglas puras, sin acceso a SQLite, Gmail ni Drive. Una cancelación deja una «lápida»: un trabajo en estado
++`cancelado` que impide crear, publicar, importar o conciliar ese mensaje. Solo actúa sobre una identidad literal y un
++mensaje cuyo asunto lleva la etiqueta de prueba autorizada.
++"""
++
++from __future__ import annotations
++
++import re
++from dataclasses import dataclass
++
++from anka.dominio.errores import ErrorDeAnka
++
++IDENTIFICADOR = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
++ETIQUETA = re.compile(r"^\[PI-[A-Z0-9-]{3,40}\]$")
++EVENTO_DE_CANCELACION = "trabajo_cancelado"
++
++CANCELADO_AHORA = "cancelado"
++YA_CANCELADO = "ya_cancelado"
++
++RECHAZOS = {
++    "identidad_invalida": "el thread_id o el message_id no es un identificador literal válido",
++    "falta_operador": "falta quien opera",
++    "falta_motivo": "falta el motivo",
++    "etiqueta_invalida": "la etiqueta de prueba no tiene la forma [PI-…]",
++    "mensaje_no_registrado": "el mensaje no está en la cola de recepción (use la cancelación preventiva explícita)",
++    "no_es_de_prueba": "el asunto del mensaje no lleva la etiqueta de prueba autorizada: podría ser una solicitud real",
++    "mensaje_no_pendiente": "el mensaje ya no está pendiente de interpretación",
++    "publicando_en_curso": "el trabajo se está publicando: espere o intervenga una persona",
++    "ya_publicado_requiere_persona": "el trabajo ya está publicado (hay hoja en Drive y Work puede estar trabajando)",
++    "conciliado_intocable": "el trabajo está conciliado y no se cambia",
++    "carrera": "el trabajo cambió de estado durante la cancelación; vuelva a consultar",
++}
++
++
++class CancelacionRechazada(ErrorDeAnka):
++    """La cancelación no se hizo; `codigo` es una clave de `RECHAZOS` y no se escribió nada."""
++
++    def __init__(self, codigo: str, detalle: str = "") -> None:
++        self.codigo = codigo
++        super().__init__(f"{codigo}: {RECHAZOS[codigo]}" + (f" ({detalle})" if detalle else ""))
++
++
++class MensajeCancelado(ErrorDeAnka):
++    """El mensaje tiene una lápida: no se crea, publica, importa ni concilia nada que lo reactive."""
++
++
++@dataclass(frozen=True)
++class Autorizacion:
++    """Lo que una persona autoriza, por escrito, para UN mensaje de prueba concreto."""
++
++    thread_id: str
++    message_id: str
++    operador: str
++    motivo: str
++    etiqueta: str                 # p. ej. "[PI-T79-PRUEBA-01]": debe estar en el asunto del mensaje registrado
++    preventiva: bool = False      # permite cancelar antes de que el receptor registre el mensaje
++
++    def normalizada(self) -> Autorizacion:
++        """La autorización con los textos recortados; rechaza identidades no literales y datos que faltan."""
++        hilo, mensaje = self.thread_id.strip(), self.message_id.strip()
++        if not (IDENTIFICADOR.match(hilo) and IDENTIFICADOR.match(mensaje)):
++            raise CancelacionRechazada("identidad_invalida")
++        if not self.operador.strip():
++            raise CancelacionRechazada("falta_operador")
++        if not self.motivo.strip():
++            raise CancelacionRechazada("falta_motivo")
++        if not ETIQUETA.match(self.etiqueta.strip()):
++            raise CancelacionRechazada("etiqueta_invalida")
++        return Autorizacion(hilo, mensaje, self.operador.strip(), self.motivo.strip(), self.etiqueta.strip(),
++                            self.preventiva)
+diff --git a/anka/infra/backup.py b/anka/infra/backup.py
+--- a/anka/infra/backup.py
++++ b/anka/infra/backup.py
+@@ -252,7 +252,19 @@
+         _comprobar_base(stage / 'quotes.sqlite3')
+         names = _resolver_configuracion(stage, names)
+         _install_restore(stage, names)
++    _reaplicar_lapidas()
+     return settings.DATA_DIR / 'quotes.sqlite3'
++
++
++def _reaplicar_lapidas() -> None:
++    """Devuelve a la base restaurada las lápidas de cancelación del diario (T-83); un choque lo decide una persona."""
++    from anka.infra import lapidas
++    informe = lapidas.reaplicar_en_archivo(settings.DATA_DIR / 'quotes.sqlite3', ahora_iso('seconds'))
++    if informe.get('omitido'):
++        log.warning('Copia sin tabla de trabajos: las lápidas se reaplican con work_jobs reaplicar-lapidas tras migrar')
++    elif informe['chocan'] or informe['lineas_rotas']:
++        log.warning('Lápidas de cancelación que requieren a una persona tras restaurar: %s choques, %s líneas rotas',
++                    len(informe['chocan']), informe['lineas_rotas'])
+ 
+ 
+ def _resolver_configuracion(stage: Path, names: list[str]) -> list[str]:
+diff --git a/anka/infra/lapidas.py b/anka/infra/lapidas.py
+new file mode 100644
+--- /dev/null
++++ b/anka/infra/lapidas.py
+@@ -0,0 +1,132 @@
++"""Diario de lápidas de cancelación, fuera de SQLite, para que una copia de seguridad restaurada no las pierda (T-83).
++
++`cancelaciones.jsonl` vive en la carpeta de datos, solo se agrega al final (con `fsync`) y NO forma parte de las
++copias, así que restaurar una copia más vieja no lo pisa. Después de restaurar, `reaplicar` devuelve a la base las
++lápidas que falten.
++Nunca cambia un trabajo publicado, conciliado o ambiguo: eso lo decide una persona.
++"""
++
++from __future__ import annotations
++
++import json
++import os
++import sqlite3
++from pathlib import Path
++from typing import Any
++
++from anka.infra import settings
++
++NOMBRE = "cancelaciones.jsonl"
++CANCELADO = "cancelado"
++PENDIENTE_DE_PUBLICAR = "pendiente_de_publicar"
++EVENTO_DE_REAPLICACION = "trabajo_cancelado_reaplicado"
++
++
++def ruta() -> Path:
++    """El diario de la carpeta de datos vigente."""
++    return settings.DATA_DIR / NOMBRE
++
++
++def registrar(entrada: dict[str, Any]) -> None:
++    """Agrega una línea al diario y la fuerza a disco; si falla, la cancelación entera se revierte."""
++    linea = json.dumps(entrada, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
++    ruta().parent.mkdir(parents=True, exist_ok=True)
++    with ruta().open("a", encoding="utf-8", newline="\n") as archivo:
++        archivo.write(linea)
++        archivo.flush()
++        os.fsync(archivo.fileno())
++
++
++def leer() -> tuple[list[dict[str, Any]], int]:
++    """Las entradas válidas del diario y cuántas líneas no se pudieron leer (una línea rota no tapa a las demás)."""
++    entradas: list[dict[str, Any]] = []
++    rotas = 0
++    try:
++        texto = ruta().read_text(encoding="utf-8")
++    except FileNotFoundError:
++        return entradas, rotas
++    for linea in texto.splitlines():
++        if not linea.strip():
++            continue
++        try:
++            valor = json.loads(linea)
++        except ValueError:
++            rotas += 1
++            continue
++        if isinstance(valor, dict) and valor.get("job_id") and valor.get("thread_id") and valor.get("message_id"):
++            entradas.append(valor)
++        else:
++            rotas += 1
++    return entradas, rotas
++
++
++def esta_registrada(job_id: str) -> bool:
++    """¿El diario ya tiene la lápida de ese trabajo?"""
++    return any(e["job_id"] == job_id for e in leer()[0])
++
++
++def comparar(db: sqlite3.Connection) -> dict[str, Any]:
++    """Solo lectura: qué lápidas del diario faltan en la base o chocan con un trabajo ya avanzado."""
++    faltan, chocan, bien = [], [], 0
++    entradas, rotas = leer()
++    for entrada in entradas:
++        fila = db.execute("SELECT state FROM trabajos_work WHERE job_id=?", (entrada["job_id"],)).fetchone()
++        if fila is None or fila["state"] == PENDIENTE_DE_PUBLICAR:
++            faltan.append(entrada["job_id"])
++        elif fila["state"] == CANCELADO:
++            bien += 1
++        else:
++            chocan.append({"job_id": entrada["job_id"], "estado": fila["state"]})
++    return {"entradas": len(entradas), "lineas_rotas": rotas, "en_orden": bien, "faltan": faltan, "chocan": chocan}
++
++
++def reaplicar_en_archivo(base: Path, ahora: str) -> dict[str, Any]:
++    """Reaplica sobre un archivo SQLite SIN migrarlo; una base vieja sin `trabajos_work` se omite."""
++    conexion = sqlite3.connect(base, timeout=15, isolation_level=None)
++    conexion.row_factory = sqlite3.Row
++    try:
++        tabla = conexion.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trabajos_work'").fetchone()
++        if tabla is None:
++            return {"omitido": "sin_tabla_de_trabajos", "entradas": len(leer()[0])}
++        return reaplicar(conexion, ahora)
++    finally:
++        conexion.close()
++
++
++def reaplicar(db: sqlite3.Connection, ahora: str) -> dict[str, Any]:
++    """Devuelve a la base las lápidas del diario que falten. Idempotente; los choques se informan y no se tocan."""
++    informe = comparar(db)
++    reaplicadas: list[str] = []
++    db.execute("BEGIN IMMEDIATE")
++    try:
++        for entrada in leer()[0]:
++            if entrada["job_id"] not in informe["faltan"]:
++                continue
++            fila = db.execute("SELECT state FROM trabajos_work WHERE job_id=?", (entrada["job_id"],)).fetchone()
++            if fila is None:
++                db.execute("""INSERT INTO trabajos_work(job_id,account,thread_id,message_id,job_type,contract_version,
++                    state,message_ref_json,ref_sha256,last_error,created_at,updated_at)
++                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
++                           (entrada["job_id"], entrada["account"], entrada["thread_id"], entrada["message_id"],
++                            entrada["job_type"], entrada["contract_version"], CANCELADO, "{}", "",
++                            "cancelado:reaplicada", ahora, ahora))
++            else:
++                cambio = db.execute("UPDATE trabajos_work SET state=?,last_error=?,updated_at=? "
++                                    "WHERE job_id=? AND state=?",
++                                    (CANCELADO, "cancelado:reaplicada", ahora, entrada["job_id"],
++                                     PENDIENTE_DE_PUBLICAR))
++                if cambio.rowcount != 1:
++                    continue
++            db.execute("INSERT INTO recepcion_eventos(account,thread_id,message_id,event_kind,occurred_at,detail_json) "
++                       "VALUES(?,?,?,?,?,?)",
++                       (entrada["account"], entrada["thread_id"], entrada["message_id"], EVENTO_DE_REAPLICACION, ahora,
++                        json.dumps({"job_id": entrada["job_id"], "operador": entrada.get("operador", ""),
++                                    "motivo": entrada.get("motivo", ""),
++                                    "cancelado_at": entrada.get("cancelado_at", "")},
++                                   ensure_ascii=False, separators=(",", ":"), sort_keys=True)))
++            reaplicadas.append(entrada["job_id"])
++        db.execute("COMMIT")
++    except BaseException:
++        db.execute("ROLLBACK")
++        raise
++    return {**informe, "reaplicadas": reaplicadas}
+diff --git a/anka/servicios/cancelaciones.py b/anka/servicios/cancelaciones.py
+new file mode 100644
+--- /dev/null
++++ b/anka/servicios/cancelaciones.py
+@@ -0,0 +1,168 @@
++"""Cancela un mensaje de prueba con una lápida persistente que nada reactiva (T-83, D-179).
++
++Una sola transacción `BEGIN IMMEDIATE`: verifica la identidad, escribe (o convierte) un trabajo en `cancelado`,
++deja el evento y el diario fuera de SQLite, y confirma. Solo se cancela lo pendiente; un trabajo publicado, ambiguo o
++conciliado exige a una persona. No toca Gmail ni Drive y no cambia la configuración. Nada de aquí corre solo: lo
++invoca `work_jobs cancelar`.
++"""
++
++from __future__ import annotations
++
++import json
++import sqlite3
++from collections.abc import Callable
++from typing import Any
++
++from anka.dominio.cancelacion_work import (
++    CANCELADO_AHORA,
++    EVENTO_DE_CANCELACION,
++    YA_CANCELADO,
++    Autorizacion,
++    CancelacionRechazada,
++)
++from anka.dominio.reloj import ahora_iso
++from anka.dominio.trabajo_work import (
++    AMBIGUO,
++    CANCELADO,
++    CONCILIADO,
++    PENDIENTE_DE_PUBLICAR,
++    PUBLICADO,
++    PUBLICANDO,
++    TIPO_ANALIZAR,
++    VERSION_DEL_CONTRATO,
++    huella_de_la_referencia,
++    id_de_trabajo,
++    referencia_del_mensaje,
++)
++from anka.infra import lapidas, settings
++from anka.infra.store import lectura, transaccion
++from anka.servicios.recepcion import CUENTA, PENDIENTE
++
++
++def mensaje_cancelado(db: sqlite3.Connection, thread_id: str, message_id: object) -> bool:
++    """¿Ese mensaje tiene una lápida? Un `message_id` vacío o que no es texto nunca coincide."""
++    if not isinstance(message_id, str) or not message_id.strip():
++        return False
++    try:
++        return db.execute("SELECT 1 FROM trabajos_work WHERE account=? AND thread_id=? AND message_id=? AND state=? "
++                          "LIMIT 1", (CUENTA, str(thread_id), message_id.strip(), CANCELADO)).fetchone() is not None
++    except sqlite3.OperationalError:          # una base sin la tabla de trabajos no tiene lápidas
++        return False
++
++
++def _verificar_mensaje(db: sqlite3.Connection, aut: Autorizacion) -> tuple[sqlite3.Row | None, bool]:
++    fila = db.execute("SELECT * FROM recepcion_mensajes WHERE account=? AND thread_id=? AND message_id=?",
++                      (CUENTA, aut.thread_id, aut.message_id)).fetchone()
++    if fila is None:
++        if not aut.preventiva:
++            raise CancelacionRechazada("mensaje_no_registrado")
++        return None, False
++    if aut.etiqueta not in str(fila["subject"] or ""):
++        raise CancelacionRechazada("no_es_de_prueba")
++    return fila, True
++
++
++def _juzgar(trabajos: list[sqlite3.Row]) -> None:
++    """Rechaza si algún trabajo del mensaje no es cancelable (se comprueban todos antes de escribir nada)."""
++    for trabajo in trabajos:
++        estado = trabajo["state"]
++        if estado == CONCILIADO:
++            raise CancelacionRechazada("conciliado_intocable", trabajo["job_id"])
++        if estado == PUBLICANDO:
++            raise CancelacionRechazada("publicando_en_curso", trabajo["job_id"])
++        if estado in (PUBLICADO, AMBIGUO) or (estado == PENDIENTE_DE_PUBLICAR and trabajo["sheet_file_id"]):
++            raise CancelacionRechazada("ya_publicado_requiere_persona", trabajo["job_id"])
++
++
++def _evento(db: sqlite3.Connection, aut: Autorizacion, job_id: str, when: str, detalle: dict[str, Any]) -> None:
++    db.execute("INSERT INTO recepcion_eventos(account,thread_id,message_id,event_kind,occurred_at,detail_json) "
++               "VALUES(?,?,?,?,?,?)",
++               (CUENTA, aut.thread_id, aut.message_id, EVENTO_DE_CANCELACION, when,
++                json.dumps({"job_id": job_id, "motivo": aut.motivo, "operador": aut.operador, "etiqueta": aut.etiqueta,
++                            "cancelado_at": when, **detalle},
++                           ensure_ascii=False, separators=(",", ":"), sort_keys=True)))
++
++
++def _diario(aut: Autorizacion, job_id: str, when: str) -> None:
++    lapidas.registrar({"job_id": job_id, "account": CUENTA, "thread_id": aut.thread_id, "message_id": aut.message_id,
++                       "job_type": TIPO_ANALIZAR, "contract_version": VERSION_DEL_CONTRATO, "operador": aut.operador,
++                       "motivo": aut.motivo, "etiqueta": aut.etiqueta, "cancelado_at": when})
++
++
++def _cancelar(db: sqlite3.Connection, aut: Autorizacion, when: str) -> dict[str, Any]:
++    fila, verificada = _verificar_mensaje(db, aut)
++    job_id = id_de_trabajo(CUENTA, aut.thread_id, aut.message_id, TIPO_ANALIZAR, VERSION_DEL_CONTRATO)
++    trabajos = db.execute("SELECT * FROM trabajos_work WHERE account=? AND thread_id=? AND message_id=? "
++                          "ORDER BY job_id", (CUENTA, aut.thread_id, aut.message_id)).fetchall()
++    if trabajos and all(t["state"] == CANCELADO for t in trabajos):
++        if not lapidas.esta_registrada(trabajos[0]["job_id"]):
++            _diario(aut, trabajos[0]["job_id"], when)       # una lápida sin diario se completa; nada más se escribe
++        return {"resultado": YA_CANCELADO, "job_id": trabajos[0]["job_id"], "estado_previo": CANCELADO,
++                "verificada": verificada}
++    if fila is not None and (fila["state"], fila["disposition"]) != PENDIENTE and not trabajos:
++        raise CancelacionRechazada("mensaje_no_pendiente", f"{fila['state']}/{fila['disposition']}")
++    _juzgar(trabajos)
++    if not trabajos:
++        referencia = referencia_del_mensaje(dict(fila)) if fila is not None else {}
++        db.execute("""INSERT INTO trabajos_work(job_id,account,thread_id,message_id,job_type,contract_version,state,
++            message_ref_json,ref_sha256,last_error,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
++                   (job_id, CUENTA, aut.thread_id, aut.message_id, TIPO_ANALIZAR, VERSION_DEL_CONTRATO, CANCELADO,
++                    json.dumps(referencia, ensure_ascii=False, sort_keys=True),
++                    huella_de_la_referencia(referencia) if referencia else "", "cancelado:sin_trabajo_previo",
++                    when, when))
++        _evento(db, aut, job_id, when, {"estado_previo": "sin_trabajo", "verificada": verificada})
++        _diario(aut, job_id, when)
++        return {"resultado": CANCELADO_AHORA, "job_id": job_id, "estado_previo": "sin_trabajo",
++                "verificada": verificada, "revisar_drive": False}
++    for trabajo in trabajos:
++        if trabajo["state"] == CANCELADO:
++            continue
++        cambio = db.execute("UPDATE trabajos_work SET state=?,claim_token='',claim_until=NULL,last_error=?,"
++                            "updated_at=? WHERE job_id=? AND state=?",
++                            (CANCELADO, "cancelado:" + aut.motivo[:150], when, trabajo["job_id"],
++                             PENDIENTE_DE_PUBLICAR))
++        if cambio.rowcount != 1:
++            raise CancelacionRechazada("carrera", trabajo["job_id"])
++        _evento(db, aut, trabajo["job_id"], when, {"estado_previo": trabajo["state"], "verificada": verificada,
++                                                   "intentos_previos": trabajo["attempts"]})
++        _diario(aut, trabajo["job_id"], when)
++    # un intento de publicar que falló pudo dejar una hoja marcada en Drive sin anotar: lo revisa una persona
++    return {"resultado": CANCELADO_AHORA, "job_id": trabajos[0]["job_id"], "estado_previo": trabajos[0]["state"],
++            "verificada": verificada, "revisar_drive": any(t["attempts"] > 0 for t in trabajos)}
++
++
++def cancelar_mensaje(autorizacion: Autorizacion, ahora: Callable[[], str] | None = None) -> dict[str, Any]:
++    """Cancela, de forma persistente e idempotente, el mensaje de prueba autorizado.
++
++    Devuelve `{"resultado": "cancelado" | "ya_cancelado", "job_id", "estado_previo", "verificada"}`; si no se puede,
++    lanza `CancelacionRechazada` sin haber escrito nada. El diario se escribe antes de confirmar: si falla, se
++    revierte todo.
++    """
++    aut = autorizacion.normalizada()
++    when = (ahora or (lambda: ahora_iso("seconds")))()
++    with transaccion() as db:
++        return _cancelar(db, aut, when)
++
++
++def verificar_lapida_preventiva(autorizacion: Autorizacion) -> dict[str, Any]:
++    """Tras registrarse el mensaje de una cancelación preventiva: ¿su asunto lleva la etiqueta? Solo lectura."""
++    aut = autorizacion.normalizada()
++    with lectura() as db:
++        fila = db.execute("SELECT subject FROM recepcion_mensajes WHERE account=? AND thread_id=? AND message_id=?",
++                          (CUENTA, aut.thread_id, aut.message_id)).fetchone()
++    if fila is None:
++        return {"estado": "aun_no_registrado"}
++    return {"estado": "registrado", "coincide": aut.etiqueta in str(fila["subject"] or "")}
++
++
++def reaplicar_lapidas() -> dict[str, Any]:
++    """Devuelve a la base las lápidas del diario que falten (idempotente); los choques se informan sin tocarlos."""
++    return lapidas.reaplicar_en_archivo(settings.DATA_DIR / "quotes.sqlite3", ahora_iso("seconds"))
++
++
++def verificar_lapidas() -> dict[str, Any]:
++    """Solo lectura: ¿el diario y la base coinciden? Debe estar en orden antes de reactivar la coordinación."""
++    with lectura() as db:
++        informe = lapidas.comparar(db)
++    informe["en_orden_total"] = not (informe["faltan"] or informe["chocan"] or informe["lineas_rotas"])
++    return informe
+diff --git a/anka/servicios/coordinacion.py b/anka/servicios/coordinacion.py
+--- a/anka/servicios/coordinacion.py
++++ b/anka/servicios/coordinacion.py
+@@ -38,7 +38,7 @@
+ EVENTO_REQUIERE_PERSONA = "coordinacion_requiere_persona"     # el quinto fallo consecutivo, o demasiadas recuperaciones
+ EVENTO_SIN_RESPUESTA = "coordinacion_sin_respuesta"           # Work no respondió en el plazo (una sola vez)
+ EVENTO_HOJA_AUSENTE = "coordinacion_hoja_ausente"             # la hoja del trabajo publicado desapareció (una sola vez)
+-IMPORTACIONES_SIN_FALLO = ("importado", "sin_borrador")
++IMPORTACIONES_SIN_FALLO = ("importado", "sin_borrador", "mensaje_cancelado")
+ MAXIMO_DE_RECUPERACIONES = 3                                  # por trabajo y por proceso
+ 
+ Importar = Callable[[str, str], dict[str, Any]]    # (thread_id, message_id) -> resultado de `importar_aislado`
+diff --git a/anka/servicios/despacho.py b/anka/servicios/despacho.py
+--- a/anka/servicios/despacho.py
++++ b/anka/servicios/despacho.py
+@@ -12,7 +12,8 @@
+ 
+ from anka.dominio.errores import ErrorDeAnka
+ from anka.dominio.trabajo_work import (
+-    AMBIGUO, CLAVE_DE_MARCA, CONCILIADO, EXCLUIDO, PENDIENTE_DE_PUBLICAR, TIPO_ANALIZAR, VERSION_DEL_CONTRATO,
++    AMBIGUO, CANCELADO, CLAVE_DE_MARCA, CONCILIADO, EXCLUIDO, PENDIENTE_DE_PUBLICAR, TIPO_ANALIZAR,
++    VERSION_DEL_CONTRATO,
+ )
+ from anka.infra.clientes_google import ClienteDrive
+ from anka.infra.logging_setup import get_logger
+@@ -114,6 +115,8 @@
+     if trabajo is not None:
+         if trabajo["state"] == CONCILIADO:
+             return {"resultado": "ya_conciliado", "job_id": trabajo["job_id"]}
++        if trabajo["state"] == CANCELADO:
++            return {"resultado": "cancelado", "job_id": trabajo["job_id"]}
+         if trabajo["state"] == AMBIGUO:
+             return {"resultado": "ambiguo", "job_id": trabajo["job_id"]}
+         if trabajo["state"] == PENDIENTE_DE_PUBLICAR and trabajo["attempts"] >= MAXIMO_DE_INTENTOS:
+@@ -129,8 +132,16 @@
+                     "motivo": rechazo.veredicto.motivo_id}
+         except TrabajoRechazado:
+             return {"resultado": "mensaje_no_pendiente"}
+-    publicacion = trabajos_work.publicar_trabajo(drive, trabajo["job_id"], carpetas[NOMBRE_PENDIENTES], reloj,
+-                                                 paquete_version=paquete)
++        if trabajo["state"] == CANCELADO:             # una lápida escrita entre la consulta y la creación
++            return {"resultado": "cancelado", "job_id": trabajo["job_id"]}
++    try:
++        publicacion = trabajos_work.publicar_trabajo(drive, trabajo["job_id"], carpetas[NOMBRE_PENDIENTES], reloj,
++                                                     paquete_version=paquete)
++    except TrabajoRechazado:
++        actual = trabajos_work.obtener(trabajo["job_id"])
++        if actual is not None and actual["state"] == CANCELADO:    # se canceló entre crear y publicar: no es un error
++            return {"resultado": "cancelado", "job_id": trabajo["job_id"]}
++        raise
+     return {**publicacion, "clasificacion": trabajo.get("clasificacion", "")}
+ 
+ 
+diff --git a/anka/servicios/estado_operativo.py b/anka/servicios/estado_operativo.py
+--- a/anka/servicios/estado_operativo.py
++++ b/anka/servicios/estado_operativo.py
+@@ -83,7 +83,9 @@
+                             "FROM recepcion_mensajes").fetchone()
+         atencion = [dict(r) for r in db.execute(
+             "SELECT thread_id, message_id, state, disposition, error_kind, attempts, detected_at, processed_at "
+-            "FROM recepcion_mensajes WHERE state != 'procesado' ORDER BY detected_at DESC LIMIT ?", (LIMITE_DE_FILAS,))]
++            "FROM recepcion_mensajes r WHERE state != 'procesado' AND NOT EXISTS (SELECT 1 FROM trabajos_work t "
++            "WHERE t.account=r.account AND t.thread_id=r.thread_id AND t.message_id=r.message_id AND t.state=?) "
++            "ORDER BY detected_at DESC LIMIT ?", (tw.CANCELADO, LIMITE_DE_FILAS))]     # T-83: lo cancelado no pide
+         trabajos = _conteos(db.execute("SELECT state AS estado, COUNT(*) AS n FROM trabajos_work "
+                                        "GROUP BY state").fetchall(), ESTADOS_DE_TRABAJO)
+         con_error = db.execute("SELECT COUNT(*) FROM trabajos_work WHERE last_error != '' "
+diff --git a/anka/servicios/recepcion.py b/anka/servicios/recepcion.py
+--- a/anka/servicios/recepcion.py
++++ b/anka/servicios/recepcion.py
+@@ -602,12 +602,19 @@
+     Se ejecuta con la conexión y dentro de la transacción del importador: el cambio y el análisis se confirman juntos.
+     Concilia solo la fila `(thread_id, message_id)` exacta y solo desde `pendiente_de_procesar`; no inventa filas ni
+     toca el cursor. No juzga el análisis: uno incompleto también se concilia. Devuelve qué pasó: `conciliado`,
+-    `ya_conciliado`, `sin_registro`, `diferida`, `omitida` o `sin_identidad`.
++    `ya_conciliado`, `sin_registro`, `diferida`, `omitida`, `sin_identidad` o `cancelado` (T-83).
+     """
+     thread_id, message_id = str(thread_id or "").strip(), str(message_id or "").strip()
+     if not thread_id or not message_id:
+         return "sin_identidad"
+     when = ahora or ahora_iso("seconds")
++    try:
++        hay_lapida = db.execute("SELECT 1 FROM trabajos_work WHERE account=? AND thread_id=? AND message_id=? "
++                                "AND state='cancelado' LIMIT 1", (CUENTA, thread_id, message_id)).fetchone() is not None
++    except sqlite3.OperationalError:          # una base sin la tabla de trabajos no tiene lápidas
++        hay_lapida = False
++    if hay_lapida:
++        return "cancelado"                    # T-83: una lápida impide cerrar el mensaje como interpretado
+     fila = db.execute("SELECT state,disposition,evidence_json FROM recepcion_mensajes "
+                       "WHERE account=? AND thread_id=? AND message_id=?", (CUENTA, thread_id, message_id)).fetchone()
+     if fila is None:
+diff --git a/anka/servicios/trabajos_work.py b/anka/servicios/trabajos_work.py
+--- a/anka/servicios/trabajos_work.py
++++ b/anka/servicios/trabajos_work.py
+@@ -231,9 +231,13 @@
+             veredicto = veredicto_del_mensaje(db, fila)
+             tiene = db.execute("SELECT 1 FROM trabajos_work WHERE account=? AND thread_id=? AND message_id=? LIMIT 1",
+                                (CUENTA, fila["thread_id"], fila["message_id"])).fetchone() is not None
++            cancelado = db.execute("SELECT 1 FROM trabajos_work WHERE account=? AND thread_id=? AND message_id=? "
++                                   "AND state=? LIMIT 1", (CUENTA, fila["thread_id"], fila["message_id"],
++                                                           "cancelado")).fetchone() is not None
+             clasificacion = clasificacion_del_mensaje(db, fila)
+             resultado.append({"thread_id": fila["thread_id"], "message_id": fila["message_id"],
+                               "veredicto": veredicto.estado, "motivo": veredicto.motivo_id, "tiene_trabajo": tiene,
++                              "cancelado": cancelado,
+                               "clasificacion": clasificacion.clase, "motivo_de_clasificacion": clasificacion.motivo})
+     return resultado
+ 
+diff --git a/anka/servicios/work_import.py b/anka/servicios/work_import.py
+--- a/anka/servicios/work_import.py
++++ b/anka/servicios/work_import.py
+@@ -24,6 +24,8 @@
+ from anka.infra.logging_setup import get_logger
+ from anka.infra import rechazos_de_work
+ from anka.infra.store import begin_immediate, record_event, save, transaccion
++from anka.dominio.cancelacion_work import MensajeCancelado
++from anka.servicios.cancelaciones import mensaje_cancelado
+ from anka.servicios.change_control import apply_guard
+ from anka.servicios.estados import verificar_transicion
+ from anka.servicios.hoja_de_calculo import programar_actualizacion_de_hoja
+@@ -309,6 +311,8 @@
+     message_id = payload.get("message_id") or thread_id
+     status = _internal_status(payload, analysis)
+     begin_immediate(db)   # el estado se lee y se escribe bajo el mismo candado: no se pisa al dashboard (U-42)
++    if mensaje_cancelado(db, thread_id, payload.get("message_id")):
++        raise MensajeCancelado("Ese mensaje fue cancelado (T-83): el análisis de Work no se importa.")
+     apply_guard(
+         db, thread_id, analysis, str(payload.get("requested_by_email") or ""),
+         str(payload.get("requested_by_name") or ""),
+diff --git a/spec/05-decisiones.md b/spec/05-decisiones.md
+--- a/spec/05-decisiones.md
++++ b/spec/05-decisiones.md
+@@ -15,6 +15,7 @@
+ | D-150 | 2026-10-17 | La importación aislada (T-47) es una función aparte del puente general, no un filtro dentro de él: recibe el par `(thread_id, message_id)`, filtra por hilo antes de interpretar, **fuerza** `_verify_origin` (la verificación por versión de T-41/T-44 sigue igual en el modo general) y no usa estado, latido, casos mínimos, seguimiento de actividad, hoja de Google ni `work_rejections`. Ante dos borradores válidos para el mismo mensaje no elige: informa y termina con error. La verificación de lectura contra el manifiesto de Drive (T-37/T-38) o contra los adjuntos de Gmail (T-41) se conserva tal cual: sin instantánea no hay advertencia, y con una instantánea que no incluya el mensaje el análisis queda incompleto. No actualiza `recepcion_mensajes` (el acuse es otro cambio). | El piloto del retorno Work → Python debe poder probar un solo borrador sin efectos en el resto de la cuenta; forzar el origen sin tocar la versión evita fingir `skill_version` o `DRIVE_PREFLIGHT`; no usar estado evita pisar el checkpoint del puente (la importación es idempotente por la referencia del hecho de auditoría). | Añadir `--thread-id` a `sync_once` (arrastra casos mínimos, seguimiento y estado); declarar `PRECISO_V6.1` para forzar la verificación (finge una versión que Work no declaró); elegir el borrador más nuevo ante dos válidos (puede importar el equivocado); omitir los datos comerciales del caso (el caso quedaría sin cliente). |
+ | D-145 | 2026-10-15 | El respaldo (local y Drive) lleva `config.redactado.json` y no `config.json`; la redacción es por nombre y por aspecto del valor, la restauración no pisa la configuración viva y acepta copias antiguas (U-78). | `config.json` es de uso libre y se subía a Drive tal cual: una clave puesta a mano allí habría salido de la máquina. La clave de OpenAI vive en una variable de entorno y el token de Google no entra en la copia, así que con esto la copia no lleva ningún secreto conocido. | Dos zips, uno local completo y otro redactado (duplica la superficie y el local seguiría llevando secretos junto a la base); cifrar `config.json` (requiere contraseña o dependencia nueva); no respaldar la configuración (se perdería lo ajustado a mano: filtros, ids de carpeta). Las copias que ya estén en Drive no se tocan desde aquí: queda la recomendación de revisarlas y rotar credenciales. |
+ | D-180 | 2026-10-21 | El indicador «Revisión de correos» (`bridge_state`) lee `recepcion_control` cuando quien revisa es el receptor Gmail (modo Work, recepción habilitada, puente general sin usar) y conserva el latido solo cuando el puente general corre | Tras D-161 y D-163 nadie escribe el latido: el chip decía «detenida» con el receptor sano (T-82E) | Un aviso aparte en el chip; escribir un latido desde el receptor |
++| D-179 | 2026-10-21 | Un mensaje de prueba se **cancela con una lápida persistente** (un trabajo en estado `cancelado`, con el `job_id` determinista del mensaje) que escribe `work_jobs cancelar` en una sola transacción, con identidad literal y la etiqueta de prueba autorizada en el asunto; la lápida impide crear, publicar, importar y conciliar, y un diario fuera de SQLite (`cancelaciones.jsonl`) la devuelve tras restaurar una copia. Solo se cancela lo pendiente: lo publicado, ambiguo o conciliado exige a una persona. Descartado: borrar filas (se pierde evidencia), cancelar por asunto o remitente (ambiguo), y confiar solo en SQLite (una copia vieja la pierde) |
+ | D-178 | 2026-10-20 | Los cambios de cantidad entre mensajes del cliente se detectan en una capa nueva y aparte (`cambios_de_magnitud`), en modo sombra, con la procedencia de cada mensaje guardada en el texto local del hilo; nunca eligen un valor vigente ni se consideran aceptados por Anka. | T-67 mostró que una cifra sustituida en un seguimiento pasa por verificada. El dato más reciente no es el vigente por serlo, y Work no distingue valor anterior de vigente: describir la discrepancia y dejar que la persona decida es lo único que no inventa precedencias. | Poner la procedencia en el contrato con Work (cambia el esquema y la skill); usar `case_messages` (recorta a 8000 caracteres y no guarda la fecha de Gmail); tomar el mensaje más reciente como vigente; cambiar `integrar_seguimiento`. |
+ | D-177 | 2026-10-20 | Una cita explícita de `fuente` (archivo, página, hoja o celda) que no se puede leer da `NO_COMPROBABLE` (`fuente_inexistente`, `referencia_ambigua` o `ubicacion_no_resuelta`) y nunca una contradicción. | La evaluación T-67 mostró un falso positivo: con un archivo inexistente se buscaba en todo el expediente y se afirmaba `CONTRADICTORIA_VALOR` con la cifra de otro documento. | Dejar la búsqueda amplia como respaldo (reproduce el falso positivo); tratarlo como `NO_ENCONTRADA` (sugiere que la cifra falta, cuando no se pudo mirar). |
+ | D-176 | 2026-10-20 | La verificación contextual de cantidades y unidades (T-66, antes T-65.2) es una capa nueva, en modo sombra, dentro de `evidence_check["observaciones"]`: no cambia los cubos ni la semántica de `comprobar_tabla`, no muestra avisos y no bloquea nada. Una contradicción de valor exige evidencia verificable del mismo concepto y unidad en una lectura completa; la ausencia de una cifra, el OCR dudoso o un separador ambiguo nunca la producen. | El diseño de T-65.1 pedía no alterar el esquema, el prompt ni el flujo de conciliación, y medir antes de avisar: en sombra se revisan los falsos positivos con importaciones reales antes de mostrar nada. | Corregir `numeros_del_texto` (cambia resultados antiguos y rompe la compatibilidad); activar los avisos de una vez; rechazar borradores con contradicciones (convertiría un apoyo en bloqueo). |
+diff --git a/spec/06-arquitectura.md b/spec/06-arquitectura.md
+--- a/spec/06-arquitectura.md
++++ b/spec/06-arquitectura.md
+@@ -43,6 +43,7 @@
+ | Módulo | Para qué sirve |
+ |---|---|
+ | `activities` | Edicion y exportacion de la tabla de actividades (sin acceso a Gmail ni Drive). |
++| `cancelacion_work` | Cancelación de un mensaje de prueba: quién la autoriza, qué se rechaza y los errores que explican por qué (T-83). |
+ | `reloj` | El reloj de Anka: una sola hora «de ahora» con zona horaria y una forma de ordenar fechas por instante (U-62). |
+ | `caso_minimo` | El caso mínimo para un borrador de Work sin análisis válido, con solo lo verificable en Gmail (T-36). |
+ | `cambios_de_magnitud` | Detección de posibles cambios de cantidad entre mensajes del cliente de un hilo, con la procedencia de cada mensaje; solo observaciones, en modo sombra (T-69). |
+@@ -101,6 +102,7 @@
+ | `recepcion_store` | Migración SQLite del cursor, la cola y la auditoría del trigger Gmail (U-81). |
+ | `trabajos_work_store` | Migración SQLite de `trabajos_work`, la cola de trabajos Python → Work (T-49, D-153). |
+ | `gmail_reception_auth` | Autorización y cliente Gmail de solo lectura del receptor, con token propio y alcance verificado (U-81). |
++| `lapidas` | Diario de lápidas de cancelación, fuera de SQLite, para que una copia de seguridad restaurada no las pierda (T-83). |
+ | `instancia_unica` | Candado de instancia única entre procesos, con el candado del sistema operativo y sin depender de un PID; lo usa el receptor aislado (U-81, D-151). |
+ | `drive_exchange` | Intercambio de archivos propios en Drive con claves estables, paginación y bloqueo local. |
+ | `llm` | Análisis del correo con el motor elegido (Ollama u OpenAI). |
+@@ -150,6 +152,7 @@
+ | `repositorio` | `RepositorioDeCasos`: el único lugar que sabe cómo se guardan y se leen los casos en SQLite. |
+ | `salud` | Comprobación de las conexiones del sistema: base, configuración, puente de Work, Gmail, Drive y motor de análisis. |
+ | `work_import` | Importación del borrador de ChatGPT Work al dashboard (`dashboard_upsert`). |
++| `cancelaciones` | Cancela un mensaje de prueba con una lápida persistente que nada reactiva (T-83, D-179). |
+ | `trabajos_work` | Crea el trabajo de un mensaje pendiente, publica su hoja en Drive sin duplicar (reclamo en SQLite, marca `appProperties`, adopta antes de crear, verifica después) y cierra el trabajo al importar (T-49, D-153). |
+ | `despacho` | Despacho a Work (T-53): una pasada que asegura `PENDIENTES`/`CERRADOS`, crea y publica el trabajo elegible del mensaje del piloto, reintenta y archiva los conciliados. |
+ | `coordinacion` | Coordinación automática (T-55): un ciclo acotado que archiva lo conciliado, importa los borradores de Work con T-47 y despacha los mensajes elegibles nuevos, con límites, retroceso por trabajo, auditoría y candado de instancia única. |
+diff --git a/spec/requisitos.md b/spec/requisitos.md
+--- a/spec/requisitos.md
++++ b/spec/requisitos.md
+@@ -2337,6 +2337,20 @@
+    `conciliar_con_work` aceptan un mensaje cancelado; restaurar una copia anterior pierde la lápida; el panel lo muestra como
+    pendiente; no existe la orden `cancelar` ni el diario de lápidas.
+ 
++### T-83 · Cancelación de un mensaje de prueba con una lápida que nada reactiva
++**Problema.** Sin una orden de cancelación, un mensaje de prueba ya registrado se publica solo al restaurar la coordinación, y una
++importación directa de un borrador podía cerrarlo como interpretado (T-80, T-82).
++1. **Orden.** `work_jobs cancelar --thread-id --message-id --etiqueta --operador --motivo [--preventiva] --confirmar` escribe, en una
++   transacción, una lápida (trabajo `cancelado` con el `job_id` determinista del mensaje), un evento `trabajo_cancelado` con operador,
++   motivo, fecha e identidad, y una línea del diario `cancelaciones.jsonl`. Es idempotente y no borra nada.
++2. **Seguridad.** Identidad literal; el asunto del mensaje registrado lleva la etiqueta `[PI-…]` autorizada; solo se cancela lo
++   pendiente. Publicando, publicado, ambiguo o con hoja guardado exigen a una persona; conciliado no se toca.
++3. **Cierre de caminos.** Con una lápida no se crea, no se publica, no se concilia (`conciliar_con_work` responde `cancelado`) ni se
++   importa un borrador (`dashboard_upsert` lanza `MensajeCancelado`; la importación aislada responde `mensaje_cancelado` y no cuenta como fallo).
++4. **Copias de seguridad.** El diario no forma parte de las copias; tras `restore` se reaplican las lápidas que falten y
++   `work_jobs verificar-lapidas` informa lo que falte o choque.
++5. **Vistas.** Lo cancelado no pide atención en el panel y la clasificación de recepción lo marca.
++
+ ### T-84 · El indicador «Revisión de correos» mide al receptor Gmail, no al puente apagado
+ **Problema.** Con la coordinación activa el puente general no corre (D-161, D-163), pero el chip del dashboard seguía leyendo su latido
+ y decía «detenida» aunque el receptor Gmail revisaba cada minuto.
+diff --git a/tests/test_cancelacion_t81.py b/tests/test_cancelacion_t81.py
+--- a/tests/test_cancelacion_t81.py
++++ b/tests/test_cancelacion_t81.py
+@@ -20,7 +20,7 @@
+ 
+ from anka.dominio.trabajo_work import id_de_trabajo
+ from anka.infra import store
+-from anka.servicios import despacho, recepcion, trabajos_work, work_import
++from anka.servicios import despacho, recepcion, trabajos_work
+ from anka.servicios.despacho import Alcance
+ from laboratorio.banco_documental import cancelacion as c
+ from laboratorio.banco_documental.cancelacion import Autorizacion, CancelacionRechazada
+@@ -169,8 +169,8 @@
+         devuelto = trabajos_work.crear_trabajo(*LAB)
+         self.assertEqual((devuelto["state"], devuelto["creado"]), ("cancelado", False))
+         self.assertEqual(self.trabajos_en_total(), 1)
+-        with self.assertRaises(trabajos_work.TrabajoRechazado):
+-            despacho.despachar(self.drive, CARPETA, Alcance(*LAB))
++        resultado = despacho.despachar(self.drive, CARPETA, Alcance(*LAB))      # T-83: ya no es un error
++        self.assertEqual(resultado["publicacion"]["resultado"], "cancelado")
+         self.assertEqual(len(self.hojas()), 0)
+ 
+     # Cubre: T-81
+@@ -439,33 +439,6 @@
+         self.assertEqual(estado_operativo.ESTADOS_DE_TRABAJO["cancelado"], ("Cancelado", "neutro"))
+ 
+ 
+-class HuecosDeProduccionTest(Base):
+-    # Cubre: T-81
+-    def test_60_el_importador_actual_no_respeta_la_lapida_si_le_llega_un_borrador(self) -> None:
+-        """Hueco que SIGUE ABIERTO: la lapida frena al coordinador, no a una importación directa (puente general, manual)."""
+-        self.sembrar_lab()
+-        self.cancelar()
+-        self.borradores[LAB[1]] = ["valido"]
+-        resultado = self.importar_simulado(*LAB)
+-        self.assertEqual(resultado["resultado"], "importado", "el importador no mira la lápida")
+-        self.assertEqual(self.estado_lab(), "cancelado", "el trabajo sigue cancelado")
+-        with store.lectura() as db:
+-            fila = db.execute("SELECT state,disposition FROM recepcion_mensajes WHERE message_id=?", (LAB[1],)).fetchone()
+-        self.assertEqual(tuple(fila), recepcion.INTERPRETADO, "pero el mensaje queda interpretado y el análisis, guardado")
+-        self.assertTrue(callable(work_import.dashboard_upsert))
+-
+-    # Cubre: T-81
+-    def test_61_la_cancelacion_no_cambia_nada_fuera_de_las_dos_tablas_de_recepcion_y_trabajos(self) -> None:
+-        self.sembrar_lab()
+-        with store.lectura() as db:
+-            tablas = [f[0] for f in db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+-                      if f[0] not in ("trabajos_work", "recepcion_eventos", "sqlite_sequence")]
+-            antes = {t: [tuple(f) for f in db.execute(f"SELECT * FROM {t}")] for t in tablas}
+-        self.cancelar()
+-        with store.lectura() as db:
+-            despues = {t: [tuple(f) for f in db.execute(f"SELECT * FROM {t}")] for t in tablas}
+-        self.assertEqual(despues, antes)
+-
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/tests/test_cancelacion_work.py b/tests/test_cancelacion_work.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_cancelacion_work.py
+@@ -0,0 +1,646 @@
++"""Cancelación productiva de mensajes y trabajos ficticios (T-83): operación, rechazos, carreras y continuidad.
++
++SQLite temporal, Drive y Gmail simulados y mensajes ficticios (los de `tests.test_coordinacion`): nada toca Google, la
++configuración operativa ni los datos reales. Se ejecuta solo con la integración de la cancelación aplicada.
++
++Cubre: T-83
++"""
++
++from tests import _isolate  # noqa: F401  (debe ir primero)
++
++import json
++import sqlite3
++import threading
++import time
++import unittest
++from collections.abc import Callable
++from dataclasses import replace
++from pathlib import Path
++from typing import Any
++
++import contextlib
++import io
++from unittest.mock import patch
++
++from anka.cli import work_jobs
++from anka.dominio.cancelacion_work import MensajeCancelado
++from anka.infra import backup, lapidas
++from anka.servicios import coordinacion, estado_operativo, quotes
++from tests.test_importacion_aislada import GmailAislado, borrador
++from tests.test_importacion_aislada import ID as ID_AISLADO
++from tests.test_work_sync import b64, payload
++
++from anka.dominio.trabajo_work import id_de_trabajo
++from anka.infra import store
++from anka.servicios import despacho, recepcion, trabajos_work, work_import
++from anka.servicios.despacho import Alcance
++from anka.dominio.cancelacion_work import EVENTO_DE_CANCELACION, Autorizacion, CancelacionRechazada
++from anka.servicios import cancelaciones
++from tests.test_aislamiento_t79 import ETIQUETA, LAB, REAL
++from anka.dominio.coordinacion_work import Plan
++from tests.test_coordinacion import CARPETA, plan
++from tests.test_recuperacion_t80 import ANTES, DESPUES
++from tests.test_recuperacion_t80 import Base as BaseDeT80
++
++MARCA = "[PI-T79-PRUEBA-01]"
++HILO_AISLADO = (ID_AISLADO, ID_AISLADO)
++
++
++def autorizacion(ids: tuple[str, str] = LAB, **cambios: Any) -> Autorizacion:
++    datos: dict[str, Any] = {"thread_id": ids[0], "message_id": ids[1], "operador": "operador.prueba",
++                             "motivo": "prueba integrada cancelada", "etiqueta": MARCA}
++    datos.update(cambios)
++    return Autorizacion(**datos)
++
++
++class Base(BaseDeT80):
++    @property
++    def plan_(self) -> Plan:
++        return plan()
++
++    def cancelar(self, aut: Autorizacion | None = None, ahora: Callable[[], str] | None = None) -> dict[str, Any]:
++        return cancelaciones.cancelar_mensaje(aut or autorizacion(), ahora)
++
++    def rechazo(self, aut: Autorizacion | None = None) -> str:
++        with self.assertRaises(CancelacionRechazada) as contexto:
++            self.cancelar(aut)
++        return contexto.exception.codigo
++
++    def foto(self) -> dict[str, list[dict[str, Any]]]:
++        with store.lectura() as db:
++            return {tabla: [dict(f) for f in db.execute(f"SELECT * FROM {tabla} ORDER BY 1").fetchall()]
++                    for tabla in ("recepcion_mensajes", "trabajos_work", "recepcion_eventos")}
++
++    def eventos_de_cancelacion(self) -> list[dict[str, Any]]:
++        with store.lectura() as db:
++            return [dict(f) for f in db.execute("SELECT * FROM recepcion_eventos WHERE event_kind=? ORDER BY id", (EVENTO_DE_CANCELACION,))]
++
++    def sembrar_lab(self, asunto: str = ETIQUETA) -> None:
++        self.fila(*LAB, asunto=asunto, remitente="prueba.controlada@example.com")
++
++
++class IdentidadYAlcanceTest(Base):
++    # Cubre: T-83
++    def test_03_solo_acepta_identificadores_literales_sin_comodines_ni_inyeccion(self) -> None:
++        self.sembrar_lab()
++        for mal in ("", " ", "T9%", "T*", "T9 OR 1=1", "T9'; DROP TABLE trabajos_work;--", "T9\nT8", "a" * 129):
++            self.assertEqual(self.rechazo(autorizacion(thread_id=mal)), "identidad_invalida", repr(mal))
++            self.assertEqual(self.rechazo(autorizacion(message_id=mal)), "identidad_invalida", repr(mal))
++        self.assertEqual(self.trabajos_en_total(), 0)
++
++    # Cubre: T-83
++    def test_04_exige_operador_motivo_y_etiqueta_con_la_forma_correcta(self) -> None:
++        self.sembrar_lab()
++        self.assertEqual(self.rechazo(autorizacion(operador="  ")), "falta_operador")
++        self.assertEqual(self.rechazo(autorizacion(motivo="")), "falta_motivo")
++        for etiqueta in ("", "PI-T79", "[PI-]", "[pi-t79-prueba-01]", "[PI-T79] extra", "T79"):
++            self.assertEqual(self.rechazo(autorizacion(etiqueta=etiqueta)), "etiqueta_invalida", etiqueta)
++        self.assertEqual(self.trabajos_en_total(), 0)
++
++    # Cubre: T-83
++    def test_05_no_cancela_un_mensaje_real_aunque_se_conozcan_sus_ids(self) -> None:
++        self.sembrar_pausa()
++        antes = self.foto()
++        for ids in (REAL, ANTES, DESPUES):
++            self.assertEqual(self.rechazo(autorizacion(ids)), "no_es_de_prueba", str(ids))
++        self.assertEqual(self.foto(), antes, "un rechazo no escribe nada")
++
++    # Cubre: T-83
++    def test_06_no_hay_cancelacion_por_asunto_remitente_ni_coincidencia_parcial(self) -> None:
++        self.sembrar_pausa()
++        self.assertEqual(self.rechazo(autorizacion(("T", "m"))), "mensaje_no_registrado")
++        self.assertEqual(self.rechazo(autorizacion((LAB[0], "m"))), "mensaje_no_registrado")
++        self.assertEqual(self.rechazo(autorizacion(("T9", "m9x"))), "mensaje_no_registrado")
++        self.assertEqual(self.trabajos_en_total(), 0)
++
++    # Cubre: T-83
++    def test_07_un_mensaje_que_ya_no_esta_pendiente_se_rechaza(self) -> None:
++        self.sembrar_lab()
++        with store.transaccion() as db:
++            db.execute("UPDATE recepcion_mensajes SET state='procesado',disposition='interpretado_por_work' "
++                       "WHERE message_id=?", (LAB[1],))
++        self.assertEqual(self.rechazo(), "mensaje_no_pendiente")
++        self.assertEqual(self.trabajos_en_total(), 0)
++
++
++class CancelarTest(Base):
++    # Cubre: T-83
++    def test_10_cancelar_tras_registrar_y_sin_trabajo_deja_una_lapida_con_toda_la_huella(self) -> None:
++        self.sembrar_pausa()
++        antes = self.foto()
++        resultado = self.cancelar(ahora=lambda: "2026-10-17T10:20:00-05:00")
++        self.assertEqual((resultado["resultado"], resultado["estado_previo"], resultado["verificada"]),
++                         ("cancelado", "sin_trabajo", True))
++        self.assertEqual(self.estado_lab(), "cancelado")
++        detalle = json.loads(self.eventos_de_cancelacion()[0]["detail_json"])
++        self.assertEqual((detalle["operador"], detalle["motivo"], detalle["etiqueta"], detalle["cancelado_at"]),
++                         ("operador.prueba", "prueba integrada cancelada", MARCA, "2026-10-17T10:20:00-05:00"))
++        self.assertEqual(detalle["job_id"], resultado["job_id"])
++        despues = self.foto()
++        self.assertEqual(despues["recepcion_mensajes"], antes["recepcion_mensajes"], "no se borra ni se cambia el mensaje")
++        self.assertEqual(len(despues["recepcion_eventos"]), len(antes["recepcion_eventos"]) + 1)
++        self.assertTrue(all(f in despues["recepcion_eventos"] for f in antes["recepcion_eventos"]), "nada de la evidencia se pierde")
++
++    # Cubre: T-83
++    def test_11_la_lapida_usa_el_mismo_job_id_que_tendria_el_trabajo_real(self) -> None:
++        self.sembrar_lab()
++        resultado = self.cancelar()
++        esperado = id_de_trabajo(recepcion.CUENTA, *LAB, "analizar_solicitud", "ANKA_DASHBOARD_JSON_V1")
++        self.assertEqual(resultado["job_id"], esperado)
++
++    # Cubre: T-83
++    def test_12_cancelar_antes_de_crear_el_trabajo_impide_que_el_coordinador_lo_cree_o_publique(self) -> None:
++        self.sembrar_pausa()
++        self.cancelar()
++        self.ciclos(8, max_publicar=3)
++        self.assertEqual(self.estados(), {"m1": "publicado", "m0": "publicado", "m9": "cancelado", "m2": "publicado"})
++        self.assertEqual(len(self.hojas()), 3)
++        self.assertEqual(trabajos_work.mensajes_nuevos(self.plan_.desde), [])
++        self.sin_duplicados()
++
++    # Cubre: T-83
++    def test_13_crear_trabajo_sobre_una_lapida_devuelve_la_lapida_y_no_crea_otro(self) -> None:
++        self.sembrar_lab()
++        self.cancelar()
++        devuelto = trabajos_work.crear_trabajo(*LAB)
++        self.assertEqual((devuelto["state"], devuelto["creado"]), ("cancelado", False))
++        self.assertEqual(self.trabajos_en_total(), 1)
++        self.assertEqual(despacho.despachar(self.drive, CARPETA, Alcance(*LAB))["publicacion"]["resultado"], "cancelado")
++        self.assertEqual(len(self.hojas()), 0)
++
++    # Cubre: T-83
++    def test_14_cancelar_con_trabajo_pendiente_lo_pasa_a_cancelado_y_no_se_publica(self) -> None:
++        self.sembrar_pausa()
++        creado = trabajos_work.crear_trabajo(*LAB)
++        resultado = self.cancelar()
++        self.assertEqual((resultado["estado_previo"], resultado["job_id"], resultado["revisar_drive"]),
++                         ("pendiente_de_publicar", creado["job_id"], False))
++        self.ciclos(8, max_publicar=3)
++        self.assertEqual(self.estado_lab(), "cancelado")
++        self.assertEqual(len(self.hojas()), 3)
++        self.assertEqual(self.trabajos_en_total(), 4)
++
++    # Cubre: T-83
++    def test_15_un_pendiente_con_intentos_fallidos_se_cancela_pero_pide_revisar_drive(self) -> None:
++        self.sembrar_lab()
++        trabajo = trabajos_work.crear_trabajo(*LAB)
++        with store.transaccion() as db:
++            db.execute("UPDATE trabajos_work SET attempts=5,last_error='error_de_drive:ErrorHttp' WHERE job_id=?",
++                       (trabajo["job_id"],))
++        resultado = self.cancelar()
++        self.assertEqual((resultado["resultado"], resultado["revisar_drive"]), ("cancelado", True))
++        self.assertEqual(json.loads(self.eventos_de_cancelacion()[0]["detail_json"])["intentos_previos"], 5)
++
++    # Cubre: T-83
++    def test_16_un_pendiente_que_ya_guarda_una_hoja_exige_a_una_persona(self) -> None:
++        self.sembrar_lab()
++        trabajo = trabajos_work.crear_trabajo(*LAB)
++        with store.transaccion() as db:
++            db.execute("UPDATE trabajos_work SET sheet_file_id='sheet-x' WHERE job_id=?", (trabajo["job_id"],))
++        self.assertEqual(self.rechazo(), "ya_publicado_requiere_persona")
++        self.assertEqual(self.estado_lab(), "pendiente_de_publicar")
++
++    # Cubre: T-83
++    def test_17_tras_publicar_se_rechaza_y_exige_intervencion_humana_sin_cambiar_nada(self) -> None:
++        self.sembrar_pausa()
++        despacho.despachar(self.drive, CARPETA, Alcance(*LAB))
++        antes, hojas = self.foto(), [h["id"] for h in self.hojas()]
++        self.assertEqual(self.rechazo(), "ya_publicado_requiere_persona")
++        self.assertEqual((self.foto(), [h["id"] for h in self.hojas()]), (antes, hojas))
++
++    # Cubre: T-83
++    def test_18_un_trabajo_conciliado_no_se_toca_nunca(self) -> None:
++        self.sembrar(con_real=False)
++        despacho.despachar(self.drive, CARPETA, Alcance(*LAB))
++        self.work_responde(LAB[1])
++        self.ciclos(2)
++        self.assertEqual(self.estado_lab(), "conciliado")
++        antes = self.foto()
++        self.assertIn(self.rechazo(), ("conciliado_intocable", "mensaje_no_pendiente"))
++        self.assertEqual(self.foto(), antes)
++
++    # Cubre: T-83
++    def test_19_un_trabajo_reclamado_para_publicar_no_se_cancela(self) -> None:
++        self.sembrar_lab()
++        trabajo = trabajos_work.crear_trabajo(*LAB)
++        token, _ = trabajos_work._reclamar(trabajo["job_id"], self.t, "2026-10-17T10:00:00-05:00")
++        self.assertTrue(token)
++        self.assertEqual(self.rechazo(), "publicando_en_curso")
++        self.assertEqual(self.estado_lab(), "publicando")
++
++
++class IdempotenciaYErroresTest(Base):
++    # Cubre: T-83
++    def test_20_repetir_la_cancelacion_no_escribe_nada_mas(self) -> None:
++        self.sembrar_lab()
++        primero = self.cancelar()
++        antes = self.foto()
++        for _ in range(3):
++            otra = self.cancelar()
++            self.assertEqual((otra["resultado"], otra["job_id"]), ("ya_cancelado", primero["job_id"]))
++        self.assertEqual(self.foto(), antes)
++        self.assertEqual(len(self.eventos_de_cancelacion()), 1)
++
++    # Cubre: T-83
++    def test_21_cancelar_un_trabajo_pendiente_dos_veces_tampoco_duplica(self) -> None:
++        self.sembrar_lab()
++        trabajos_work.crear_trabajo(*LAB)
++        self.cancelar()
++        self.assertEqual(self.cancelar()["resultado"], "ya_cancelado")
++        self.assertEqual((len(self.eventos_de_cancelacion()), self.trabajos_en_total()), (1, 1))
++
++    # Cubre: T-83
++    def test_22_un_error_a_mitad_de_la_operacion_revierte_todo_y_el_reintento_funciona(self) -> None:
++        self.sembrar_lab()
++        antes = self.foto()
++
++        def reloj_roto() -> str:
++            raise sqlite3.OperationalError("simulado: disco lleno")
++
++        with self.assertRaises(sqlite3.OperationalError):
++            self.cancelar(ahora=reloj_roto)
++        self.assertEqual(self.foto(), antes)
++        self.assertEqual(self.cancelar()["resultado"], "cancelado")
++
++    # Cubre: T-83
++    def test_24_un_fallo_de_drive_despues_de_cancelar_no_resucita_el_trabajo(self) -> None:
++        self.sembrar_lab()
++        self.cancelar()
++        self.drive.fallar_listado = ErrorHttpSimulado()
++        self.ciclos(3)
++        self.drive.fallar_listado = None
++        self.ciclos(3)
++        self.assertEqual((self.estado_lab(), len(self.hojas())), ("cancelado", 0))
++
++
++def ErrorHttpSimulado() -> Exception:
++    from tests.test_trabajos_work import ErrorHttp
++
++    return ErrorHttp(500)
++
++
++class PreventivaTest(Base):
++    # Cubre: T-83
++    def test_30_antes_de_registrar_el_mensaje_exige_la_cancelacion_preventiva_explicita(self) -> None:
++        self.assertEqual(self.rechazo(), "mensaje_no_registrado")
++        self.assertEqual(self.trabajos_en_total(), 0)
++
++    # Cubre: T-83
++    def test_31_la_preventiva_deja_una_lapida_no_verificada_y_el_mensaje_no_se_publica_al_registrarse(self) -> None:
++        resultado = self.cancelar(autorizacion(preventiva=True))
++        self.assertEqual((resultado["resultado"], resultado["verificada"]), ("cancelado", False))
++        self.assertEqual(cancelaciones.verificar_lapida_preventiva(autorizacion()), {"estado": "aun_no_registrado"})
++        self.sembrar_lab()                                  # el receptor lo registra después
++        self.ciclos(5)
++        self.assertEqual((self.estado_lab(), len(self.hojas())), ("cancelado", 0))
++        self.assertEqual(cancelaciones.verificar_lapida_preventiva(autorizacion()), {"estado": "registrado", "coincide": True})
++
++    # Cubre: T-83
++    def test_32_si_el_mensaje_registrado_despues_no_lleva_la_etiqueta_la_verificacion_lo_avisa(self) -> None:
++        self.cancelar(autorizacion(preventiva=True))
++        self.fila(*LAB, asunto="Solicitud de levantamiento real", remitente="cliente@example.com")
++        self.assertEqual(cancelaciones.verificar_lapida_preventiva(autorizacion()), {"estado": "registrado", "coincide": False})
++
++    # Cubre: T-83
++    def test_33_la_preventiva_repetida_es_idempotente(self) -> None:
++        self.cancelar(autorizacion(preventiva=True))
++        self.assertEqual(self.cancelar(autorizacion(preventiva=True))["resultado"], "ya_cancelado")
++        self.assertEqual(len(self.eventos_de_cancelacion()), 1)
++
++
++class CarrerasTest(Base):
++    # Cubre: T-83
++    def test_40_si_el_coordinador_publica_primero_la_cancelacion_se_rechaza(self) -> None:
++        self.sembrar_lab()
++        self.ciclo()
++        self.assertEqual(self.estado_lab(), "publicado")
++        self.assertEqual(self.rechazo(), "ya_publicado_requiere_persona")
++        self.assertEqual(len(self.hojas()), 1)
++
++    # Cubre: T-83
++    def test_41_si_la_cancelacion_va_primero_el_ciclo_no_publica_nada(self) -> None:
++        self.sembrar_lab()
++        self.cancelar()
++        informe = self.ciclo(max_publicar=5)
++        self.assertEqual((informe["publicaciones"], len(self.hojas())), ([], 0))
++
++    # Cubre: T-83
++    def test_42_con_hilos_reales_el_resultado_siempre_es_coherente(self) -> None:
++        """Veinte carreras: la cancelación y un ciclo del coordinador a la vez sobre el mismo mensaje."""
++        resultados = [self._carrera(numero) for numero in range(20)]
++        self.assertEqual([r for r in resultados if r.startswith("INCOHERENTE")], [])
++        print(f"[T-83] 20 carreras: {sorted(set(resultados))} cancelado={resultados.count('cancelado')}")
++
++    def _carrera(self, numero: int) -> str:
++        hilo, mensaje = f"TH{numero}", f"MS{numero}"
++        self.fila(hilo, mensaje, asunto=ETIQUETA, remitente="prueba.controlada@example.com")
++        coordinador = self.nuevo()
++        plan_del_mensaje = replace(self.plan_, max_publicar=5, thread_id=hilo, message_id=mensaje)
++        salida: dict[str, Any] = {}
++        inicio = threading.Barrier(2)
++
++        def cancelando() -> None:
++            inicio.wait()
++            time.sleep((numero % 10) * 0.012)          # reparte los choques: unas veces gana la cancelación, otras el ciclo
++            try:
++                salida["cancelacion"] = self.cancelar(autorizacion((hilo, mensaje)))["resultado"]
++            except CancelacionRechazada as exc:
++                salida["cancelacion"] = exc.codigo
++
++        def coordinando() -> None:
++            inicio.wait()
++            salida["ciclo"] = coordinador.ciclo(plan_del_mensaje)
++
++        hilos = [threading.Thread(target=cancelando), threading.Thread(target=coordinando)]
++        for h in hilos:
++            h.start()
++        for h in hilos:
++            h.join(60)
++        estado = self.estado_de(mensaje, hilo)
++        hojas = [x for x in self.hojas() if self._de(x, hilo, mensaje)]
++        cancelacion = str(salida.get("cancelacion"))
++        if cancelacion == "cancelado":
++            ok = estado == "cancelado" and not hojas
++        else:
++            ok = estado in ("publicado", "publicando") and cancelacion in (
++                "ya_publicado_requiere_persona", "publicando_en_curso", "carrera") and len(hojas) == 1
++        return cancelacion if ok else f"INCOHERENTE {cancelacion}/{estado}/{len(hojas)}"
++
++    def _de(self, hoja: dict[str, Any], hilo: str, mensaje: str) -> bool:
++        trabajo = self.trabajo_de(mensaje, hilo)
++        return bool(trabajo) and hoja["props"].get("anka_job_id") == trabajo["job_id"]
++
++
++class ContinuidadTest(Base):
++    # Cubre: T-83
++    def test_50_los_reales_acumulados_durante_la_pausa_siguen_su_curso_tras_cancelar_y_restaurar(self) -> None:
++        self.sembrar_pausa()
++        self.cancelar()
++        orden = []
++        for _ in range(4):
++            informe = self.ciclo()
++            orden += [trabajos_work.obtener(p["job_id"])["message_id"] for p in informe["publicaciones"]]
++            self.t += 400
++        self.assertEqual(orden, ["m1", "m0", "m2"], "mismo orden de llegada, sin el ficticio")
++        antes = (self.trabajos_en_total(), len(self.hojas()))
++        self.ciclos(5)
++        self.assertEqual((self.trabajos_en_total(), len(self.hojas())), antes)
++        self.assertEqual(antes, (4, 3))
++
++    # Cubre: T-83
++    def test_51_cancelar_no_cambia_a_ningun_otro_mensaje_ni_trabajo(self) -> None:
++        self.sembrar_pausa()
++        creado = trabajos_work.crear_trabajo(*REAL)
++        antes = self.foto()
++        self.cancelar()
++        despues = self.foto()
++        otros = lambda filas: [f for f in filas if f.get("message_id") != LAB[1]]  # noqa: E731
++        self.assertEqual(otros(despues["recepcion_mensajes"]), otros(antes["recepcion_mensajes"]))
++        self.assertEqual(otros(despues["trabajos_work"]), otros(antes["trabajos_work"]))
++        self.assertEqual(trabajos_work.obtener(creado["job_id"])["state"], "pendiente_de_publicar")
++
++    # Cubre: T-83
++    def test_52_el_estado_cancelado_ya_es_conocido_por_el_resto_del_sistema(self) -> None:
++        from anka.dominio import trabajo_work
++        from anka.servicios import estado_operativo
++
++        self.assertIn("cancelado", trabajo_work.ESTADOS)
++        self.assertNotIn("cancelado", trabajo_work.CONCILIABLES)
++        self.assertEqual(estado_operativo.ESTADOS_DE_TRABAJO["cancelado"], ("Cancelado", "neutro"))
++
++
++class PuertasCerradas(Base):
++    """Los caminos que T-82 encontró abiertos, ya cerrados con la integración."""
++
++    def sembrar_con_ids_de_gmail(self) -> None:
++        self.fila(*HILO_AISLADO, asunto=ETIQUETA, remitente="prueba.controlada@example.com")
++        self.cancelar(autorizacion(HILO_AISLADO))
++
++    # Cubre: T-83
++    def test_70_la_importacion_directa_se_rechaza_y_no_escribe_nada(self) -> None:
++        self.sembrar_con_ids_de_gmail()
++        antes = self.foto()
++        with self.assertRaises(MensajeCancelado):
++            work_import.dashboard_upsert(b64(json.dumps(payload(thread=ID_AISLADO, message=ID_AISLADO))),
++                                         actualizar_hoja=False)
++        self.assertEqual(self.foto(), antes)
++        self.assertEqual([r["thread_id"] for r in quotes.all_quotes()], [])
++
++    # Cubre: T-83
++    def test_71_la_importacion_aislada_responde_mensaje_cancelado_y_el_coordinador_no_lo_cuenta_como_fallo(self) -> None:
++        self.sembrar_con_ids_de_gmail()
++        resultado = importar_aislado(self, GmailAislado({"g1": borrador()}))
++        self.assertEqual(resultado["resultado"], "mensaje_cancelado")
++        self.assertIn("mensaje_cancelado", coordinacion.IMPORTACIONES_SIN_FALLO)
++        self.assertEqual([r["thread_id"] for r in quotes.all_quotes()], [])
++
++    # Cubre: T-83
++    def test_72_conciliar_con_work_no_cierra_el_mensaje_de_una_lapida(self) -> None:
++        self.sembrar_con_ids_de_gmail()
++        with store.transaccion() as db:
++            self.assertEqual(recepcion.conciliar_con_work(db, *HILO_AISLADO, "ref"), "cancelado")
++            fila = db.execute("SELECT state,disposition FROM recepcion_mensajes WHERE message_id=?", (ID_AISLADO,)).fetchone()
++        self.assertEqual(tuple(fila), recepcion.PENDIENTE)
++
++    # Cubre: T-83
++    def test_73_un_mensaje_sin_lapida_se_importa_igual_que_antes(self) -> None:
++        self.fila(*HILO_AISLADO, asunto="Solicitud de levantamiento", remitente="cliente@example.com")
++        resultado = importar_aislado(self, GmailAislado({"g1": borrador()}))
++        self.assertEqual(resultado["resultado"], "importado")
++        self.assertEqual([r["thread_id"] for r in quotes.all_quotes()], [ID_AISLADO])
++
++    # Cubre: T-83
++    def test_74_otro_mensaje_del_mismo_hilo_no_queda_bloqueado_por_la_lapida(self) -> None:
++        self.sembrar_con_ids_de_gmail()
++        self.fila(ID_AISLADO, "mensaje-posterior", asunto="Respuesta del cliente", remitente="cliente@example.com")
++        work_import.dashboard_upsert(b64(json.dumps(payload(thread=ID_AISLADO, message="mensaje-posterior"))),
++                                     actualizar_hoja=False)
++        self.assertEqual([r["thread_id"] for r in quotes.all_quotes()], [ID_AISLADO])
++
++    # Cubre: T-83
++    def test_75_el_despacho_manual_de_una_lapida_responde_cancelado_sin_error(self) -> None:
++        self.sembrar_lab()
++        self.cancelar()
++        resultado = despacho.despachar(self.drive, CARPETA, Alcance(*LAB))
++        self.assertEqual(resultado["publicacion"]["resultado"], "cancelado")
++        self.assertEqual(len(self.hojas()), 0)
++
++    # Cubre: T-83
++    def test_76_el_panel_no_pide_atencion_por_lo_cancelado_pero_lo_cuenta_y_la_clasificacion_lo_marca(self) -> None:
++        self.sembrar_pausa()
++        self.cancelar()
++        panel = estado_operativo.estado_operativo()
++        self.assertNotIn(LAB[1], [f["message_id"] for f in panel["atencion"]])
++        self.assertIn("cancelado", [t["estado"] for t in panel["trabajos"]])
++        marca = {f["message_id"]: f["cancelado"] for f in trabajos_work.clasificar_pendientes()}
++        self.assertEqual((marca[LAB[1]], marca[REAL[1]]), (True, False))
++
++
++class DiarioYRestauracion(Base):
++    def restaurar(self, copia: Path) -> None:
++        with patch("anka.infra.work_heartbeat.other_bridge_running", return_value=False), \
++                patch.object(backup.acciones_en_curso, "acciones_activas", return_value=[]), \
++                patch.object(backup, "_base_en_uso", return_value=False):
++            backup.restore(copia)
++
++    # Cubre: T-83
++    def test_80_cada_cancelacion_deja_una_linea_en_el_diario_fuera_de_sqlite_y_repetirla_no_la_duplica(self) -> None:
++        self.sembrar_lab()
++        resultado = self.cancelar()
++        self.cancelar()
++        entradas, rotas = lapidas.leer()
++        self.assertEqual((len(entradas), rotas), (1, 0))
++        self.assertEqual((entradas[0]["job_id"], entradas[0]["operador"], entradas[0]["etiqueta"]),
++                         (resultado["job_id"], "operador.prueba", MARCA))
++        self.assertNotIn(lapidas.NOMBRE, backup.EXTRA_FILES, "una copia no debe pisar el diario")
++
++    # Cubre: T-83
++    def test_81_restaurar_una_copia_anterior_devuelve_la_lapida_y_el_mensaje_sigue_cancelado(self) -> None:
++        self.sembrar(con_real=False)
++        copia = backup.create_backup()
++        self.cancelar()
++        self.restaurar(copia)
++        self.assertEqual(self.estado_lab(), "cancelado")
++        self.assertEqual(trabajos_work.mensajes_nuevos(self.plan_.desde), [])
++        self.assertEqual(self.eventos_de(lapidas.EVENTO_DE_REAPLICACION), 1)
++        self.ciclos(4)
++        self.assertEqual((self.estado_lab(), len(self.hojas())), ("cancelado", 0))
++
++    # Cubre: T-83
++    def test_82_reaplicar_es_idempotente_y_verificar_lapidas_queda_en_orden(self) -> None:
++        self.sembrar(con_real=False)
++        copia = backup.create_backup()
++        self.cancelar()
++        self.restaurar(copia)
++        self.restaurar(copia)
++        self.assertEqual(self.eventos_de(lapidas.EVENTO_DE_REAPLICACION), 1, "la base restaurada es nueva cada vez")
++        self.assertEqual(self.trabajos_en_total(), 1)
++        informe = cancelaciones.verificar_lapidas()
++        self.assertTrue(informe["en_orden_total"], informe)
++
++    # Cubre: T-83
++    def test_83_la_verificacion_detecta_una_lapida_que_falta(self) -> None:
++        self.sembrar_lab()
++        self.cancelar()
++        with store.transaccion() as db:
++            db.execute("DELETE FROM trabajos_work")
++        informe = cancelaciones.verificar_lapidas()
++        self.assertFalse(informe["en_orden_total"])
++        self.assertEqual(len(informe["faltan"]), 1)
++
++    # Cubre: T-83
++    def test_84_un_choque_con_un_trabajo_avanzado_se_informa_y_no_se_modifica(self) -> None:
++        self.sembrar(con_real=False)
++        copia = backup.create_backup()
++        despacho.despachar(self.drive, CARPETA, Alcance(*LAB))                    # la copia de ahora tiene el trabajo publicado
++        lapidas.registrar({"job_id": self.trabajo_de(LAB[1], LAB[0])["job_id"], "account": recepcion.CUENTA,
++                           "thread_id": LAB[0], "message_id": LAB[1], "job_type": "analizar_solicitud",
++                           "contract_version": "ANKA_DASHBOARD_JSON_V1", "operador": "x", "motivo": "x",
++                           "cancelado_at": "2026-10-17T10:00:00-05:00"})
++        self.assertEqual(self.estado_lab(), "publicado")
++        informe = cancelaciones.verificar_lapidas()
++        self.assertEqual([c["estado"] for c in informe["chocan"]], ["publicado"])
++        del copia
++
++    # Cubre: T-83
++    def test_85_una_linea_rota_del_diario_no_tapa_a_las_demas(self) -> None:
++        self.sembrar_lab()
++        self.cancelar()
++        with lapidas.ruta().open("a", encoding="utf-8") as archivo:
++            archivo.write("{esto no es json\n")
++        entradas, rotas = lapidas.leer()
++        self.assertEqual((len(entradas), rotas), (1, 1))
++        self.assertFalse(cancelaciones.verificar_lapidas()["en_orden_total"])
++
++    # Cubre: T-83
++    def test_86_si_el_diario_falla_la_cancelacion_se_revierte_entera(self) -> None:
++        self.sembrar_lab()
++        antes = self.foto()
++        with patch.object(lapidas, "registrar", side_effect=OSError("disco lleno")), self.assertRaises(OSError):
++            self.cancelar()
++        self.assertEqual(self.foto(), antes)
++        self.assertEqual(self.cancelar()["resultado"], "cancelado")
++
++    # Cubre: T-83
++    def test_87_una_lapida_sin_entrada_en_el_diario_se_completa_al_repetir_la_orden(self) -> None:
++        self.sembrar_lab()
++        self.cancelar()
++        lapidas.ruta().unlink()
++        self.assertEqual(self.cancelar()["resultado"], "ya_cancelado")
++        self.assertEqual(len(lapidas.leer()[0]), 1)
++
++    # Cubre: T-83
++    def test_88_una_copia_sin_tabla_de_trabajos_se_restaura_sin_migrarla_y_la_reaplicacion_se_omite(self) -> None:
++        import sqlite3
++
++        self.sembrar_lab()
++        self.cancelar()
++        vieja = self.datos / "vieja.sqlite3"
++        with contextlib.closing(sqlite3.connect(vieja)) as conexion:
++            conexion.execute("CREATE TABLE quotes(thread_id TEXT)")
++            conexion.commit()
++        informe = lapidas.reaplicar_en_archivo(vieja, "2026-10-17T10:00:00-05:00")
++        self.assertEqual(informe["omitido"], "sin_tabla_de_trabajos")
++
++    # Cubre: T-83
++    def test_89_reaplicar_lapidas_por_consola_exige_confirmar_y_repara_lo_que_falta(self) -> None:
++        self.sembrar_lab()
++        self.cancelar()
++        with store.transaccion() as db:
++            db.execute("DELETE FROM trabajos_work")
++        with contextlib.redirect_stderr(io.StringIO()):
++            self.assertEqual(work_jobs.main(["reaplicar-lapidas"], lambda texto: None), 2)
++        salida: list[str] = []
++        self.assertEqual(work_jobs.main(["reaplicar-lapidas", "--confirmar"], salida.append), 0)
++        self.assertEqual(self.estado_lab(), "cancelado")
++        self.assertEqual(len(json.loads(salida[0])["reaplicadas"]), 1)
++
++    def eventos_de(self, tipo: str) -> int:
++        with store.lectura() as db:
++            return int(db.execute("SELECT COUNT(*) FROM recepcion_eventos WHERE event_kind=?", (tipo,)).fetchone()[0])
++
++
++class OrdenDeLaConsola(Base):
++    # Cubre: T-83
++    def test_90_la_orden_cancelar_exige_confirmar_y_deja_la_lapida(self) -> None:
++        self.sembrar_lab()
++        base = ["cancelar", "--thread-id", LAB[0], "--message-id", LAB[1], "--etiqueta", MARCA, "--operador", "op",
++                "--motivo", "prueba cancelada"]
++        with contextlib.redirect_stderr(io.StringIO()):
++            self.assertEqual(work_jobs.main(base, lambda texto: None), 2)
++        self.assertEqual(self.trabajos_en_total(), 0)
++        salida: list[str] = []
++        self.assertEqual(work_jobs.main([*base, "--confirmar"], salida.append), 0)
++        self.assertEqual(json.loads(salida[0])["resultado"], "cancelado")
++        self.assertEqual(self.estado_lab(), "cancelado")
++
++    # Cubre: T-83
++    def test_91_un_rechazo_sale_con_codigo_2_y_sin_escribir(self) -> None:
++        self.sembrar_pausa()
++        antes = self.foto()
++        with contextlib.redirect_stderr(io.StringIO()):
++            codigo = work_jobs.main(["cancelar", "--thread-id", REAL[0], "--message-id", REAL[1], "--etiqueta", MARCA,
++                                     "--operador", "op", "--motivo", "m", "--confirmar"], lambda texto: None)
++        self.assertEqual(codigo, 2)
++        self.assertEqual(self.foto(), antes)
++
++    # Cubre: T-83
++    def test_92_verificar_lapidas_es_de_solo_lectura(self) -> None:
++        self.sembrar_lab()
++        self.cancelar()
++        antes = self.foto()
++        salida: list[str] = []
++        self.assertEqual(work_jobs.main(["verificar-lapidas"], salida.append), 0)
++        self.assertTrue(json.loads(salida[0])["en_orden_total"])
++        self.assertEqual(self.foto(), antes)
++
++
++def importar_aislado(caso: Base, gmail: GmailAislado) -> dict:
++    from anka.cli import work_sync
++
++    return work_sync.importar_aislado(gmail, lambda raw: work_import.dashboard_upsert(raw, actualizar_hoja=False),
++                                      Path(caso.datos) / "manifiestos", ID_AISLADO, ID_AISLADO, {recepcion.CUENTA})
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/test_integracion_cancelacion_t82.py b/tests/test_integracion_cancelacion_t82.py
+--- a/tests/test_integracion_cancelacion_t82.py
++++ b/tests/test_integracion_cancelacion_t82.py
+@@ -9,23 +9,15 @@
+ 
+ from tests import _isolate  # noqa: F401  (debe ir primero)
+ 
+-import contextlib
+-import io
+ import json
+ import unittest
+-from pathlib import Path
+-from unittest.mock import patch
+ 
+ from anka.cli import work_jobs
+-from anka.infra import backup, store
+-from anka.servicios import coordinacion, despacho, estado_operativo, quotes, recepcion, trabajos_work, work_import
+-from anka.servicios.despacho import Alcance
+-from tests.test_aislamiento_t79 import ETIQUETA, LAB
+-from tests.test_cancelacion_t81 import Base, MARCA, autorizacion
+-from tests.test_coordinacion import CARPETA
+-from tests.test_importacion_aislada import GmailAislado, borrador, origen
++from anka.infra import store
++from anka.servicios import trabajos_work
++from tests.test_aislamiento_t79 import LAB
++from tests.test_cancelacion_t81 import Base
+ from tests.test_importacion_aislada import ID as ID_AISLADO
+-from tests.test_work_sync import b64, payload
+ 
+ HILO_AISLADO = (ID_AISLADO, ID_AISLADO)
+ 
+@@ -53,16 +45,6 @@
+         self.assertEqual(self.trabajos_en_total(), 1)
+ 
+     # Cubre: T-82
+-    def test_03_el_despacho_manual_y_publicar_rechazan_la_lapida(self) -> None:
+-        self.sembrar_pausa()
+-        resultado = self.cancelar()
+-        with self.assertRaises(trabajos_work.TrabajoRechazado):
+-            despacho.despachar(self.drive, CARPETA, Alcance(*LAB))
+-        with self.assertRaises(trabajos_work.TrabajoRechazado):
+-            trabajos_work.publicar_trabajo(self.drive, resultado["job_id"], CARPETA)
+-        self.assertEqual(len(self.hojas()), 0)
+-
+-    # Cubre: T-82
+     def test_04_marcar_conciliado_y_el_archivado_no_tocan_un_cancelado(self) -> None:
+         self.sembrar_pausa()
+         self.cancelar()
+@@ -80,94 +62,6 @@
+         self.ciclos(5)
+         self.assertEqual(self.llamadas, [], "ni siquiera consulta Gmail por ese mensaje")
+ 
+-    # Cubre: T-82
+-    def test_06_las_importaciones_aceptadas_por_el_coordinador_no_incluyen_el_resultado_cancelado(self) -> None:
+-        self.assertNotIn("mensaje_cancelado", coordinacion.IMPORTACIONES_SIN_FALLO)
+-
+-
+-class CaminosAbiertosHoy(Base):
+-    """Rutas que TODAVÍA aceptan un mensaje cancelado: son los fallos actuales que cierra la integración."""
+-
+-    def sembrar_con_ids_de_gmail(self) -> None:
+-        self.fila(*HILO_AISLADO, asunto=ETIQUETA, remitente="prueba.controlada@example.com")
+-        self.cancelar(autorizacion(HILO_AISLADO))
+-
+-    # Cubre: T-82
+-    def test_10_ABIERTO_la_importacion_directa_de_un_borrador_guarda_el_analisis_y_cierra_el_mensaje(self) -> None:
+-        self.sembrar_con_ids_de_gmail()
+-        work_import.dashboard_upsert(b64(json.dumps(payload(thread=ID_AISLADO, message=ID_AISLADO))), actualizar_hoja=False)
+-        self.assertEqual(sorted(r["thread_id"] for r in quotes.all_quotes()), [ID_AISLADO])
+-        with store.lectura() as db:
+-            fila = db.execute("SELECT state,disposition FROM recepcion_mensajes WHERE message_id=?",
+-                              (ID_AISLADO,)).fetchone()
+-        self.assertEqual(tuple(fila), recepcion.INTERPRETADO)
+-        self.assertEqual(self.estado_de(ID_AISLADO, ID_AISLADO), "cancelado", "el trabajo sigue cancelado")
+-
+-    # Cubre: T-82
+-    def test_11_ABIERTO_la_importacion_aislada_importa_el_borrador_de_un_mensaje_cancelado(self) -> None:
+-        self.sembrar_con_ids_de_gmail()
+-        gmail = GmailAislado({"g1": borrador()})
+-        resultado = importar_aislado(self, gmail)
+-        self.assertEqual(resultado["resultado"], "importado")
+-
+-    # Cubre: T-82
+-    def test_12_ABIERTO_conciliar_con_work_cierra_la_fila_aunque_haya_lapida(self) -> None:
+-        self.sembrar_con_ids_de_gmail()
+-        with store.transaccion() as db:
+-            resultado = recepcion.conciliar_con_work(db, *HILO_AISLADO, "ref")
+-        self.assertEqual(resultado, "conciliado")
+-
+-    # Cubre: T-82
+-    def test_13_ABIERTO_el_comando_dashboard_upsert_de_app_py_usa_la_misma_funcion_sin_comprobar_la_lapida(self) -> None:
+-        import inspect
+-
+-        from anka.cli import app
+-
+-        texto = inspect.getsource(app._cmd_dashboard_upsert)
+-        self.assertIn("dashboard_upsert(args.payload_base64)", texto)
+-        self.assertNotIn("cancel", texto.lower())
+-
+-    # Cubre: T-82
+-    def test_14_ABIERTO_no_existe_la_orden_cancelar_ni_el_diario_de_lapidas(self) -> None:
+-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+-            work_jobs.build_parser().parse_args(["cancelar", "--thread-id", "a", "--message-id", "b"])
+-        self.assertFalse(hasattr(trabajos_work, "cancelar_mensaje"))
+-        with self.assertRaises(ImportError):
+-            __import__("anka.infra.lapidas")
+-
+-    # Cubre: T-82
+-    def test_15_ABIERTO_restaurar_una_copia_anterior_pierde_la_lapida_y_el_mensaje_vuelve_a_ser_publicable(self) -> None:
+-        self.sembrar(con_real=False)
+-        copia = backup.create_backup()
+-        self.cancelar()
+-        self.assertEqual(self.estado_lab(), "cancelado")
+-        with patch("anka.infra.work_heartbeat.other_bridge_running", return_value=False), \
+-                patch.object(backup.acciones_en_curso, "acciones_activas", return_value=[]), \
+-                patch.object(backup, "_base_en_uso", return_value=False):
+-            backup.restore(copia)
+-        self.assertIsNone(self.estado_lab(), "la lápida desapareció con la copia")
+-        self.assertEqual(len(trabajos_work.mensajes_nuevos(self.plan_.desde)), 1, "el ficticio vuelve a ser elegible")
+-
+-    # Cubre: T-82
+-    def test_16_ABIERTO_el_panel_muestra_el_mensaje_cancelado_como_pendiente_de_atencion(self) -> None:
+-        self.sembrar_pausa()
+-        self.cancelar()
+-        panel = estado_operativo.estado_operativo()
+-        self.assertIn(LAB[1], [f["message_id"] for f in panel["atencion"]])
+-        self.assertEqual([f for f in trabajos_work.clasificar_pendientes() if f["message_id"] == LAB[1]][0].get("cancelado"),
+-                         None, "la clasificación no distingue lo cancelado")
+-        self.assertIn("cancelado", [t["estado"] for t in panel["trabajos"]], "los conteos de trabajos sí lo muestran")
+-
+-
+-def importar_aislado(caso: Base, gmail: GmailAislado) -> dict:
+-    from anka.cli import work_sync
+-
+-    return work_sync.importar_aislado(gmail, lambda raw: work_import.dashboard_upsert(raw, actualizar_hoja=False),
+-                                      Path(caso.datos) / "manifiestos", ID_AISLADO, ID_AISLADO, {recepcion.CUENTA})
+-
+-
+-_ = (MARCA, origen)
+-
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/tests/test_trabajos_work.py b/tests/test_trabajos_work.py
+--- a/tests/test_trabajos_work.py
++++ b/tests/test_trabajos_work.py
+@@ -23,6 +23,7 @@
+ from anka.cli import work_jobs
+ from anka.cli import work_sync as sync
+ from anka.dominio import trabajo_work as dominio
++from anka.dominio.cancelacion_work import MensajeCancelado
+ from anka.infra import settings, store
+ from anka.servicios import trabajos_work, work_import
+ from anka.servicios.recepcion import CUENTA
+@@ -481,7 +482,8 @@
+             db.execute("UPDATE trabajos_work SET state='ambiguo' WHERE job_id=?", (ambiguo,))
+             db.execute("UPDATE trabajos_work SET state='cancelado' WHERE job_id=?", (cancelado,))
+         self.importar("T1", "m1")
+-        self.importar("T2", "m2")
++        with self.assertRaises(MensajeCancelado):        # T-83: la lápida impide importar el análisis de su mensaje
++            self.importar("T2", "m2")
+         self.assertEqual([self.estado(ambiguo), self.estado(cancelado)], ["ambiguo", "cancelado"])
+ 
+     def test_un_caso_minimo_no_cierra_el_trabajo(self):

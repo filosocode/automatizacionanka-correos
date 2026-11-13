@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from anka.servicios import case_actions
+from tests._correo_falso import correo_falso
 from anka.servicios import gmail_followup
 from anka.servicios import quotes
 from anka.servicios import work_import
@@ -152,7 +153,7 @@ class Transitions(unittest.TestCase):
         context = (quote, gmail, {"id": thread, "messages": []}, set())
         with patch.object(case_actions, "case_email_context", return_value=context), \
                 patch.object(case_actions, "reply_email",
-                             return_value=__import__("email.message", fromlist=["EmailMessage"]).EmailMessage()):
+                             side_effect=correo_falso):
             return case_actions.send_dashboard_reply(thread, texto or f"Texto para {thread}", esperar=esperar)
 
     def test_sending_from_the_dashboard(self):
