@@ -536,10 +536,7 @@ Corregir la tabla
 </div>
 </div>
 <p class="frase-guia">
-Falta resolver 1 cosa. Toca «Resolver» para atenderla.
-</p>
-<p class="nota hint-marcar">
-Marca lo que quieres preguntarle al cliente.
+Toca «Resolver» o marca «Preguntar».
 </p>
 <div class="alcance-lectura" id="tabla-resumen">
 <div class="filtros" id="filtros-actividades" role="group" aria-label="Qué actividades ver" hidden="">
@@ -593,9 +590,6 @@ No hay actividades con ese filtro.
 <div class="generales" id="preguntas-generales">
 <h3>
 Generales
-<span class="nota">
-(no son de una actividad)
-</span>
 </h3>
 <ul>
 <li>
@@ -771,9 +765,6 @@ Cuéntalo en una frase
 <p class="error-respaldo" role="alert" hidden="">
 </p>
 </fieldset>
-<p class="nota">
-Al guardar, la actividad queda lista y ya no hace falta preguntársela al cliente.
-</p>
 <button type="submit">
 Dejar lista esta actividad
 </button>
@@ -1329,9 +1320,6 @@ Si escribes directo en la hoja, el cambio se pierde en la próxima actualizació
 <h2>
 Mensaje para el cliente
 </h2>
-<p class="nota">
-Lo que marques a la izquierda aparece aquí. Revísalo y envíalo.
-</p>
 </div>
 <div class="cuerpo-tarjeta">
 <form method="post" action="/review-decision" class="decision-form" id="decision-form">
@@ -1341,7 +1329,7 @@ Lo que marques a la izquierda aparece aquí. Revísalo y envíalo.
 Hola, Gracias por compartir la solicitud para el proyecto «"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>». Para completar la información inicial, necesitamos confirmar lo siguiente: 1. ¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo? 2. "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>: la cantidad y la unidad Puede responder a este mismo correo. Saludos, Grupo Anka
 </textarea>
 <p class="nota" id="aviso-espera" role="status">
-2 preguntas en el correo. Puedes cambiar el texto.
+2 preguntas en el correo.
 </p>
 <input type="hidden" name="to" value="x'+ZZINJ+'@a.co">
 <input type="hidden" name="state_token" value="2026-09-02T10:00:00-05:00|">
@@ -1352,16 +1340,13 @@ Enviar al cliente
 <button type="submit" id="btn-borrador-preguntas" class="enlace-suave" formaction="/enviar-preguntas" name="accion_correo" value="borrador">
 Guardar borrador
 </button>
-<button type="submit" id="btn-suficiente" class="enlace-suave" name="decision" value="sufficient" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
+<button type="submit" id="btn-suficiente" class="enlace-suave" name="decision" value="sufficient" title="No falta nada y no se le pregunta más al cliente" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
 Con esto alcanza
 </button>
 </div>
 </div>
 <p class="nota">
-«Con esto alcanza» quiere decir: no falta nada y no se le pregunta nada más al cliente.
-</p>
-<p class="nota">
-Nada sale al cliente sin que lo revises y confirmes. Al enviarlo, el caso queda en «Esperando al cliente»: no tienes que hacer nada más, y si no responde te avisamos.
+Nada sale sin que tú lo envíes.
 </p>
 </form>
 <details class="more">

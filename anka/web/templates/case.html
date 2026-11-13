@@ -42,13 +42,13 @@
   {% if compose_to %}<input type="hidden" name="to" value="{{ compose_to }}">
   <input type="hidden" name="change_id" value="{{ compose_change_id }}">{% endif %}
   {% if compose_purpose %}<input type="hidden" name="purpose" value="{{ compose_purpose }}">{% endif %}
-  <div class="para-linea"><span class="etiqueta-mail">Para</span> <span class="para">{{ compose_to or review.recipient }}</span>{% if compose_origen %} <span class="nota" id="origen-para">({{ compose_origen }}: revisa que sea a quien quieres escribir)</span>{% endif %}</div>
-  <label class="etiqueta-mail" for="cuerpo-correo">Mensaje (puedes editarlo)</label>
-  <textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
+  <div class="para-linea"><span class="etiqueta-mail">Para</span> <span class="para">{{ compose_to or review.recipient }}</span>{% if compose_origen %} <span class="nota" id="origen-para">({{ compose_origen }})</span>{% endif %}</div>
+  <label class="etiqueta-mail" for="cuerpo-correo">Mensaje</label>
+  <textarea name="body" id="cuerpo-correo" data-caso="{{ thread_id }}" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">{{ email_body }}</textarea>
   <div id="caja-esperar"{% if correo_con_preguntas %} hidden{% endif %}>
     <label class="nota check-line"><input type="checkbox" name="esperar" value="1" id="esperar-respuesta" aria-describedby="efecto-esperar"{% if esperar_marcada %} checked{% endif %}>
-      Marcar «esperando al cliente» aunque el correo no tenga preguntas</label>
-    <p class="nota" id="efecto-esperar">Úsalo si el correo no pregunta nada pero esperas que conteste: el caso pasará a «Esperando al cliente» y te avisaremos cuándo hacer seguimiento.</p>
+      Esperar respuesta aunque no haya preguntas</label>
+    <p class="nota" id="efecto-esperar">El caso pasa a «Esperando al cliente».</p>
   </div>
   <div class="barra-accion">
   <p class="nota" id="aviso-espera" role="status"></p>
@@ -65,7 +65,7 @@
 <div class="aviso-cobertura" id="correo-cobertura" role="status">
   <p class="nota"><strong>Este correo no nombra:</strong></p>
   <ul>{% for item in sin_nombrar %}
-    <li><span>{{ item.actividad }}{% if item.contradictoria %} <em class="meta">· contradictoria: la decides tú</em>{% endif %}{% if item.cubierta_por %} <em class="meta">· puede cubrirla la pregunta {{ item.cubierta_por }}</em>{% endif %}</span>
+    <li><span>{{ item.actividad }}{% if item.contradictoria %} <em class="meta">· no cuadra</em>{% endif %}{% if item.cubierta_por %} <em class="meta">· puede cubrirla la pregunta {{ item.cubierta_por }}</em>{% endif %}</span>
       <form method="get" action="/case#respuesta">
         <input type="hidden" name="thread_id" value="{{ thread_id }}">
         <input type="hidden" name="template" value="preguntas">
@@ -73,7 +73,7 @@
         <button type="submit" class="enlace" data-confirm="El correo se escribirá de nuevo con esta pregunta: {{ item.pregunta }} Lo que hayas cambiado a mano en el texto se reemplaza. Todavía no se envía nada. ¿Seguimos?">Agregar la pregunta</button>
       </form></li>{% endfor %}
   </ul>
-  <p class="nota">Puede que otra pregunta del correo ya lo cubra (por ejemplo, el archivo de ubicación). Si es así, envíalo como está.{% if sin_nombrar | selectattr('contradictoria') | list %} Las contradictorias son tuyas: pregúntaselas al cliente o resuélvelas con tu criterio; no se agregan solas.{% endif %}</p>
+  <p class="nota">Si otra pregunta ya lo cubre, envíalo como está.</p>
 </div>
 {% endif %}
 <details class="more cambiar-de-idea" id="cambiar-idea"{% if cambiar_abierto %} open{% endif %}>
@@ -175,7 +175,7 @@
 {% macro decision_actual() %}
 {% if can_resolve %}
 <section class="section decision-arriba ahora" id="decision">
-  <div class="cab-tarjeta"><h2>Mensaje para el cliente</h2><p class="nota">Lo que marques a la izquierda aparece aquí. Revísalo y envíalo.</p></div>
+  <div class="cab-tarjeta"><h2>Mensaje para el cliente</h2></div>
   <div class="cuerpo-tarjeta">
   {% if envios_inciertos and email == 'technical' %}<div class="notice" id="envio-incierto" role="status"><strong>Hay un correo sin confirmar.</strong>
     <p>Antes de enviar otro, comprueba en Gmail si el anterior salió. La aplicación también intenta verificarlo.</p>
@@ -186,13 +186,13 @@
   {% if lo_que_falta %}<p class="nota">{{ lo_que_falta }}</p>{% endif %}
   <form method="post" action="/review-decision" class="decision-form" id="decision-form">
     <input type="hidden" name="thread_id" value="{{ thread_id }}">
-    {% if ya_pedidas %}<div class="notice" id="ya-pedidas"><strong>Esto ya se lo pedimos al cliente y aún no lo envía.</strong><ul>{% for p in ya_pedidas %}<li>{{ p.texto }} <small>(se pidió el {{ p.ya_pedida }})</small></li>{% endfor %}</ul>No las volvimos a poner abajo para no insistir. <a class="button secondary" id="volver-a-pedir" href="/case?thread_id={{ thread_id | urlquote }}&amp;template=preguntas&amp;preguntas={{ ya_pedidas | map(attribute='texto') | join('
+    {% if ya_pedidas %}<div class="notice" id="ya-pedidas"><strong>Esto ya se lo pedimos y no ha contestado.</strong><ul>{% for p in ya_pedidas %}<li>{{ p.texto }} <small>(se pidió el {{ p.ya_pedida }})</small></li>{% endfor %}</ul><a class="button secondary" id="volver-a-pedir" href="/case?thread_id={{ thread_id | urlquote }}&amp;template=preguntas&amp;preguntas={{ ya_pedidas | map(attribute='texto') | join('
 ') | urlquote }}#preguntas-bloque">Volver a pedirlo</a></div>{% endif %}
     <div class="preguntas-bloque" id="preguntas-bloque">
       <textarea name="body" id="correo-unico" class="caja-correo" aria-label="Correo para el cliente" aria-describedby="aviso-espera"
         data-caso="{{ thread_id }}"
         placeholder="Aquí aparece el correo. Marca «Preguntar» en lo que falta y se escribe solo; también puedes escribirlo tú.">{{ correo_inicial }}</textarea>
-      <p class="nota" id="aviso-espera" role="status">{% if n_marcadas %}{{ n_marcadas }} pregunta{{ '' if n_marcadas == 1 else 's' }} en el correo. Puedes cambiar el texto.{% else %}Marca «Preguntar» en lo que falta y el correo se escribe solo.{% endif %}</p>
+      <p class="nota" id="aviso-espera" role="status">{% if n_marcadas %}{{ n_marcadas }} pregunta{{ '' if n_marcadas == 1 else 's' }} en el correo.{% else %}Marca «Preguntar» y el correo se escribe solo.{% endif %}</p>
       <input type="hidden" name="to" value="{{ review.recipient }}">
       <input type="hidden" name="state_token" value="{{ review.marca_de_estado }}">
       <div class="acciones fila-correo" role="group" aria-label="Cómo seguir con este caso">
@@ -202,13 +202,13 @@
           data-confirm-boton="Sí, enviar al cliente">Enviar al cliente</button>
         <button type="submit" id="btn-borrador-preguntas" class="enlace-suave" formaction="/enviar-preguntas" name="accion_correo" value="borrador"{% if not n_marcadas %} disabled{% endif %}>Guardar borrador</button>
         <button type="submit" id="btn-suficiente" class="enlace-suave" name="decision" value="sufficient"{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}
+          title="No falta nada y no se le pregunta más al cliente"
           data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">Con esto alcanza</button>
       </div>
-      {% if n_internas %}<p class="nota">{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} el equipo de Anka (están en «Qué falta resolver»).</p>{% endif %}
+      {% if n_internas %}<p class="nota">{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} Anka.</p>{% endif %}
     </div>
     {% if sin_actividades %}<p class="nota" id="sin-actividades">«Con esto alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».</p>{% endif %}
-    <p class="nota">«Con esto alcanza» quiere decir: no falta nada y no se le pregunta nada más al cliente.</p>
-    <p class="nota">Nada sale al cliente sin que lo revises y confirmes. Al enviarlo, el caso queda en «Esperando al cliente»: no tienes que hacer nada más, y si no responde te avisamos.</p>
+    <p class="nota">Nada sale sin que tú lo envíes.</p>
   </form>
   {% if preguntas_sugeridas and not armar_preguntas %}<details class="more"><summary>Ver preguntas sugeridas</summary>
     <p class="nota">El análisis sugiere {{ preguntas_sugeridas | length }} preguntas para el cliente.</p>

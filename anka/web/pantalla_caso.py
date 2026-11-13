@@ -945,6 +945,10 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
         preguntar, cuadro_preguntas = casillas_de_preguntas(
             analysis.get("activities", []), cuadro_preguntas, [p["texto"] for p in preguntas if p.get("ya_pedida")],
             nuevo=not (analysis.get("ultimas_preguntas") or restaurado or precargadas))
+    elif (slot == "correo" and email == "form" and not reading_blocked
+          and review["status"] == QuoteStatus.REVIEW_PENDING):
+        puestas = "\n".join(en_el_correo(email_body))      # U-112 etapa 7: marcada = su pregunta ya está en el correo
+        preguntar, _ = casillas_de_preguntas(analysis.get("activities", []), puestas, [], nuevo=False)
     generales = preguntas_generales(preguntas, preguntar, cuadro_preguntas) if preguntar is not None else []   # U-107.7
     # U-109: ya con el correo delante, qué actividades por completar no nombra
     sin_nombrar = (actividades_sin_nombrar(analysis.get("activities", []), email_body)

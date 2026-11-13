@@ -962,8 +962,11 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
 })();
 (function () {
   // U-113: el correo con las preguntas se escribe solo mientras se marcan «Preguntar» y se puede cambiar a mano.
-  const caja = document.getElementById('correo-unico');
+  // Con el borrador ya redactado («Correo por revisar») la misma casilla agrega o quita su línea del correo (U-112, etapa 7).
+  const caja = document.getElementById('correo-unico') || document.getElementById('cuerpo-correo');
   if (!caja) return;
+  const soloLineas = caja.id === 'cuerpo-correo';
+  if (soloLineas && !document.querySelector('input[name="preguntar_fila"]')) return;
   const nota = document.getElementById('aviso-espera');
   const botones = ['btn-enviar-preguntas', 'btn-borrador-preguntas'].map(id => document.getElementById(id)).filter(Boolean);
   const casillas = () => Array.from(document.querySelectorAll('input[name="preguntar_fila"]'));
@@ -971,7 +974,7 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
   const plano = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const NUMERADA = /^\s*\d+\s*[.)]\s+(.*)$/;
   const textoDe = linea => linea.match(NUMERADA)[1];
-  let generado = caja.value;      // lo último que escribió el programa: si el texto sigue igual, nadie lo cambió a mano
+  let generado = soloLineas ? null : caja.value;      // lo último que escribió el programa: si el texto sigue igual, nadie lo cambió a mano
   let cola = Promise.resolve();   // una casilla a la vez, en el orden en que se marcaron
 
   async function pedir(lista) {   // el servidor arma el texto con la misma plantilla que el envío (sin modelo ni costo)
@@ -1009,14 +1012,15 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
     const n = marcadas().length;
     botones.forEach(b => { b.disabled = n === 0; });
     if (nota) nota.textContent = n === 0 ? 'Marca «Preguntar» en lo que falta y el correo se escribe solo.'
-      : n + (n === 1 ? ' pregunta' : ' preguntas') + ' en el correo. Puedes cambiar el texto.';
+      : n + (n === 1 ? ' pregunta' : ' preguntas') + ' en el correo.';
   }
   casillas().forEach(c => c.addEventListener('change', () => {
     estado();
     cola = cola.then(() => poner(c)).catch(() => {
-      if (nota) nota.textContent = 'No pudimos escribir el correo solo. Escríbelo tú y envíalo cuando esté listo.';
+      if (nota) nota.textContent = 'No se pudo actualizar el correo. Vuelve a marcar la casilla o escríbelo tú.';
     });
   }));
+  if (soloLineas) return;
   let enviando = false;
   document.addEventListener('submit', e => { if (e.target.method && e.target.method.toLowerCase() !== 'dialog') enviando = true; });
   window.addEventListener('beforeunload', e => { if (!enviando && caja.value !== caja.defaultValue) { e.preventDefault(); e.returnValue = ''; } });

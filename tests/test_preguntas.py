@@ -280,7 +280,7 @@ class CasoCompletoTests(unittest.TestCase):
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn('id="aviso-espera"', pagina)
         self.assertIn('name="esperar" value="1"', pagina)
-        self.assertIn("Marcar «esperando al cliente» aunque el correo no tenga preguntas", pagina)
+        self.assertIn("Esperar respuesta aunque no haya preguntas", pagina)
 
     def test_the_event_and_the_notice_say_whether_an_answer_is_expected(self):
         self.enviar(ACUSE)

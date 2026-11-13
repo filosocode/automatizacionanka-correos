@@ -631,7 +631,7 @@ Corregir la tabla
 </div>
 </div>
 <p class="frase-guia">
-Falta resolver 1 cosa. Toca «Resolver» para atenderla.
+Toca «Resolver» o marca «Preguntar».
 </p>
 <div class="alcance-lectura" id="tabla-resumen">
 <div class="filtros" id="filtros-actividades" role="group" aria-label="Qué actividades ver" hidden="">
@@ -1176,9 +1176,6 @@ Cuéntalo en una frase
 <p class="error-respaldo" role="alert" hidden="">
 </p>
 </fieldset>
-<p class="nota">
-Al guardar, la actividad queda lista y ya no hace falta preguntársela al cliente.
-</p>
 <button type="submit">
 Dejar lista esta actividad
 </button>
@@ -2192,17 +2189,17 @@ listo@example.com
 </span>
 </div>
 <label class="etiqueta-mail" for="cuerpo-correo">
-Mensaje (puedes editarlo)
+Mensaje
 </label>
-<textarea name="body" id="cuerpo-correo" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">
+<textarea name="body" id="cuerpo-correo" data-caso="t-folder-hostile" class="caja-correo" placeholder="Escribe tu mensaje al cliente…">
 </textarea>
 <div id="caja-esperar">
 <label class="nota check-line">
 <input type="checkbox" name="esperar" value="1" id="esperar-respuesta" aria-describedby="efecto-esperar">
-Marcar «esperando al cliente» aunque el correo no tenga preguntas
+Esperar respuesta aunque no haya preguntas
 </label>
 <p class="nota" id="efecto-esperar">
-Úsalo si el correo no pregunta nada pero esperas que conteste: el caso pasará a «Esperando al cliente» y te avisaremos cuándo hacer seguimiento.
+El caso pasa a «Esperando al cliente».
 </p>
 </div>
 <div class="barra-accion">

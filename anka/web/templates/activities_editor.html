@@ -13,15 +13,14 @@
 <label>Cuéntalo en una frase <span class="nota">(mínimo 10 letras)</span>
 <textarea name="nota" rows="2" maxlength="{{ max_celda }}" placeholder="Ej.: Me confirmó por teléfono que el embalse es La Esmeralda"></textarea></label>
 <p class="error-respaldo" role="alert" hidden></p></fieldset>{% endmacro %}
-{% macro lista_de_generales() %}{% if generales and con_preguntar %}<div class="generales" id="preguntas-generales"><h3>Generales <span class="nota">(no son de una actividad)</span></h3>
+{% macro lista_de_generales() %}{% if generales and con_preguntar %}<div class="generales" id="preguntas-generales"><h3>Generales</h3>
 <ul>{% for general in generales %}<li><label><input type="checkbox" name="preguntar_fila" value="{{ general.pregunta }}" form="decision-form"{% if general.marcada %} checked{% endif %}> <span>{{ general.pregunta }}{% if general.del_modelo %} <em class="origen-pregunta">sugerida por el análisis</em>{% endif %}</span></label></li>
 {% endfor %}</ul></div>{% endif %}{% endmacro %}
 <div class="acts-head">
   <div><h2>Actividades detectadas</h2>{% if resumen %}<p class="resumen-tabla">{{ resumen }}</p>{% endif %}</div>
   <div class="acciones"><button type="button" class="button secondary" id="agregar-fila" aria-controls="{{ 'panel-nueva' if renglones else 'editar-tabla' }}">+ Agregar</button><button type="button" class="button secondary" id="editar-boton" aria-expanded="{{ 'true' if abierto else 'false' }}" aria-controls="editar-tabla">Corregir la tabla</button></div>
 </div>
-{% set faltan_n = renglones | rejectattr('estado', 'equalto', 'confirmado') | list | length %}{% if renglones %}<p class="frase-guia">{% if faltan_n == 0 %}Todo está listo. Toca una actividad si algo cambió.{% elif faltan_n == 1 %}Falta resolver 1 cosa. Toca «Resolver» para atenderla.{% else %}Faltan resolver {{ faltan_n }} cosas. Toca «Resolver» en cada una.{% endif %}</p>{% endif %}
-{% if renglones and con_preguntar %}<p class="nota hint-marcar">Marca lo que quieres preguntarle al cliente.</p>{% endif %}
+{% set faltan_n = renglones | rejectattr('estado', 'equalto', 'confirmado') | list | length %}{% if renglones %}<p class="frase-guia">{% if faltan_n == 0 %}Todo está listo.{% else %}Toca «Resolver» o marca «Preguntar».{% endif %}</p>{% endif %}
 {% if con_preguntar and not resumen and not (rows | rejectattr('is_new') | list) %}<p class="nota todo-completo" id="sin-filas">Todavía no hay actividades. Pulsa «+ Agregar» para escribir la primera.</p>{% endif %}
 {% if renglones %}<div class="alcance-lectura" id="tabla-resumen">
 <div class="filtros" id="filtros-actividades" role="group" aria-label="Qué actividades ver" hidden>
@@ -29,7 +28,7 @@
 {% for estado, etiqueta in (('confirmado', 'Listo'), ('pendiente', 'Falta un dato'), ('contradictorio', 'No cuadra')) %}{% set cuantas = renglones | selectattr('estado', 'equalto', estado) | list | length %}{% if cuantas %}<button type="button" class="chip-filtro {{ estado }}" data-filtro="{{ estado }}" aria-pressed="false">{{ etiqueta }} <span class="cuenta">{{ cuantas }}</span></button>{% endif %}{% endfor %}</div>
 <ul class="renglones" id="lista-actividades">{% for r in renglones %}<li class="renglon {{ r.estado }}" data-estado="{{ r.estado }}" id="renglon-{{ r.indice }}">
 <span class="marca {{ r.estado }}" aria-hidden="true">{{ {'confirmado': '✓', 'pendiente': '!', 'contradictorio': '≠'}[r.estado] }}</span>
-<div class="renglon-info"><strong>{{ r.actividad }}</strong><div class="linea-estado"><span class="chip {{ r.estado }}">{{ r.etiqueta }}</span>{% if r.detalle %}<p class="detalle">{{ r.detalle }}</p>{% endif %}</div>{% if r.estado == 'contradictorio' and r.tiene_casilla %}<p class="nota pista-preguntar">Dos fuentes dicen cosas distintas. Si tú sabes cuál vale, toca «Resolver». Si no, marca «Preguntar» y el cliente lo aclara.</p>{% endif %}{% if r.traza %}<p class="traza">{{ r.traza }}</p>{% endif %}</div>
+<div class="renglon-info"><strong>{{ r.actividad }}</strong><div class="linea-estado"><span class="chip {{ r.estado }}">{{ r.etiqueta }}</span>{% if r.detalle %}<p class="detalle">{{ r.detalle }}</p>{% endif %}</div>{% if r.traza %}<p class="traza">{{ r.traza }}</p>{% endif %}</div>
 <div class="renglon-acc">{% if r.tiene_casilla %}<label class="preguntar"><input type="checkbox" name="preguntar_fila" value="{{ r.pregunta }}" form="decision-form"{% if r.marcada %} checked{% endif %} aria-label="Preguntar al cliente por {{ r.actividad }}"> <span>Preguntar</span></label>{% endif %}<button type="button" class="button secondary abrir-panel" data-panel="panel-{{ r.indice }}" aria-controls="panel-{{ r.indice }}" aria-label="{{ 'Resolver' if r.estado != 'confirmado' else 'Cambiar' }} {{ r.actividad }}">{{ 'Resolver' if r.estado != 'confirmado' else 'Cambiar' }}</button></div></li>
 {% endfor %}</ul>
 <p class="nota sin-coincidencias" id="sin-coincidencias" hidden>No hay actividades con ese filtro.</p>
@@ -44,7 +43,6 @@
 {% for f in r.faltan %}<label>Escribe {{ f.articulo }}<textarea name="dato_{{ f.clave }}" rows="1" maxlength="{{ max_celda }}"></textarea></label>{% endfor %}
 {% if r.necesita_decision %}<label>¿Qué quedó decidido?<textarea name="decision" rows="2" maxlength="{{ max_celda }}"></textarea></label>{% endif %}
 {{ respaldo('r' ~ r.indice) }}
-<p class="nota">Al guardar, la actividad queda lista y ya no hace falta preguntársela al cliente.</p>
 <button type="submit">Dejar lista esta actividad</button></form>
 {% else %}<details class="accion-panel"><summary>Corregir un dato (error de escritura)</summary>
 <form method="post" action="/activity" class="form-panel">{{ ocultos('corregir', r.indice) }}

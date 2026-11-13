@@ -495,7 +495,7 @@ Corregir la tabla
 </div>
 </div>
 <p class="frase-guia">
-Falta resolver 1 cosa. Toca «Resolver» para atenderla.
+Toca «Resolver» o marca «Preguntar».
 </p>
 <div class="alcance-lectura" id="tabla-resumen">
 <div class="filtros" id="filtros-actividades" role="group" aria-label="Qué actividades ver" hidden="">
@@ -1040,9 +1040,6 @@ Cuéntalo en una frase
 <p class="error-respaldo" role="alert" hidden="">
 </p>
 </fieldset>
-<p class="nota">
-Al guardar, la actividad queda lista y ya no hace falta preguntársela al cliente.
-</p>
 <button type="submit">
 Dejar lista esta actividad
 </button>

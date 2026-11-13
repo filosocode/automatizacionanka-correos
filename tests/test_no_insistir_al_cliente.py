@@ -158,7 +158,7 @@ class EnLaPantallaDelCaso(unittest.TestCase):
     def test_lo_ya_pedido_se_avisa_y_no_se_pone_en_el_cuadro(self):
         from anka.web import pantalla_caso
         pagina = str(pantalla_caso.render_case("t-1"))
-        self.assertIn("Esto ya se lo pedimos al cliente", pagina)
+        self.assertIn("Esto ya se lo pedimos y no ha contestado", pagina)
         self.assertIn("volver-a-pedir", pagina)
         self.assertNotIn("Anexo Capitulo_1_Topografia", self.cuadro(pagina))
 

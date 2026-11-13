@@ -2,6 +2,7 @@
 
 from tests import _isolate  # noqa: F401  (debe ir primero)
 
+import html
 import re
 import tempfile
 import unittest
@@ -458,7 +459,7 @@ class TarjetaAhora(Base):
             self.assertIn(f'id="{identificador}"', decision)
         self.assertIn(">Enviar al cliente<", decision)
         self.assertNotIn(">Redactar el correo<", decision)
-        self.assertIn("Nada sale al cliente sin que lo revises y confirmes", decision)
+        self.assertIn("Nada sale sin que tú lo envíes", decision)
         self.assertIn("<h2>Mensaje para el cliente</h2>", decision)
 
     def test_el_cuadro_trae_las_preguntas_sugeridas(self) -> None:
@@ -526,7 +527,7 @@ class CuadroUnico(Base):
         self.assertIn(DATUM, cuadro)
         self.assertIn("¿Qué plazo esperan?", cuadro)
         self.assertNotIn("Inspeccionar geometrías", cuadro)
-        self.assertRegex(decision, r"1 punto[s]? (lo|los) resuelve[n]? el equipo de Anka")
+        self.assertRegex(decision, r"1 punto[s]? (lo|los) resuelve[n]? Anka")
 
     def test_con_el_cuadro_vacio_pide_escribir_una_pregunta(self) -> None:
         # Cubre: U-31
@@ -665,7 +666,7 @@ class CorreoComoPrototipo(Base):
         correo = pagina[pagina.index('class="correo-form"'):]
         correo = correo[:correo.index("</form>")]
         self.assertIn('<span class="para">cliente@empresa.co</span>', correo)
-        self.assertIn("Mensaje (puedes editarlo)", correo)
+        self.assertIn(">Mensaje</label>", correo)
         enviar = re.search(r'<button type="submit" formaction="/send"[^>]*>', correo, re.S).group(0)
         self.assertIn('class="send-action"', enviar)
         self.assertIn("data-confirm=", enviar)
@@ -691,6 +692,30 @@ class CorreoComoPrototipo(Base):
         self.crear("t-2", estado=QuoteStatus.REVIEW, actividades=[actividad("Control vertical", "pendiente")])
         self.assertNotIn("dos-columnas-correo", pantalla_caso.render_case("t-2"))
 
+    def test_con_el_borrador_ya_redactado_tambien_se_marca_y_desmarca_preguntar(self) -> None:
+        # Cubre: U-112
+        self.crear(estado=QuoteStatus.REVIEW_PENDING,
+                   actividades=[actividad("Control vertical", "pendiente"), actividad("Ortofoto", "confirmado")])
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertEqual(pagina.count('name="preguntar_fila"'), 1)       # solo la que tiene algo por preguntar
+        self.assertIn('id="cuerpo-correo" data-caso="t-1"', pagina)      # el correo que las casillas editan
+        self.assertIn("Toca «Resolver» o marca «Preguntar».", pagina)
+
+    def test_con_el_borrador_redactado_las_casillas_salen_marcadas_si_su_pregunta_ya_esta(self) -> None:
+        # Cubre: U-112
+        self.crear(estado=QuoteStatus.REVIEW_PENDING,
+                   actividades=[actividad("Control vertical", "pendiente"), actividad("Batimetría", "pendiente")])
+        primera = re.search(r'name="preguntar_fila" value="([^"]+)"', pantalla_caso.render_case("t-1"))
+        assert primera
+        cuerpo = "\n".join(["Hola,", "", "Para completar, necesitamos confirmar lo siguiente:", "",
+                            "1. " + html.unescape(primera.group(1)), ""])
+        db = store.open_db(Path(self.temp.name))
+        db.execute("UPDATE quotes SET draft_body=? WHERE thread_id='t-1'", (cuerpo,))
+        db.commit()
+        db.close()
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertEqual(pagina.count('name="preguntar_fila"'), 2)
+        self.assertEqual(pagina.count('" checked'), 1)       # solo la que ya está escrita
     def test_enviar_y_guardar_siguen_siendo_las_mismas_rutas(self) -> None:
         # Cubre: U-31
         self.crear(estado=QuoteStatus.REVIEW_PENDING)
@@ -1346,7 +1371,7 @@ class PantallaOrdenada(Base):
         self.assertLess(caja.index("<textarea"), caja.index('id="btn-enviar-preguntas"'))     # los botones van debajo del correo
         self.assertLess(caja.index('id="btn-enviar-preguntas"'), caja.index('id="btn-suficiente"'))   # «Con esto alcanza» al final
         self.assertIn('class="enlace-suave"', caja)
-        self.assertIn("Nada sale al cliente sin que lo revises y confirmes", pagina)           # R8 sigue visible
+        self.assertIn("Nada sale sin que tú lo envíes", pagina)           # R8 sigue visible
 
     def test_cada_renglon_dice_su_estado_aunque_todos_sean_iguales(self) -> None:
         # Cubre: U-107, U-112

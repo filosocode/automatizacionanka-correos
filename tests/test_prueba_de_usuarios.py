@@ -15,18 +15,17 @@ def _leer(nombre: str) -> str:
 class AclaracionesDeLaPantalla(unittest.TestCase):
     def test_antes_de_enviar_se_dice_que_pasa_despues(self) -> None:
         # Cubre: U-112
-        self.assertIn("el caso queda en «Esperando al cliente»", _leer("case.html"))
         self.assertIn("filas.push(['Después'", _leer("app.js"))
 
     def test_no_cuadra_explica_sus_dos_salidas(self) -> None:
         # Cubre: U-112
         editor = _leer("activities_editor.html")
-        self.assertIn("Si tú sabes cuál vale, toca «Resolver»", editor)
-        self.assertIn("marca «Preguntar» y el cliente lo aclara", editor)
+        self.assertIn("No, hay que preguntarle al cliente", editor)
+        self.assertIn("Sí, ya la tengo", editor)
 
     def test_con_esto_alcanza_se_explica(self) -> None:
         # Cubre: U-112
-        self.assertIn("«Con esto alcanza» quiere decir: no falta nada", _leer("case.html"))
+        self.assertIn('title="No falta nada y no se le pregunta más al cliente"', _leer("case.html"))
 
     def test_el_foco_va_al_titulo_del_panel_y_vuelve_al_boton(self) -> None:
         # Cubre: U-112

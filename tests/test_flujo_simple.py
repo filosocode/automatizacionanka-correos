@@ -66,7 +66,7 @@ class CorreoPorRevisar(Base):
         self.assertIn('<div id="caja-esperar" hidden>', con_preguntas)
         sin_preguntas = pantalla_caso.render_case("t-1", template="libre")
         self.assertIn('<div id="caja-esperar">', sin_preguntas)
-        self.assertIn("el caso pasará a «Esperando al cliente»", sin_preguntas)       # dice qué hace
+        self.assertIn("El caso pasa a «Esperando al cliente»", sin_preguntas)       # dice qué hace
         self.assertIn('aria-describedby="efecto-esperar"', sin_preguntas)
 
 

@@ -492,9 +492,6 @@ Todavía no hay actividades. Pulsa «+ Agregar» para escribir la primera.
 <div class="generales" id="preguntas-generales">
 <h3>
 Generales
-<span class="nota">
-(no son de una actividad)
-</span>
 </h3>
 <ul>
 <li>
@@ -727,9 +724,6 @@ Si escribes directo en la hoja, el cambio se pierde en la próxima actualizació
 <h2>
 Mensaje para el cliente
 </h2>
-<p class="nota">
-Lo que marques a la izquierda aparece aquí. Revísalo y envíalo.
-</p>
 </div>
 <div class="cuerpo-tarjeta">
 <p class="nota">
@@ -742,7 +736,7 @@ Faltan: 1 archivo por revisar (plano.dwg). Míralo en la pestaña «Archivos». 
 Hola, Gracias por su solicitud para el proyecto «Proyecto Técnico». Para completar la información inicial, necesitamos confirmar lo siguiente: 1. ¿Cuál es el objetivo del trabajo y qué elementos o activos deben revisarse o levantarse? 2. ¿Puede indicar la ubicación del proyecto y el sector o tramo que debe cubrirse? 3. ¿Cuál es el área, longitud o cantidad aproximada de elementos que deben levantarse? Si dispone de ellos, también puede adjuntar los siguientes documentos para complementar la revisión: - Archivo de ubicación y delimitación del área, preferiblemente KMZ/KML, polígono, coordenadas o formato GIS disponible. - Términos de referencia, especificaciones técnicas o normas del contratante aplicables, si existen. Puede responder a este mismo correo. Saludos, Grupo Anka
 </textarea>
 <p class="nota" id="aviso-espera" role="status">
-3 preguntas en el correo. Puedes cambiar el texto.
+3 preguntas en el correo.
 </p>
 <input type="hidden" name="to" value="tecnico@example.com">
 <input type="hidden" name="state_token" value="2026-09-02T10:00:00-05:00|">
@@ -753,7 +747,7 @@ Enviar al cliente
 <button type="submit" id="btn-borrador-preguntas" class="enlace-suave" formaction="/enviar-preguntas" name="accion_correo" value="borrador">
 Guardar borrador
 </button>
-<button type="submit" id="btn-suficiente" class="enlace-suave" name="decision" value="sufficient" disabled="" aria-describedby="sin-actividades" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
+<button type="submit" id="btn-suficiente" class="enlace-suave" name="decision" value="sufficient" disabled="" aria-describedby="sin-actividades" title="No falta nada y no se le pregunta más al cliente" data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">
 Con esto alcanza
 </button>
 </div>
@@ -762,10 +756,7 @@ Con esto alcanza
 «Con esto alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».
 </p>
 <p class="nota">
-«Con esto alcanza» quiere decir: no falta nada y no se le pregunta nada más al cliente.
-</p>
-<p class="nota">
-Nada sale al cliente sin que lo revises y confirmes. Al enviarlo, el caso queda en «Esperando al cliente»: no tienes que hacer nada más, y si no responde te avisamos.
+Nada sale sin que tú lo envíes.
 </p>
 </form>
 <details class="more">
