@@ -11,8 +11,8 @@
   <canvas id="particulas" aria-hidden="true" hidden></canvas>
   <main class="entrar-tarjeta">
     <img class="brand-logo" src="/static/logo-anka.png" alt="Anka" width="106" height="38">
-    <h1>Entrar</h1>
-    <p class="entrar-frase">Solicitudes de cotización</p>
+    <h1>Solicitudes de cotización</h1>
+    <p class="entrar-frase">Grupo Anka · Topografía y geomática</p>
     {% if message %}<div class='notice flash{% if message_is_error %} error{% endif %}' role="{{ 'alert' if message_is_error else 'status' }}">{% if message_is_error %}<span class="solo-lectores">Error: </span>{% endif %}{{ message }}</div>{% endif %}
     <form method="post" action="/entrar">
       <input type="hidden" name="next" value="{{ siguiente }}">
