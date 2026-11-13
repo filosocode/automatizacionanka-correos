@@ -146,8 +146,9 @@
   <div class="cabecera-estado"><span class="badge">{{ review.status_label }}</span>{% if code_text %} <span class="badge info">{{ code_text }}</span>{% endif %}<a class="enlace-mas" id="enlace-mas" href="#p-hist">Más</a></div>
 </div>
 {% if restaurado %}<div class="notice error" role="alert"><span class="solo-lectores">Error: </span>No pudimos terminar lo que pediste. <strong>Lo que escribiste sigue aquí</strong>: míralo y pulsa el botón otra vez.</div>{% endif %}
+{% set seguimiento_en_columna = followup and not can_resolve and slot != 'correo' %}
 {{ stepper }}
-<div id="accion-actual">{{ next_step }}</div>
+{% if not seguimiento_en_columna %}<div id="accion-actual">{{ next_step }}</div>{% endif %}
 {% if sin_analisis %}<section class="section ahora-sin-analisis" id="sin-analisis" aria-labelledby="sin-analisis-titulo">
   <h2 id="sin-analisis-titulo">Este caso aún no tiene análisis de Work</h2>
   <p>Work dejó el análisis, pero Anka no pudo leerlo. Por eso el caso solo tiene lo que se comprueba en el correo: quién escribió, el asunto y la fecha. No hay actividades ni preguntas. Nada se envía al cliente sin que lo revises.</p>
@@ -173,6 +174,13 @@
     {% if analysis_blocked %}<h2>Actividades detectadas</h2>{% endif %}
     {{ activities_editor }}
   </section>
+{% endmacro %}
+{% macro bloque_seguimiento() %}
+<section class="section seguimiento-columna">
+  <div id="accion-actual">{{ next_step }}</div>
+  {{ followup }}
+  {% if manual_review %}<p class="meta revisado">{{ manual_review }}</p>{% endif %}
+</section>
 {% endmacro %}
 {% macro decision_actual() %}
 {% if can_resolve %}
@@ -230,6 +238,7 @@
   {% if edit_note %}<details class="more"><summary>Último cambio del alcance</summary>{{ edit_note }}</details>{% endif %}
   {% if can_resolve %}<div class="dos-columnas">{{ bloque_alcance() }}{{ decision_actual() }}</div>
   {% elif slot == 'correo' %}<div class="dos-columnas dos-columnas-correo">{{ bloque_alcance() }}{{ bloque_respuesta(true) }}</div>
+  {% elif seguimiento_en_columna %}<div class="dos-columnas dos-columnas-correo">{{ bloque_alcance() }}{{ bloque_seguimiento() }}</div>
   {% else %}
   {% if slot == 'correo' %}{{ bloque_respuesta(true) }}{% endif %}
   {{ bloque_alcance() }}
@@ -238,8 +247,7 @@
     <p>{{ summary }}</p><p class="nota"><a href="#p-conv">Revisa el correo</a>, comprueba cantidades y fuentes, y decide cómo seguir. Nada se envía al cliente sin tu aprobación.</p>
   </details>
   {% if rondas_panel %}<details class="more historial-preguntas"><summary>Ver preguntas enviadas y respuestas</summary>{{ rondas_panel }}</details>{% endif %}
-  {{ followup }}
-  {% if manual_review %}<p class="meta revisado">{{ manual_review }}</p>{% endif %}
+  {% if not seguimiento_en_columna %}{{ followup }}{% if manual_review %}<p class="meta revisado">{{ manual_review }}</p>{% endif %}{% endif %}
   <section class="tabs" data-tabs>
     <div class="tablist" role="tablist" aria-label="Más información del caso">
       <button type="button" role="tab" id="t-conv" aria-controls="p-conv" aria-selected="{{ 'true' if tab_inicial == 'conversacion' else 'false' }}">Conversación</button>

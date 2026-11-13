@@ -449,32 +449,8 @@ El cliente dice que sí
 </li>
 </ol>
 </section>
-<div id="accion-actual">
-<div class="next-step aviso-ahora warn">
-<span class="marca-paso">
-Ahora
-</span>
-<div>
-<strong>
-Llamar al cliente
-</strong>
-<span>
-Hace 7 días de trabajo que no contesta. Llámalo y, después, pulsa «Ya hablé con el cliente».
-</span>
-<a class="enlace-accion" href="#seguimiento">
-Ver seguimiento
-</a>
-</div>
-<form method="post" action="/followup" class="aviso-formulario">
-<input type="hidden" name="thread_id" value="t-sent">
-<input type="hidden" name="action" value="contacted">
-<button type="submit" data-confirm="Se detienen los avisos y recordatorios de este caso. ¿Ya hablaste con el cliente?">
-Ya hablé con el cliente
-</button>
-</form>
-</div>
-</div>
 <div class="layout">
+<div class="dos-columnas dos-columnas-correo">
 <section class="section actividades" id="alcance">
 <div class="acts-head">
 <div>
@@ -1761,20 +1737,32 @@ Si escribes directo en la hoja, el cambio se pierde en la próxima actualizació
 </div>
 </div>
 </section>
-<details class="more analisis-original" id="analisis-original">
-<summary>
-Ver análisis original y guía de revisión
-</summary>
-<p>
-Levantamiento topográfico solicitado.
-</p>
-<p class="nota">
-<a href="#p-conv">
-Revisa el correo
+<section class="section seguimiento-columna">
+<div id="accion-actual">
+<div class="next-step aviso-ahora warn">
+<span class="marca-paso">
+Ahora
+</span>
+<div>
+<strong>
+Llamar al cliente
+</strong>
+<span>
+Hace 7 días de trabajo que no contesta. Llámalo y, después, pulsa «Ya hablé con el cliente».
+</span>
+<a class="enlace-accion" href="#seguimiento">
+Ver seguimiento
 </a>
-, comprueba cantidades y fuentes, y decide cómo seguir. Nada se envía al cliente sin tu aprobación.
-</p>
-</details>
+</div>
+<form method="post" action="/followup" class="aviso-formulario">
+<input type="hidden" name="thread_id" value="t-sent">
+<input type="hidden" name="action" value="contacted">
+<button type="submit" data-confirm="Se detienen los avisos y recordatorios de este caso. ¿Ya hablaste con el cliente?">
+Ya hablé con el cliente
+</button>
+</form>
+</div>
+</div>
 <section class="section followup" id="seguimiento">
 <div class="section-head">
 <h2>
@@ -1813,6 +1801,22 @@ Ya hablé con el cliente
 </button>
 </form>
 </section>
+</section>
+</div>
+<details class="more analisis-original" id="analisis-original">
+<summary>
+Ver análisis original y guía de revisión
+</summary>
+<p>
+Levantamiento topográfico solicitado.
+</p>
+<p class="nota">
+<a href="#p-conv">
+Revisa el correo
+</a>
+, comprueba cantidades y fuentes, y decide cómo seguir. Nada se envía al cliente sin tu aprobación.
+</p>
+</details>
 <section class="tabs" data-tabs="">
 <div class="tablist" role="tablist" aria-label="Más información del caso">
 <button type="button" role="tab" id="t-conv" aria-controls="p-conv" aria-selected="true">
