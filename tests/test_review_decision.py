@@ -145,7 +145,7 @@ class ReviewDecisionTests(unittest.TestCase):
         self.assertIn("Mensaje para el cliente", page)
         self.assertNotIn("Respuesta en pausa", page)
         self.assertNotIn('id="respuesta"', page)
-        self.assertIn("Con esto alcanza", page)
+        self.assertNotIn("Con esto alcanza", page)                    # oculto por ahora
         self.assertIn(">Enviar al cliente<", page)
 
     def test_las_preguntas_para_el_cliente_se_cuentan_en_vez_de_repetirse(self):

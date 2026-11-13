@@ -1,5 +1,8 @@
 <li class="queue-row" data-etapa="{{ etapa }}" data-search="{{ busqueda }}">
-  <div><strong>{{ project }}</strong>{% if is_new %} <span class='badge'>Nuevo</span>{% endif %}
-    <div class="meta">{% if client_name %}{{ client_name }} · {% endif %}{% if code %}{{ code }} · {% endif %}{{ reason }}{% if mismos %} · +{{ mismos }} correo(s) más del mismo proyecto{% endif %}</div></div>
-  <a class="button{% if not primaria %} secondary{% endif %}" href="{{ href }}">{{ verb }}</a>
+  <a class="caso-enlace" href="{{ href }}">
+    <span class="ico {{ tono }}" aria-hidden="true">{{ icono }}</span>
+    <span class="caso-texto"><strong>{{ project }}</strong>{% if is_new %} <span class='badge'>Nuevo</span>{% endif %}
+      <span class="meta">{% if client_name %}{{ client_name }}{% endif %}{% if code %}{{ ' · ' if client_name }}{{ code }}{% endif %}{% if mismos %} · +{{ mismos }} correo(s) más del mismo proyecto{% endif %}</span></span>
+    <span class="caso-estado"><b>{{ frase }}</b>{{ verb }}</span>
+  </a>
 </li>

@@ -171,9 +171,8 @@ class PantallaDelCasoMinimo(Base):
     def test_confirmar_que_alcanza_esta_desactivado_con_su_razon_mientras_no_haya_actividades(self) -> None:
         # Cubre: U-41
         pagina = pantalla_caso.render_case("T1")
-        boton = pagina[pagina.index('id="btn-suficiente"'):]
-        self.assertIn("disabled", boton[:boton.index(">")])
-        self.assertIn("se activa cuando la tabla tenga al menos una actividad", pagina)
+        self.assertNotIn('id="btn-suficiente"', pagina)               # oculto por ahora: no se ofrece desde la pantalla
+        self.assertNotIn("se activa cuando la tabla tenga al menos una actividad", pagina)
 
     def test_el_servidor_tampoco_deja_confirmar_sin_actividades(self) -> None:
         # Cubre: U-41
@@ -186,8 +185,7 @@ class PantallaDelCasoMinimo(Base):
         from anka.servicios.ediciones import save_activities
         save_activities("T1", [{"activity": "Levantamiento", "estado": "confirmado"}])
         pagina = pantalla_caso.render_case("T1")
-        boton = pagina[pagina.index('id="btn-suficiente"'):]
-        self.assertNotIn("disabled", boton[:boton.index(">")])
+        self.assertNotIn('id="btn-suficiente"', pagina)               # oculto por ahora
         self.assertNotIn("se activa cuando la tabla tenga", pagina)
 
     def test_el_caso_con_actividades_de_un_analisis_real_no_cambia(self) -> None:

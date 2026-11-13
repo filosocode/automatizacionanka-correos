@@ -260,15 +260,19 @@ document.addEventListener('submit', event => {
       if (casilla && !casilla.checked) { casilla.checked = true; casilla.dispatchEvent(new Event('change')); }
       cerrarPanel();
     }));
+    // «Corregir» y «Agregar» viven dentro de «Gestionar tabla»: al volver, el foco regresa a ese botón.
+    const gestionar = document.getElementById('gestionar-tabla');
+    const volverA = () => { if (gestionar) origenDelPanel = gestionar; };
     // «Corregir la tabla» abre su panel en el contenedor del correo, igual que «Resolver»; la tabla densa queda solo sin JavaScript.
     if (boton) boton.addEventListener('click', evento => {
       evento.stopImmediatePropagation();
-      if (boton.classList.contains('abierto')) cerrarPanel(); else abrirPanel('panel-corregir', boton);
+      if (boton.classList.contains('abierto')) cerrarPanel(); else { abrirPanel('panel-corregir', boton); volverA(); }
     }, true);
     // «Agregar» abre el panel con respaldo.
     if (agregar) agregar.addEventListener('click', evento => {
       evento.stopImmediatePropagation();
       abrirPanel('panel-nueva', agregar);
+      volverA();
     }, true);
     // El respaldo muestra solo lo que corresponde al origen elegido y avisa antes de enviar (mismos textos que el servidor).
     document.querySelectorAll('fieldset.respaldo').forEach(caja => {

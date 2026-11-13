@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/static/style.HUELLA.css">
 <noscript>
 <style>
-.editor-tabla { display: block; } #agregar-fila, #editar-boton, .editar-fila { display: none; }
+.editor-tabla { display: block; } #agregar-fila, #editar-boton, #gestionar-tabla, .editar-fila { display: none; }
 </style>
 </noscript>
 </head>
@@ -346,177 +346,170 @@ Mensaje de prueba
 Hola
 </h2>
 <p class="inicio-frase">
-Hay 10 casos que te esperan.
+10 casos esperan algo de ti.
 </p>
 <p>
 <a class="button" id="atender-primero" href="/case?thread_id=t-review#respuesta">
 Atender a Energía Norte
 </a>
 </p>
-<form method="post" action="/nombre" class="inicio-nombre">
-<label for="inicio-nombre-campo">
-¿Cómo te llamas?
-<span class="nota">
-(queda en lo que registres)
-</span>
-</label>
-<div class="buscar-fila">
-<input id="inicio-nombre-campo" name="nombre" maxlength="60" autocomplete="name" required="">
-<button type="submit" class="secondary">
-Guardar mi nombre
+</section>
+<h1 class="titulo-principal solo-lectores">
+Solicitudes de cotización
+</h1>
+<form class="filtro-casos" method="get" action="/" role="search" data-filtro-etapas="">
+<button type="submit" name="etapa" value="atender" class="solo-lectores" tabindex="-1" aria-hidden="true">
+Buscar
+</button>
+<p id="n-visibles" class="solo-lectores" role="status">
+4 solicitudes a la vista
+</p>
+<div class="chips" role="group" aria-label="Filtrar por etapa">
+<button type="submit" name="etapa" value="atender" class="chip-filter" data-etapa="atender" aria-pressed="true">
+Por atender
+<b>
+5
+</b>
+</button>
+<button type="submit" name="etapa" value="esperando" class="chip-filter" data-etapa="esperando" aria-pressed="false">
+Esperando al cliente
+<b>
+1
+</b>
+</button>
+<button type="submit" name="etapa" value="listo" class="chip-filter" data-etapa="listo" aria-pressed="false">
+Listas para la T
+<b>
+4
+</b>
+</button>
+<button type="submit" name="etapa" value="cotizando" class="chip-filter" data-etapa="cotizando" aria-pressed="false">
+Con código de oferta
+<b>
+0
+</b>
+</button>
+<button type="submit" name="etapa" value="todos" class="chip-filter" data-etapa="" aria-pressed="false">
+Todos
+<b>
+10
+</b>
 </button>
 </div>
+<div class="buscar-casos">
+<label for="buscar-casos" class="solo-lectores">
+Buscar una solicitud
+</label>
+<div class="buscar-fila">
+<input id="buscar-casos" name="q" type="search" value="" placeholder="Buscar un caso…">
+</div>
+</div>
 </form>
-<h3>
-Te esperan
-</h3>
-<ul class="tarjetas">
-<li>
-<a class="tarjeta" href="/case?thread_id=t-review#respuesta">
-<span class="tarjeta-texto">
+<ol class="queue" id="casos">
+<li class="queue-row" data-etapa="atender" data-search="proyecto norte energía norte topografía convencional batimetría">
+<a class="caso-enlace" href="/case?thread_id=t-review#respuesta">
+<span class="ico falta" aria-hidden="true">
+!
+</span>
+<span class="caso-texto">
 <strong>
 Proyecto Norte
 </strong>
-<span class="tarjeta-cliente">
+<span class="badge">
+Nuevo
+</span>
+<span class="meta">
 Energía Norte
 </span>
-<span class="tarjeta-frase">
+</span>
+<span class="caso-estado">
+<b>
 Le falta 1 dato
-</span>
-</span>
-<span class="tarjeta-flecha" aria-hidden="true">
-›
+</b>
+Revisar correo
 </span>
 </a>
 </li>
-<li>
-<a class="tarjeta" href="/case?thread_id=t-hostile#respuesta">
-<span class="tarjeta-texto">
+<li class="queue-row" data-etapa="atender" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>">
+<a class="caso-enlace" href="/case?thread_id=t-hostile#respuesta">
+<span class="ico falta" aria-hidden="true">
+!
+</span>
+<span class="caso-texto">
 <strong>
 "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
 </strong>
-<span class="tarjeta-cliente">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
+<span class="badge">
+Nuevo
 </span>
-<span class="tarjeta-frase">
+<span class="meta">
+"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · +1 correo(s) más del mismo proyecto
+</span>
+</span>
+<span class="caso-estado">
+<b>
 Le falta 1 dato
-</span>
-</span>
-<span class="tarjeta-flecha" aria-hidden="true">
-›
+</b>
+Revisar correo
 </span>
 </a>
 </li>
-<li>
-<a class="tarjeta" href="/case?thread_id=t-draft#respuesta">
-<span class="tarjeta-texto">
+<li class="queue-row" data-etapa="atender" data-search="proyecto sur cliente sur topografía convencional batimetría">
+<a class="caso-enlace" href="/case?thread_id=t-draft#respuesta">
+<span class="ico falta" aria-hidden="true">
+!
+</span>
+<span class="caso-texto">
 <strong>
 Proyecto Sur
 </strong>
-<span class="tarjeta-cliente">
+<span class="badge">
+Nuevo
+</span>
+<span class="meta">
 Cliente Sur
 </span>
-<span class="tarjeta-frase">
+</span>
+<span class="caso-estado">
+<b>
 Le falta 1 dato
-</span>
-</span>
-<span class="tarjeta-flecha" aria-hidden="true">
-›
+</b>
+Revisar correo
 </span>
 </a>
 </li>
-<li>
-<a class="tarjeta" href="/case?thread_id=t-ready#emitir-t">
-<span class="tarjeta-texto">
+<li class="queue-row" data-etapa="atender" data-search="proyecto técnico cliente@example.com">
+<a class="caso-enlace" href="/case?thread_id=t-review-tech#decision">
+<span class="ico falta" aria-hidden="true">
+?
+</span>
+<span class="caso-texto">
 <strong>
-Proyecto Listo
+Proyecto Técnico
 </strong>
-<span class="tarjeta-cliente">
+<span class="badge">
+Nuevo
+</span>
+<span class="meta">
 cliente@example.com
 </span>
-<span class="tarjeta-frase">
-Información validada
 </span>
-</span>
-<span class="tarjeta-flecha" aria-hidden="true">
-›
-</span>
-</a>
-</li>
-<li>
-<a class="tarjeta" href="/case?thread_id=t-folder-hostile#emitir-t">
-<span class="tarjeta-texto">
-<strong>
-Proyecto Hostil
-</strong>
-<span class="tarjeta-cliente">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</span>
-<span class="tarjeta-frase">
-Información validada
-</span>
-</span>
-<span class="tarjeta-flecha" aria-hidden="true">
-›
+<span class="caso-estado">
+<b>
+Por decidir
+</b>
+Decidir cómo seguir
 </span>
 </a>
 </li>
-<li>
-<a class="tarjeta" href="/case?thread_id=t-folder-held#emitir-t">
-<span class="tarjeta-texto">
-<strong>
-Proyecto Retenido
-</strong>
-<span class="tarjeta-cliente">
-Minera Sur
-</span>
-<span class="tarjeta-frase">
-Información validada
-</span>
-</span>
-<span class="tarjeta-flecha" aria-hidden="true">
-›
-</span>
-</a>
-</li>
-</ul>
-<p class="nota">
-Y 4 más, en la lista de abajo.
-</p>
-<h3>
-Esperando al cliente
-</h3>
-<ul class="tarjetas">
-<li>
-<a class="tarjeta" href="/case?thread_id=t-sent#seguimiento">
-<span class="tarjeta-texto">
-<strong>
-Proyecto Enviado
-</strong>
-<span class="tarjeta-cliente">
-Cliente Enviado
-</span>
-<span class="tarjeta-frase">
-Llamar al cliente
-</span>
-</span>
-<span class="tarjeta-flecha" aria-hidden="true">
-›
-</span>
-</a>
-</li>
-</ul>
-</section>
-<div class="page-head">
-<div>
-<h1 class="titulo-principal">
-Solicitudes de cotización
-</h1>
-<p>
-10 solicitudes · 9 esperan algo de ti. La primera es la más urgente.
-</p>
+</ol>
+<div id="sin-casos" class="empty" hidden="">
+No hay solicitudes con esos filtros.
 </div>
-</div>
+<details class="more">
+<summary>
+Más: novedades, números y resumen
+</summary>
 <section class="notifications">
 <details class="more">
 <summary>
@@ -707,127 +700,6 @@ Ver caso
 </article>
 </details>
 </section>
-<form class="filtro-casos" method="get" action="/" role="search" data-filtro-etapas="">
-<div class="buscar-casos">
-<label for="buscar-casos">
-Buscar una solicitud
-</label>
-<div class="buscar-fila">
-<input id="buscar-casos" name="q" type="search" value="" placeholder="Buscar por proyecto, cliente o servicio">
-<button type="submit" name="etapa" value="atender" class="secondary">
-Buscar
-</button>
-</div>
-</div>
-<p id="n-visibles" class="solo-lectores" role="status">
-4 solicitudes a la vista
-</p>
-<div class="chips" role="group" aria-label="Filtrar por etapa">
-<button type="submit" name="etapa" value="atender" class="chip-filter" data-etapa="atender" aria-pressed="true">
-Por atender
-<b>
-5
-</b>
-</button>
-<button type="submit" name="etapa" value="esperando" class="chip-filter" data-etapa="esperando" aria-pressed="false">
-Esperando al cliente
-<b>
-1
-</b>
-</button>
-<button type="submit" name="etapa" value="listo" class="chip-filter" data-etapa="listo" aria-pressed="false">
-Listas para la T
-<b>
-4
-</b>
-</button>
-<button type="submit" name="etapa" value="cotizando" class="chip-filter" data-etapa="cotizando" aria-pressed="false">
-Con código de oferta
-<b>
-0
-</b>
-</button>
-<button type="submit" name="etapa" value="todos" class="chip-filter" data-etapa="" aria-pressed="false">
-Todos
-<b>
-10
-</b>
-</button>
-</div>
-</form>
-<ol class="queue" id="casos">
-<li class="queue-row" data-etapa="atender" data-search="proyecto norte energía norte topografía convencional batimetría">
-<div>
-<strong>
-Proyecto Norte
-</strong>
-<span class="badge">
-Nuevo
-</span>
-<div class="meta">
-Energía Norte · Correo por revisar
-</div>
-</div>
-<a class="button" href="/case?thread_id=t-review#respuesta">
-Revisar correo
-</a>
-</li>
-<li class="queue-row" data-etapa="atender" data-search=""><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b> "><img src=x onerror=zzinj(1)><script>zzinj(2)</script>'&<b>">
-<div>
-<strong>
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>
-</strong>
-<span class="badge">
-Nuevo
-</span>
-<div class="meta">
-"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b> · Correo por revisar · +1 correo(s) más del mismo proyecto
-</div>
-</div>
-<a class="button secondary" href="/case?thread_id=t-hostile#respuesta">
-Revisar correo
-</a>
-</li>
-<li class="queue-row" data-etapa="atender" data-search="proyecto sur cliente sur topografía convencional batimetría">
-<div>
-<strong>
-Proyecto Sur
-</strong>
-<span class="badge">
-Nuevo
-</span>
-<div class="meta">
-Cliente Sur · Correo por revisar
-</div>
-</div>
-<a class="button secondary" href="/case?thread_id=t-draft#respuesta">
-Revisar correo
-</a>
-</li>
-<li class="queue-row" data-etapa="atender" data-search="proyecto técnico cliente@example.com">
-<div>
-<strong>
-Proyecto Técnico
-</strong>
-<span class="badge">
-Nuevo
-</span>
-<div class="meta">
-cliente@example.com · Por decidir
-</div>
-</div>
-<a class="button secondary" href="/case?thread_id=t-review-tech#decision">
-Decidir cómo seguir
-</a>
-</li>
-</ol>
-<div id="sin-casos" class="empty" hidden="">
-No hay solicitudes con esos filtros.
-</div>
-<details class="more">
-<summary>
-Ver números y resumen (10 solicitudes)
-</summary>
 <div class="grid kpis">
 <div class="kpi">
 <div class="kpi-label">

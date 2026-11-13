@@ -1,13 +1,5 @@
 <section class="inicio" id="inicio-guiado" aria-labelledby="inicio-titulo">
   <h2 id="inicio-titulo">{% if inicio.nombre %}Hola, {{ inicio.nombre }}{% else %}Hola{% endif %}</h2>
-  <p class="inicio-frase">{% if inicio.cuantos == 0 %}Nada espera por ti ahora mismo.{% elif inicio.cuantos == 1 %}Hay 1 caso que te espera.{% else %}Hay {{ inicio.cuantos }} casos que te esperan.{% endif %}</p>
+  <p class="inicio-frase">{% if inicio.cuantos == 0 %}Nada espera por ti ahora mismo.{% elif inicio.cuantos == 1 %}1 caso espera algo de ti.{% else %}{{ inicio.cuantos }} casos esperan algo de ti.{% endif %}</p>
   {% if inicio.boton %}<p><a class="button" id="atender-primero" href="{{ inicio.boton.href }}">Atender a {{ inicio.boton.cliente }}</a></p>{% endif %}
-  {% if not inicio.nombre %}<form method="post" action="/nombre" class="inicio-nombre"><label for="inicio-nombre-campo">¿Cómo te llamas? <span class="nota">(queda en lo que registres)</span></label>
-    <div class="buscar-fila"><input id="inicio-nombre-campo" name="nombre" maxlength="60" autocomplete="name" required><button type="submit" class="secondary">Guardar mi nombre</button></div></form>{% endif %}
-  {% if inicio.te_esperan %}<h3>Te esperan</h3>
-  <ul class="tarjetas">{% for t in inicio.te_esperan %}<li><a class="tarjeta" href="{{ t.href }}"><span class="tarjeta-texto"><strong>{{ t.nombre }}</strong>{% if t.cliente %}<span class="tarjeta-cliente">{{ t.cliente }}</span>{% endif %}<span class="tarjeta-frase">{{ t.frase }}</span></span><span class="tarjeta-flecha" aria-hidden="true">›</span></a></li>
-  {% endfor %}</ul>{% if inicio.mas_te_esperan %}<p class="nota">Y {{ inicio.mas_te_esperan }} más, en la lista de abajo.</p>{% endif %}{% endif %}
-  {% if inicio.esperando %}<h3>Esperando al cliente</h3>
-  <ul class="tarjetas">{% for t in inicio.esperando %}<li><a class="tarjeta" href="{{ t.href }}"><span class="tarjeta-texto"><strong>{{ t.nombre }}</strong>{% if t.cliente %}<span class="tarjeta-cliente">{{ t.cliente }}</span>{% endif %}<span class="tarjeta-frase">{{ t.frase }}</span></span><span class="tarjeta-flecha" aria-hidden="true">›</span></a></li>
-  {% endfor %}</ul>{% if inicio.mas_esperando %}<p class="nota">Y {{ inicio.mas_esperando }} más, en la lista de abajo.</p>{% endif %}{% endif %}
 </section>

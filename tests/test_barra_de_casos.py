@@ -68,13 +68,12 @@ class BarraTests(ConVariosCasos):
 class InicioTests(ConVariosCasos):
     def test_un_solo_boton_lleva_al_mas_urgente_y_las_tarjetas_dicen_una_frase(self) -> None:
         pagina = paginas.render_index()
-        inicio = pagina[pagina.index('id="inicio-guiado"'):pagina.index('class="page-head"')]
+        inicio = pagina[pagina.index('id="inicio-guiado"'):pagina.index("</section>", pagina.index('id="inicio-guiado"'))]
         self.assertEqual(inicio.count('id="atender-primero"'), 1)
         self.assertRegex(inicio, r'<a class="button" id="atender-primero" href="/case\?thread_id=t-1[^"]*">Atender a ')
-        self.assertIn("Hay 1 caso que te espera.", inicio)
-        self.assertIn("<h3>Te esperan</h3>", inicio)
-        self.assertIn("<h3>Esperando al cliente</h3>", inicio)
-        self.assertIn("Ortofoto del lote", inicio)
+        self.assertIn("1 caso espera algo de ti.", inicio)
+        self.assertNotIn("<h3>", inicio)                       # la lista de casos es una sola: la de abajo
+        self.assertIn("Ortofoto del lote", pagina)
 
     def test_sin_nada_que_atender_no_hay_boton(self) -> None:
         with patch("anka.web.barra_de_casos.cola_de_hoy", return_value=[]):

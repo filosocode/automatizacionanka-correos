@@ -1,3 +1,5 @@
+{# Por ahora un caso no puede darse por suficiente desde la pantalla: «Con esto alcanza» y «No preguntar: con esto alcanza» quedan ocultos. #}
+{% set con_esto_alcanza = false %}
 {% macro bloque_carpeta(en_mas_datos) %}
   {% set carpeta_plegada = en_mas_datos or (not drive_pending and not review.quote_code) %}
   {% if carpeta_plegada %}<details class="more" id="carpeta"><summary>{{ 'Si la carpeta falló: crearla a mano' if en_mas_datos else 'Carpeta del proyecto en Drive (se crea sola; ábrela si falló)' }}</summary>{% endif %}
@@ -99,8 +101,8 @@
   <input type="hidden" name="thread_id" value="{{ thread_id }}">
   <span class="nota">¿Cambiaste de idea?</span>
   <button type="submit" name="accion" value="reconsiderar" class="enlace">Volver a decidir</button>
-  <button type="submit" name="accion" value="suficiente" class="enlace"
-    data-confirm="El caso quedará como «Información validada» y no le preguntaremos nada al cliente. Después podrás emitir la T. ¿Seguimos?">No preguntar: con esto alcanza</button>
+  {% if con_esto_alcanza %}<button type="submit" name="accion" value="suficiente" class="enlace"
+    data-confirm="El caso quedará como «Información validada» y no le preguntaremos nada al cliente. Después podrás emitir la T. ¿Seguimos?">No preguntar: con esto alcanza</button>{% endif %}
 </form>
 {% endif %}
 </details>
@@ -201,13 +203,13 @@
           data-resumen="envio" data-para="{{ review.recipient }}" data-asunto="{{ asunto_respuesta }}"
           data-confirm-boton="Sí, enviar al cliente">Enviar al cliente</button>
         <button type="submit" id="btn-borrador-preguntas" class="enlace-suave" formaction="/enviar-preguntas" name="accion_correo" value="borrador"{% if not n_marcadas %} disabled{% endif %}>Guardar borrador</button>
-        <button type="submit" id="btn-suficiente" class="enlace-suave" name="decision" value="sufficient"{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}
+        {% if con_esto_alcanza %}<button type="submit" id="btn-suficiente" class="enlace-suave" name="decision" value="sufficient"{% if sin_actividades %} disabled aria-describedby="sin-actividades"{% endif %}
           title="No falta nada y no se le pregunta más al cliente"
-          data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">Con esto alcanza</button>
+          data-confirm="El caso quedará como «Información validada» y podrás crear la carpeta en Drive. ¿Ya lo revisaste?">Con esto alcanza</button>{% endif %}
       </div>
       {% if n_internas %}<p class="nota">{{ n_internas }} punto{{ '' if n_internas == 1 else 's' }} {{ 'lo' if n_internas == 1 else 'los' }} resuelve{{ '' if n_internas == 1 else 'n' }} Anka.</p>{% endif %}
     </div>
-    {% if sin_actividades %}<p class="nota" id="sin-actividades">«Con esto alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».</p>{% endif %}
+    {% if con_esto_alcanza and sin_actividades %}<p class="nota" id="sin-actividades">«Con esto alcanza» se activa cuando la tabla tenga al menos una actividad: agrégala con «Completar la tabla yo» o «+ Agregar».</p>{% endif %}
     <p class="nota">Nada sale sin que tú lo envíes.</p>
   </form>
   {% if preguntas_sugeridas and not armar_preguntas %}<details class="more"><summary>Ver preguntas sugeridas</summary>

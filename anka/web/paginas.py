@@ -149,10 +149,17 @@ def grupo_de_etapa(quote: Mapping[str, Any]) -> str:
 
 def queue_row(quote: Mapping[str, Any], position: int, is_new: bool = False, mismos: int = 0) -> Markup:
     """Fila de la cola de hoy: posición, proyecto, qué espera y un solo botón con verbo."""
+    from anka.web.barra_de_casos import frase_de_caso
     _, verb, anchor = accion_de_caso(quote)
     code = quote.get("quote_code")
+    etapa = grupo_de_etapa(quote)
+    tonos = {"atender": ("falta", "!"), "esperando": ("espera", "…"), "listo": ("ok", "✓")}
+    tono, icono = tonos.get(etapa, ("espera", "•"))
+    if etapa == "atender" and case_stage(quote)[0] == "Por decidir":
+        icono = "?"
     return render(
-        "queue_row.html", position=position, is_new=is_new, mismos=mismos, etapa=grupo_de_etapa(quote),
+        "queue_row.html", position=position, is_new=is_new, mismos=mismos, etapa=etapa, tono=tono, icono=icono,
+        frase=frase_de_caso(quote),
         busqueda=_busqueda_de_cola(quote),
         primaria=position == 1 and bool(case_stage(quote)[1]),
         project=quote["analysis"].get("project_name") or "Solicitud sin nombre",
@@ -288,6 +295,7 @@ def render_index(message: str = "", mostrar: int = POR_PAGINA, q: str = "", etap
         work_rejected=_work_rejected_panel() if _en_modo_work() else Markup(""),
         notifications=_notifications_panel(notifications, plegar=bool(notifications) and all(
             item["thread_id"] in en_lista for item in notifications)),
+        novedades_repetidas=bool(notifications) and all(item["thread_id"] in en_lista for item in notifications),
         total=len(quotes),
         unique_clients=len({q["client_email"].casefold() for q in quotes if q["client_email"]}),
         action_count=sum(1 for caso, _ in todas if case_stage(caso)[1]),

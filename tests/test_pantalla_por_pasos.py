@@ -284,10 +284,10 @@ class TablaDelPrototipo(Base):
         contradictoria = actividad("Curvas de nivel", "contradictorio") | {"notes": "El correo dice 10 ha y el KMZ 12 ha."}
         sin_nota = actividad("Batimetría", "contradictorio") | {"notes": ""}
         self.crear(actividades=[pendiente, contradictoria, sin_nota])
-        vista = self.vista(pantalla_caso.render_case("t-1"))
-        self.assertIn("Falta ubicación, plazo.", vista)
-        self.assertIn("El correo dice 10 ha y el KMZ 12 ha.", vista)
-        self.assertIn("Hay información que no coincide", vista)
+        pagina = pantalla_caso.render_case("t-1")
+        self.assertIn("Falta ubicación, plazo", self.vista(pagina))          # la lista, liviana: solo lo puntual
+        self.assertIn("El correo dice 10 ha y el KMZ 12 ha.", pagina)       # el detalle, al abrir «Resolver»
+        self.assertIn("Hay información que no coincide", pagina)
 
     def test_la_nota_larga_se_acorta_y_sin_nada_que_decir_pide_confirmar(self) -> None:
         # Cubre: U-103
@@ -295,11 +295,11 @@ class TablaDelPrototipo(Base):
         larga = actividad("Levantamiento", "pendiente") | completa | {"notes": "Revisar el acceso al predio " + "por la vía veredal y la finca vecina " * 8}
         vacia = actividad("Replanteo", "pendiente") | completa | {"notes": ""}
         self.crear(actividades=[larga, vacia])
-        vista = self.vista(pantalla_caso.render_case("t-1"))
-        detalle = vista.split('<p class="detalle">')[1].split("</p>")[0]
+        pagina = pantalla_caso.render_case("t-1")
+        detalle = pagina.split('<p class="nota">Revisar el acceso')[1].split("</p>")[0]       # en el panel de «Resolver»
         self.assertIn("…", detalle)
         self.assertLess(len(detalle), 220)
-        self.assertIn("Falta confirmar la actividad.", vista)
+        self.assertIn("Falta confirmar la actividad.", pagina)
 
     def test_una_actividad_lista_dice_lo_que_tiene(self) -> None:
         # Cubre: U-112
@@ -350,8 +350,11 @@ class TablaDelPrototipo(Base):
         pagina = pantalla_caso.render_case("t-1")
         cabecera = pagina[pagina.index('class="acts-head"'):pagina.index('id="tabla-resumen"')]
         self.assertIn("<h2>Actividades detectadas</h2>", cabecera)
-        self.assertIn('<button type="button" class="button secondary" id="agregar-fila" aria-controls="panel-nueva">+ Agregar</button>', cabecera)
-        self.assertIn('id="editar-boton" aria-expanded="false" aria-controls="editar-tabla">Corregir la tabla</button>', cabecera)
+        self.assertIn('id="gestionar-tabla" data-panel="panel-gestionar"', cabecera)        # un solo botón en la cabecera
+        self.assertNotIn('id="agregar-fila"', cabecera)
+        gestionar = pagina[pagina.index('id="panel-gestionar"'):pagina.index('id="panel-nueva"')]
+        self.assertIn('id="editar-boton" aria-expanded="false" aria-controls="editar-tabla"><b>Corregir una actividad</b>', gestionar)
+        self.assertIn('id="agregar-fila" aria-controls="panel-nueva"><b>Agregar una actividad</b>', gestionar)
         self.assertNotIn("editar-toggle", pagina)
         self.assertNotIn("toggle-oculto", pagina)
         self.assertNotIn('id="editar-boton" aria-expanded="true"', pagina)     # cerrada al cargar
@@ -448,14 +451,14 @@ class TarjetaAhora(Base):
         self.assertIn('class="section decision-arriba ahora" id="decision"', pagina)
         decision = tarjeta(pagina)
         self.assertNotIn(">Ahora<", decision)                                 # U-107.3b: sin título «AHORA»
-        self.assertIn('name="decision" value="sufficient"', decision)
+        self.assertNotIn('name="decision" value="sufficient"', decision)    # «Con esto alcanza» está oculto por ahora
         self.assertNotIn('value="ask_client"', decision)                      # U-113: ya no hay un paso aparte para redactar
         self.assertNotIn('type="radio"', decision)                            # sin elegir antes: el correo siempre está
         self.assertIn('id="correo-unico"', decision)
         self.assertNotIn('value="internal_only"', decision)
-        self.assertIn(">Con esto alcanza<", decision)
-        self.assertEqual(decision.count('type="submit"'), 3)                  # enviar, guardar borrador o con esto alcanza
-        for identificador in ("btn-suficiente", "btn-enviar-preguntas", "btn-borrador-preguntas"):
+        self.assertNotIn(">Con esto alcanza<", decision)
+        self.assertEqual(decision.count('type="submit"'), 2)                  # enviar o guardar borrador
+        for identificador in ("btn-enviar-preguntas", "btn-borrador-preguntas"):
             self.assertIn(f'id="{identificador}"', decision)
         self.assertIn(">Enviar al cliente<", decision)
         self.assertNotIn(">Redactar el correo<", decision)
@@ -480,14 +483,13 @@ class TarjetaAhora(Base):
         self.assertEqual(cuadro_de(decision).strip(), "")
         self.assertIn(' disabled', decision[decision.index('id="btn-enviar-preguntas"'):decision.index(">Enviar al cliente<")])
 
-    def test_solo_con_esto_alcanza_pide_confirmacion(self) -> None:
+    def test_solo_enviar_pide_confirmacion(self) -> None:
         # Cubre: U-31
         self.crear()
         decision = tarjeta(pantalla_caso.render_case("t-1"))
-        suficiente = decision[decision.index('id="btn-suficiente"'):decision.index("</button>", decision.index('id="btn-suficiente"'))]
+        self.assertNotIn('id="btn-suficiente"', decision)                       # «Con esto alcanza» oculto por ahora
         enviar = decision[decision.index('id="btn-enviar-preguntas"'):decision.index("</button>", decision.index('id="btn-enviar-preguntas"'))]
         borrador = decision[decision.index('id="btn-borrador-preguntas"'):decision.index("</button>", decision.index('id="btn-borrador-preguntas"'))]
-        self.assertIn("data-confirm=", suficiente)
         self.assertIn('data-resumen="envio"', enviar)                          # R8: enviar pide la confirmación de siempre
         self.assertIn("data-confirm=", enviar)
         self.assertNotIn("data-confirm", borrador)                             # guardar un borrador no envía nada
@@ -772,8 +774,7 @@ class CorreoAmigable(Base):
         linea = linea[:linea.index("</form>")]
         self.assertIn("¿Cambiaste de idea?", linea)
         self.assertIn(">Volver a decidir<", linea)
-        self.assertIn(">No preguntar: con esto alcanza<", linea)
-        self.assertIn("data-confirm=", linea)
+        self.assertNotIn("No preguntar: con esto alcanza", linea)             # oculto por ahora
 
 
 class UnSoloNombreDeEstado(Base):
@@ -901,13 +902,13 @@ class PaginaPrincipalEsLaLista(Base):
         separados = {frozenset(par) for par in (("t-a", "t-b"), ("t-a", "t-c"), ("t-b", "t-c"))}     # tres proyectos distintos
         with patch("anka.web.paginas.separated_project_pairs", return_value=separados):
             pagina = self.lista()
-        self.assertIn('<h1 class="titulo-principal">Solicitudes de cotización</h1>', pagina)
+        self.assertIn('<h1 class="titulo-principal solo-lectores">Solicitudes de cotización</h1>', pagina)
         self.assertGreaterEqual(pagina.count('class="queue-row"'), 2)
         for hilo in ("t-a", "t-b"):
             self.assertIn(f"/case?thread_id={hilo}", pagina)
         self.assertNotIn("Qué hacer hoy", pagina)
         self.assertEqual(len(re.findall(r'<li class="queue-row"[^>]*>.*?</li>', pagina, re.S)),
-                         len(re.findall(r'<li class="queue-row"[^>]*>.*?<a class="button[^"]*" href="[^"]+">\w', pagina, re.S)))
+                         len(re.findall(r'<li class="queue-row"[^>]*>.*?<a class="caso-enlace" href="[^"]+">', pagina, re.S)))
 
     def test_los_chips_traen_los_numeros_y_todos(self) -> None:
         # Cubre: U-32
@@ -1161,8 +1162,8 @@ class CorreoPorRevisar(Base):
         self.crear("t-a", estado=QuoteStatus.REVIEW_PENDING)
         pagina = paginas.render_index()
         fila = pagina[pagina.index('<li class="queue-row"'):pagina.index("</li>", pagina.index('<li class="queue-row"'))]
-        self.assertIn("Correo por revisar", fila)
-        self.assertIn(">Revisar correo<", fila)
+        self.assertIn("Le falta", fila)                           # la tarjeta dice qué pasa, en una frase
+        self.assertIn("Revisar correo</span>", fila)
         self.assertIn("#respuesta", fila)
         self.assertNotIn("Por aclarar con el cliente", pagina[:pagina.index("</main>")])
 
@@ -1369,7 +1370,7 @@ class PantallaOrdenada(Base):
         caja = caja[:caja.index("</form>")]
         self.assertEqual(caja.count("<textarea"), 1)
         self.assertLess(caja.index("<textarea"), caja.index('id="btn-enviar-preguntas"'))     # los botones van debajo del correo
-        self.assertLess(caja.index('id="btn-enviar-preguntas"'), caja.index('id="btn-suficiente"'))   # «Con esto alcanza» al final
+        self.assertNotIn('id="btn-suficiente"', caja)                          # «Con esto alcanza» oculto por ahora
         self.assertIn('class="enlace-suave"', caja)
         self.assertIn("Nada sale sin que tú lo envíes", pagina)           # R8 sigue visible
 

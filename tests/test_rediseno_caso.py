@@ -77,14 +77,12 @@ class ColaDeHoy(unittest.TestCase):
     def test_cada_fila_tiene_un_boton_con_verbo_y_su_ancla(self) -> None:
         # Cubre: U-11
         decidir = str(paginas.queue_row(_caso("h1", QuoteStatus.REVIEW), 3))
-        self.assertIn(">Decidir cómo seguir</a>", decidir)
+        self.assertIn("Decidir cómo seguir</span>", decidir)
         self.assertIn("/case?thread_id=h1#decision", decidir)
         self.assertEqual(decidir.count("<a "), 1)
         emitir = str(paginas.queue_row(_caso("h2", QuoteStatus.READY), 1))
-        self.assertIn(">Emitir la T</a>", emitir)
+        self.assertIn("Emitir la T</span>", emitir)
         self.assertIn("#emitir-t", emitir)
-        self.assertNotIn("secondary", emitir)  # el primero es el botón principal
-        self.assertIn("secondary", decidir)
 
     def test_estado_desconocido_cae_al_final_con_abrir(self) -> None:
         # Cubre: U-11

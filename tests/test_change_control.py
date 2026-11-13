@@ -782,13 +782,13 @@ class UxFixesTests(Base):
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
             page = paginas.render_index()
         self.assertIn("Solicitudes de cotización", page)
-        self.assertIn("1 espera algo de ti. Es la más urgente", page)       # U-107.10: concuerda en singular
-        self.assertIn("Correo por revisar", page)
-        self.assertIn("Ver números y resumen", page)                           # las gráficas quedan plegadas
-        self.assertLess(page.index("Correo por revisar"), page.index("Ver números y resumen"))
+        self.assertIn("1 caso espera algo de ti.", page)                    # U-107.10: concuerda en singular
+        self.assertIn("Revisar correo", page)
+        self.assertIn("Más: novedades, números y resumen", page)               # las gráficas quedan plegadas
+        self.assertLess(page.index("Revisar correo"), page.index("Más: novedades, números y resumen"))
         self.set_status(QuoteStatus.WAITING)
         with patch("anka.web.paginas.load_config", return_value=CONFIG), patch("anka.web.pantalla_caso.load_config", return_value=CONFIG):
-            self.assertIn("nada pendiente de tu parte", paginas.render_index())
+            self.assertIn("Nada espera por ti ahora mismo", paginas.render_index())
 
     # 5. encabezado
     def test_header_hides_the_mode_picker_in_settings_and_the_useless_refresh_in_work(self):

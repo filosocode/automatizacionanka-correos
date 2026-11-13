@@ -53,9 +53,9 @@ class CorreoPorRevisar(Base):
         menu = pagina[pagina.index('id="cambiar-idea"'):]
         self.assertTrue(menu.startswith('id="cambiar-idea">'))                       # plegado con el correo ya armado
         self.assertIn("<summary>Cambiar de idea</summary>", menu)
-        for texto in ("Cambiar las preguntas", "Preparar el correo de nuevo", "Volver a decidir",
-                      "No preguntar: con esto alcanza"):
+        for texto in ("Cambiar las preguntas", "Preparar el correo de nuevo", "Volver a decidir"):
             self.assertIn(texto, menu)
+        self.assertNotIn("No preguntar: con esto alcanza", menu)                     # oculto por ahora
         self.assertEqual(pagina.count("<summary>Cambiar de idea</summary>"), 1)
 
     def test_la_casilla_de_esperar_solo_se_ofrece_si_el_correo_no_pregunta(self) -> None:
@@ -182,7 +182,7 @@ class TablaCompacta(Base):
         pagina = pantalla_caso.render_case("t-1")
         resumen = pagina[pagina.index('id="tabla-resumen"'):pagina.index('id="editar-tabla"')]
         self.assertIn("Falta ubicación, entregable.", resumen)
-        self.assertIn(">Corregir la tabla</button>", pagina)
+        self.assertIn("<b>Corregir una actividad</b>", pagina)
         self.assertNotIn("Ajustar cajas al texto", pagina)
         editor = pagina[pagina.index('id="editar-tabla"'):]
         self.assertIn("<option value='pendiente' selected>Por completar</option>", editor)   # etiqueta, mismo valor

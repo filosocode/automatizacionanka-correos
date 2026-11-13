@@ -110,7 +110,7 @@ class BuscarEnTodosLosCasos(Base):
         self.sembrar(5)
         pagina = paginas.render_index(q="obra")
         self.assertIn('<form class="filtro-casos" method="get" action="/" role="search" data-filtro-etapas>', pagina)
-        self.assertIn('<label for="buscar-casos">Buscar una solicitud</label>', pagina)
+        self.assertIn('<label for="buscar-casos" class="solo-lectores">Buscar una solicitud</label>', pagina)
         self.assertIn('id="buscar-casos" name="q" type="search" value="obra"', pagina)
         # el primer botón del formulario es «Buscar» (lo que envía la tecla Intro) y conserva la etapa elegida
         primer_boton = re.search(r"<button[^>]*>", pagina[pagina.index("filtro-casos"):]).group(0)  # type: ignore[union-attr]

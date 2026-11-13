@@ -55,9 +55,9 @@ class VerboPrimero(Base):
                 self.assertTrue(visible.startswith(verbo + " · "), visible)
             else:                                                 # U-107: la cola dice la acción solo en el botón
                 self.assertNotIn('class="verbo"', fila)
-                verbo = re.search(r'<a class="button[^"]*" href="[^"]+">([^<]+)</a>', fila).group(1)
+                verbo = re.search(r'<span class="caso-estado"><b>[^<]*</b>([^<]+)</span>', fila).group(1)
             self.assertTrue(verbo)
-            self.assertIn(f">{verbo}</a>", fila)                  # el botón conserva su texto
+            self.assertIn(f">{verbo}</a>" if "case-row" in fila else f"</b>{verbo}</span>", fila)   # conserva su texto
             self.assertIn(quote["client_name"], fila)
 
     # Cubre: U-107
@@ -72,7 +72,7 @@ class VerboPrimero(Base):
     def test_el_verbo_repetido_no_se_lee_dos_veces(self):
         fila = paginas.quote_row(quotes.get_quote("T1"))
         self.assertEqual(fila.count('aria-hidden="true">'), 1)
-        self.assertNotIn('aria-hidden="true">', paginas.queue_row(quotes.get_quote("T1"), 1))     # U-107
+        self.assertEqual(paginas.queue_row(quotes.get_quote("T1"), 1).count('aria-hidden="true">'), 1)   # solo el icono
 
     # Cubre: U-107
     def test_la_lista_concuerda_en_singular_y_el_boton_editar_tiene_area_de_toque(self):

@@ -1,18 +1,18 @@
 {{ inicio }}
-<div class="page-head">
-  <div><h1 class="titulo-principal">Solicitudes de cotización</h1><p>{% if recibidas_nuevas %}{{ total + recibidas_nuevas }} solicitud{{ '' if total + recibidas_nuevas == 1 else 'es' }} · {{ recibidas_nuevas }} recibida{{ '' if recibidas_nuevas == 1 else 's' }} pendiente{{ '' if recibidas_nuevas == 1 else 's' }} de análisis.{% elif total %}{{ total }} solicitud{{ '' if total == 1 else 'es' }}{% if action_count %} · {{ action_count }} {{ 'espera' if action_count == 1 else 'esperan' }} algo de ti. {{ 'Es la más urgente' if action_count == 1 else 'La primera es la más urgente' }}{% else %} · nada pendiente de tu parte{% endif %}.{% else %}Todavía no hay solicitudes de cotización.{% endif %}</p></div>
-</div>
-{{ notifications }}
+<h1 class="titulo-principal solo-lectores">Solicitudes de cotización</h1>
+{% if recibidas_nuevas %}<p class="meta">{{ total + recibidas_nuevas }} solicitud{{ '' if total + recibidas_nuevas == 1 else 'es' }} · {{ recibidas_nuevas }} recibida{{ '' if recibidas_nuevas == 1 else 's' }} pendiente{{ '' if recibidas_nuevas == 1 else 's' }} de análisis.</p>{% endif %}
+{% if not novedades_repetidas %}{{ notifications }}{% endif %}
 {{ recepcion }}
 {% if total %}
 <form class="filtro-casos" method="get" action="/" role="search" data-filtro-etapas>
-  <div class="buscar-casos"><label for="buscar-casos">Buscar una solicitud</label>
-    <div class="buscar-fila"><input id="buscar-casos" name="q" type="search" value="{{ busqueda }}" placeholder="Buscar por proyecto, cliente o servicio"><button type="submit" name="etapa" value="{{ etapa_actual or 'todos' }}" class="secondary">Buscar</button></div></div>
+  <button type="submit" name="etapa" value="{{ etapa_actual or 'todos' }}" class="solo-lectores" tabindex="-1" aria-hidden="true">Buscar</button>
   <p id="n-visibles" class="solo-lectores" role="status">{% if coinciden %}{{ coinciden }} solicitud{{ '' if coinciden == 1 else 'es' }} a la vista{% else %}Ninguna solicitud coincide{% endif %}</p>
   <div class="chips" role="group" aria-label="Filtrar por etapa">
     {% for key, label, count in etapas %}<button type="submit" name="etapa" value="{{ key }}" class="chip-filter" data-etapa="{{ key }}" aria-pressed="{{ 'true' if etapa_actual == key else 'false' }}">{{ label }} <b>{{ count }}</b></button>
     {% endfor %}<button type="submit" name="etapa" value="todos" class="chip-filter" data-etapa="" aria-pressed="{{ 'true' if not etapa_actual else 'false' }}">Todos <b>{{ total }}</b></button>
   </div>
+  <div class="buscar-casos"><label for="buscar-casos" class="solo-lectores">Buscar una solicitud</label>
+    <div class="buscar-fila"><input id="buscar-casos" name="q" type="search" value="{{ busqueda }}" placeholder="Buscar un caso…"></div></div>
 </form>
 <ol class="queue" id="casos">{% for row in todo %}{{ row }}{% endfor %}</ol>
 {{ ver_mas }}
@@ -20,7 +20,8 @@
 {% elif not recibidas_nuevas %}<div class='empty'>Todavía no hay solicitudes de cotización. Cuando llegue una solicitud por correo aparecerá aquí.</div>{% endif %}
 {{ work_rejected }}
 <details class="more">
-  <summary>Ver números y resumen ({{ total }} {% if recibidas_nuevas %}con análisis disponible{% else %}{{ 'solicitud' if total == 1 else 'solicitudes' }}{% endif %})</summary>
+  <summary>Más: novedades, números y resumen</summary>
+  {% if novedades_repetidas %}{{ notifications }}{% endif %}
   <div class="grid kpis">
     <div class="kpi"><div class="kpi-label">Esperan algo de ti</div><div class="kpi-value">{{ action_count }}</div></div>
     <div class="kpi"><div class="kpi-label">Esperando al cliente</div><div class="kpi-value">{{ waiting }}</div></div>

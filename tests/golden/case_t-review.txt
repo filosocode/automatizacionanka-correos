@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/static/style.HUELLA.css">
 <noscript>
 <style>
-.editor-tabla { display: block; } #agregar-fila, #editar-boton, .editar-fila { display: none; }
+.editor-tabla { display: block; } #agregar-fila, #editar-boton, #gestionar-tabla, .editar-fila { display: none; }
 </style>
 </noscript>
 </head>
@@ -480,11 +480,8 @@ Actividades detectadas
 </p>
 </div>
 <div class="acciones">
-<button type="button" class="button secondary" id="agregar-fila" aria-controls="panel-nueva">
-+ Agregar
-</button>
-<button type="button" class="button secondary" id="editar-boton" aria-expanded="false" aria-controls="editar-tabla">
-Corregir la tabla
+<button type="button" class="button secondary abrir-panel" id="gestionar-tabla" data-panel="panel-gestionar" aria-controls="panel-gestionar">
+Gestionar tabla
 </button>
 </div>
 </div>
@@ -549,7 +546,7 @@ Batimetría
 Falta un dato
 </span>
 <p class="detalle">
-Falta ubicación.
+Falta ubicación
 </p>
 </div>
 </div>
@@ -720,7 +717,7 @@ Reunión
 <span class="nota">
 (ya está puesto hoy; cámbialo si fue otro día)
 </span>
-<input type="date" name="fecha" value="2026-11-12" max="2026-11-12">
+<input type="date" name="fecha" value="2026-11-13" max="2026-11-13">
 </label>
 </div>
 <div class="si-documento" data-origen="documento" hidden="">
@@ -844,7 +841,7 @@ Reunión
 <span class="nota">
 (ya está puesto hoy; cámbialo si fue otro día)
 </span>
-<input type="date" name="fecha" value="2026-11-12" max="2026-11-12">
+<input type="date" name="fecha" value="2026-11-13" max="2026-11-13">
 </label>
 </div>
 <div class="si-documento" data-origen="documento" hidden="">
@@ -1007,7 +1004,7 @@ Reunión
 <span class="nota">
 (ya está puesto hoy; cámbialo si fue otro día)
 </span>
-<input type="date" name="fecha" value="2026-11-12" max="2026-11-12">
+<input type="date" name="fecha" value="2026-11-13" max="2026-11-13">
 </label>
 </div>
 <div class="si-documento" data-origen="documento" hidden="">
@@ -1044,6 +1041,37 @@ Cuéntalo en una frase
 Dejar lista esta actividad
 </button>
 </form>
+</section>
+<section class="panel-actividad" id="panel-gestionar" data-fila="gestionar" hidden="" aria-label="Gestionar la tabla">
+<header>
+<h3>
+Gestionar la tabla
+</h3>
+<button type="button" class="button secondary cerrar-panel">
+Volver al correo
+</button>
+</header>
+<p class="nota">
+¿Qué quieres hacer?
+</p>
+<div class="botones-si-no">
+<button type="button" class="button secondary" id="editar-boton" aria-expanded="false" aria-controls="editar-tabla">
+<b>
+Corregir una actividad
+</b>
+<small>
+Arreglar un dato mal escrito.
+</small>
+</button>
+<button type="button" class="button" id="agregar-fila" aria-controls="panel-nueva">
+<b>
+Agregar una actividad
+</b>
+<small>
+Una fila que falta en la tabla.
+</small>
+</button>
+</div>
 </section>
 <section class="panel-actividad" id="panel-nueva" data-fila="nueva" hidden="" aria-label="Agregar una actividad">
 <header>
@@ -1179,7 +1207,7 @@ Reunión
 <span class="nota">
 (ya está puesto hoy; cámbialo si fue otro día)
 </span>
-<input type="date" name="fecha" value="2026-11-12" max="2026-11-12">
+<input type="date" name="fecha" value="2026-11-13" max="2026-11-13">
 </label>
 </div>
 <div class="si-documento" data-origen="documento" hidden="">

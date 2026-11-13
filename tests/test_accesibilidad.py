@@ -126,8 +126,7 @@ class PantallaAngostaYZoom(unittest.TestCase):
 class Campos(unittest.TestCase):
     def test_etiquetas_visibles_y_obligatorios(self) -> None:
         # Cubre: U-37
-        self.assertNotIn('class="solo-lectores" for="buscar-casos"', plantilla("index.html"))
-        self.assertIn('<label for="buscar-casos">Buscar una solicitud</label>', plantilla("index.html"))
+        self.assertIn('<label for="buscar-casos" class="solo-lectores">Buscar una solicitud</label>', plantilla("index.html"))   # el campo dice qué es en su texto de ayuda
         caso = plantilla("case.html")
         self.assertNotIn('class="solo-lectores" for="cuerpo-correo"', caso)
         self.assertIn('Carpeta del cliente <span class="meta">(obligatorio)</span>', caso)

@@ -169,7 +169,7 @@ class EnLaPantalla(Base):
         pagina = pantalla_caso.render_case("t-1")
         self.assertIn("¿Cambiaste de idea?", pagina)
         self.assertIn("Volver a decidir", pagina)
-        self.assertIn("No preguntar: con esto alcanza", pagina)
+        self.assertNotIn("No preguntar: con esto alcanza", pagina)     # oculto por ahora
         self.assertIn('action="/review-reopen"', pagina)
         db = store.connect()
         db.execute("UPDATE quotes SET status=?, sent_at='2099-01-01T00:00:00-05:00' WHERE thread_id='t-1'", (QuoteStatus.WAITING,))
