@@ -11,6 +11,7 @@ from email.utils import parseaddr
 from anka.dominio.activities import normalize_estado, tiene_cifra
 from anka.dominio.analisis import Actividad, Analisis, Adjunto
 from anka.dominio.correo import attachment_names, header, message_datetime, message_text
+from anka.dominio.insumos import agrupar_preguntas
 from anka.dominio.preguntas import EXTENSIONES_GEOGRAFICAS, como_peticion, para_el_cliente, sin_nota_interna
 from anka.dominio.work_contract import control_documental
 
@@ -498,13 +499,16 @@ def _nombre_del_proyecto(proyecto: str) -> str:
 
 
 def correo_con_preguntas(preguntas: list[str], reenviado: bool = False, documentos: list[str] | None = None,
-                         proyecto: str = "", codigo: str = "", segunda_ronda: bool = False) -> str:
+                         proyecto: str = "", codigo: str = "", segunda_ronda: bool = False,
+                         actividades: list[Actividad] | None = None) -> str:
     """El correo al cliente con sus preguntas numeradas: la plantilla fija de todos los modos (no usa ningún modelo).
 
     Con `codigo` (la T del caso, para el contacto registrado) el correo nombra el proyecto y el código y pide citarlo al
     responder: desde la T la tabla solo se actualiza con mensajes que lo citen (R11). Nunca se pasa a quien no es el
     contacto registrado.
     """
+    if actividades:       # lo que se repite se pide una sola vez (U-114)
+        preguntas = agrupar_preguntas(preguntas, actividades)
     # Lo que llega al cliente son preguntas, no notas (U-99); lo que la persona escribió no se reescribe (U-33).
     preguntas = [como_peticion(p, quitar_verbo=False) for p in preguntas]
     nombre = _nombre_del_proyecto(proyecto)
@@ -550,7 +554,7 @@ def suggested_reply(analysis: Analisis, required_fields: list[str] | None = None
     documents = suggested_supporting_documents(analysis)
     forwarded = analysis.get("routing", {}).get("is_forwarded", False)
     if questions:
-        return correo_con_preguntas(questions, forwarded, documents)
+        return correo_con_preguntas(questions, forwarded, documents, actividades=analysis.get("activities"))
     if analysis.get("routing", {}).get("is_forwarded"):
         opening = "Gracias por reenviar la solicitud."
     else:

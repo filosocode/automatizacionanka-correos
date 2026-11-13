@@ -103,7 +103,9 @@ OPERACIONES: tuple[Operacion, ...] = (
               "pregunta tal como saldrá en él. La pantalla del caso lo usa al marcar «Preguntar». No envía ni guarda "
               "nada. Responde 404 si el caso no existe.",
               campos=(Campo("thread_id", "Id del hilo de Gmail del caso.", requerido=True, ejemplo="18f3a9c2d4e5b601"),
-                      Campo("p", "Una pregunta marcada; se repite el campo para cada una.")),
+                      Campo("p", "Una pregunta marcada; se repite el campo para cada una."),
+                      Campo("t", "Cada pregunta posible de la tabla (marcada o no), para reconocer las líneas que el "
+                                 "programa escribió. Se repite el campo para cada una.")),
               contenido="json"),
     Operacion("get", "/api/casos/{thread_id}", "Lectura (JSON)", "Detalle de un caso",
               "Devuelve el caso completo: análisis, actividades, cambios y vínculos pendientes, seguimiento y "

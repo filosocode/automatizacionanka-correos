@@ -981,9 +981,10 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
   let generado = soloLineas ? null : caja.value;      // lo último que escribió el programa: si el texto sigue igual, nadie lo cambió a mano
   let cola = Promise.resolve();   // una casilla a la vez, en el orden en que se marcaron
 
-  async function pedir(lista) {   // el servidor arma el texto con la misma plantilla que el envío (sin modelo ni costo)
+  async function pedir(lista, todas = []) {   // el servidor arma el texto con la misma plantilla que el envío (sin modelo ni costo)
     const consulta = new URLSearchParams({thread_id: caja.dataset.caso});
     lista.forEach(p => consulta.append('p', p));
+    todas.forEach(p => consulta.append('t', p));
     const respuesta = await fetch('/api/correo-preguntas?' + consulta.toString(), {headers: {Accept: 'application/json'}});
     if (!respuesta.ok) throw new Error('correo');
     return respuesta.json();
@@ -991,25 +992,30 @@ document.querySelectorAll('[data-banner-vinculos]').forEach(root => {
   const renumerar = lineas => { let n = 0; return lineas.map(l => NUMERADA.test(l) ? (++n) + '. ' + textoDe(l) : l); };
 
   async function poner(casilla) {
-    const texto = casilla.value.trim();
-    if (!texto) return;
+    if (!casilla.value.trim()) return;
     if (caja.value === generado) {                      // sin cambios a mano: se rehace entero
       const dato = await pedir(marcadas());
       generado = caja.value = dato.cuerpo;
       return;
     }
-    const linea = (await pedir([texto])).lineas[0];     // con cambios a mano: solo se toca la línea de esta pregunta
-    let lineas = caja.value.split('\n');
-    const mia = l => NUMERADA.test(l) && plano(textoDe(l)) === plano(linea);
-    if (casilla.checked && !lineas.some(mia)) {
-      let donde = -1;
-      lineas.forEach((l, i) => { if (NUMERADA.test(l)) donde = i; });
-      if (donde < 0) lineas = (await pedir(marcadas())).cuerpo.split('\n');
-      else lineas.splice(donde + 1, 0, '0. ' + linea);
-    } else if (!casilla.checked) {
-      lineas = lineas.filter(l => !mia(l));
+    // Con cambios a mano (U-114): se reemplaza solo lo que escribió el programa (preguntas sueltas y líneas que reúnen
+    // varias) y se conserva lo demás. Lo repetido se pide una sola vez, en el orden en que se marquen las casillas.
+    const dato = await pedir(marcadas(), casillas().map(c => c.value.trim()).filter(Boolean));
+    const conocidas = new Set(dato.conocidas.map(plano));
+    const delPrograma = l => NUMERADA.test(l) && (conocidas.has(plano(textoDe(l)))
+      || dato.grupos.some(g => plano(textoDe(l)).startsWith(plano(g))));
+    const resto = [];
+    let donde = -1;
+    caja.value.split('\n').forEach(l => { if (delPrograma(l)) { if (donde < 0) donde = resto.length; } else resto.push(l); });
+    const escritas = new Set(resto.filter(l => NUMERADA.test(l)).map(l => plano(textoDe(l))));
+    const nuevas = dato.lineas.filter(l => !escritas.has(plano(l))).map(l => '0. ' + l);
+    if (donde < 0) {
+      const ultima = resto.reduce((u, l, k) => NUMERADA.test(l) ? k : u, -1);
+      if (ultima < 0) { if (nuevas.length) caja.value = dato.cuerpo; return; }
+      donde = ultima + 1;
     }
-    caja.value = renumerar(lineas).join('\n');
+    resto.splice(donde, 0, ...nuevas);
+    caja.value = renumerar(resto).join('\n');
   }
 
   function estado() {

@@ -26,6 +26,7 @@ from anka.dominio.work_contract import (
 from anka.web.views import (
     adjunto_requiere_atencion, areas_calculadas_panel, attachments_panel, cifras_de_pdf_panel,
     filas_de_hoja_panel, reception_assessment_panel, pendientes_del_alcance, casillas_de_preguntas, preguntas_generales,
+    casillas_del_correo,
     ronda_del_caso, correo_de_las_preguntas, actividades_sin_nombrar,
     activities_editor, question_audit_panel, question_quality_panel, review_tasks_panel,
 )
@@ -947,8 +948,7 @@ def render_case(thread_id: str, message: str = "", template: str = "", change_id
             nuevo=not (analysis.get("ultimas_preguntas") or restaurado or precargadas))
     elif (slot == "correo" and email == "form" and not reading_blocked
           and review["status"] == QuoteStatus.REVIEW_PENDING):
-        puestas = "\n".join(en_el_correo(email_body))      # U-112 etapa 7: marcada = su pregunta ya está en el correo
-        preguntar, _ = casillas_de_preguntas(analysis.get("activities", []), puestas, [], nuevo=False)
+        preguntar = casillas_del_correo(analysis.get("activities", []), email_body)
     generales = preguntas_generales(preguntas, preguntar, cuadro_preguntas) if preguntar is not None else []   # U-107.7
     # U-109: ya con el correo delante, qué actividades por completar no nombra
     sin_nombrar = (actividades_sin_nombrar(analysis.get("activities", []), email_body)

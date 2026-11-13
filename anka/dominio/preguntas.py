@@ -414,10 +414,14 @@ _RESUMEN_SIN_PREGUNTA = re.compile(
     r"\b(?:por|or)\s+resolver\s*:|pendiente\s+del\s+cliente\s*:|\bfaltan\s*:\s*\d+\s+actividad", re.IGNORECASE)
 EXTENSIONES_GEOGRAFICAS = (".kmz", ".kml", ".shp", ".geojson", ".gpx", ".dwg", ".dxf", ".gdb", ".gml", ".zip")
 _DE_UBICACION = {"kmz", "kml", "delimitacion", "trazado", "poligono", "coordenadas"}
+# La línea que reúne la petición del archivo de varias actividades (U-114): siempre es solo del archivo de ubicación.
+PREFIJO_UBICACION = "El archivo de ubicación (KMZ/KML, shape o plano del trazado) que delimite la zona de"
 
 
-def _pide_el_archivo_de_ubicacion(texto: str) -> bool:
+def pide_el_archivo_de_ubicacion(texto: str) -> bool:
     """¿La pregunta pide solo el archivo de ubicación o delimitación (no el área ni la extensión)?"""
+    if huella_de_pregunta(texto).startswith(huella_de_pregunta(PREFIJO_UBICACION)):
+        return True
     palabras = set(huella_de_pregunta(texto).split())
     if palabras & {"area", "extension", "ha", "km"} - _DE_UBICACION:
         return False
@@ -569,7 +573,7 @@ def conservar_rondas(anterior: Mapping[str, Any], nuevo: Any, mensaje_id: str) -
                 if llegada and salida and llegada > salida and mensaje_id != ronda.get("mensaje"):
                     _conciliar_pregunta(pregunta, nuevo, mensaje_id)
                     archivo = _llego_archivo_geografico(nuevo, mensaje_id, ronda.get("adjuntos_al_enviar"))
-                    if archivo and _pide_el_archivo_de_ubicacion(pregunta["texto"]):
+                    if archivo and pide_el_archivo_de_ubicacion(pregunta["texto"]):
                         pregunta["estado"] = RESUELTA        # U-97: el archivo adjunto es la respuesta
                         pregunta["conciliacion"] = {"mensaje": mensaje_id, "en": nuevo.get("received_at"),
                                                     "archivo": str(archivo.get("filename") or "")}

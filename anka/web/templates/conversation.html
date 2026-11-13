@@ -2,9 +2,11 @@
   <div class="section-head"><h2>Conversación con el cliente</h2><span class="badge info">Lo que se escribieron</span></div>
   {% if messages %}
   {% for m in messages %}
-  <details class="msg {{ m.direction }}"{% if loop.index <= 2 %} open{% endif %}>
+  {% set primera_linea = (m.fresh.split('\n') | select | first | default('', true)) %}
+  <details class="msg {{ m.direction }}">
     <summary><strong>{{ 'Cliente' if m.direction == 'received' else 'Anka' }}</strong>
-      <span class="meta">{% if m.sender %}{{ m.sender }} · {% endif %}{{ m.when }}</span></summary>
+      <span class="meta">{% if m.sender %}{{ m.sender }} · {% endif %}{{ m.when }}</span>
+      <span class="preview">{{ primera_linea[:90] }}{% if primera_linea | length > 90 %}…{% endif %}</span></summary>
     <pre>{{ m.fresh }}</pre>
     {% if m.quoted %}<details class="quoted"><summary class="meta">Mostrar el mensaje citado</summary><pre>{{ m.quoted }}</pre></details>{% endif %}
   </details>

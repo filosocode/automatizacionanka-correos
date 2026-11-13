@@ -67,6 +67,7 @@ La descripción es la primera frase de su docstring.
 | `cifras_de_pdf` | Las cifras de alcance (áreas, longitudes, plazos) de un PDF adjunto que ninguna actividad de la tabla menciona: búsqueda en el texto extraído y contraste con la tabla (T-131). |
 | `filas_de_hoja` | Las filas con cantidad de una hoja de cálculo adjunta que la tabla de actividades no recoge: lectura del texto de la hoja y contraste con la tabla (T-127). |
 | `lo_que_falta` | Lo que falta de una actividad en una frase corta para el comercial, sin fuentes, archivos ni pasos internos (U-103). |
+| `insumos` | Las preguntas al cliente agrupadas por el insumo que las resuelve: una línea para el archivo de ubicación de varias actividades, una pregunta de plazo del proyecto y sin la general de magnitud que ya cubren las de cada actividad (U-114). |
 | `estado_coherente` | Que el estado de cada actividad cuente lo mismo que sus datos esenciales y su nota: ninguna completa con un faltante ni por completar con todo en regla (R12, U-104). |
 | `areas_declaradas` | Las áreas que el cliente escribe en el correo, contrastadas con las calculadas del KML/KMZ: aviso de diferencia, sin corregir nada (T-126). |
 | `geometria` | Longitudes, áreas y perímetros geodésicos sobre WGS84 a partir de coordenadas, sin leer ningún archivo (T-125). |

@@ -239,7 +239,7 @@
   </details>
   {% if rondas_panel %}<details class="more historial-preguntas"><summary>Ver preguntas enviadas y respuestas</summary>{{ rondas_panel }}</details>{% endif %}
   {{ followup }}
-  {% if manual_review %}<div class="notice">{{ manual_review }}</div>{% endif %}
+  {% if manual_review %}<p class="meta revisado">{{ manual_review }}</p>{% endif %}
   <section class="tabs" data-tabs>
     <div class="tablist" role="tablist" aria-label="Más información del caso">
       <button type="button" role="tab" id="t-conv" aria-controls="p-conv" aria-selected="{{ 'true' if tab_inicial == 'conversacion' else 'false' }}">Conversación</button>

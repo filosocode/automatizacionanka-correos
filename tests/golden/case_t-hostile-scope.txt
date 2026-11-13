@@ -1354,7 +1354,7 @@ Mensaje para el cliente
 <input type="hidden" name="thread_id" value="t-hostile-scope">
 <div class="preguntas-bloque" id="preguntas-bloque">
 <textarea name="body" id="correo-unico" class="caja-correo" aria-label="Correo para el cliente" aria-describedby="aviso-espera" data-caso="t-hostile-scope" placeholder="Aquí aparece el correo. Marca «Preguntar» en lo que falta y se escribe solo; también puedes escribirlo tú.">
-Hola, Gracias por compartir la solicitud para el proyecto «"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>». Para completar la información inicial, necesitamos confirmar lo siguiente: 1. ¿Cuál es el área, longitud, cantidad de elementos o magnitud aproximada del trabajo? 2. "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>: la cantidad y la unidad Puede responder a este mismo correo. Saludos, Grupo Anka
+Hola, Gracias por compartir la solicitud para el proyecto «"><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>». Para completar la información inicial, necesitamos confirmar lo siguiente: 1. "><img src=x onerror=ZZINJ(1)><script>ZZINJ(2)</script>'&<b>: la cantidad y la unidad Puede responder a este mismo correo. Saludos, Grupo Anka
 </textarea>
 <p class="nota" id="aviso-espera" role="status">
 2 preguntas en el correo.

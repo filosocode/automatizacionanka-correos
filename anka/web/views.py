@@ -18,6 +18,7 @@ from anka.dominio.status import QuoteStatus
 from anka.dominio.estado_coherente import DATOS_ESENCIALES, datos_que_faltan
 from anka.dominio.respaldo import MEDIOS as MEDIOS_DE_CONTACTO, describir_respaldo
 from anka.dominio.evaluacion import temas_preguntados
+from anka.dominio.insumos import cubierta_en_el_correo
 from anka.dominio.lo_que_falta import lo_pendiente, lo_que_dice_la_nota
 from anka.dominio.preguntas import (
     INTERNA, como_peticion, en_el_correo, historial_de_rondas, huella_de_pregunta, identificador, limpiar,
@@ -522,6 +523,13 @@ def casillas_de_preguntas(activities: Sequence[Mapping[str, Any]], cuadro: str, 
     return {i: (texto, huella_de_pregunta(texto) in en_el_cuadro) for i, (texto, _) in filas.items()}, cuadro
 
 
+def casillas_del_correo(activities: Sequence[Mapping[str, Any]], cuerpo: str) -> dict[int, tuple[str, bool]]:
+    """Las casillas con el correo ya redactado: marcada si su pregunta ya está, sola o en un grupo (U-114.3)."""
+    puntos = en_el_correo(cuerpo)
+    return {i: (texto, cubierta_en_el_correo(texto, activities, puntos))
+            for i, (texto, _) in preguntas_de_la_tabla(activities).items()}
+
+
 def actividades_sin_nombrar(activities: Sequence[Mapping[str, Any]], cuerpo: str) -> list[dict[str, Any]]:
     """Las actividades «Por completar» o «Contradictorias» que ningún punto del correo nombra (U-109).
 
@@ -736,4 +744,4 @@ def correo_de_las_preguntas(review: Caso, analysis: Analisis, preguntas: Sequenc
     return correo_con_preguntas(
         list(preguntas), reenviado, suggested_supporting_documents(analysis),
         proyecto=analysis.get("project_name") or "", codigo=codigo_para_el_contacto(review),
-        segunda_ronda=segunda_ronda)
+        segunda_ronda=segunda_ronda, actividades=analysis.get("activities"))

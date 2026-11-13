@@ -1791,12 +1791,17 @@ Esperando al cliente desde el 2026-09-02 10:00:
 </strong>
 día(s) de trabajo.
 </p>
-<p class="meta">
+<p class="meta recordatorios-linea">
 Recordatorios automáticos:
 <strong>
 apagado
 </strong>
-. Si lo activas, se envían hasta 2 recordatorios cortos al contacto registrado (a 1 y 3 días hábiles, de lunes a viernes de 8:00 a 17:00) y a los 7 días hábiles te avisa para llamar. Se detiene apenas el cliente responda.
+<details class="tip">
+<summary>
+¿qué hacen?
+</summary>
+Hasta 2 recordatorios cortos al contacto registrado (a 1 y 3 días hábiles, de lunes a viernes de 8:00 a 17:00) y a los 7 días hábiles te avisa para llamar. Se detiene apenas el cliente responda.
+</details>
 </p>
 <form method="post" action="/followup" class="toolbar">
 <input type="hidden" name="thread_id" value="t-sent">

@@ -423,7 +423,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
     def _get_api_correo(self, query: dict[str, list[str]]) -> None:
         """El correo que saldría con las preguntas marcadas (U-113); no envía ni guarda nada."""
-        resultado = correo_de_preguntas_marcadas(field(query, "thread_id"), query.get("p", []))
+        resultado = correo_de_preguntas_marcadas(field(query, "thread_id"), query.get("p", []), query.get("t", []))
         if resultado is None:
             return self._error_json(404, "La solicitud no existe.")
         self._send_json(resultado)
